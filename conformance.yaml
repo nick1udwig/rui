@@ -1,0 +1,941 @@
+suite: RUI/0.1 initial conformance specification
+status: test_specification_only_no_runner_implemented
+date: '2026-10-01'
+design: RFC.md
+profiles:
+- content.no-raster.v1
+- mirror2d.core.v1
+- semantics.core.v1
+fixture_contracts:
+  empty: Empty session with authentication condition specified by case.
+  controls: Stable-ID button/counter, checkbox, text field, focus and corresponding scenes.
+  text: Editable Unicode text, scalar ranges, glyphs, exact font fingerprints and IME contexts.
+  list: Stable item IDs, reordering, selection, counts and explicit materialization coverage.
+  windows: Two toplevels, popup, tooltip, modal, authoritative canvas and input regions.
+  canvas: Vector canvas recording every authoritative input event.
+  primitives: Every negotiated primitive, transform, clip, gradient and composition operation.
+  strict_vector: Supported vector/text corpus with capture/fallback instrumentation.
+  raster_source: Original raster image and separate raster-only canvas, forbidden in strict profile.
+  secret: Controller-editable field with independently redacted observer projection.
+  large: 10000 records by default, parameterized clients, resource churn and queues.
+  gtk_fixture: Pinned instrumented GTK build; requires a real producer adapter.
+  atspi_fixture: Controlled AT-SPI source with event-gap, crawl-race and restart injection.
+  generated: Seeded, shrinkable graph and transcript generator.
+required_observability:
+- Committed/staged replica state and revisions
+- Authoritative application state and input/action trace
+- Command admission, dispatch and result ledger
+- Resource ownership, cache, allocation and queue counters
+- Decoded protocol messages before encryption
+- Applied/presented boundaries and local test images
+- Source capture provenance and raster fallback instrumentation
+global_invariants:
+- No committed dangling references or ownership cycles
+- No partial snapshot or transaction publication
+- No object ID reuse within an epoch
+- No unauthorized disclosure, resource retrieval or dispatch
+- At most one dispatch per command key within an epoch
+- No raster payload or hidden raster fallback under the strict profile
+- Client-only presentation changes do not implicitly alter host layout
+- Referenced resources remain available or publication remains staged
+- Live, staged and queued data remain within negotiated ceilings
+cases:
+- id: NEG-001
+  group: negotiation
+  priority: P0
+  layer: model
+  fixture: empty
+  given: Peers share the required initial profiles.
+  when: Authenticate, negotiate and open a view.
+  expected:
+  - Select only supported profiles
+  - Disclose no state before authorization
+  - Open read-only
+  implementation_status: specified_not_implemented
+- id: NEG-002
+  group: negotiation
+  priority: P0
+  layer: model
+  fixture: empty
+  given: The client requires an unknown rendering profile.
+  when: Attempt to open the view.
+  expected:
+  - Reject the requirement
+  - Disclose no state or resources
+  implementation_status: specified_not_implemented
+- id: NEG-003
+  group: negotiation
+  priority: P0
+  layer: model
+  fixture: empty
+  given: A known message has an unknown optional field.
+  when: Decode and handle it.
+  expected:
+  - Known behavior is unchanged
+  - The field cannot implicitly alter permissions or primitive semantics
+  implementation_status: specified_not_implemented
+- id: NEG-004
+  group: negotiation
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A transaction contains an unknown mutation variant or required primitive.
+  when: Attempt to commit it.
+  expected:
+  - Reject the entire publication
+  - Committed state and revision are unchanged
+  implementation_status: specified_not_implemented
+- id: NEG-005
+  group: negotiation
+  priority: P0
+  layer: model
+  fixture: empty
+  given: The client advertises lower memory and transaction ceilings.
+  when: Negotiate and send an oversized publication.
+  expected:
+  - Do not exceed receiver ceilings
+  - Reject before unbounded allocation
+  implementation_status: specified_not_implemented
+- id: MOD-001
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Replica has an empty initial view.
+  when: Commit a complete snapshot.
+  expected:
+  - All typed references resolve
+  - All records and the revision become committed atomically
+  implementation_status: specified_not_implemented
+- id: MOD-002
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A button is owned by parent A.
+  when: Reparent it to B in one transaction, sending child bytes before parent bytes.
+  expected:
+  - Final tree has exactly one owner
+  - No committed orphan or duplicate ownership is visible
+  implementation_status: specified_not_implemented
+- id: MOD-003
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A focused node has a live visual binding.
+  when: Delete the node without repairing focus and binding.
+  expected:
+  - Reject the full transaction
+  - Retain previous node, focus, binding and revision
+  implementation_status: specified_not_implemented
+- id: MOD-004
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: An object ID was deleted and retired.
+  when: Create a different object with that ID.
+  expected:
+  - Reject reuse within the epoch
+  implementation_status: specified_not_implemented
+- id: MOD-005
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A valid ownership tree exists.
+  when: Add a descendant-to-ancestor ownership edge.
+  expected:
+  - Reject the cycle
+  - Keep non-ownership semantic relations separate
+  implementation_status: specified_not_implemented
+- id: MOD-006
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A node has a label, description and optional value.
+  when: Replace the full record without description or value.
+  expected:
+  - Clear omitted optional fields
+  - Advance the object version by exactly one
+  implementation_status: specified_not_implemented
+- id: MOD-007
+  group: model
+  priority: P0
+  layer: model
+  fixture: list
+  given: Rows A and B have stable IDs and A is selected.
+  when: Reorder the rows and rebuild all scene nodes.
+  expected:
+  - Preserve semantic IDs
+  - Selection follows A, not its previous row index
+  implementation_status: specified_not_implemented
+- id: MOD-008
+  group: model
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A live record has object version 4.
+  when: Replace it with version 4 or 6 instead of 5.
+  expected:
+  - Reject each invalid version transition
+  - Publish no partial update
+  implementation_status: specified_not_implemented
+- id: MOD-009
+  group: model
+  priority: P0
+  layer: model
+  fixture: primitives
+  given: A valid numeric scene is present.
+  when: Submit NaN, infinity, extreme bounds, or excessive depth.
+  expected:
+  - Reject all malformed variants within allocation limits
+  - Never pass invalid geometry to the renderer
+  implementation_status: specified_not_implemented
+- id: SNP-001
+  group: snapshot
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The host checkpoints revision 10 and changes a label at revision 11.
+  when: Transfer the checkpoint while the change occurs, then delta 10 to 11.
+  expected:
+  - Snapshot contains only revision-10 state
+  - Apply revision 11 afterward
+  - Lose or duplicate no update
+  implementation_status: specified_not_implemented
+- id: SNP-002
+  group: snapshot
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The client has committed revision 10.
+  when: Disconnect halfway through a replacement snapshot.
+  expected:
+  - Keep revision 10 committed
+  - Discard or explicitly retain bounded staging data
+  - Do not send input against an unpresented partial snapshot
+  implementation_status: specified_not_implemented
+- id: SNP-003
+  group: snapshot
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Snapshot chunks are staged.
+  when: Commit with wrong digest/count, missing chunk, or conflicting duplicate index.
+  expected:
+  - Reject each malformed variant
+  - Publish none of the staged state
+  implementation_status: specified_not_implemented
+- id: TXN-001
+  group: transaction
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A semantic label and its visual glyphs both say Save at revision 20.
+  when: Commit a transaction changing both to Saved.
+  expected:
+  - Observe only the old pair or the new pair
+  - Never expose a mixed committed publication
+  implementation_status: specified_not_implemented
+- id: TXN-002
+  group: transaction
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The client is at revision 20.
+  when: Deliver an unknown stale transaction based on revision 19.
+  expected:
+  - Reject without mutation
+  - Use an explicit recovery path
+  implementation_status: specified_not_implemented
+- id: TXN-003
+  group: transaction
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The client applied a transaction and remembers its exact digest.
+  when: Retransmit the same revision and digest.
+  expected:
+  - Acknowledge without reapplying
+  - Advance neither record versions nor side effects
+  implementation_status: specified_not_implemented
+- id: TXN-004
+  group: transaction
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The client is at revision 20.
+  when: Deliver revision 22 based on 21 before revision 21.
+  expected:
+  - Do not guess the missing base
+  - Keep revision 20
+  - Request recovery
+  implementation_status: specified_not_implemented
+- id: TXN-005
+  group: transaction
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The client can apply faster than it presents.
+  when: Apply revisions 21, 22, 23, but render only 23.
+  expected:
+  - Apply all dependent mutations
+  - Keep AppliedAck distinct from PresentedAck
+  - Acknowledge presentation only after renderer presentation
+  implementation_status: specified_not_implemented
+- id: RES-001
+  group: resources
+  priority: P0
+  layer: model
+  fixture: text
+  given: A transaction references an uncached outline resource.
+  when: Receive its commit before the resource completes.
+  expected:
+  - Keep the publication staged
+  - Request the resource
+  - Commit only after full validation
+  implementation_status: specified_not_implemented
+- id: RES-002
+  group: resources
+  priority: P0
+  layer: model
+  fixture: text
+  given: A resource offer declares digest H.
+  when: Complete transfer with bytes whose digest differs.
+  expected:
+  - Reject the resource
+  - Commit no referencing publication
+  implementation_status: specified_not_implemented
+- id: RES-003
+  group: resources
+  priority: P0
+  layer: model
+  fixture: text
+  given: Two labels share an already cached resource.
+  when: Change only one label position.
+  expected:
+  - Reuse the resource without resending its body
+  - Send only necessary record/publication changes
+  implementation_status: specified_not_implemented
+- id: RES-004
+  group: resources
+  priority: P0
+  layer: model
+  fixture: text
+  given: A resource is referenced by live or in-flight state.
+  when: Apply memory-pressure eviction.
+  expected:
+  - Keep referenced resources pinned
+  - Evict only unpinned resources
+  - Notify the host of relevant evictions
+  implementation_status: specified_not_implemented
+- id: RES-005
+  group: resources
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Principal A knows a hash authorized only to B.
+  when: Request it as A.
+  expected:
+  - Deny retrieval without disclosing its body
+  - Do not treat a digest as authorization
+  implementation_status: specified_not_implemented
+- id: RES-006
+  group: resources
+  priority: P0
+  layer: model
+  fixture: text
+  given: Two Protobuf implementations serialize field order differently.
+  when: Verify a received resource using the exact received bytes.
+  expected:
+  - Do not depend on reserialization
+  - Do not assume cross-language canonical Protobuf encoding
+  implementation_status: specified_not_implemented
+- id: REC-001
+  group: recovery
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Client acknowledged revision 30 and host retains through 35.
+  when: Resume with same epoch, view, principal, profiles and retained state.
+  expected:
+  - Replay 30 to 35
+  - Equal a fresh revision-35 snapshot
+  - Do not restore the old lease or held input
+  implementation_status: specified_not_implemented
+- id: REC-002
+  group: recovery
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The required history has been evicted.
+  when: Attempt to resume.
+  expected:
+  - Send ResetRequired and a coherent new snapshot
+  - Do not send a delta with an unavailable base
+  implementation_status: specified_not_implemented
+- id: REC-003
+  group: recovery
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The host restarts or loses its dispatch ledger.
+  when: Reconnect and submit an old-epoch command.
+  expected:
+  - Change epoch
+  - Reject old commands without dispatch
+  - Do not silently repeat ambiguous actions
+  implementation_status: specified_not_implemented
+- id: REC-004
+  group: recovery
+  priority: P0
+  layer: model
+  fixture: text
+  given: The client retains state but lost its resource cache.
+  when: Resume the view.
+  expected:
+  - Reacquire missing resources
+  - Emit no PresentedAck until rendering is possible
+  implementation_status: specified_not_implemented
+- id: REC-005
+  group: recovery
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Authorization or a required profile changed.
+  when: Resume the former view.
+  expected:
+  - Deny old-view resume
+  - Create a newly authorized view or close
+  - Serve no new resource under obsolete permissions
+  implementation_status: specified_not_implemented
+- id: CMD-001
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Counter is 0 and Activate increments it once.
+  when: Submit sequence 1 and retry after losing the reply.
+  expected:
+  - Counter becomes 1, not 2
+  - Dispatch exactly once
+  - Return the recorded result
+  implementation_status: specified_not_implemented
+- id: CMD-002
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Sequence 1 was used for node A.
+  when: Reuse sequence 1 with bytes targeting B.
+  expected:
+  - Reject as protocol violation
+  - Do not activate B
+  implementation_status: specified_not_implemented
+- id: CMD-003
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Highest consumed command sequence is 4.
+  when: Submit sequence 6 without 5.
+  expected:
+  - Reject the gap
+  - Dispatch no action
+  implementation_status: specified_not_implemented
+- id: CMD-004
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Sequence 1 result expired but the high-water mark remains.
+  when: Retry sequence 1.
+  expected:
+  - Return OUTCOME_EXPIRED
+  - Never redispatch
+  implementation_status: specified_not_implemented
+- id: CMD-005
+  group: commands
+  priority: P0
+  layer: model
+  fixture: text
+  given: Text changed on the host from version 5 to 6.
+  when: Submit ReplaceText based on text version 5.
+  expected:
+  - Reject stale precondition
+  - Do not overwrite version 6
+  implementation_status: specified_not_implemented
+- id: CMD-006
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Target versions remain valid while an unrelated surface animates.
+  when: Submit an action based on an older overall view revision.
+  expected:
+  - Do not reject solely for unrelated updates
+  - Validate relevant target/action preconditions
+  implementation_status: specified_not_implemented
+- id: CMD-007
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: The target was deleted or disabled after being displayed.
+  when: Submit Activate for it.
+  expected:
+  - Return explicit target/state error
+  - Do not activate a replacement control
+  implementation_status: specified_not_implemented
+- id: CMD-008
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: An external adapter acknowledges dispatch but supplies no completion evidence.
+  when: Lose the connection before the result is known.
+  expected:
+  - Do not invent APPLIED or durable success
+  - Use OUTCOME_UNKNOWN
+  - Never automatically retry with a new ID
+  implementation_status: specified_not_implemented
+- id: CMD-009
+  group: commands
+  priority: P0
+  layer: model
+  fixture: controls
+  given: A source-integrated command reports a real resulting source commit.
+  when: Publish its result and state.
+  expected:
+  - Use truthful APPLIED/causal metadata
+  - Allow waiting for its view revision or a later complete revision
+  - Represent successful no-visible-change actions
+  implementation_status: specified_not_implemented
+- id: INP-001
+  group: input
+  priority: P0
+  layer: integration
+  fixture: windows
+  given: The host surface is letterboxed at client scale 1.5.
+  when: Click a known control using the inverse client transform.
+  expected:
+  - Receive intended surface-local logical coordinates
+  - Match the effect of a direct local click
+  implementation_status: specified_not_implemented
+- id: INP-002
+  group: input
+  priority: P0
+  layer: integration
+  fixture: windows
+  given: The client displays a surface with routing token R1.
+  when: Move or occlude it, open a modal, then send a fresh press with R1.
+  expected:
+  - Reject stale routing
+  - Do not activate newly exposed content at old coordinates
+  implementation_status: specified_not_implemented
+- id: INP-003
+  group: input
+  priority: P0
+  layer: integration
+  fixture: canvas
+  given: A drag has press, many moves and release.
+  when: Transmit under constrained bandwidth.
+  expected:
+  - Preserve event order
+  - Do not silently coalesce or drop the path
+  - Match the authoritative input trace
+  implementation_status: specified_not_implemented
+- id: INP-004
+  group: input
+  priority: P0
+  layer: integration
+  fixture: controls
+  given: The controller holds a key and button.
+  when: Disconnect, expire the lease, and revoke it in separate variants.
+  expected:
+  - Release all held input
+  - Do not block cleanup on stale routing
+  - Do not transfer held-state ownership to another client
+  implementation_status: specified_not_implemented
+- id: INP-005
+  group: input
+  priority: P0
+  layer: integration
+  fixture: windows
+  given: EIS region dimensions differ from physical display dimensions.
+  when: Send absolute input at known points.
+  expected:
+  - Map through granted region geometry
+  - Do not equate EIS coordinates with framebuffer pixels
+  implementation_status: specified_not_implemented
+- id: INP-006
+  group: input
+  priority: P0
+  layer: integration
+  fixture: text
+  given: Raw keys use a declared physical namespace and host repeat.
+  when: Hold a key from a client with a different layout.
+  expected:
+  - Apply negotiated host layout/repeat
+  - Do not duplicate repeats or text commits
+  implementation_status: specified_not_implemented
+- id: INP-007
+  group: input
+  priority: P0
+  layer: integration
+  fixture: windows
+  given: App-A-only control cannot be enforced atomically by the available injector.
+  when: Try to enable strict per-app raw injection.
+  expected:
+  - Deny that mode or require an isolated fully authorized session
+  - Do not silently grant whole-desktop control
+  implementation_status: specified_not_implemented
+- id: TXT-001
+  group: text
+  priority: P0
+  layer: integration
+  fixture: text
+  given: Content has ASCII, a supplementary character, combining marks and RTL text.
+  when: Replace a scalar-indexed range and round-trip selection.
+  expected:
+  - Edit the intended scalar range
+  - Do not confuse bytes or UTF-16 units
+  - Keep grapheme navigation in the authoritative text engine
+  implementation_status: specified_not_implemented
+- id: TXT-002
+  group: text
+  priority: P0
+  layer: integration
+  fixture: text
+  given: Client-text mode owns an editing context.
+  when: Begin composition, update preedit, then commit.
+  expected:
+  - Do not prematurely commit preedit
+  - Insert committed text once
+  - Do not also forward composing physical keys
+  implementation_status: specified_not_implemented
+- id: TXT-003
+  group: text
+  priority: P0
+  layer: integration
+  fixture: text
+  given: A composition is active.
+  when: Change focus, remove the node, revoke control, or disconnect.
+  expected:
+  - Cancel composition in every variant
+  - Reject late commit with old focus generation
+  implementation_status: specified_not_implemented
+- id: TXT-004
+  group: text
+  priority: P0
+  layer: integration
+  fixture: text
+  given: Glyph runs require font fingerprint F.
+  when: Render on a client lacking F.
+  expected:
+  - Use a negotiated outline alternative or explicit missing-resource error
+  - Do not silently substitute, reshape or reflow
+  implementation_status: specified_not_implemented
+- id: VIS-001
+  group: visual
+  priority: P0
+  layer: render
+  fixture: primitives
+  given: Reference renderer, fonts, dimensions, color policy and time are pinned.
+  when: Render the host scene and independently decoded replay.
+  expected:
+  - Match the reference image policy
+  - Independently match geometry, glyph positions and scene values
+  implementation_status: specified_not_implemented
+- id: VIS-002
+  group: visual
+  priority: P0
+  layer: render
+  fixture: windows
+  given: Scene has toplevels, clipping, opacity, popup, tooltip and modal.
+  when: Change stacking and open/close transient surfaces.
+  expected:
+  - Match authoritative composition
+  - Respect modality/focus
+  - Leave no orphan transient surfaces
+  implementation_status: specified_not_implemented
+- id: VIS-003
+  group: visual
+  priority: P0
+  layer: render
+  fixture: primitives
+  given: Source produces an unnegotiated shader, blur, texture or Cairo-only region.
+  when: Export under the strict profile.
+  expected:
+  - Report PARTIAL or UNSUPPORTED with a reason
+  - Do not rasterize or omit while claiming COMPLETE
+  implementation_status: specified_not_implemented
+- id: VIS-004
+  group: visual
+  priority: P0
+  layer: render
+  fixture: primitives
+  given: The client cannot implement a required primitive.
+  when: Open the view.
+  expected:
+  - Use an equivalent registered lowering or fail
+  - Do not pass a visually different fallback as complete fidelity
+  implementation_status: specified_not_implemented
+- id: PIX-001
+  group: no_raster
+  priority: P0
+  layer: integration
+  fixture: strict_vector
+  given: All fixture sources are supported vectors/text.
+  when: Record decoded messages before encryption for a full interaction trace.
+  expected:
+  - Allow only permitted resource kinds/provenance
+  - Emit no framebuffer, image, glyph atlas, video or UI-raster fallback
+  - Record no raster fallback/capture conversion call
+  implementation_status: specified_not_implemented
+- id: PIX-002
+  group: no_raster
+  priority: P0
+  layer: integration
+  fixture: raster_source
+  given: The source includes a new raster photograph.
+  when: Request faithful rendering with content.no-raster.v1.
+  expected:
+  - Report affected content unsupported
+  - Do not silently enable an image profile
+  - Do not vectorize screenshot pixels
+  implementation_status: specified_not_implemented
+- id: MUL-001
+  group: multi_client
+  priority: P0
+  layer: integration
+  fixture: controls
+  given: A and B observe the same application.
+  when: Grant A control, then submit actions from both.
+  expected:
+  - Dispatch only A commands
+  - Update both authorized observers
+  - Keep B read-only
+  implementation_status: specified_not_implemented
+- id: MUL-002
+  group: multi_client
+  priority: P0
+  layer: integration
+  fixture: controls
+  given: A remote lease is active.
+  when: The local user starts interacting.
+  expected:
+  - Revoke under local-priority policy
+  - Unwind held input
+  - Reject old-generation commands
+  implementation_status: specified_not_implemented
+- id: MUL-003
+  group: multi_client
+  priority: P0
+  layer: integration
+  fixture: windows
+  given: Two clients share one authoritative canvas.
+  when: Resize, pan and zoom B locally.
+  expected:
+  - Keep host/A window geometry unchanged
+  - Require an authorized ResizeRequest for host relayout
+  implementation_status: specified_not_implemented
+- id: MUL-004
+  group: multi_client
+  priority: P0
+  layer: integration
+  fixture: large
+  given: Two healthy clients and one throttled observer are connected.
+  when: Exceed the slow observer queue budget with sustained updates.
+  expected:
+  - Keep healthy clients progressing
+  - Respect memory bounds
+  - Pause, reset or close the slow view explicitly rather than break delta dependencies
+  implementation_status: specified_not_implemented
+- id: MUL-005
+  group: multi_client
+  priority: P0
+  layer: integration
+  fixture: controls
+  given: A live controller repeats an AcquireControl request whose reply was lost.
+  when: Retry acquisition, renewal and release with the same request or lease identifiers.
+  expected:
+  - Return the same live grant rather than create a second lease
+  - Reject stale generations
+  - Make release idempotent
+  implementation_status: specified_not_implemented
+- id: SEC-001
+  group: security
+  priority: P0
+  layer: model
+  fixture: empty
+  given: Unauthenticated client knows session, view and object IDs.
+  when: Request state/resources or submit commands.
+  expected:
+  - Reject without disclosure or dispatch
+  implementation_status: specified_not_implemented
+- id: SEC-002
+  group: security
+  priority: P0
+  layer: model
+  fixture: secret
+  given: A controller can edit a field redacted from observers.
+  when: Enter a unique sentinel and inspect observer snapshots, scenes, resources and logs.
+  expected:
+  - Keep the sentinel out of every observer representation and ordinary log
+  - Distinguish permitted encrypted entry from forbidden echo
+  - Apply policy to caches and resume snapshots
+  implementation_status: specified_not_implemented
+- id: SEC-003
+  group: security
+  priority: P0
+  layer: model
+  fixture: controls
+  given: Hostile data includes an external URL, executable shader or arbitrary method target.
+  when: Decode and validate it.
+  expected:
+  - Reject active content
+  - Fetch no external URL
+  - Invoke no arbitrary method
+  implementation_status: specified_not_implemented
+- id: SEC-004
+  group: security
+  priority: P0
+  layer: model
+  fixture: empty
+  given: Attacker sends malformed framing, excessive nesting or expansion claims.
+  when: Fuzz bounded parsers and allocation paths.
+  expected:
+  - Avoid crashes and unbounded allocations/loops
+  - Enforce decoded and staged limits
+  implementation_status: specified_not_implemented
+- id: ADP-001
+  group: adapters
+  priority: P0
+  layer: integration
+  fixture: gtk_fixture
+  given: An instrumented producer supplies a real shared semantic/visual capture boundary.
+  when: Change a control during frame production and publish.
+  expected:
+  - Back COHERENT metadata with source evidence
+  - Feed local rendering and export from the same source tree
+  implementation_status: specified_not_implemented
+- id: ADP-002
+  group: adapters
+  priority: P0
+  layer: integration
+  fixture: atspi_fixture
+  given: Children change during traversal or an accessibility event gap occurs.
+  when: Traverse and reconcile the subtree.
+  expected:
+  - Keep publications structurally valid
+  - Use bounded reconciliation or resnapshot
+  - Retain OBSERVED classification absent stronger source evidence
+  implementation_status: specified_not_implemented
+- id: ADP-003
+  group: adapters
+  priority: P0
+  layer: integration
+  fixture: atspi_fixture
+  given: Two apps share titles and overlap spatially.
+  when: Associate semantics, surfaces and input.
+  expected:
+  - Use explicit identities or mark unresolved
+  - Do not misbind using title/geometry guesses
+  implementation_status: specified_not_implemented
+- id: ADP-004
+  group: adapters
+  priority: P0
+  layer: integration
+  fixture: gtk_fixture
+  given: An app crashes and restarts while the broker survives.
+  when: Recreate its windows and process late old events.
+  expected:
+  - Retire old object IDs
+  - Fail old source-bound commands
+  - Assign fresh source identity and state
+  implementation_status: specified_not_implemented
+- id: TRN-001
+  group: translation_seam
+  priority: P0
+  layer: integration
+  fixture: controls
+  given: A semantic-only client cannot inspect scenes or coordinates.
+  when: Activate a button, edit text and select a stable-ID item.
+  expected:
+  - Get intended authoritative effects without coordinates
+  - Independently update the desktop mirror
+  implementation_status: specified_not_implemented
+- id: TRN-002
+  group: translation_seam
+  priority: P0
+  layer: integration
+  fixture: list
+  given: Collection count exceeds materialized children.
+  when: Inspect semantics and rebuild visuals.
+  expected:
+  - Report incomplete materialization
+  - Do not equate missing rows with an empty/deleted collection
+  - Preserve semantic identity across render rebuilds
+  implementation_status: specified_not_implemented
+- id: INT-001
+  group: interoperability
+  priority: P0
+  layer: interop
+  fixture: controls
+  given: Two independently written implementations decode the vocabulary.
+  when: Replay shared snapshot, delta and result transcripts.
+  expected:
+  - Equal normalized logical state at every revision
+  - Agree on optional fields, numeric values, text ranges and IDs
+  implementation_status: specified_not_implemented
+- id: PRO-001
+  group: properties
+  priority: P0
+  layer: property
+  fixture: generated
+  given: Seeded generators make valid trees and mutation sequences.
+  when: Compare incremental replay with direct snapshot after every prefix.
+  expected:
+  - Equal logical states
+  - Preserve references, versions, pins and ownership invariants
+  implementation_status: specified_not_implemented
+- id: PRO-002
+  group: properties
+  priority: P0
+  layer: property
+  fixture: generated
+  given: A valid transcript has arbitrary disconnect and retry points.
+  when: Resume/reset at each point, duplicate commands and delay resources.
+  expected:
+  - Converge after recovery
+  - Dispatch each command at most once within epoch
+  - Present no partial publication
+  implementation_status: specified_not_implemented
+- id: PER-001
+  group: performance
+  priority: P1
+  layer: load
+  fixture: large
+  given: A view has 10000 records and warmed resource cache.
+  when: Change one and then at most 20 records per update.
+  expected:
+  - Do not resend the full tree or cached resource bodies
+  - Measure bytes and encode/apply/render latency on named hardware
+  - Respect all memory/queue ceilings
+  implementation_status: specified_not_implemented
+- id: PER-002
+  group: performance
+  priority: P1
+  layer: load
+  fixture: large
+  given: Clients repeatedly create/delete surfaces and reconnect.
+  when: Run sustained deterministic resource churn.
+  expected:
+  - Return ownership to expected steady state
+  - Leak no views, pins, staged data or leases
+  - Bound client-count retention without allowing old-command replay
+  implementation_status: specified_not_implemented
