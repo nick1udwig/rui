@@ -1,6 +1,5 @@
 //! At-most-once admission and semantic validation. Authentication and adapter
 //! evidence are supplied by trusted host code; this module is not an authenticator.
-use prost::Message;
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
@@ -46,6 +45,131 @@ pub struct SemanticCommand {
     pub observed_view_revision: u64,
     pub preconditions: Preconditions,
     pub arguments: Arguments,
+}
+
+/// Trusted message-kind binding. The family is part of the retained exact key,
+/// so identical protobuf payloads cannot be retried as a different operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommandFamily {
+    Semantic,
+    RawInput,
+    TextComposition,
+    Resize,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CommandHeader {
+    pub epoch: Id,
+    pub view_id: Id,
+    pub client_instance_id: Id,
+    pub command_seq: u64,
+    pub control_lease_id: Id,
+    pub control_generation: u64,
+    pub observed_view_revision: u64,
+}
+impl SemanticCommand {
+    pub fn header(&self) -> CommandHeader {
+        CommandHeader {
+            epoch: self.epoch,
+            view_id: self.view_id,
+            client_instance_id: self.client_instance_id,
+            command_seq: self.command_seq,
+            control_lease_id: self.control_lease_id,
+            control_generation: self.control_generation,
+            observed_view_revision: self.observed_view_revision,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyNamespace {
+    LinuxEvdev,
+}
+#[derive(Clone, Debug)]
+pub struct RawInputCommand {
+    pub header: CommandHeader,
+    pub seat_id: String,
+    pub device_id: String,
+    pub key_namespace: KeyNamespace,
+    pub batch: crate::input::InputBatch,
+}
+#[derive(Clone, PartialEq, Eq)]
+pub enum CompositionOperation {
+    Begin(crate::input::ScalarRange),
+    UpdatePreedit {
+        text: String,
+        selection: crate::input::ScalarRange,
+    },
+    CommitText {
+        text: String,
+    },
+    Cancel,
+}
+#[derive(Clone)]
+pub struct TextCompositionCommand {
+    pub header: CommandHeader,
+    pub target_id: u64,
+    pub text_session_id: Id,
+    pub focus_generation: u64,
+    pub base_text_version: u64,
+    pub operation: CompositionOperation,
+}
+#[derive(Clone, Debug)]
+pub struct ResizeCommand {
+    pub header: CommandHeader,
+    pub surface_id: u64,
+    pub surface_version: u64,
+    pub width: f64,
+    pub height: f64,
+}
+#[derive(Clone)]
+pub enum Command {
+    Semantic(SemanticCommand),
+    RawInput(RawInputCommand),
+    TextComposition(TextCompositionCommand),
+    Resize(ResizeCommand),
+}
+impl std::fmt::Debug for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Command")
+            .field("family", &self.family())
+            .field("sequence", &self.header().command_seq)
+            .finish()
+    }
+}
+impl std::fmt::Debug for TextCompositionCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextCompositionCommand")
+            .field("sequence", &self.header.command_seq)
+            .field("operation", &"[REDACTED]")
+            .finish()
+    }
+}
+impl Command {
+    pub fn family(&self) -> CommandFamily {
+        match self {
+            Self::Semantic(_) => CommandFamily::Semantic,
+            Self::RawInput(_) => CommandFamily::RawInput,
+            Self::TextComposition(_) => CommandFamily::TextComposition,
+            Self::Resize(_) => CommandFamily::Resize,
+        }
+    }
+    pub fn header(&self) -> CommandHeader {
+        match self {
+            Self::Semantic(c) => c.header(),
+            Self::RawInput(c) => c.header,
+            Self::TextComposition(c) => c.header,
+            Self::Resize(c) => c.header,
+        }
+    }
+    /// Exact operation permission from decoded authority-bearing bytes, never a
+    /// caller-supplied string detached from the deduplication/dispatch payload.
+    pub fn operation_permission(&self) -> &str {
+        match self {
+            Self::Semantic(c) => &c.action_id,
+            Self::RawInput(_) => "RawInputBatch",
+            Self::TextComposition(_) => "TextComposition",
+            Self::Resize(_) => "ResizeRequest",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,7 +285,7 @@ impl Default for LedgerLimits {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LedgerError {
-    #[error("malformed semantic command")]
+    #[error("malformed or unsupported command")]
     Malformed,
     #[error("command exceeds receiver bound")]
     Oversized,
@@ -184,6 +308,7 @@ pub enum LedgerError {
 }
 
 struct Record {
+    family: CommandFamily,
     bytes: Vec<u8>,
     outcome: Option<CommandResult>,
     expires_at: u64,
@@ -295,14 +420,79 @@ impl CommandLedger {
         V: FnOnce(&SemanticCommand) -> Result<(), Rejection>,
         D: FnOnce(&SemanticCommand) -> Result<DispatchOutcome, DispatchFailure>,
     {
+        self.submit_family(
+            client,
+            CommandFamily::Semantic,
+            raw,
+            now,
+            |command| match command {
+                Command::Semantic(command) => validate(command),
+                _ => unreachable!(),
+            },
+            |command| match command {
+                Command::Semantic(command) => dispatch(command),
+                _ => unreachable!(),
+            },
+        )
+    }
+    /// Mandatory current session authority is checked inside reserved admission.
+    /// The source validator still checks route/topology, focus, modality, target
+    /// membership and relevant source clocks at the dispatch boundary. An exact
+    /// retry returns its retained outcome without touching any adapter again.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_controlled<V, D>(
+        &mut self,
+        sessions: &mut crate::session::SessionBroker,
+        client: &AuthenticatedClient,
+        family: CommandFamily,
+        raw: &[u8],
+        now: u64,
+        validate_source: V,
+        dispatch: D,
+    ) -> Result<CommandResult, LedgerError>
+    where
+        V: FnOnce(&Command) -> Result<(), Rejection>,
+        D: FnOnce(&Command) -> Result<DispatchOutcome, DispatchFailure>,
+    {
+        self.submit_family(
+            client,
+            family,
+            raw,
+            now,
+            |command| {
+                sessions.validate_command_control(
+                    client,
+                    &command.header(),
+                    command.operation_permission(),
+                    now,
+                )?;
+                validate_source(command)
+            },
+            dispatch,
+        )
+    }
+    fn submit_family<V, D>(
+        &mut self,
+        client: &AuthenticatedClient,
+        family: CommandFamily,
+        raw: &[u8],
+        now: u64,
+        validate: V,
+        dispatch: D,
+    ) -> Result<CommandResult, LedgerError>
+    where
+        V: FnOnce(&Command) -> Result<(), Rejection>,
+        D: FnOnce(&Command) -> Result<DispatchOutcome, DispatchFailure>,
+    {
         if raw.len() > self.limits.max_command_bytes {
             return Err(LedgerError::Oversized);
         }
-        let command = decode_bounded_command(raw)?;
-        if command.epoch != self.epoch {
+        let command = decode_family_bounded(family, raw, self.limits.max_command_bytes)?;
+        let header = command.header();
+        if header.epoch != self.epoch {
             return Err(LedgerError::WrongEpoch);
         }
-        if command.client_instance_id != client.client_instance_id
+        if header.client_instance_id != client.client_instance_id
             || client.principal.is_empty()
             || client.principal.len() > 1024
         {
@@ -310,12 +500,12 @@ impl CommandLedger {
         }
         self.expire_outcomes(now);
         if let Some(producer) = self.producers.get(client) {
-            if command.command_seq <= producer.high_water {
+            if header.command_seq <= producer.high_water {
                 let record = producer
                     .records
-                    .get(&command.command_seq)
+                    .get(&header.command_seq)
                     .ok_or(LedgerError::SequenceGap)?;
-                if record.bytes != raw {
+                if record.family != family || record.bytes != raw {
                     return Err(LedgerError::ChangedBytes);
                 }
                 return Ok(record
@@ -325,7 +515,7 @@ impl CommandLedger {
             }
         }
         let high_water = self.high_water(client);
-        if high_water.checked_add(1) != Some(command.command_seq) {
+        if high_water.checked_add(1) != Some(header.command_seq) {
             return Err(LedgerError::SequenceGap);
         }
         if (self.producers.len() >= self.limits.max_clients && !self.producers.contains_key(client))
@@ -345,10 +535,11 @@ impl CommandLedger {
             .checked_add(1)
             .ok_or(LedgerError::RetentionExhausted)?;
         let producer = self.producers.entry(client.clone()).or_default();
-        producer.high_water = command.command_seq;
+        producer.high_water = header.command_seq;
         producer.records.insert(
-            command.command_seq,
+            header.command_seq,
             Record {
+                family,
                 bytes: raw.to_vec(),
                 outcome: Some(CommandResult::status(CommandStatus::OutcomeUnknown)),
                 expires_at: self.last_now.saturating_add(self.limits.outcome_ttl_ms),
@@ -381,7 +572,7 @@ impl CommandLedger {
             .get_mut(client)
             .unwrap()
             .records
-            .get_mut(&command.command_seq)
+            .get_mut(&header.command_seq)
             .unwrap()
             .outcome = Some(result.clone());
         self.bound_outcomes();
@@ -423,9 +614,12 @@ pub fn decode_command(raw: &[u8]) -> Result<SemanticCommand, LedgerError> {
 }
 
 fn decode_bounded_command(raw: &[u8]) -> Result<SemanticCommand, LedgerError> {
+    decode_semantic(raw, LedgerLimits::default().max_command_bytes)
+}
+fn decode_semantic(raw: &[u8], maximum: usize) -> Result<SemanticCommand, LedgerError> {
     use crate::wire::proto::{semantic_command, value_arguments};
     let wire =
-        crate::wire::proto::SemanticCommand::decode(raw).map_err(|_| LedgerError::Malformed)?;
+        crate::wire::decode_semantic_command(raw, &decode_limits(maximum)).map_err(decode_error)?;
     let arguments = match wire.arguments.ok_or(LedgerError::Malformed)? {
         semantic_command::Arguments::NoArguments(_) => Arguments::None,
         semantic_command::Arguments::SetValue(value) => {
@@ -482,6 +676,186 @@ fn decode_bounded_command(raw: &[u8]) -> Result<SemanticCommand, LedgerError> {
         preconditions,
         arguments,
     })
+}
+
+fn decode_limits(maximum: usize) -> crate::model::Limits {
+    crate::model::Limits {
+        max_envelope_bytes: maximum,
+        max_memory_bytes: maximum.saturating_mul(16).saturating_add(8192),
+        max_records: 256,
+        max_gradient_stops: 0,
+        max_dash_segments: 0,
+        max_string_bytes: maximum,
+        ..crate::model::Limits::default()
+    }
+}
+fn decode_error(error: crate::wire::WireError) -> LedgerError {
+    match error {
+        crate::wire::WireError::Limit => LedgerError::Oversized,
+        _ => LedgerError::Malformed,
+    }
+}
+fn header(wire: Option<crate::wire::proto::CommandHeader>) -> Result<CommandHeader, LedgerError> {
+    let wire = wire.ok_or(LedgerError::Malformed)?;
+    if wire.command_seq == 0 || wire.control_generation == 0 {
+        return Err(LedgerError::Malformed);
+    }
+    Ok(CommandHeader {
+        epoch: id(wire.epoch)?,
+        view_id: id(wire.view_id)?,
+        client_instance_id: id(wire.client_instance_id)?,
+        command_seq: wire.command_seq,
+        control_lease_id: id(wire.control_lease_id)?,
+        control_generation: wire.control_generation,
+        observed_view_revision: wire.observed_view_revision,
+    })
+}
+fn point(wire: Option<crate::wire::proto::Point>) -> Result<crate::model::Point, LedgerError> {
+    let wire = wire.ok_or(LedgerError::Malformed)?;
+    if !wire.x.is_finite() || !wire.y.is_finite() {
+        return Err(LedgerError::Malformed);
+    }
+    Ok(crate::model::Point {
+        x: wire.x,
+        y: wire.y,
+    })
+}
+fn scalar_range(wire: crate::wire::proto::ScalarRange) -> crate::input::ScalarRange {
+    crate::input::ScalarRange {
+        start: wire.start,
+        end: wire.end,
+    }
+}
+/// Decode only the payload of its validated message kind. The ledger retains
+/// that family binding alongside the original bytes; no decoded caller value
+/// can substitute a different authority, operation, or sequence.
+pub fn decode_family(family: CommandFamily, raw: &[u8]) -> Result<Command, LedgerError> {
+    decode_family_bounded(family, raw, LedgerLimits::default().max_command_bytes)
+}
+fn decode_family_bounded(
+    family: CommandFamily,
+    raw: &[u8],
+    maximum: usize,
+) -> Result<Command, LedgerError> {
+    use crate::input::{Event, InputBatch, TimedEvent};
+    use crate::wire::proto::{raw_event, text_composition};
+    if raw.len() > maximum {
+        return Err(LedgerError::Oversized);
+    }
+    let limits = decode_limits(maximum);
+    match family {
+        CommandFamily::Semantic => Ok(Command::Semantic(decode_semantic(raw, maximum)?)),
+        CommandFamily::RawInput => {
+            let wire = crate::wire::decode_raw_input(raw, &limits).map_err(decode_error)?;
+            if wire.surface_id == 0
+                || wire.presented_revision == 0
+                || wire.seat_id.is_empty()
+                || wire.seat_id.len() > 256
+                || wire.device_id.is_empty()
+                || wire.device_id.len() > 256
+                || wire.key_namespace != "linux.evdev"
+                || wire.events.is_empty()
+                || wire.events.len() > 256
+            {
+                return Err(LedgerError::Malformed);
+            }
+            let mut events = Vec::with_capacity(wire.events.len());
+            for e in wire.events {
+                let event = match e.event.ok_or(LedgerError::Malformed)? {
+                    raw_event::Event::Motion(p) => Event::Motion(point(Some(p))?),
+                    raw_event::Event::Button(b) => Event::Button {
+                        code: b.code,
+                        pressed: b.pressed,
+                        position: point(b.position)?,
+                    },
+                    raw_event::Event::Key(k) => Event::Key {
+                        code: k.code,
+                        pressed: k.pressed,
+                    },
+                    raw_event::Event::Wheel(w) if w.x.is_finite() && w.y.is_finite() => {
+                        Event::Wheel {
+                            x: w.x,
+                            y: w.y,
+                            position: point(w.position)?,
+                        }
+                    }
+                    raw_event::Event::TouchDown(t) => Event::TouchDown {
+                        id: t.id,
+                        position: point(t.position)?,
+                    },
+                    raw_event::Event::TouchMove(t) => Event::TouchMove {
+                        id: t.id,
+                        position: point(t.position)?,
+                    },
+                    raw_event::Event::TouchUp(t) => Event::TouchUp { id: t.id },
+                    raw_event::Event::TouchCancel(t) => Event::TouchCancel { id: t.id },
+                    _ => return Err(LedgerError::Malformed),
+                };
+                events.push(TimedEvent {
+                    timestamp_us: e.timestamp_us,
+                    event,
+                });
+            }
+            Ok(Command::RawInput(RawInputCommand {
+                header: header(wire.header)?,
+                seat_id: wire.seat_id,
+                device_id: wire.device_id,
+                key_namespace: KeyNamespace::LinuxEvdev,
+                batch: InputBatch {
+                    surface: wire.surface_id,
+                    routing_token: id(wire.routing_token)?,
+                    presented_revision: wire.presented_revision,
+                    events,
+                },
+            }))
+        }
+        CommandFamily::TextComposition => {
+            let wire = crate::wire::decode_text_composition(raw, &limits).map_err(decode_error)?;
+            if wire.target_id == 0 || wire.focus_generation == 0 || wire.base_text_version == 0 {
+                return Err(LedgerError::Malformed);
+            }
+            let operation = match wire.operation.ok_or(LedgerError::Malformed)? {
+                text_composition::Operation::Begin(r) => {
+                    CompositionOperation::Begin(scalar_range(r))
+                }
+                text_composition::Operation::UpdatePreedit(p) => {
+                    CompositionOperation::UpdatePreedit {
+                        text: p.text,
+                        selection: scalar_range(p.selection.ok_or(LedgerError::Malformed)?),
+                    }
+                }
+                text_composition::Operation::CommitText(c) => {
+                    CompositionOperation::CommitText { text: c.text }
+                }
+                text_composition::Operation::Cancel(_) => CompositionOperation::Cancel,
+            };
+            Ok(Command::TextComposition(TextCompositionCommand {
+                header: header(wire.header)?,
+                target_id: wire.target_id,
+                text_session_id: id(wire.text_session_id)?,
+                focus_generation: wire.focus_generation,
+                base_text_version: wire.base_text_version,
+                operation,
+            }))
+        }
+        CommandFamily::Resize => {
+            let wire = crate::wire::decode_resize_request(raw, &limits).map_err(decode_error)?;
+            if wire.surface_id == 0
+                || wire.surface_version == 0
+                || !wire.width.is_finite()
+                || !wire.height.is_finite()
+            {
+                return Err(LedgerError::Malformed);
+            }
+            Ok(Command::Resize(ResizeCommand {
+                header: header(wire.header)?,
+                surface_id: wire.surface_id,
+                surface_version: wire.surface_version,
+                width: wire.width,
+                height: wire.height,
+            }))
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -602,5 +976,61 @@ impl SemanticAuthority {
             _ => return Err(Rejection::InvalidArguments),
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod family_tests {
+    use super::*;
+    use prost::Message;
+    #[test]
+    fn retained_family_binding_is_checked_even_when_exact_bytes_match() {
+        let client = AuthenticatedClient {
+            principal: "controller".into(),
+            client_instance_id: [3; 16],
+        };
+        let wire = crate::wire::proto::SemanticCommand {
+            epoch: vec![1; 16],
+            view_id: vec![2; 16],
+            client_instance_id: vec![3; 16],
+            command_seq: 1,
+            control_lease_id: vec![4; 16],
+            control_generation: 1,
+            target_id: 1,
+            action_id: "Activate".into(),
+            action_schema_version: 1,
+            observed_view_revision: 1,
+            preconditions: None,
+            arguments: Some(
+                crate::wire::proto::semantic_command::Arguments::NoArguments(
+                    crate::wire::proto::EmptyArguments {},
+                ),
+            ),
+        };
+        let raw = wire.encode_to_vec();
+        let mut ledger = CommandLedger::new([1; 16], LedgerLimits::default()).unwrap();
+        ledger
+            .submit(
+                &client,
+                &raw,
+                0,
+                |_| Ok(()),
+                |_| Ok(DispatchOutcome::Dispatched),
+            )
+            .unwrap();
+        // Exercise the retained discriminator directly: equal bytes alone never
+        // authorize a result lookup under a different interpreted family.
+        ledger
+            .producers
+            .get_mut(&client)
+            .unwrap()
+            .records
+            .get_mut(&1)
+            .unwrap()
+            .family = CommandFamily::Resize;
+        assert_eq!(
+            ledger.submit(&client, &raw, 0, |_| panic!(), |_| panic!()),
+            Err(LedgerError::ChangedBytes)
+        );
     }
 }

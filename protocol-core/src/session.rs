@@ -1,7 +1,7 @@
 //! Transport-independent authenticated negotiation, bounded recovery and one
 //! shared-seat control lease. Cleanup records describe work for a host adapter;
 //! this module does not inject OS input, authenticate credentials, or serve TLS.
-use crate::commands::{AuthenticatedClient, Id, Rejection, SemanticCommand};
+use crate::commands::{AuthenticatedClient, CommandHeader, Id, Rejection, SemanticCommand};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ops::Deref;
 use std::sync::{
@@ -1189,15 +1189,28 @@ impl SessionBroker {
         command: &SemanticCommand,
         now: u64,
     ) -> Result<(), Rejection> {
+        self.validate_command_control(client, &command.header(), &command.action_id, now)
+    }
+    /// Trusted ledger admission calls this with the header/permission decoded
+    /// from the retained exact wire payload. This does not validate source
+    /// topology, editing ownership, target clocks or raw routing; the cooperating
+    /// host must validate those inside the same dispatch boundary.
+    pub fn validate_command_control(
+        &mut self,
+        client: &AuthenticatedClient,
+        header: &CommandHeader,
+        operation: &str,
+        now: u64,
+    ) -> Result<(), Rejection> {
         self.tick(now);
-        if command.epoch != self.epoch || command.client_instance_id != client.client_instance_id {
+        if header.epoch != self.epoch || header.client_instance_id != client.client_instance_id {
             return Err(Rejection::Unauthorized);
         }
         self.check_control(
             client,
-            command.view_id,
-            command.control_lease_id,
-            command.control_generation,
+            header.view_id,
+            header.control_lease_id,
+            header.control_generation,
         )
         .map_err(|error| match error {
             SessionError::WrongView => Rejection::WrongView,
@@ -1210,7 +1223,7 @@ impl SessionBroker {
             .unwrap()
             .lease
             .allowed_actions
-            .contains(&command.action_id)
+            .contains(operation)
         {
             return Err(Rejection::Unauthorized);
         }

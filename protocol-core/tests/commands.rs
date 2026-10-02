@@ -137,7 +137,7 @@ fn cmd_002_changed_exact_bytes_reject_even_with_same_decoded_semantics() {
     // Unknown optional fields do not change behavior but are still different bytes
     // and therefore cannot be used to retransmit an already-consumed key.
     let mut optional = raw;
-    optional.extend_from_slice(&[0xa0, 0x06, 0x01]);
+    optional.extend_from_slice(&[0xb8, 0x3e, 0x01]);
     assert_eq!(
         ledger.submit(&client(), &optional, 2, |_| Ok(()), |_| panic!()),
         Err(LedgerError::ChangedBytes)
@@ -498,4 +498,513 @@ fn typed_arguments_scalar_ranges_and_relevant_context_are_checked() {
     command.preconditions.focus_generation = Some(7);
     command.preconditions.model_version = Some(3);
     assert_eq!(authority().validate(&command), Err(Rejection::StaleModel));
+}
+
+fn controlled() -> (
+    rui_protocol_core::session::SessionBroker,
+    rui_protocol_core::session::NegotiatedSession,
+    rui_protocol_core::session::ControlLease,
+) {
+    use rui_protocol_core::session::*;
+    let mut sessions = SessionBroker::new([1; 16], [9; 16], SessionConfig::default()).unwrap();
+    let session = sessions
+        .negotiate(
+            Some(VerifiedAuthorization {
+                principal: "alice".into(),
+                policy_version: 1,
+                permissions: Permissions {
+                    can_view: true,
+                    can_control: true,
+                    actions: [
+                        "Activate",
+                        "RawInputBatch",
+                        "TextComposition",
+                        "ResizeRequest",
+                    ]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                },
+            }),
+            ClientHello {
+                client_instance_id: [3; 16],
+                supported_versions: [1].into_iter().collect(),
+                supported_profiles: SessionConfig::default().supported_profiles,
+                required_profiles: SessionConfig::default().required_profiles,
+                receiver_limits: ReceiverLimits::default(),
+                resume: None,
+            },
+            0,
+        )
+        .unwrap();
+    sessions
+        .install_snapshot(&session.client, session.view_id, 1, 1)
+        .unwrap();
+    sessions
+        .acknowledge_applied(&session.client, session.view_id, 1, true)
+        .unwrap();
+    sessions
+        .acknowledge_presented(&session.client, session.view_id, 1)
+        .unwrap();
+    let lease = sessions
+        .acquire_control(&session.client, session.view_id, [7; 16], 0)
+        .unwrap();
+    (sessions, session, lease)
+}
+fn family_bytes(
+    family: CommandFamily,
+    session: &rui_protocol_core::session::NegotiatedSession,
+    lease: &rui_protocol_core::session::ControlLease,
+    sequence: u64,
+) -> Vec<u8> {
+    let header = proto::CommandHeader {
+        epoch: session.epoch.to_vec(),
+        view_id: session.view_id.to_vec(),
+        client_instance_id: session.client.client_instance_id.to_vec(),
+        command_seq: sequence,
+        control_lease_id: lease.lease_id.to_vec(),
+        control_generation: lease.generation,
+        observed_view_revision: 1,
+    };
+    match family {
+        CommandFamily::Semantic => {
+            let mut cmd = wire(sequence);
+            cmd.epoch = header.epoch;
+            cmd.view_id = header.view_id;
+            cmd.control_lease_id = header.control_lease_id;
+            cmd.control_generation = header.control_generation;
+            cmd.encode_to_vec()
+        }
+        CommandFamily::RawInput => proto::RawInputBatch {
+            header: Some(header),
+            surface_id: 10,
+            routing_token: vec![8; 16],
+            presented_revision: 1,
+            seat_id: "fixture-seat".into(),
+            device_id: "fixture-pointer".into(),
+            key_namespace: "linux.evdev".into(),
+            events: vec![proto::RawEvent {
+                timestamp_us: 100,
+                event: Some(proto::raw_event::Event::Motion(proto::Point {
+                    x: 2.0,
+                    y: 3.0,
+                })),
+            }],
+        }
+        .encode_to_vec(),
+        CommandFamily::TextComposition => proto::TextComposition {
+            header: Some(header),
+            target_id: 20,
+            text_session_id: vec![6; 16],
+            focus_generation: 1,
+            base_text_version: 1,
+            operation: Some(proto::text_composition::Operation::Begin(
+                proto::ScalarRange { start: 1, end: 2 },
+            )),
+        }
+        .encode_to_vec(),
+        CommandFamily::Resize => proto::ResizeRequest {
+            header: Some(header),
+            surface_id: 10,
+            surface_version: 1,
+            width: 800.0,
+            height: 600.0,
+        }
+        .encode_to_vec(),
+    }
+}
+#[test]
+fn common_cmd_one_contiguous_sequence_and_retry_space_for_all_families() {
+    let (mut sessions, session, lease) = controlled();
+    let mut ledger = CommandLedger::new(session.epoch, LedgerLimits::default()).unwrap();
+    let calls = Cell::new(0);
+    let families = [
+        CommandFamily::Semantic,
+        CommandFamily::RawInput,
+        CommandFamily::TextComposition,
+        CommandFamily::Resize,
+    ];
+    for (index, family) in families.into_iter().enumerate() {
+        let sequence = index as u64 + 1;
+        let bytes = family_bytes(family, &session, &lease, sequence);
+        let result = ledger
+            .submit_controlled(
+                &mut sessions,
+                &session.client,
+                family,
+                &bytes,
+                0,
+                |command| {
+                    assert_eq!(command.family(), family);
+                    assert_eq!(command.header().command_seq, sequence);
+                    Ok(())
+                },
+                |_| {
+                    calls.set(calls.get() + 1);
+                    Ok(DispatchOutcome::Dispatched)
+                },
+            )
+            .unwrap();
+        assert_eq!(result.status, CommandStatus::Dispatched);
+        assert_eq!(
+            ledger
+                .submit_controlled(
+                    &mut sessions,
+                    &session.client,
+                    family,
+                    &bytes,
+                    1,
+                    |_| panic!("retry validator"),
+                    |_| panic!("retry dispatch")
+                )
+                .unwrap(),
+            result
+        );
+    }
+    assert_eq!(ledger.high_water(&session.client), 4);
+    assert_eq!(calls.get(), 4);
+    assert_eq!(ledger.producer_count(), 1);
+    let raw = family_bytes(CommandFamily::RawInput, &session, &lease, 1);
+    assert_eq!(
+        ledger.submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::RawInput,
+            &raw,
+            2,
+            |_| Ok(()),
+            |_| panic!()
+        ),
+        Err(LedgerError::ChangedBytes)
+    );
+    let gap = family_bytes(CommandFamily::Resize, &session, &lease, 6);
+    assert_eq!(
+        ledger.submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::Resize,
+            &gap,
+            2,
+            |_| Ok(()),
+            |_| panic!()
+        ),
+        Err(LedgerError::SequenceGap)
+    );
+    let raw = family_bytes(CommandFamily::TextComposition, &session, &lease, 3);
+    ledger.expire_outcomes(60_001);
+    assert_eq!(
+        ledger
+            .submit_controlled(
+                &mut sessions,
+                &session.client,
+                CommandFamily::TextComposition,
+                &raw,
+                0,
+                |_| panic!(),
+                |_| panic!()
+            )
+            .unwrap()
+            .status,
+        CommandStatus::OutcomeExpired
+    );
+}
+#[test]
+fn common_cmd_current_authority_and_lease_are_mandatory_and_rejects_consume() {
+    let (mut sessions, session, lease) = controlled();
+    let mut ledger = CommandLedger::new(session.epoch, LedgerLimits::default()).unwrap();
+    let bytes = family_bytes(CommandFamily::RawInput, &session, &lease, 1);
+    let result = ledger
+        .submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::RawInput,
+            &bytes,
+            0,
+            |_| Err(Rejection::InvalidArguments),
+            |_| panic!(),
+        )
+        .unwrap();
+    assert_eq!(result.rejection, Some(Rejection::InvalidArguments));
+    sessions.local_activity(1);
+    let stale = family_bytes(CommandFamily::Resize, &session, &lease, 2);
+    let result = ledger
+        .submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::Resize,
+            &stale,
+            2,
+            |_| panic!("stale lease bypassed"),
+            |_| panic!(),
+        )
+        .unwrap();
+    assert_eq!(result.rejection, Some(Rejection::StaleControl));
+    assert_eq!(ledger.high_water(&session.client), 2);
+    // The trusted source unwinds its pending cleanup before another grant.
+    assert!(sessions.take_cleanup().is_some());
+    // A new lease cannot reinterpret the consumed stale request.
+    let new = sessions
+        .acquire_control(&session.client, session.view_id, [5; 16], 2)
+        .unwrap();
+    let changed = family_bytes(CommandFamily::Resize, &session, &new, 2);
+    assert_eq!(
+        ledger.submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::Resize,
+            &changed,
+            2,
+            |_| Ok(()),
+            |_| panic!()
+        ),
+        Err(LedgerError::ChangedBytes)
+    );
+    let forged = AuthenticatedClient {
+        principal: session.client.principal.clone(),
+        client_instance_id: [99; 16],
+    };
+    assert_eq!(
+        ledger.submit_controlled(
+            &mut sessions,
+            &forged,
+            CommandFamily::Resize,
+            &family_bytes(CommandFamily::Resize, &session, &new, 1),
+            2,
+            |_| Ok(()),
+            |_| panic!()
+        ),
+        Err(LedgerError::WrongClient)
+    );
+}
+#[test]
+fn common_cmd_family_permissions_do_not_follow_from_semantic_control() {
+    use rui_protocol_core::session::*;
+    let (mut sessions, session, lease) = controlled();
+    let mut authorization = VerifiedAuthorization {
+        principal: "other".into(),
+        policy_version: 1,
+        permissions: Permissions {
+            can_view: true,
+            can_control: true,
+            actions: ["Activate".into()].into_iter().collect(),
+        },
+    };
+    let other = sessions
+        .negotiate(
+            Some(authorization.clone()),
+            ClientHello {
+                client_instance_id: [4; 16],
+                supported_versions: [1].into_iter().collect(),
+                supported_profiles: SessionConfig::default().supported_profiles,
+                required_profiles: SessionConfig::default().required_profiles,
+                receiver_limits: ReceiverLimits::default(),
+                resume: None,
+            },
+            0,
+        )
+        .unwrap();
+    sessions
+        .release_control(
+            &session.client,
+            [10; 16],
+            lease.lease_id,
+            lease.generation,
+            0,
+        )
+        .unwrap();
+    assert!(sessions.take_cleanup().is_some());
+    sessions
+        .install_snapshot(&other.client, other.view_id, 1, 1)
+        .unwrap();
+    sessions
+        .acknowledge_applied(&other.client, other.view_id, 1, true)
+        .unwrap();
+    sessions
+        .acknowledge_presented(&other.client, other.view_id, 1)
+        .unwrap();
+    let lease = sessions
+        .acquire_control(&other.client, other.view_id, [11; 16], 0)
+        .unwrap();
+    let mut ledger = CommandLedger::new(other.epoch, LedgerLimits::default()).unwrap();
+    for (index, family) in [
+        CommandFamily::RawInput,
+        CommandFamily::TextComposition,
+        CommandFamily::Resize,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut raw = family_bytes(family, &other, &lease, index as u64 + 1);
+        // family_bytes obtains actual registered producer from the shared header.
+        let result = ledger
+            .submit_controlled(
+                &mut sessions,
+                &other.client,
+                family,
+                &raw,
+                0,
+                |_| panic!("missing family permission"),
+                |_| panic!(),
+            )
+            .unwrap();
+        assert_eq!(result.rejection, Some(Rejection::Unauthorized));
+        raw.clear();
+    }
+    authorization.permissions.can_control = false; // Observer cannot borrow a controller's lease.
+    let observer = sessions
+        .negotiate(
+            Some(authorization),
+            ClientHello {
+                client_instance_id: [5; 16],
+                supported_versions: [1].into_iter().collect(),
+                supported_profiles: SessionConfig::default().supported_profiles,
+                required_profiles: SessionConfig::default().required_profiles,
+                receiver_limits: ReceiverLimits::default(),
+                resume: None,
+            },
+            0,
+        )
+        .unwrap();
+    let result = ledger
+        .submit_controlled(
+            &mut sessions,
+            &observer.client,
+            CommandFamily::RawInput,
+            &family_bytes(CommandFamily::RawInput, &observer, &lease, 1),
+            0,
+            |_| panic!(),
+            |_| panic!(),
+        )
+        .unwrap();
+    assert_eq!(result.rejection, Some(Rejection::Unauthorized));
+}
+#[test]
+fn common_cmd_ambiguous_failure_or_panic_never_redispatches() {
+    let (mut sessions, session, lease) = controlled();
+    let mut ledger = CommandLedger::new(session.epoch, LedgerLimits::default()).unwrap();
+    let count = Cell::new(0);
+    let raw = family_bytes(CommandFamily::RawInput, &session, &lease, 1);
+    let panic = catch_unwind(AssertUnwindSafe(|| {
+        ledger.submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::RawInput,
+            &raw,
+            0,
+            |_| Ok(()),
+            |_| {
+                count.set(1);
+                panic!("adapter after press")
+            },
+        )
+    }));
+    assert!(panic.is_err());
+    assert_eq!(
+        ledger
+            .submit_controlled(
+                &mut sessions,
+                &session.client,
+                CommandFamily::RawInput,
+                &raw,
+                0,
+                |_| panic!(),
+                |_| panic!()
+            )
+            .unwrap()
+            .status,
+        CommandStatus::OutcomeUnknown
+    );
+    let raw = family_bytes(CommandFamily::Resize, &session, &lease, 2);
+    assert_eq!(
+        ledger
+            .submit_controlled(
+                &mut sessions,
+                &session.client,
+                CommandFamily::Resize,
+                &raw,
+                0,
+                |_| Ok(()),
+                |_| Err(DispatchFailure::OutcomeUnknown)
+            )
+            .unwrap()
+            .status,
+        CommandStatus::OutcomeUnknown
+    );
+    assert_eq!(count.get(), 1);
+}
+#[test]
+fn common_cmd_wire_preflight_rejects_required_variants_and_nested_expansion() {
+    let (mut sessions, session, lease) = controlled();
+    let mut ledger = CommandLedger::new(session.epoch, LedgerLimits::default()).unwrap();
+    let mut unknown = family_bytes(CommandFamily::Semantic, &session, &lease, 1);
+    unknown.extend_from_slice(&[138, 1, 0]); // unknown required argument 17
+    assert_eq!(
+        ledger.submit_controlled(
+            &mut sessions,
+            &session.client,
+            CommandFamily::Semantic,
+            &unknown,
+            0,
+            |_| Ok(()),
+            |_| panic!()
+        ),
+        Err(LedgerError::Malformed)
+    );
+    assert_eq!(ledger.high_water(&session.client), 0);
+    let mut optional = family_bytes(CommandFamily::Semantic, &session, &lease, 1);
+    optional.extend_from_slice(&[186, 62, 0]); // optional 999
+    assert_eq!(
+        ledger
+            .submit_controlled(
+                &mut sessions,
+                &session.client,
+                CommandFamily::Semantic,
+                &optional,
+                0,
+                |_| Ok(()),
+                |_| Ok(DispatchOutcome::Dispatched)
+            )
+            .unwrap()
+            .status,
+        CommandStatus::Dispatched
+    );
+    let mut nested = [66, 0].repeat(257);
+    assert_eq!(
+        decode_family(CommandFamily::RawInput, &nested).unwrap_err(),
+        LedgerError::Oversized
+    );
+    nested.clear();
+    let mut merged = family_bytes(CommandFamily::Semantic, &session, &lease, 2);
+    merged.extend([90, 0].repeat(40_000));
+    assert_eq!(decode_command(&merged), Err(LedgerError::Oversized));
+    let mut raw = proto::RawInputBatch::decode(
+        family_bytes(CommandFamily::RawInput, &session, &lease, 2).as_slice(),
+    )
+    .unwrap();
+    raw.events[0] = proto::RawEvent {
+        timestamp_us: 1,
+        event: None,
+    };
+    assert_eq!(
+        decode_family(CommandFamily::RawInput, &raw.encode_to_vec()).unwrap_err(),
+        LedgerError::Malformed
+    );
+    let mut event = raw.events[0].encode_to_vec();
+    event.extend([82, 0]);
+    assert!(rui_protocol_core::wire::decode_raw_input(
+        &[66, 4, 8, 1, 82, 0],
+        &rui_protocol_core::model::Limits::default()
+    )
+    .is_err());
+    let mut edit = proto::TextComposition::decode(
+        family_bytes(CommandFamily::TextComposition, &session, &lease, 2).as_slice(),
+    )
+    .unwrap();
+    edit.operation = Some(proto::text_composition::Operation::CommitText(
+        proto::CommitText {
+            text: "PRIVATE-PREEDIT-SENTINEL".into(),
+        },
+    ));
+    let decoded = decode_family(CommandFamily::TextComposition, &edit.encode_to_vec()).unwrap();
+    assert!(!format!("{decoded:?}").contains("PRIVATE-PREEDIT-SENTINEL"));
 }

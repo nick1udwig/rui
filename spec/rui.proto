@@ -154,3 +154,44 @@ message ValueArguments { oneof value { bool checked = 1; double number = 2; stri
 message TextArguments { uint64 start = 1; uint64 end = 2; string text = 3; }
 message SelectionArguments { uint64 anchor = 1; uint64 focus = 2; }
 message ScrollArguments { double x = 1; double y = 2; }
+
+// Every family consumes the same (epoch, principal, producer, sequence) ledger.
+// Tags below 128 are required vocabulary; optional metadata starts at 128.
+message CommandHeader {
+  bytes epoch = 1; bytes view_id = 2; bytes client_instance_id = 3;
+  uint64 command_seq = 4; bytes control_lease_id = 5; uint64 control_generation = 6;
+  uint64 observed_view_revision = 7;
+}
+message RawInputBatch {
+  CommandHeader header = 1; uint64 surface_id = 2; bytes routing_token = 3;
+  uint64 presented_revision = 4; string seat_id = 5; string device_id = 6;
+  string key_namespace = 7; repeated RawEvent events = 8;
+}
+message RawEvent {
+  uint64 timestamp_us = 1;
+  oneof event {
+    Point motion = 2; ButtonEvent button = 3; KeyEvent key = 4;
+    WheelEvent wheel = 5; TouchEvent touch_down = 6; TouchEvent touch_move = 7;
+    TouchEnd touch_up = 8; TouchEnd touch_cancel = 9;
+  }
+}
+message ButtonEvent { uint32 code = 1; bool pressed = 2; Point position = 3; }
+message KeyEvent { uint32 code = 1; bool pressed = 2; }
+message WheelEvent { double x = 1; double y = 2; Point position = 3; }
+message TouchEvent { uint64 id = 1; Point position = 2; }
+message TouchEnd { uint64 id = 1; }
+message ScalarRange { uint64 start = 1; uint64 end = 2; }
+message TextComposition {
+  CommandHeader header = 1; uint64 target_id = 2; bytes text_session_id = 3;
+  uint64 focus_generation = 4; uint64 base_text_version = 5;
+  oneof operation {
+    ScalarRange begin = 6; Preedit update_preedit = 7;
+    CommitText commit_text = 8; EmptyArguments cancel = 9;
+  }
+}
+message Preedit { string text = 1; ScalarRange selection = 2; }
+message CommitText { string text = 1; }
+message ResizeRequest {
+  CommandHeader header = 1; uint64 surface_id = 2; uint64 surface_version = 3;
+  double width = 4; double height = 5;
+}

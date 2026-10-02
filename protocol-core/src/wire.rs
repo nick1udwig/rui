@@ -98,6 +98,16 @@ pub fn decode_semantic_command(
     proto::SemanticCommand::decode(bytes).map_err(decode_error)
 }
 
+macro_rules! command_decoders {
+    ($($function:ident,$context:ident,$message:ident);+ $(;)?)=>{$(
+        pub fn $function(bytes:&[u8],limits:&Limits)->Result<proto::$message,WireError> {
+            preflight(bytes,Context::$context,limits.max_envelope_bytes,limits)?;
+            proto::$message::decode(bytes).map_err(decode_error)
+        }
+    )+};
+}
+command_decoders!(decode_raw_input,RawInput,RawInputBatch;decode_text_composition,Composition,TextComposition;decode_resize_request,Resize,ResizeRequest);
+
 fn decode_error(error: prost::DecodeError) -> WireError {
     WireError::Malformed(error.to_string())
 }
@@ -146,6 +156,20 @@ pub(crate) enum Context {
     TextArguments,
     SelectionArguments,
     ScrollArguments,
+    CommandHeader,
+    RawInput,
+    RawEvent,
+    InputPoint,
+    ButtonEvent,
+    KeyEvent,
+    WheelEvent,
+    TouchEvent,
+    TouchEnd,
+    Composition,
+    ScalarRange,
+    Preedit,
+    CommitText,
+    Resize,
 }
 
 impl Context {
@@ -163,6 +187,23 @@ impl Context {
             Self::Linear => tag < 128 && !matches!(tag, 1..=5),
             Self::Radial => tag < 128 && !matches!(tag, 1..=6),
             Self::Stroke => tag < 128 && !matches!(tag, 1..=8),
+            Self::Command => tag < 128 && !matches!(tag, 1..=16),
+            Self::CommandHeader => tag < 128 && !matches!(tag, 1..=7),
+            Self::Preconditions => tag < 128 && !matches!(tag, 1..=4),
+            Self::EmptyArguments => tag < 128,
+            Self::ValueArguments | Self::TextArguments => tag < 128 && !matches!(tag, 1..=3),
+            Self::SelectionArguments
+            | Self::ScrollArguments
+            | Self::InputPoint
+            | Self::KeyEvent
+            | Self::TouchEvent
+            | Self::ScalarRange
+            | Self::Preedit => tag < 128 && !matches!(tag, 1..=2),
+            Self::RawInput => tag < 128 && !matches!(tag, 1..=8),
+            Self::RawEvent | Self::Composition => tag < 128 && !matches!(tag, 1..=9),
+            Self::ButtonEvent | Self::WheelEvent => tag < 128 && !matches!(tag, 1..=3),
+            Self::TouchEnd | Self::CommitText => tag < 128 && tag != 1,
+            Self::Resize => tag < 128 && !matches!(tag, 1..=5),
             _ => false,
         }
     }
@@ -182,6 +223,9 @@ impl Context {
             Command=>SemanticCommand, Preconditions=>Preconditions, EmptyArguments=>EmptyArguments,
             ValueArguments=>ValueArguments, TextArguments=>TextArguments,
             SelectionArguments=>SelectionArguments, ScrollArguments=>ScrollArguments,
+            CommandHeader=>CommandHeader,RawInput=>RawInputBatch,RawEvent=>RawEvent,InputPoint=>Point,
+            ButtonEvent=>ButtonEvent,KeyEvent=>KeyEvent,WheelEvent=>WheelEvent,TouchEvent=>TouchEvent,TouchEnd=>TouchEnd,
+            Composition=>TextComposition,ScalarRange=>ScalarRange,Preedit=>Preedit,CommitText=>CommitText,Resize=>ResizeRequest,
         }
     }
 
@@ -239,6 +283,18 @@ impl Context {
             (Command, 14) => Some(TextArguments),
             (Command, 15) => Some(SelectionArguments),
             (Command, 16) => Some(ScrollArguments),
+            (RawInput | Composition | Resize, 1) => Some(CommandHeader),
+            (RawInput, 8) => Some(RawEvent),
+            (RawEvent, 2) | (ButtonEvent | WheelEvent, 3) | (TouchEvent, 2) => Some(InputPoint),
+            (RawEvent, 3) => Some(ButtonEvent),
+            (RawEvent, 4) => Some(KeyEvent),
+            (RawEvent, 5) => Some(WheelEvent),
+            (RawEvent, 6..=7) => Some(TouchEvent),
+            (RawEvent, 8..=9) => Some(TouchEnd),
+            (Composition, 6) | (Preedit, 2) => Some(ScalarRange),
+            (Composition, 7) => Some(Preedit),
+            (Composition, 8) => Some(CommitText),
+            (Composition, 9) => Some(EmptyArguments),
             _ => None,
         }
     }
@@ -260,6 +316,7 @@ pub(crate) fn preflight(
         records: 0,
         fields: 0,
         items: 0,
+        raw_events: 0,
     };
     scan(bytes, context, 0, &mut budget, limits)?;
     Ok(budget.allocation)
@@ -270,6 +327,7 @@ struct ScanBudget {
     records: usize,
     fields: usize,
     items: usize,
+    raw_events: usize,
 }
 fn charge(budget: &mut ScanBudget, n: usize, limits: &Limits) -> Result<(), WireError> {
     budget.allocation = budget.allocation.checked_add(n).ok_or(WireError::Limit)?;
@@ -289,6 +347,12 @@ fn scan(
         return Err(WireError::Limit);
     }
     charge(budget, context.size() + 64, limits)?;
+    if matches!(context, Context::RawEvent) {
+        budget.raw_events += 1;
+        if budget.raw_events > 256.min(limits.max_records) {
+            return Err(WireError::Limit);
+        }
+    }
     let mut values = SceneValues {
         stops: usize::from(matches!(context, Context::Stop)),
         dashes: 0,
