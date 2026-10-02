@@ -26,6 +26,25 @@ pub struct Target {
 fn contains(r: Rect, p: Point) -> bool {
     p.x >= r.x && p.x < r.x + r.width && p.y >= r.y && p.y < r.y + r.height
 }
+fn collection_version(state: &State, node: &SemanticNode) -> Result<Option<u64>, InteractionError> {
+    if let Some(collection) = &node.collection {
+        return Ok(Some(collection.version));
+    }
+    let mut owners = state.records.values().filter_map(|record| match record {
+        Record::Semantic(owner) => owner.collection.as_ref().filter(|collection| {
+            collection.items.contains(&ObjectRef {
+                kind: ObjectKind::Semantic,
+                id: node.id,
+            })
+        }),
+        _ => None,
+    });
+    let version = owners.next().map(|collection| collection.version);
+    if owners.next().is_some() || (node.role == SemanticRole::ListItem && version.is_none()) {
+        return Err(InteractionError::Unsupported);
+    }
+    Ok(version)
+}
 fn local(surface: &Surface, p: Point) -> Option<Point> {
     let m = surface.transform;
     let determinant = m.xx * m.yy - m.xy * m.yx;
@@ -358,7 +377,10 @@ pub fn command(
         ..Default::default()
     };
     match (&*action.id, &args) {
-        ("Activate" | "Focus", Arguments::None) => {}
+        ("Activate", Arguments::None) => {
+            preconditions.model_version = collection_version(state, node)?;
+        }
+        ("Focus", Arguments::None) => {}
         ("SetValue", Arguments::Checked(_) | Arguments::Number(_) | Arguments::ValueText(_)) => {}
         ("ReplaceText", Arguments::ReplaceText { .. })
         | ("SetSelection", Arguments::Selection { .. }) => {

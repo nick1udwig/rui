@@ -238,6 +238,16 @@ controller exits only after the source grants control following native
 presentation. Its trusted cleanup callback verifies disconnect cleanup. This
 baseline probe has no source command effects and no expanded M2 corpus claim.
 
+`tests/corpus_reference.rs` is a provisional Partial-scope integration check.
+Two real TLS read-view receivers compare retained records and selected vector
+roots against `ControlledHost::source_capture().state()`, produced directly from
+the authoritative projection before transport encoding. A semantic-only
+controller performs checkbox and Unicode edits; observer-local resize/pan/zoom
+rendering does not change the source commit or command count. The corpus's
+missing source glyph provider remains an explicit Partial surface and whole-view
+rendering rejects. Neither receiver sends Presented. This check is not the
+Complete source/reference/two-native-mirror M2 gate or reconnect/resource evidence.
+
 ## Pinned local source font helper
 
 `fixtures/render/native_font.py` is bounded local producer IPC, not a wire font.

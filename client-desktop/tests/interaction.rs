@@ -343,3 +343,45 @@ fn invalidation_precedes_reset_callbacks_and_late_commits_cannot_retarget() {
     assert_eq!(local.take_commit(), Some(replacement));
     assert_eq!(local.take_commit(), None);
 }
+
+#[test]
+fn stable_item_activation_uses_unique_published_collection_owner_clock() {
+    let mut s = fixture();
+    let Record::Semantic(item) = s.records.get(&20).unwrap() else {
+        panic!()
+    };
+    let mut list = item.clone();
+    list.id = 60;
+    list.role = SemanticRole::List;
+    list.actions.clear();
+    list.children = vec![ObjectRef {
+        kind: ObjectKind::Semantic,
+        id: 20,
+    }];
+    list.collection = Some(CollectionModel {
+        version: 7,
+        items: list.children.clone(),
+        total_count: Some(10),
+        materialization: Materialization::Partial,
+        selected_items: vec![],
+    });
+    s.records.insert(60, Record::Semantic(list.clone()));
+    let command = command(&s, 20, "Activate", Arguments::None, authority()).unwrap();
+    assert_eq!(command.preconditions.model_version, Some(7));
+    list.id = 61;
+    s.records.insert(61, Record::Semantic(list));
+    assert_eq!(
+        rui_client_desktop::interaction::command(&s, 20, "Activate", Arguments::None, authority()),
+        Err(InteractionError::Unsupported)
+    );
+    s.records.remove(&60);
+    s.records.remove(&61);
+    let Record::Semantic(item) = s.records.get_mut(&20).unwrap() else {
+        panic!()
+    };
+    item.role = SemanticRole::ListItem;
+    assert_eq!(
+        rui_client_desktop::interaction::command(&s, 20, "Activate", Arguments::None, authority()),
+        Err(InteractionError::Unsupported)
+    );
+}
