@@ -7,3 +7,4 @@ edition.workspace = true
 rui-protocol-core = { path = "../protocol-core" }
 prost = "0.13"
 thiserror = "2"
+sha2 = "0.10"

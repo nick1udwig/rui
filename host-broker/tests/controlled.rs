@@ -661,7 +661,9 @@ fn source_text_and_snapshot_outputs_have_hard_bounds_without_secret_errors() {
     host.disconnect(&a.client, 2).unwrap();
     host.take_cleanup().unwrap();
     let mut smaller = hello(3);
-    smaller.receiver_limits.view_memory_bytes = 40 * 1024;
+    // The shared ceiling includes a conservative temporary capture workspace
+    // independently of live projection state and retained snapshot handles.
+    smaller.receiver_limits.view_memory_bytes = 80 * 1024;
     smaller.resume = Some(ResumeRequest {
         epoch: a.epoch,
         view_id: a.view_id,

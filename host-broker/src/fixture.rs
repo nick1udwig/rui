@@ -1,5 +1,6 @@
 //! Private, cooperating application state. Nothing from this module executes on
 //! a client, and the source does not derive scene geometry from secret text.
+use crate::corpus::Corpus;
 use crate::{HostError, Projection, READ_SECRET_PERMISSION};
 use rui_protocol_core::commands::{
     Arguments, Rejection, SemanticAuthority, SemanticCommand, TargetState,
@@ -18,7 +19,6 @@ pub const SECRET_TEXT_ID: u64 = 40;
 pub const COUNTER_BINDING_ID: u64 = 41;
 pub const SECRET_BINDING_ID: u64 = 42;
 pub const SESSION_STATE_ID: u64 = 50;
-pub const RECORD_COUNT: usize = 11;
 
 pub(crate) struct ControlledApplication {
     counter: i64,
@@ -29,6 +29,7 @@ pub(crate) struct ControlledApplication {
     pub counter_clock: u64,
     pub text_clock: u64,
     last_now: u64,
+    pub corpus: Option<Corpus>,
 }
 impl ControlledApplication {
     pub fn new(secret: String, max_text_bytes: usize) -> Result<Self, HostError> {
@@ -44,6 +45,7 @@ impl ControlledApplication {
             counter_clock: 1,
             text_clock: 1,
             last_now: 0,
+            corpus: None,
         })
     }
     pub fn counter(&self) -> i64 {
@@ -76,7 +78,7 @@ impl ControlledApplication {
         } else {
             BTreeMap::new()
         };
-        SemanticAuthority {
+        let mut authority = SemanticAuthority {
             view_id: projection.view_id,
             current_view_revision: projection.revision.unwrap_or(0),
             allowed_actions: projection.permissions.actions.clone(),
@@ -106,7 +108,20 @@ impl ControlledApplication {
             ]
             .into_iter()
             .collect(),
+        };
+        if let Some(corpus) = &self.corpus {
+            corpus.extend_authority(&mut authority, projection);
+            if let Some(private) = authority.targets.get_mut(&SECRET_ID) {
+                private.focus_generation = Some(corpus.focus_generation);
+                private.actions.insert("Focus".into(), 1);
+            }
         }
+        for (id, target) in &mut authority.targets {
+            if let Some(stamp) = projection.records.get(id) {
+                target.target_version = stamp.version;
+            }
+        }
+        authority
     }
     pub fn validate(
         &self,
@@ -114,8 +129,19 @@ impl ControlledApplication {
         command: &SemanticCommand,
     ) -> Result<(), Rejection> {
         self.authority(projection).validate(command)?;
+        if let Some(corpus) = &self.corpus {
+            if command.target_id != COUNTER_ID && command.target_id != SECRET_ID {
+                return corpus.validate(command, self.max_text_bytes);
+            }
+            if command.action_id == "Focus" && command.target_id == SECRET_ID {
+                return Ok(());
+            }
+        }
         if command.action_id == "ReplaceText" {
-            if command.preconditions.focus_generation != Some(1) {
+            let focus = self.corpus.as_ref().map_or(1, |c| c.focus_generation);
+            if command.preconditions.focus_generation != Some(focus)
+                || self.corpus.as_ref().is_some_and(|c| c.focus != SECRET_ID)
+            {
                 return Err(Rejection::StaleFocus);
             }
             let Arguments::ReplaceText { start, end, text } = &command.arguments else {
@@ -145,6 +171,20 @@ impl ControlledApplication {
             .commit
             .checked_add(1)
             .ok_or(Rejection::InvalidArguments)?;
+        if let Some(corpus) = &mut self.corpus {
+            if command.target_id != COUNTER_ID && command.target_id != SECRET_ID {
+                corpus.apply(command, self.max_text_bytes)?;
+                self.last_now = self.last_now.max(now);
+                self.commit = commit;
+                return Ok(commit);
+            }
+            if command.action_id == "Focus" && command.target_id == SECRET_ID {
+                corpus.focus(SECRET_ID)?;
+                self.commit = commit;
+                self.last_now = self.last_now.max(now);
+                return Ok(commit);
+            }
+        }
         match (&*command.action_id, &command.arguments) {
             ("Activate", Arguments::None) => {
                 let counter = self
@@ -362,7 +402,7 @@ impl ControlledApplication {
             focus_generation: 1,
             ..Default::default()
         };
-        vec![
+        let mut records = vec![
             wrap(p::record::Record::Surface(surface)),
             wrap(p::record::Record::Scene(root_scene)),
             wrap(p::record::Record::Scene(counter_scene)),
@@ -374,33 +414,21 @@ impl ControlledApplication {
             wrap(p::record::Record::Binding(counter_binding)),
             wrap(p::record::Record::Binding(secret_binding)),
             wrap(p::record::Record::Session(session)),
-        ]
-    }
-    pub fn changed_records(&self, projection: &Projection) -> Vec<p::Record> {
-        self.records(projection)
-            .into_iter()
-            .filter(|record| match &record.record {
-                Some(p::record::Record::Surface(_)) => self.commit != projection.capture_commit,
-                Some(p::record::Record::Scene(v)) => {
-                    v.id == COUNTER_SCENE_ID && self.counter_clock != projection.counter_clock
-                }
-                Some(p::record::Record::Semantic(v)) if v.id == COUNTER_ID => {
-                    self.counter_clock != projection.counter_clock
-                }
-                Some(p::record::Record::Semantic(v)) if v.id == SECRET_ID => {
-                    Self::can_read_secret(projection) && self.text_clock != projection.text_clock
-                }
-                Some(p::record::Record::Text(_)) => {
-                    Self::can_read_secret(projection) && self.text_clock != projection.text_clock
-                }
-                _ => false,
-            })
-            .collect()
+        ];
+        if let Some(corpus) = &self.corpus {
+            corpus.extend_records(&mut records, projection, self.commit);
+        }
+        records
     }
     pub fn decoded_projection_bytes(&self, projection: &Projection) -> usize {
         // Conservative allowance for this fixed eleven-record fixture. The core
         // receiver independently accounts its actual decoded state and staging.
         32 * 1024
+            + if self.corpus.is_some() {
+                256 * 1024 + self.max_text_bytes * 4
+            } else {
+                0
+            }
             + if Self::can_read_secret(projection) {
                 self.max_text_bytes * 4
             } else {
@@ -408,7 +436,7 @@ impl ControlledApplication {
             }
     }
 }
-fn scalar_byte(text: &str, scalar: u64) -> Option<usize> {
+pub(crate) fn scalar_byte(text: &str, scalar: u64) -> Option<usize> {
     let scalar = usize::try_from(scalar).ok()?;
     if scalar == text.chars().count() {
         Some(text.len())
@@ -416,7 +444,7 @@ fn scalar_byte(text: &str, scalar: u64) -> Option<usize> {
         text.char_indices().nth(scalar).map(|(offset, _)| offset)
     }
 }
-fn rect(x: f64, y: f64, width: f64, height: f64) -> p::Rect {
+pub(crate) fn rect(x: f64, y: f64, width: f64, height: f64) -> p::Rect {
     p::Rect {
         x,
         y,
@@ -424,25 +452,25 @@ fn rect(x: f64, y: f64, width: f64, height: f64) -> p::Rect {
         height,
     }
 }
-fn affine() -> p::Affine {
+pub(crate) fn affine() -> p::Affine {
     p::Affine {
         xx: 1.0,
         yy: 1.0,
         ..Default::default()
     }
 }
-fn reference(kind: p::ObjectKind, id: u64) -> p::ObjectRef {
+pub(crate) fn reference(kind: p::ObjectKind, id: u64) -> p::ObjectRef {
     p::ObjectRef {
         kind: kind as i32,
         id,
     }
 }
-fn wrap(record: p::record::Record) -> p::Record {
+pub(crate) fn wrap(record: p::record::Record) -> p::Record {
     p::Record {
         record: Some(record),
     }
 }
-fn scene(id: u64, version: u64, rect: p::Rect, color: [f64; 4]) -> p::SceneNode {
+pub(crate) fn scene(id: u64, version: u64, rect: p::Rect, color: [f64; 4]) -> p::SceneNode {
     p::SceneNode {
         id,
         version,
@@ -460,7 +488,7 @@ fn scene(id: u64, version: u64, rect: p::Rect, color: [f64; 4]) -> p::SceneNode 
         ..Default::default()
     }
 }
-fn binding(id: u64, semantic: u64, scene: u64, region: p::Rect) -> p::Binding {
+pub(crate) fn binding(id: u64, semantic: u64, scene: u64, region: p::Rect) -> p::Binding {
     p::Binding {
         id,
         version: 1,

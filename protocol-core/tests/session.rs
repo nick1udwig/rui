@@ -32,6 +32,48 @@ fn hello(client: u8) -> ClientHello {
 fn broker() -> SessionBroker {
     SessionBroker::new([1; 16], [2; 16], SessionConfig::default()).unwrap()
 }
+#[test]
+fn trusted_adapter_reservations_share_view_budget_and_survive_scope_disconnect() {
+    let mut broker = broker();
+    let session = connect(&mut broker, 3, "alice", true);
+    let hold = broker
+        .reserve_view_memory(
+            &session.client,
+            session.view_id,
+            session.limits.view_memory_bytes,
+        )
+        .unwrap();
+    assert_eq!(
+        broker
+            .retained_memory_bytes(&session.client, session.view_id)
+            .unwrap(),
+        session.limits.view_memory_bytes
+    );
+    assert!(matches!(
+        broker.reserve_view_memory(&session.client, session.view_id, 1),
+        Err(SessionError::Oversized)
+    ));
+    let wrong = AuthenticatedClient {
+        principal: "mallory".into(),
+        ..session.client.clone()
+    };
+    assert!(matches!(
+        broker.reserve_view_memory(&wrong, session.view_id, 1),
+        Err(SessionError::WrongPrincipal)
+    ));
+    broker.disconnect(&session.client, 1).unwrap();
+    assert!(broker
+        .reserve_view_memory(&session.client, session.view_id, 1)
+        .is_err());
+    drop(hold);
+    let session = connect(&mut broker, 3, "alice", true);
+    assert_eq!(
+        broker
+            .retained_memory_bytes(&session.client, session.view_id)
+            .unwrap(),
+        0
+    );
+}
 fn connect(
     broker: &mut SessionBroker,
     client: u8,

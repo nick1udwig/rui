@@ -329,7 +329,8 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                     if opened {return Err(TransportError::Protocol);}let view:p::OpenView=codec::decode(&packet.payload,ceiling)?;
                     let semantic_only=session.profiles.contains("semantics.only.v1");
                     if view.selection!="fixture" || view.mirror_canvas_policy!=if semantic_only {"semantic-only"}else {"host-canvas"} {return Err(TransportError::Protocol);}opened=true;
-                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:160.0,canvas_height:100.0,coverage:if semantic_only {"semantic-only"}else {"complete"}.into(),granted_input_modes:if session.permissions.can_control {vec!["semantic.v1".into()]} else {vec![]}};
+                    let description={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?};
+                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage,granted_input_modes:description.input_modes};
                     websocket::send(socket,codec::wrap(p::Kind::ViewOpened,&opened,binding),ceiling,timeout).await?;
                     match &session.resume {
                         ResumeDisposition::Accepted {from_revision,through_revision,transactions,requires_resources}=>{

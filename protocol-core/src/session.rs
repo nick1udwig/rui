@@ -223,6 +223,12 @@ struct Reservation {
     budget: Arc<MemoryBudget>,
     bytes: usize,
 }
+/// Opaque trusted-adapter allocation charge against this authenticated view.
+/// Acquire it before allocating captures, work buffers or diagnostic state and
+/// retain it for the entire allocation lifetime. It cannot be cloned.
+pub struct ViewMemoryReservation {
+    _reservation: Reservation,
+}
 impl Reservation {
     fn new(budget: Arc<MemoryBudget>, bytes: usize) -> Result<Self, SessionError> {
         budget
@@ -931,6 +937,19 @@ impl SessionBroker {
             .budget
             .used
             .load(Ordering::Acquire))
+    }
+    /// Share the same ceiling used by decoded snapshots, history, queues and
+    /// returned payloads with trusted source/presentation adapter allocations.
+    pub fn reserve_view_memory(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        bytes: usize,
+    ) -> Result<ViewMemoryReservation, SessionError> {
+        let conn = self.connection(client, view)?;
+        Ok(ViewMemoryReservation {
+            _reservation: Reservation::new(conn.budget.clone(), bytes)?,
+        })
     }
     pub fn acknowledge_applied(
         &mut self,

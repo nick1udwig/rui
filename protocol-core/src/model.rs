@@ -425,6 +425,40 @@ pub struct State {
     pub retired: BTreeSet<u64>,
 }
 impl State {
+    /// Convert a trusted, already bounded and allocated cooperating-source
+    /// capture directly into validated model records, without wire decoding.
+    /// The caller must hold a conservative allocation reservation throughout
+    /// conversion and retention. This does not establish source provenance or
+    /// authorize/check resource availability.
+    pub fn from_source_records(
+        revision: u64,
+        records: Vec<pb::Record>,
+        limits: &Limits,
+    ) -> Result<Self, ModelError> {
+        if revision == 0 {
+            return Err(invalid("zero source revision"));
+        }
+        if records.len() > limits.max_records {
+            return Err(ModelError::Limit("records"));
+        }
+        let mut state = Self {
+            revision,
+            records: BTreeMap::new(),
+            retired: BTreeSet::new(),
+        };
+        for raw in records {
+            let record = convert_record(raw, limits)?;
+            let id = record.id();
+            if state.records.insert(id, record).is_some() {
+                return Err(ModelError::DuplicateId(id));
+            }
+        }
+        if state.estimated_bytes() > limits.max_memory_bytes {
+            return Err(ModelError::Limit("decoded source state"));
+        }
+        validate_graph(&state, limits)?;
+        Ok(state)
+    }
     pub fn resource_refs(&self) -> BTreeSet<ResourceId> {
         let mut result = BTreeSet::new();
         for record in self.records.values() {
