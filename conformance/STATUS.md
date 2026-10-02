@@ -1,31 +1,53 @@
 # Implementation acceptance
 
-The original root `conformance.yaml` remains an unchanged design artifact. Executable test coverage is tracked here separately so that implementation progress cannot be mistaken for completion of the entire RFC.
+The original root `conformance.yaml` remains an unchanged design artifact.
+Passing a component test does not by itself complete an integration case.
+The authorized implementation scope is RFC M0–M5, including all 79 specified
+cases and the P1 measurements; RFC section 14 remains deferred.
 
-## Implemented core slice
+## Accepted foundations
 
-The implementation covers a transport-independent M1 foundation and a controlled headless host fixture: generated Protobuf vocabulary, atomic replica validation, bounded chunk assembly, strict vector resources, coordinated reception, command deduplication, and session authority. Test names refer to specification case IDs where applicable; a test covering a core invariant does not complete an integration or rendering case.
-
-| Area | Executable evidence | Boundary |
+| Area | Executable evidence | Scope |
 |---|---|---|
-| Schema and reducer | `protocol-core/tests/model.rs`, `protocol-core/tests/scene.rs`, independent Python replay | Nine retained scene primitives; no renderer |
-| Exact-byte publication assembly | `protocol-core/tests/publication.rs` | In-memory chunks; no WebSocket binding |
-| Resources and lifecycle | `protocol-core/tests/resources.rs` | Limited safe vector format; trusted producer provenance |
-| Deduplication and typed commands | `protocol-core/tests/commands.rs` | Synthetic source callbacks; no application adapter |
-| Negotiation, recovery, leases, queues | `protocol-core/tests/session.rs` | Authenticated identity supplied by caller; no TLS/OS input |
-| Receiver integration | `protocol-core/tests/receiver.rs`, `protocol-core/tests/pipeline.rs` | Owned resource pins and shared budgets; cache/disconnect/revocation recovery; renderer callback trusted |
-| Controlled host | `host-broker/tests/controlled.rs` | Two headless clients, source dispatch, observer redaction; no GUI or real authentication |
-| Independent decoder/reducer | `python3 conformance/check.py` | Semantic replay plus all nine scene variants; 16 deterministic seeds and checked-in exact golden bytes |
+| Schema and reducer | `protocol-core/tests/model.rs`, `scene.rs`; Python oracle | Nine retained primitives; atomic graph/version validation |
+| Publications and resources | `publication.rs`, `resources.rs`, `receiver.rs`, `pipeline.rs` | Exact-byte chunks, shared budgets, pins, delayed resources, cache loss and revocation |
+| Command and session authority | `commands.rs`, `session.rs`; `host-broker/tests/controlled.rs` | At-most-once semantic dispatch, source evidence, leases, private observer projections |
+| Input and composition primitives | `protocol-core/tests/input.rs` | Whole-batch validation, ordered capture, conservative cleanup, transient scalar-indexed composition; host integration pending |
+| Scoped transcripts | `protocol-core/tests/transcript.rs` | Metadata by default; authorized exact bytes, shared accounting and irreversible revocation |
+| Generated hardening | `protocol-core/tests/hardening.rs` | 2,048 replay prefixes and 10,000 bounded malformed-payload mutations |
+| Independent decoder/reducer | `python3 conformance/check.py` | 1,275 semantic replay prefixes and 144 scene fixtures across exact bytes and 16 seeds |
+| Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | 18 tests: pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation |
+| CPU reference renderer | `client-desktop/tests/` | 26 tests: nine primitives, analytic pixels, linear composition, transforms, clipping, surfaces, paths, glyphs, bounds and explicit failure |
+| Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Ten strict snapshots, native source glyph evidence, exact resource replay, retirement and bounded artifact decoding |
 
-Review corrections include cleanup of abandoned resource transfers, poisoning conflicting duplicate chunks, binding client identities to principals, rejecting revision gaps, requiring presentation before input, charging queue bookkeeping, retaining dispatch keys across expired outcomes and callback panics, and checking content-version clocks.
+Root review required corrections to authorization revocation races, cleanup
+ordering and panic handling, recursive allocation preflight, private transport
+logging, conservative input cleanup, resource descriptor access and renderer
+work bounds. The accepted CPU renderer also passes against a fresh checksum-pinned
+Cairo 1.18.4 build with optional native backends disabled, as used by CI.
 
-Local validation: **145 Rust tests pass**. The independent Python/Rust check passes **1,275 semantic replay prefixes** and **144 scene fixtures** across exact golden bytes and 16 deterministic seeds. These are implementation tests, not completed cases from the original specification. Formatting and Clippy with warnings denied also pass locally; the included CI workflow runs the same checks. The suite includes a 10,000-record snapshot/update, hostile repeated-field allocation checks, receiver lifecycle recovery, and two-client source dispatch. The runnable headless example produces one increment and one consumed command despite retry.
+## Milestone gates
 
-## Gates still open
+- **M0 accepted for the declared corpus.** [Measured GTK coverage](../docs/gtk-coverage.md)
+  identifies the actual same-node snapshot boundary, cooperating stable semantics,
+  ten frames per style, 61 default-style gaps and zero constrained-style gaps.
+  Window decorations and compositor output are outside that capture scope.
+- **M1 remains open.** Complete all controlled command families, post-auth transcript
+  integration, independent result interoperability and the full core-case audit.
+- **M2 remains open.** The graphical host fixture, two actual desktop mirrors,
+  controls/text/list/scroll/transients/canvas, authorized resize, resource-bearing
+  transport, retained reconnect and host/reference comparisons must work together.
+- **M3 remains open.** Typed source interaction, focus/IME, explicit popup lifecycle,
+  guarded remote source dispatch and full-corpus visual comparisons remain.
+- **M4 remains open.** Implement and test the explicitly supported isolated session
+  shell, permissioned libei input, geometry/modality/focus/scaling, takeover,
+  observed accessibility reconciliation and enforceable scope.
+- **M5 remains open.** Complete the independent semantic client, network fault and
+  recovery traces, sustained resource churn, case-by-case acceptance audit and
+  integrated named-hardware CPU/latency/bandwidth/memory measurements.
 
-- M0: capture a representative corpus using a pinned GTK build, demonstrate actual shared capture boundaries, and publish measured supported/unsupported node coverage. Availability of GTK on a development machine is not this evidence.
-- M1: complete the full proposed message vocabulary and all core cases, extend independent interoperability and property testing, and bind transport/session/receiver lifecycles. Glyph verification and outline mapping remain unsupported by the coordinated receiver.
-- M2: authoritative graphical fixture, two desktop clients, renderer comparisons, reconnects, and resource-cache recovery.
-- M3–M5: real GTK capture, compositor/portal integration, production hardening, and the semantic-only application client.
-
-No TLS authentication, user approval UI, renderer, OS input injection, or arbitrary-application redaction pipeline is supplied. The cooperating headless fixture supplies source evidence and per-view redaction for its own fixed application. Callers must establish authenticated identities and real renderer/producer evidence at their own boundaries.
+Current transport foundation limits and trusted boundaries are in its
+[README](../transport/README.md). The CPU renderer's native allocation policy,
+local image artifacts and pinned sampling are specified in
+[its profile](../spec/renderer-profile.md). Native GTK antialiasing differences
+have been measured, but a complete visual acceptance gate is not claimed yet.

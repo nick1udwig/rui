@@ -173,6 +173,7 @@ fn receiver_waits_owns_pins_and_applies_only_verified_resources() {
     ));
     assert!(receiver.resources_ready().unwrap());
     assert_eq!(receiver.read_resource(offer.digest).unwrap(), bytes);
+    assert_eq!(receiver.resource_offer(offer.digest).unwrap(), &offer);
     assert_eq!(receiver.presented_revision().unwrap(), None);
     assert_eq!(receiver.mark_presented(1).unwrap().revision, 1);
     assert_eq!(

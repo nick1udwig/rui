@@ -267,6 +267,10 @@ impl ViewReceiver {
     pub fn memory_limit(&self) -> usize {
         self.budget.limit()
     }
+    /// Share the receiver's accounting ledger with trusted presentation work.
+    pub fn memory_budget(&self) -> MemoryBudget {
+        self.budget.clone()
+    }
     pub fn cache_bytes(&self) -> Result<usize, ReceiverError> {
         Ok(self.inner()?.cache.cache_bytes())
     }
@@ -767,6 +771,16 @@ impl ViewReceiver {
             return Err(ReceiverError::NotNeeded);
         }
         Ok(inner.cache.read(self.context, digest)?)
+    }
+    /// Borrow the verified descriptor under the same view and live/pending
+    /// closure checks as its body. A known digest alone conveys no access.
+    pub fn resource_offer(&self, digest: ResourceDigest) -> Result<&ResourceOffer, ReceiverError> {
+        self.check(self.context)?;
+        let inner = self.inner()?;
+        if !Self::is_needed(inner, digest) {
+            return Err(ReceiverError::NotNeeded);
+        }
+        Ok(inner.cache.available_offer(self.context, digest)?)
     }
     /// Trusted policy revocation closes a view whose retained scene still uses
     /// the resource, rather than leaving a readable unauthorized live scene.

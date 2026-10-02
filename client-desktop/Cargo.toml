@@ -1,0 +1,13 @@
+[package]
+name = "rui-client-desktop"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rui-protocol-core = { path = "../protocol-core" }
+cairo-rs = { version = "=0.20.12", default-features = false }
+thiserror = "2"
+
+[dev-dependencies]
+prost = "0.13"
+rui-producer-sdk = { path = "../adapters/sdk" }
