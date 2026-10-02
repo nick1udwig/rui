@@ -26,6 +26,9 @@ pub struct ReceiverConfig {
     pub model: Limits,
     pub publication: PublicationLimits,
     pub resources: ResourceLimits,
+    /// Enable only after negotiating glyph.outline-single.v1 with a renderer
+    /// implementing its normalized single-outline mapping.
+    pub single_glyph_outlines: bool,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -111,6 +114,7 @@ struct Inner {
     cache: ResourceCache,
     assembler: PublicationAssembler,
     active: Option<ActivePublication>,
+    single_glyph_outlines: bool,
     _memory: MemoryReservation,
 }
 
@@ -232,6 +236,7 @@ impl ViewReceiver {
                 cache,
                 assembler,
                 active: None,
+                single_glyph_outlines: local.single_glyph_outlines,
                 _memory: memory,
             }),
             connected: true,
@@ -398,13 +403,16 @@ impl ViewReceiver {
                     view_id: context.view_id,
                     publication_id: id,
                 };
-                let validation = Self::check_fonts(inner.replica.pending_state().unwrap())
-                    .and_then(|()| {
-                        inner
-                            .cache
-                            .replace_pins(context, staged, pins)
-                            .map_err(Into::into)
-                    });
+                let validation = Self::check_fonts(
+                    inner.replica.pending_state().unwrap(),
+                    inner.single_glyph_outlines,
+                )
+                .and_then(|()| {
+                    inner
+                        .cache
+                        .replace_pins(context, staged, pins)
+                        .map_err(Into::into)
+                });
                 if let Err(error) = validation {
                     inner.replica.abort_pending();
                     inner.active = None;
@@ -557,8 +565,22 @@ impl ViewReceiver {
         }
     }
 
-    fn check_fonts(state: &State) -> Result<(), ReceiverError> {
-        if state.records.values().any(|record| matches!(record, Record::Scene(scene) if matches!(scene.primitive, Primitive::GlyphRun { .. }))) { return Err(ReceiverError::UnsupportedFont); }
+    fn check_fonts(state: &State, single_outline: bool) -> Result<(), ReceiverError> {
+        for record in state.records.values() {
+            if let Record::Scene(scene) = record {
+                if let Primitive::GlyphRun {
+                    font, glyph_ids, ..
+                } = &scene.primitive
+                {
+                    if !single_outline
+                        || !matches!(font, GlyphFont::Outline(_))
+                        || glyph_ids.iter().any(|id| *id != 0)
+                    {
+                        return Err(ReceiverError::UnsupportedFont);
+                    }
+                }
+            }
+        }
         Ok(())
     }
     fn check_descriptors(

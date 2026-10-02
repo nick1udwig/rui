@@ -24,6 +24,7 @@ pub const SUPPORTED_FEATURES: &[&str] = &[
     "content.no-raster.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
+    "glyph.outline-single.v1",
 ];
 
 pub fn required_features(features: &[String]) -> Result<(), WireError> {

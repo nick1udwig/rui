@@ -49,8 +49,9 @@ scalar clusters; clients must not reshape or reflow it. A font fingerprint must
 identify the exact verified preinstalled font. This model does not implement a
 font loader, glyph rasterizer, multi-glyph outline bundle or variation axes.
 The current individual `GlyphOutline` resource format alone does not define a
-multi-glyph ID mapping; accepting that mapping requires an explicit receiver
-subprofile. Unsupported glyph resource or font handling must remain an explicit
+multi-glyph ID mapping. The optional [single-outline glyph profile](glyph-outline-profile.md)
+defines normalized outlines with glyph ID zero and explicit receiver opt-in.
+Unsupported glyph resource or font handling must remain an explicit
 error. The nine-primitive schema does not establish renderer support for fonts.
 
 ## Rounded rectangles and inward borders

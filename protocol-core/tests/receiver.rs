@@ -833,3 +833,97 @@ fn resource_revocation_disposes_live_scene_and_all_receiving_work() {
         ReceiverError::Closed
     );
 }
+
+#[test]
+fn negotiated_single_outline_glyphs_require_verified_resources_and_zero_ids() {
+    let (_, bytes) = path();
+    let offer = ResourceOffer {
+        kind: ResourceKind::GlyphOutline,
+        version: 1,
+        provenance: ResourceProvenance::FontOutline,
+        total_bytes: bytes.len() as u64,
+        digest: resource_digest(
+            ResourceKind::GlyphOutline,
+            1,
+            ResourceProvenance::FontOutline,
+            &bytes,
+        ),
+    };
+    let mut node = scene(1, None);
+    if let Some(pb::record::Record::Scene(scene)) = &mut node.record {
+        scene.primitive = Some(pb::scene_node::Primitive::GlyphRun(pb::GlyphRun {
+            font: Some(pb::glyph_run::Font::OutlineResource(offer.digest.to_vec())),
+            size: 12.0,
+            glyph_ids: vec![0, 0],
+            positions: vec![pb::Point { x: 0.0, y: 12.0 }, pb::Point { x: 8.0, y: 12.0 }],
+            scalar_clusters: vec![0, 1],
+            color: Some(pb::Color {
+                alpha: 1.0,
+                ..Default::default()
+            }),
+        }));
+    }
+    let payload = |record: pb::Record| {
+        envelope(
+            pb::MessageKind::Snapshot,
+            pb::Snapshot {
+                revision: 1,
+                records: vec![record],
+                required_features: vec!["glyph.outline-single.v1".into()],
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        )
+    };
+    let mut ordinary = receiver();
+    ordinary.authorize_resource(offer.digest).unwrap();
+    assert_eq!(
+        ordinary
+            .receive_envelope([5; 16], &payload(node.clone()))
+            .unwrap_err(),
+        ReceiverError::UnsupportedFont
+    );
+    let mut enabled = ViewReceiver::new(
+        context(),
+        ReceiverLimits::default(),
+        ReceiverConfig {
+            single_glyph_outlines: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    enabled.authorize_resource(offer.digest).unwrap();
+    assert!(matches!(
+        enabled
+            .receive_envelope([5; 16], &payload(node.clone()))
+            .unwrap(),
+        ReceiveOutcome::NeedResources { .. }
+    ));
+    assert_eq!(enabled.state().unwrap().revision, 0);
+    assert!(matches!(
+        deliver(&mut enabled, &offer, &bytes).unwrap(),
+        Some(ReceiveOutcome::Applied { revision: 1 })
+    ));
+    enabled.mark_presented(1).unwrap();
+    if let Some(pb::record::Record::Scene(scene)) = &mut node.record {
+        if let Some(pb::scene_node::Primitive::GlyphRun(glyph)) = &mut scene.primitive {
+            glyph.glyph_ids[0] = 1;
+        }
+    }
+    let mut bad = ViewReceiver::new(
+        context(),
+        ReceiverLimits::default(),
+        ReceiverConfig {
+            single_glyph_outlines: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    bad.authorize_resource(offer.digest).unwrap();
+    assert_eq!(
+        bad.receive_envelope([6; 16], &payload(node)).unwrap_err(),
+        ReceiverError::UnsupportedFont
+    );
+    assert_eq!(bad.state().unwrap().revision, 0);
+    assert!(!bad.has_pending_publication());
+}
