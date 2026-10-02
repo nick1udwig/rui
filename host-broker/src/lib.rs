@@ -3,6 +3,7 @@
 //! input injection are not implemented here.
 mod corpus;
 mod fixture;
+mod source_fonts;
 pub use corpus::{
     CANVAS_ID, CHECKBOX_ID, ITEM_IDS, LIST_ID, MODAL_TOGGLE_ID, POPUP_TOGGLE_ID, PUBLIC_TEXT_ID,
     PUBLIC_TEXT_MODEL_ID, REORDER_ID, SECOND_SURFACE_ID, TOOLTIP_TOGGLE_ID,
@@ -16,15 +17,21 @@ use rui_protocol_core::commands::{
     AuthenticatedClient, Command, CommandFamily, CommandLedger, CommandResult, DispatchFailure,
     DispatchOutcome, Id, LedgerError, LedgerLimits, Rejection, SourceEvidence,
 };
+use rui_protocol_core::resources::{ResourceDigest, ResourceOffer};
 use rui_protocol_core::session::{
-    ClientHello, ControlLease, InputCleanup, NegotiatedSession, Permissions, ReceiverLimits,
-    ResetReason, ResumeDisposition, SessionBroker, SessionConfig, SessionError, SharedPayload,
-    VerifiedAuthorization, ViewMemoryReservation,
+    ClientHello, ControlLease, InputCleanup, NegotiatedSession, Permissions, PublicationAttachment,
+    ReceiverLimits, ResetReason, ResumeDisposition, SessionBroker, SessionConfig, SessionError,
+    SharedPayload, VerifiedAuthorization, ViewMemoryReservation, WeakPublicationAttachment,
 };
 use rui_protocol_core::wire::proto as p;
 use sha2::{Digest, Sha256};
+pub use source_fonts::{
+    NativeSourceFontProvider, SourceFontError, SourceFontProvider, SourceGlyph, SourceOutline,
+    SourceShapedText,
+};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Explicit fixture content-reading permission in trusted Permissions::actions.
@@ -65,6 +72,8 @@ pub enum HostError {
     Ledger(#[from] LedgerError),
     #[error("fixture text or source clock limit exceeded")]
     FixtureLimit,
+    #[error("resource is not authorized or retained for this view")]
+    ResourceUnavailable,
     #[error("an explicit coherent checkpoint is required")]
     CheckpointRequired,
     #[error("view closed after publication failure: {0:?}")]
@@ -100,6 +109,7 @@ pub struct SourceCapture {
     commit: u64,
     records: Vec<p::Record>,
     state: rui_protocol_core::model::State,
+    resources: Option<PublicationAttachment>,
     _memory: ViewMemoryReservation,
 }
 impl SourceCapture {
@@ -111,6 +121,14 @@ impl SourceCapture {
     }
     pub fn state(&self) -> &rui_protocol_core::model::State {
         &self.state
+    }
+    pub fn resources(&self) -> impl Iterator<Item = (&ResourceOffer, &[u8])> {
+        self.resources
+            .as_ref()
+            .and_then(|r| r.get::<ResourceClosure>())
+            .into_iter()
+            .flat_map(|r| r.outlines.iter())
+            .map(|r| (r.offer(), r.bytes()))
     }
 }
 impl std::fmt::Debug for SourceCapture {
@@ -137,6 +155,8 @@ struct Projection {
     checkpoint_required: bool,
     closed: Option<PublicationFailure>,
     records: BTreeMap<u64, RecordStamp>,
+    resources: Option<PublicationAttachment>,
+    resource_registry: BTreeMap<ResourceDigest, Vec<WeakPublicationAttachment>>,
 }
 #[derive(Clone)]
 struct RecordStamp {
@@ -167,6 +187,8 @@ impl Projection {
             checkpoint_required: true,
             closed: None,
             records: BTreeMap::new(),
+            resources: None,
+            resource_registry: BTreeMap::new(),
         }
     }
     fn envelope(
@@ -200,6 +222,30 @@ pub struct ControlledHost {
     source: ControlledApplication,
     projections: BTreeMap<Id, Projection>,
 }
+struct ResourceClosure {
+    outlines: Vec<SourceOutline>,
+}
+/// An immutable resource authorized for this current view. Borrowing its offer
+/// or body does not escape its shared allocation charge. Debug omits content.
+pub struct AuthorizedResource {
+    attachment: PublicationAttachment,
+    index: usize,
+}
+impl AuthorizedResource {
+    pub fn offer(&self) -> &ResourceOffer {
+        self.attachment.get::<ResourceClosure>().unwrap().outlines[self.index].offer()
+    }
+    pub fn bytes(&self) -> &[u8] {
+        self.attachment.get::<ResourceClosure>().unwrap().outlines[self.index].bytes()
+    }
+}
+impl std::fmt::Debug for AuthorizedResource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthorizedResource")
+            .field("bytes", &self.bytes().len())
+            .finish()
+    }
+}
 impl ControlledHost {
     pub fn new(mut config: HostConfig, initial_secret: String) -> Result<Self, HostError> {
         config
@@ -222,6 +268,42 @@ impl ControlledHost {
         let mut host = Self::new(config, initial_secret)?;
         host.source.corpus = Some(corpus::Corpus::new(max_text_bytes));
         Ok(host)
+    }
+    /// Source-native public caption projection. The source capability is
+    /// trusted local code, never selected or executed by remote clients.
+    pub fn new_corpus_with_fonts(
+        mut config: HostConfig,
+        initial_secret: String,
+        provider: Arc<dyn SourceFontProvider>,
+    ) -> Result<Self, HostError> {
+        config
+            .session
+            .supported_profiles
+            .insert(source_fonts::GLYPH_PROFILE.into());
+        let mut host = Self::new_corpus(config, initial_secret)?;
+        host.source.fonts = Some(source_fonts::SourceFonts::new(provider));
+        host.source.refresh_fonts();
+        Ok(host)
+    }
+    /// Reading a digest does not grant permission. Current registered identity,
+    /// policy and view are checked before any retained resource is selected.
+    pub fn resource(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        digest: ResourceDigest,
+    ) -> Result<AuthorizedResource, HostError> {
+        let projection = self.projection(client, view)?;
+        let attachment = projection
+            .resource_registry
+            .get(&digest)
+            .and_then(|owners| owners.iter().find_map(WeakPublicationAttachment::upgrade))
+            .ok_or(HostError::ResourceUnavailable)?;
+        let index = attachment
+            .get::<ResourceClosure>()
+            .and_then(|r| r.outlines.iter().position(|r| r.offer().digest == digest))
+            .ok_or(HostError::ResourceUnavailable)?;
+        Ok(AuthorizedResource { attachment, index })
     }
     /// The caller supplies credentials already verified by its trusted auth
     /// adapter. Never deserialize VerifiedAuthorization from client data.
@@ -299,10 +381,15 @@ impl ControlledHost {
         let decoded = self.source.decoded_projection_bytes(projection);
         let _working = self.sessions.reserve_view_memory(client, view, decoded)?;
         let capture = capture(&self.source, projection, false)?;
+        let resources =
+            resource_closure(&self.sessions, &self.source, projection, &capture.records)?;
+        if !can_install_resources(projection, &resources) {
+            return Err(SessionError::Oversized.into());
+        }
         let snapshot = p::Snapshot {
             revision,
             records: capture.records,
-            required_resources: vec![],
+            required_resources: resource_digests(&resources),
             required_features: projection.profiles.iter().cloned().collect(),
         };
         let bytes = projection.envelope(
@@ -311,7 +398,9 @@ impl ControlledHost {
             p::MessageKind::Snapshot,
             snapshot.encode_to_vec(),
         );
-        let output = self.sessions.snapshot_payload(client, view, bytes)?;
+        let output =
+            self.sessions
+                .snapshot_publication_payload(client, view, bytes, resources.clone())?;
         self.sessions
             .install_snapshot(client, view, revision, decoded)?;
         let projection = self
@@ -323,6 +412,7 @@ impl ControlledHost {
         projection.counter_clock = self.source.counter_clock;
         projection.text_clock = self.source.text_clock;
         projection.records = capture.stamps;
+        install_resources(projection, resources)?;
         projection.checkpoint_required = false;
         Ok(output)
     }
@@ -343,10 +433,13 @@ impl ControlledHost {
             view,
             self.source.decoded_projection_bytes(projection),
         )?;
+        let capture = capture(&self.source, projection, false)?;
+        let resources =
+            resource_closure(&self.sessions, &self.source, projection, &capture.records)?;
         let snapshot = p::Snapshot {
             revision,
-            records: capture(&self.source, projection, false)?.records,
-            required_resources: vec![],
+            records: capture.records,
+            required_resources: resource_digests(&resources),
             required_features: projection.profiles.iter().cloned().collect(),
         };
         let bytes = projection.envelope(
@@ -355,7 +448,12 @@ impl ControlledHost {
             p::MessageKind::Snapshot,
             snapshot.encode_to_vec(),
         );
-        Ok(self.sessions.snapshot_payload(client, view, bytes)?)
+        if bytes.len() > projection.limits.envelope_bytes {
+            return Err(SessionError::Oversized.into());
+        }
+        Ok(self
+            .sessions
+            .snapshot_publication_payload(client, view, bytes, resources)?)
     }
     /// Capture directly from current authoritative application state, independently
     /// of transport bytes or receiver replay. It changes no history or revision.
@@ -390,6 +488,7 @@ impl ControlledHost {
             commit: self.source.commit,
             records,
             state,
+            resources: projection.resources.clone(),
             _memory: memory,
         })
     }
@@ -411,7 +510,10 @@ impl ControlledHost {
             height,
             coverage: if projection.semantic_only {
                 "semantic-only"
-            } else if self.source.corpus.is_some() {
+            } else if self.source.corpus.is_some()
+                && !(projection.profiles.contains(source_fonts::GLYPH_PROFILE)
+                    && self.source.fonts.as_ref().is_some_and(|f| f.complete()))
+            {
                 "partial"
             } else {
                 "complete"
@@ -830,6 +932,17 @@ fn publish_projections(
                 continue;
             }
         };
+        let resources = match resource_closure(sessions, source, projection, &capture.records) {
+            Ok(resources) => resources,
+            Err(_) => {
+                close_projection(sessions, projection, PublicationFailure::SlowConsumer, now);
+                continue;
+            }
+        };
+        if !can_install_resources(projection, &resources) {
+            close_projection(sessions, projection, PublicationFailure::ReceiverLimit, now);
+            continue;
+        }
         let mutations = capture.mutations;
         if mutations.len() > projection.limits.records {
             close_projection(sessions, projection, PublicationFailure::ReceiverLimit, now);
@@ -839,7 +952,7 @@ fn publish_projections(
             base_revision: base,
             new_revision: revision,
             mutations,
-            required_resources: vec![],
+            required_resources: resource_digests(&resources),
             required_features: projection.profiles.iter().cloned().collect(),
         };
         let bytes = projection.envelope(
@@ -848,16 +961,13 @@ fn publish_projections(
             p::MessageKind::Transaction,
             transaction.encode_to_vec(),
         );
-        if bytes.len() > projection.limits.envelope_bytes {
-            close_projection(sessions, projection, PublicationFailure::ReceiverLimit, now);
-            continue;
-        }
-        match sessions.publish(
+        match sessions.publish_with_attachment(
             &projection.client,
             projection.view_id,
             base,
             revision,
             bytes,
+            resources.clone(),
             now,
         ) {
             Ok(()) => {
@@ -866,6 +976,7 @@ fn publish_projections(
                 projection.counter_clock = source.counter_clock;
                 projection.text_clock = source.text_clock;
                 projection.records = capture.stamps;
+                let _ = install_resources(projection, resources);
             }
             Err(error) => {
                 let reason = match error {
@@ -890,4 +1001,134 @@ fn close_projection(
     projection.closed = Some(reason);
     projection.connected = false;
     projection.checkpoint_required = true;
+    projection.resources = None;
+    projection.resource_registry.clear();
+}
+
+fn resource_digests(resources: &Option<PublicationAttachment>) -> Vec<Vec<u8>> {
+    resources
+        .as_ref()
+        .and_then(|r| r.get::<ResourceClosure>())
+        .map_or_else(Vec::new, |r| {
+            r.outlines
+                .iter()
+                .map(|r| r.offer().digest.to_vec())
+                .collect()
+        })
+}
+fn resource_closure(
+    sessions: &SessionBroker,
+    source: &ControlledApplication,
+    projection: &Projection,
+    records: &[p::Record],
+) -> Result<Option<PublicationAttachment>, HostError> {
+    let digests: BTreeSet<ResourceDigest> = records
+        .iter()
+        .filter_map(|r| match &r.record {
+            Some(p::record::Record::Scene(s)) => Some(&s.resource_refs),
+            _ => None,
+        })
+        .flatten()
+        .map(|d| d.as_slice().try_into().map_err(|_| HostError::FixtureLimit))
+        .collect::<Result<_, _>>()?;
+    if digests.is_empty() {
+        return Ok(None);
+    }
+    if let Some(existing) = &projection.resources {
+        if existing.get::<ResourceClosure>().is_some_and(|r| {
+            r.outlines
+                .iter()
+                .map(|r| r.offer().digest)
+                .eq(digests.iter().copied())
+        }) {
+            return Ok(Some(existing.clone()));
+        }
+    }
+    let available = source.source_resources(projection);
+    let mut bytes = 512usize;
+    for digest in &digests {
+        let r = available
+            .iter()
+            .find(|r| r.offer().digest == *digest)
+            .ok_or(HostError::ResourceUnavailable)?;
+        if r.bytes().len() > projection.limits.resource_bytes {
+            return Err(SessionError::Oversized.into());
+        }
+        bytes = bytes
+            .checked_add(r.bytes().len() + 512)
+            .ok_or(HostError::FixtureLimit)?;
+    }
+    let memory = sessions.reserve_view_memory(&projection.client, projection.view_id, bytes)?;
+    let outlines = digests
+        .iter()
+        .map(|digest| {
+            available
+                .iter()
+                .find(|r| r.offer().digest == *digest)
+                .unwrap()
+                .clone()
+        })
+        .collect();
+    Ok(Some(memory.attach(ResourceClosure { outlines })))
+}
+fn can_install_resources(
+    projection: &Projection,
+    resources: &Option<PublicationAttachment>,
+) -> bool {
+    let mut counts: BTreeMap<_, usize> = projection
+        .resource_registry
+        .iter()
+        .filter_map(|(d, owners)| {
+            let live = owners.iter().filter(|v| v.upgrade().is_some()).count();
+            (live > 0).then_some((*d, live))
+        })
+        .collect();
+    if let Some(resources) = resources {
+        for outline in &resources.get::<ResourceClosure>().unwrap().outlines {
+            let existing = projection
+                .resource_registry
+                .get(&outline.offer().digest)
+                .is_some_and(|owners| {
+                    owners
+                        .iter()
+                        .filter_map(WeakPublicationAttachment::upgrade)
+                        .any(|v| v.ptr_eq(resources))
+                });
+            if !existing {
+                *counts.entry(outline.offer().digest).or_default() += 1;
+            }
+        }
+    }
+    counts.len() <= 512 && counts.values().sum::<usize>() <= 4096
+}
+fn install_resources(
+    projection: &mut Projection,
+    resources: Option<PublicationAttachment>,
+) -> Result<(), HostError> {
+    if !can_install_resources(projection, &resources) {
+        return Err(SessionError::Oversized.into());
+    }
+    // Weak allocation metadata itself has independent finite ceilings (512
+    // digests,4096 owners) covered by the live decoded projection reservation.
+    projection.resource_registry.retain(|_, owners| {
+        owners.retain(|v| v.upgrade().is_some());
+        !owners.is_empty()
+    });
+    if let Some(resources) = &resources {
+        for outline in &resources.get::<ResourceClosure>().unwrap().outlines {
+            let owners = projection
+                .resource_registry
+                .entry(outline.offer().digest)
+                .or_default();
+            if !owners
+                .iter()
+                .filter_map(WeakPublicationAttachment::upgrade)
+                .any(|v| v.ptr_eq(resources))
+            {
+                owners.push(resources.downgrade());
+            }
+        }
+    }
+    projection.resources = resources;
+    Ok(())
 }

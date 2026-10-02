@@ -4,11 +4,12 @@
 use crate::commands::{
     AuthenticatedClient, CommandFamily, CommandHeader, Id, Rejection, SemanticCommand,
 };
+use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ops::Deref;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc,
+    Arc, Weak,
 };
 use thiserror::Error;
 
@@ -227,7 +228,43 @@ struct Reservation {
 /// Acquire it before allocating captures, work buffers or diagnostic state and
 /// retain it for the entire allocation lifetime. It cannot be cloned.
 pub struct ViewMemoryReservation {
+    view_id: Id,
     _reservation: Reservation,
+}
+/// An opaque, shared trusted-adapter allocation. The reservation must cover the
+/// value and every allocation it owns before construction. Private adapter types
+/// prevent callers from extracting uncharged owned content. Publication/history
+/// clones retain this charge until the last handle drops.
+#[derive(Clone)]
+pub struct PublicationAttachment(Arc<Attachment>);
+struct Attachment {
+    memory: ViewMemoryReservation,
+    value: Box<dyn Any + Send + Sync>,
+}
+pub struct WeakPublicationAttachment(Weak<Attachment>);
+impl PublicationAttachment {
+    pub fn get<T: Any>(&self) -> Option<&T> {
+        self.0.value.downcast_ref()
+    }
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+    pub fn downgrade(&self) -> WeakPublicationAttachment {
+        WeakPublicationAttachment(Arc::downgrade(&self.0))
+    }
+}
+impl WeakPublicationAttachment {
+    pub fn upgrade(&self) -> Option<PublicationAttachment> {
+        self.0.upgrade().map(PublicationAttachment)
+    }
+}
+impl ViewMemoryReservation {
+    pub fn attach<T: Any + Send + Sync>(self, value: T) -> PublicationAttachment {
+        PublicationAttachment(Arc::new(Attachment {
+            memory: self,
+            value: Box::new(value),
+        }))
+    }
 }
 impl Reservation {
     fn new(budget: Arc<MemoryBudget>, bytes: usize) -> Result<Self, SessionError> {
@@ -246,15 +283,23 @@ impl Drop for Reservation {
         self.budget.used.fetch_sub(self.bytes, Ordering::AcqRel);
     }
 }
-#[derive(Debug)]
 struct Payload {
     bytes: Box<[u8]>,
     _reservation: Reservation,
+    _attachment: Option<PublicationAttachment>,
 }
 /// Shared publication bytes remain charged to this producer's memory budget
 /// until the last history, queue, outbound or resume reference is dropped.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SharedPayload(Arc<Payload>);
+impl std::fmt::Debug for SharedPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedPayload")
+            .field("bytes", &self.len())
+            .field("attachment", &self.0._attachment.is_some())
+            .finish()
+    }
+}
 impl Deref for SharedPayload {
     type Target = [u8];
     fn deref(&self) -> &[u8] {
@@ -825,10 +870,31 @@ impl SessionBroker {
         bytes: Vec<u8>,
         now: u64,
     ) -> Result<(), SessionError> {
+        self.publish_with_attachment(client, view, base, revision, bytes, None, now)
+    }
+    /// Trusted producer publication whose source-resource closure shares this
+    /// view budget. Attachment handles from another view are rejected.
+    #[allow(clippy::too_many_arguments)]
+    pub fn publish_with_attachment(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        base: u64,
+        revision: u64,
+        bytes: Vec<u8>,
+        attachment: Option<PublicationAttachment>,
+        now: u64,
+    ) -> Result<(), SessionError> {
         self.tick(now);
         let max_history_records = self.config.max_history_records;
         let max_history_bytes = self.config.max_history_bytes;
         let conn = self.connection_mut(client, view)?;
+        if attachment.as_ref().is_some_and(|a| {
+            a.0.memory.view_id != view
+                || !Arc::ptr_eq(&a.0.memory._reservation.budget, &conn.budget)
+        }) {
+            return Err(SessionError::WrongView);
+        }
         if conn.revision != Some(base) || base.checked_add(1) != Some(revision) {
             return Err(SessionError::WrongRevision);
         }
@@ -866,6 +932,7 @@ impl SessionBroker {
         let bytes = SharedPayload(Arc::new(Payload {
             bytes: bytes.into_boxed_slice(),
             _reservation: reservation.unwrap(),
+            _attachment: attachment,
         }));
         conn.queue_bytes += bytes.len();
         conn.queue.push_back(bytes.clone());
@@ -907,7 +974,29 @@ impl SessionBroker {
         bytes: Vec<u8>,
     ) -> Result<SharedPayload, SessionError> {
         let conn = self.connection(client, view)?;
-        if bytes.len() > conn.limits.snapshot_bytes || bytes.len() > conn.limits.envelope_bytes {
+        if bytes.len() > conn.limits.envelope_bytes {
+            return Err(SessionError::Oversized);
+        }
+        self.snapshot_publication_payload(client, view, bytes, None)
+    }
+    /// Whole snapshot producer payload for bounded begin/chunk/commit delivery.
+    /// It may exceed a single envelope limit; transports must chunk it, and must
+    /// still enforce the envelope limit on every actual socket message.
+    pub fn snapshot_publication_payload(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        bytes: Vec<u8>,
+        attachment: Option<PublicationAttachment>,
+    ) -> Result<SharedPayload, SessionError> {
+        let conn = self.connection(client, view)?;
+        if attachment.as_ref().is_some_and(|a| {
+            a.0.memory.view_id != view
+                || !Arc::ptr_eq(&a.0.memory._reservation.budget, &conn.budget)
+        }) {
+            return Err(SessionError::WrongView);
+        }
+        if bytes.len() > conn.limits.snapshot_bytes {
             return Err(SessionError::Oversized);
         }
         let charge = bytes
@@ -918,6 +1007,7 @@ impl SessionBroker {
         Ok(SharedPayload(Arc::new(Payload {
             bytes: bytes.into_boxed_slice(),
             _reservation: reservation,
+            _attachment: attachment,
         })))
     }
     pub fn queued_bytes(
@@ -948,6 +1038,7 @@ impl SessionBroker {
     ) -> Result<ViewMemoryReservation, SessionError> {
         let conn = self.connection(client, view)?;
         Ok(ViewMemoryReservation {
+            view_id: view,
             _reservation: Reservation::new(conn.budget.clone(), bytes)?,
         })
     }

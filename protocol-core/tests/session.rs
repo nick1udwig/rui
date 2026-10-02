@@ -1135,3 +1135,79 @@ fn semantic_only_readiness_never_grants_raw_or_visual_authority() {
     broker.disconnect(&session.client, 1).unwrap();
     assert!(broker.take_cleanup().is_some());
 }
+
+#[test]
+fn publication_attachment_keeps_charge_and_cannot_cross_fresh_policy_view() {
+    let mut broker = broker();
+    let s = connect(&mut broker, 3, "alice", true);
+    usable(&mut broker, &s, 1);
+    let attachment = broker
+        .reserve_view_memory(&s.client, s.view_id, 4096)
+        .unwrap()
+        .attach("SENSITIVE-ATTACHMENT-SENTINEL".to_owned());
+    let weak = attachment.downgrade();
+    broker
+        .publish_with_attachment(
+            &s.client,
+            s.view_id,
+            1,
+            2,
+            b"SENSITIVE-PAYLOAD-SENTINEL".to_vec(),
+            Some(attachment.clone()),
+            0,
+        )
+        .unwrap();
+    let held = broker.take_outbound(&s.client, s.view_id).unwrap().unwrap();
+    assert!(!format!("{held:?}").contains("SENSITIVE"));
+    assert!(!format!("{held:?}").contains(&format!("{:?}", &held[..])));
+    let mut changed = auth("alice", false);
+    changed.policy_version = 2;
+    let fresh = broker.negotiate(Some(changed), hello(3), 1).unwrap();
+    assert_ne!(s.view_id, fresh.view_id);
+    assert_eq!(
+        broker.snapshot_publication_payload(
+            &fresh.client,
+            fresh.view_id,
+            vec![0],
+            Some(attachment.clone())
+        ),
+        Err(SessionError::WrongView)
+    );
+    assert!(
+        broker
+            .retained_memory_bytes(&fresh.client, fresh.view_id)
+            .unwrap()
+            >= 4096
+    );
+    drop(attachment);
+    assert!(weak.upgrade().is_some());
+    drop(held);
+    assert!(weak.upgrade().is_none());
+    assert_eq!(
+        broker
+            .retained_memory_bytes(&fresh.client, fresh.view_id)
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn snapshot_chunk_producer_bound_does_not_widen_single_envelope_api() {
+    let mut broker = broker();
+    let mut h = hello(3);
+    h.receiver_limits.envelope_bytes = 8;
+    h.receiver_limits.snapshot_bytes = 32;
+    let s = broker.negotiate(Some(auth("alice", true)), h, 0).unwrap();
+    assert_eq!(
+        broker.snapshot_payload(&s.client, s.view_id, vec![1; 9]),
+        Err(SessionError::Oversized)
+    );
+    let output = broker
+        .snapshot_publication_payload(&s.client, s.view_id, vec![1; 32], None)
+        .unwrap();
+    assert_eq!(output.len(), 32);
+    assert_eq!(
+        broker.snapshot_publication_payload(&s.client, s.view_id, vec![1; 33], None),
+        Err(SessionError::Oversized)
+    );
+}

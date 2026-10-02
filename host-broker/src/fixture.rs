@@ -30,6 +30,7 @@ pub(crate) struct ControlledApplication {
     pub text_clock: u64,
     last_now: u64,
     pub corpus: Option<Corpus>,
+    pub fonts: Option<crate::source_fonts::SourceFonts>,
 }
 impl ControlledApplication {
     pub fn new(secret: String, max_text_bytes: usize) -> Result<Self, HostError> {
@@ -46,7 +47,37 @@ impl ControlledApplication {
             text_clock: 1,
             last_now: 0,
             corpus: None,
+            fonts: None,
         })
+    }
+    pub fn captions(&self) -> Vec<crate::source_fonts::Caption> {
+        let mut captions = self.corpus.as_ref().map_or_else(Vec::new, |c| c.captions());
+        captions.push(crate::source_fonts::Caption {
+            slot: 0,
+            scene: COUNTER_SCENE_ID,
+            surface: SURFACE_ID,
+            text: format!("Count {}", self.counter),
+        });
+        captions
+    }
+    pub fn refresh_fonts(&mut self) {
+        let captions = self.captions();
+        if let Some(fonts) = &mut self.fonts {
+            fonts.refresh(&captions);
+        }
+    }
+    pub fn source_resources(
+        &self,
+        projection: &Projection,
+    ) -> &[crate::source_fonts::SourceOutline] {
+        if projection.semantic_only
+            || !projection
+                .profiles
+                .contains(crate::source_fonts::GLYPH_PROFILE)
+        {
+            return &[];
+        }
+        self.fonts.as_ref().map_or(&[], |f| f.resources())
     }
     pub fn counter(&self) -> i64 {
         self.counter
@@ -176,12 +207,14 @@ impl ControlledApplication {
                 corpus.apply(command, self.max_text_bytes)?;
                 self.last_now = self.last_now.max(now);
                 self.commit = commit;
+                self.refresh_fonts();
                 return Ok(commit);
             }
             if command.action_id == "Focus" && command.target_id == SECRET_ID {
                 corpus.focus(SECRET_ID)?;
                 self.commit = commit;
                 self.last_now = self.last_now.max(now);
+                self.refresh_fonts();
                 return Ok(commit);
             }
         }
@@ -219,6 +252,7 @@ impl ControlledApplication {
         }
         self.last_now = self.last_now.max(now);
         self.commit = commit;
+        self.refresh_fonts();
         Ok(commit)
     }
     pub fn set_counter_enabled(&mut self, enabled: bool, now: u64) -> Result<bool, HostError> {
@@ -418,12 +452,33 @@ impl ControlledApplication {
         if let Some(corpus) = &self.corpus {
             corpus.extend_records(&mut records, projection, self.commit);
         }
+        if !projection.semantic_only {
+            if let Some(fonts) = &self.fonts {
+                fonts.project(
+                    &mut records,
+                    &self.captions(),
+                    projection
+                        .profiles
+                        .contains(crate::source_fonts::GLYPH_PROFILE),
+                );
+            }
+        }
         records
     }
     pub fn decoded_projection_bytes(&self, projection: &Projection) -> usize {
         // Conservative allowance for this fixed eleven-record fixture. The core
         // receiver independently accounts its actual decoded state and staging.
         32 * 1024
+            + if self.fonts.is_some()
+                && !projection.semantic_only
+                && projection
+                    .profiles
+                    .contains(crate::source_fonts::GLYPH_PROFILE)
+            {
+                3 * 1024 * 1024
+            } else {
+                0
+            }
             + if self.corpus.is_some() {
                 256 * 1024 + self.max_text_bytes * 4
             } else {

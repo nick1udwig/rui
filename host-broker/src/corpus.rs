@@ -81,6 +81,82 @@ impl Corpus {
             height: 480.0,
         }
     }
+    pub fn captions(&self) -> Vec<crate::source_fonts::Caption> {
+        use crate::source_fonts::Caption;
+        let mut captions = vec![
+            Caption {
+                slot: 1,
+                scene: FIRST_SCENE,
+                surface: SURFACE_ID,
+                text: self.text.clone(),
+            },
+            Caption {
+                slot: 2,
+                scene: FIRST_SCENE + 1,
+                surface: SURFACE_ID,
+                text: "Checked".into(),
+            },
+            Caption {
+                slot: 4,
+                scene: FIRST_SCENE + 3,
+                surface: SURFACE_ID,
+                text: "Reorder".into(),
+            },
+            Caption {
+                slot: 5,
+                scene: FIRST_SCENE + 4,
+                surface: SURFACE_ID,
+                text: "Popup".into(),
+            },
+            Caption {
+                slot: 6,
+                scene: FIRST_SCENE + 5,
+                surface: SURFACE_ID,
+                text: "Modal".into(),
+            },
+            Caption {
+                slot: 7,
+                scene: FIRST_SCENE + 6,
+                surface: SURFACE_ID,
+                text: "Tooltip".into(),
+            },
+            Caption {
+                slot: 8,
+                scene: FIRST_SCENE + 7,
+                surface: SURFACE_ID,
+                text: "Vector canvas".into(),
+            },
+            Caption {
+                slot: 12,
+                scene: SCENE_SECOND,
+                surface: SECOND_SURFACE_ID,
+                text: "Second source window".into(),
+            },
+        ];
+        for (index, id) in ITEM_IDS.into_iter().enumerate() {
+            captions.push(Caption {
+                slot: 9 + index,
+                scene: 120 + (id - ITEM_IDS[0]),
+                surface: SURFACE_ID,
+                text: format!("Item {}", index + 1),
+            });
+        }
+        for (transient, slot, text) in [
+            (self.popup, 13, "Dismiss"),
+            (self.modal, 14, "Dismiss"),
+            (self.tooltip, 15, "Source tooltip"),
+        ] {
+            if let Some(t) = transient {
+                captions.push(Caption {
+                    slot,
+                    scene: t.id + 1,
+                    surface: t.id,
+                    text: text.into(),
+                });
+            }
+        }
+        captions
+    }
     pub fn extend_authority(&self, authority: &mut SemanticAuthority, projection: &Projection) {
         if self.modal.is_some() {
             for target in authority.targets.values_mut() {
