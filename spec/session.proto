@@ -1,0 +1,53 @@
+syntax = "proto3";
+package rui.session.v1;
+// Credential authentication occurs inside pinned TLS before any application
+// projection. Unknown optional fields >=128 do not alter authority or semantics.
+message Packet {
+  bytes session_id=1; bytes epoch=2; bytes view_id=3;
+  uint32 protocol_version=4;
+  Kind kind=5; bytes payload=6;
+  repeated string required_features=7;
+}
+enum Kind {
+  KIND_UNSPECIFIED=0; CLIENT_HELLO=1; SERVER_HELLO=2; OPEN_VIEW=3; VIEW_OPENED=4;
+  CLOSE_VIEW=5; PING=6; PONG=7; ERROR=8;
+  SNAPSHOT_BEGIN=10; TRANSACTION_BEGIN=11; PUBLICATION_CHUNK=12; PUBLICATION_COMMIT=13; ABORT_PUBLICATION=14;
+  RESOURCE_OFFER=20; NEED_RESOURCES=21; RESOURCE_CHUNK=22; RESOURCE_COMPLETE=23; RESOURCE_AVAILABLE=24; RESOURCE_EVICTED=25;
+  APPLIED_ACK=30; PRESENTED_ACK=31; RESUME_REQUEST=32; RESUME_ACCEPTED=33; RESET_REQUIRED=34;
+  ACQUIRE_CONTROL=40; CONTROL_GRANTED=41; RENEW_CONTROL=42; RELEASE_CONTROL=43; CONTROL_REVOKED=44;
+  SEMANTIC_COMMAND=50; RAW_INPUT_BATCH=51; TEXT_COMPOSITION=52; RESIZE_REQUEST=53; COMMAND_RESULT=54; GET_COMMAND_RESULT=55;
+}
+message Limits {
+  uint64 envelope_bytes=1; uint64 chunk_bytes=2; uint64 transaction_bytes=3; uint64 snapshot_bytes=4;
+  uint64 resource_bytes=5; uint64 view_memory_bytes=6; uint64 outbound_queue_bytes=7; uint64 records=8; uint64 ownership_depth=9;
+}
+message ClientHello {
+  bytes credential=1; bytes client_instance_id=2; repeated uint32 supported_versions=3;
+  repeated string supported_profiles=4; repeated string required_profiles=5;
+  Limits receiver_limits=6; ResumeRequest resume=7;
+}
+message Permissions { bool can_view=1; bool can_control=2; repeated string actions=3; }
+message ServerHello { uint32 selected_version=1; repeated string selected_profiles=2; Limits negotiated_limits=3; Permissions permissions=4; bytes principal_id=5; }
+message OpenView { string selection=1; string mirror_canvas_policy=2; }
+message ViewOpened { bytes view_id=1; double canvas_width=2; double canvas_height=3; string coverage=4; repeated string granted_input_modes=5; }
+message RevisionAck { uint64 revision=1; }
+message ResumeRequest { bytes epoch=1; bytes view_id=2; uint64 acknowledged_revision=3; }
+message ResumeAccepted { uint64 from_revision=1; uint64 through_revision=2; bool requires_resources=3; }
+message ResetRequired { string reason=1; }
+message AcquireControl { bytes request_id=1; }
+message RenewControl { bytes request_id=1; bytes lease_id=2; uint64 generation=3; }
+message ReleaseControl { bytes request_id=1; bytes lease_id=2; uint64 generation=3; }
+message ControlGranted { bytes lease_id=1; uint64 generation=2; uint64 expires_at_ms=3; repeated string allowed_actions=4; bytes request_id=5; }
+message ControlRevoked { bytes lease_id=1; uint64 generation=2; string reason=3; }
+message GetCommandResult { uint64 command_seq=1; }
+message CommandResult { uint64 command_seq=1; string status=2; string rejection=3; string source_commit=4; optional uint64 resulting_view_revision=5; }
+message PublicationBegin { bytes publication_id=1; uint64 base_revision=2; uint64 revision=3; uint64 total_bytes=4; uint32 chunk_count=5; uint32 item_count=6; bytes digest=7; }
+message PublicationChunk { bytes publication_id=1; uint32 index=2; bytes data=3; }
+message PublicationCommit { bytes publication_id=1; uint64 total_bytes=2; uint32 chunk_count=3; uint32 item_count=4; bytes digest=5; }
+message AbortPublication { bytes publication_id=1; }
+message ResourceOffer { bytes digest=1; uint32 kind=2; uint32 format_version=3; uint64 total_bytes=4; uint32 chunk_count=5; uint32 provenance=6; }
+message ResourceIds { repeated bytes digests=1; }
+message ResourceChunk { bytes digest=1; uint32 index=2; bytes data=3; }
+message ResourceComplete { bytes digest=1; }
+message Error { string code=1; }
+message Ping { uint64 nonce=1; }
