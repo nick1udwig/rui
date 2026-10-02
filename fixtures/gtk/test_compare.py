@@ -1,4 +1,5 @@
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -8,6 +9,26 @@ from fixtures.gtk.compare import native_glyph_geometry, pixels
 
 
 class PixelComparisonTests(unittest.TestCase):
+    def test_measurement_and_visual_report_match_all_exact_golden_envelopes(self):
+        fixture = Path(__file__).resolve().parent
+        measurement = json.loads((fixture / 'measurement.json').read_text())
+        strict = next(run for run in measurement['runs'] if run['theme'] == 'strict')
+        compared = json.loads((fixture / 'pixel-comparison.json').read_text())
+        self.assertEqual(len(strict['captures']), 20)
+        self.assertEqual(len(compared['captures']), 17)
+        for capture in strict['captures']:
+            label = f"{capture['surface']}-{capture['revision']:04d}"
+            digest = hashlib.sha256((fixture / 'golden' / (label + '.bin')).read_bytes()).hexdigest()
+            manifest = json.loads((fixture / 'golden' / (label + '.json')).read_text())
+            self.assertEqual(capture['binding'], manifest['binding'])
+            self.assertEqual(digest, capture['envelope_sha256'])
+            self.assertEqual(digest, manifest['envelope_sha256'])
+            if capture['mapped']:
+                pixels = next(result for result in compared['captures'] if result['capture'] == label + '.json')
+                self.assertEqual(pixels['envelope_sha256'], digest)
+                self.assertEqual(pixels['local_reference_sha256'], manifest['local_reference']['sha256'])
+                self.assertTrue(pixels['pixels']['passed'])
+
     def test_straight_pam_conversion_and_wrong_flat_interior_rejection(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

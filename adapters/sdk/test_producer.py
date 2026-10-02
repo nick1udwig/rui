@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -44,6 +45,61 @@ class ProducerTests(unittest.TestCase):
             self.assertTrue((Path(directory) / (label + ".bin")).exists())
             self.assertEqual((Path(directory) / (resource["digest"] + ".rvp")).read_bytes(), resource["body"])
         self.assertEqual(source.resources, {})
+
+    def test_typed_content_collection_and_focus_clocks_and_scalar_selection(self):
+        source = CoherentSource()
+        value = {'content': 'Aé🦀Z', 'selection': [1, 3], 'editable': True, 'selectable': True}
+        selected = []
+        source.register('root', 1, lambda: {})
+        source.register('entry', 5, lambda: {'text': dict(value)}, parent='root')
+        source.register('list', 7, lambda: {'collection': {'items': ['row'], 'selected_items': list(selected), 'total_count': 10, 'materialization': 2}}, parent='root')
+        source.register('row', 8, lambda: {'states': {3: 2 if selected else 1}}, parent='list')
+        first = {node['identity']: node for node in source.semantics('root', 1)}
+        self.assertEqual(first['entry']['text']['selection'], [1, 3])
+        value['selection'] = [3, 1]
+        second = {node['identity']: node for node in source.semantics('root', 2)}
+        self.assertEqual(second['entry']['text']['text_version'], 1)
+        self.assertEqual(second['list']['collection_model']['version'], 1)
+        value['content'] = 'AΩZ'
+        value['selection'] = [1, 2]
+        selected.append('row')
+        third = {node['identity']: node for node in source.semantics('root', 3)}
+        self.assertEqual(third['entry']['text']['text_version'], 2)
+        self.assertEqual(third['list']['collection_model']['version'], 2)
+        self.assertEqual(third['list']['collection_model']['selected_items'], [third['row']['id']])
+        source.focus_changed('view', 'entry')
+        generation = source.session('view', 1, [10, 10], {third['entry']['id']})['focus_generation']
+        source.focus_changed('view', None)
+        source.focus_changed('view', 'entry')
+        self.assertEqual(source.session('view', 2, [10, 10], {third['entry']['id']})['focus_generation'], generation + 2)
+        source.unregister('entry')
+        self.assertIsNone(source.session('view', 3, [10, 10], set())['focus'])
+        self.assertNotIn(('text', third['entry']['text_model']), source._models)
+
+    def test_model_cache_quota_precedes_mutation_and_destroy_releases_charge(self):
+        source = CoherentSource()
+        source.register('text', 5, lambda: {'text': {'content': 'private source', 'editable': True, 'selectable': True}})
+        source.semantics('text', 1)
+        self.assertGreater(source.model_cache_bytes, 0)
+        before = source.model_cache_bytes
+        with self.assertRaises(ValueError):
+            source.model_clock('text', 999, 'x' * (2 << 20))
+        self.assertEqual(source.model_cache_bytes, before)
+        self.assertNotIn(('text', 999), source._models)
+        source.unregister('text')
+        self.assertEqual(source.model_cache_bytes, 0)
+
+    def test_surface_retirement_checks_combined_quota_before_removing_identity(self):
+        source = CoherentSource()
+        surface = source.identifier('surface:view')
+        session = source.identifier('session:view')
+        source.retired_semantic_ids.add(99)
+        with patch('adapters.sdk.producer.MAX_RECORDS', 2):
+            with self.assertRaisesRegex(ValueError, 'retired identity ceiling'):
+                source.retire_surface('view')
+        self.assertEqual(source._ids['surface:view'], surface)
+        self.assertEqual(source._ids['session:view'], session)
+        self.assertFalse(source.retired_object_ids)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,13 @@
 {
   "binding": {
-    "epoch": "23dd96fb98f54d9489686f1f31c8a69e",
+    "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
     "session_id": "01010101010101010101010101010101",
-    "view_id": "000000000000000000000000000000a3"
+    "view_id": "000000000000000000000000000000a4"
   },
   "capture_boundary": "actual-snapshot-vfunc-same-node-append",
-  "capture_token": "23dd96fb98f54d9489686f1f31c8a69e:main-content:1:1",
-  "envelope_sha256": "eeb305ddf338551b40abb77d0b7c0ee49f1906b82eba011faa69005c3922b515",
+  "capture_token": "0d2808d63b0c435680fc9ca2cc6071ac:main-content:3:1",
+  "envelope_sha256": "bcb70f895caeb50229715f0ffa739401e679dd1441e60826a10f8f3a2bb6201e",
+  "focused": true,
   "gaps": [],
   "gsk_node_counts": {
     "border-node": 5,
@@ -31,6 +32,7 @@
     "stride": 2080,
     "width": 520
   },
+  "mapped": true,
   "resource_offers": [
     {
       "digest": "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
@@ -236,40 +238,9 @@
       "version": 1
     }
   ],
-  "resources": [
-    "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
-    "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c",
-    "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-    "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1",
-    "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-    "1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7",
-    "465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762",
-    "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-    "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-    "4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2",
-    "5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f",
-    "67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9",
-    "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-    "7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197",
-    "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-    "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-    "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-    "aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a",
-    "af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea",
-    "b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e",
-    "b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed",
-    "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
-    "cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e",
-    "e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21",
-    "e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19",
-    "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-    "eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d",
-    "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
-    "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53"
-  ],
   "revision": 1,
-  "routing_token": "24090006a00a53443b41f40f2b1a54b5",
-  "scene_root": 162,
+  "routing_token": "d94e12894e7db177ed0ad0083a3ef465",
+  "scene_root": 163,
   "semantic_root": 1,
   "semantics": [
     {
@@ -300,14 +271,32 @@
     {
       "actions": [
         "ReplaceText",
-        "SetSelection"
+        "SetSelection",
+        "Focus"
       ],
       "children": [],
       "id": 3,
       "identity": "entry",
       "label": "Editable text",
       "role": 5,
-      "value": "source text",
+      "states": {
+        "1": 1,
+        "5": 1
+      },
+      "text": {
+        "content": "source text",
+        "editable": true,
+        "id": 13,
+        "selectable": true,
+        "selection": [
+          0,
+          11
+        ],
+        "status": 1,
+        "text_version": 1,
+        "version": 1
+      },
+      "text_model": 13,
       "version": 1
     },
     {
@@ -323,38 +312,47 @@
     },
     {
       "actions": [
-        "Activate"
+        "Activate",
+        "Focus"
       ],
       "children": [],
       "id": 5,
       "identity": "row-alpha",
       "label": "Alpha",
       "role": 8,
-      "value": "unselected",
+      "states": {
+        "3": 1
+      },
       "version": 1
     },
     {
       "actions": [
-        "Activate"
+        "Activate",
+        "Focus"
       ],
       "children": [],
       "id": 6,
       "identity": "row-beta",
       "label": "Beta",
       "role": 8,
-      "value": "unselected",
+      "states": {
+        "3": 1
+      },
       "version": 1
     },
     {
       "actions": [
-        "Activate"
+        "Activate",
+        "Focus"
       ],
       "children": [],
       "id": 7,
       "identity": "row-gamma",
       "label": "Gamma",
       "role": 8,
-      "value": "unselected",
+      "states": {
+        "3": 1
+      },
       "version": 1
     },
     {
@@ -366,6 +364,17 @@
         6,
         7
       ],
+      "collection_model": {
+        "items": [
+          5,
+          6,
+          7
+        ],
+        "materialization": 1,
+        "selected_items": [],
+        "total_count": 3,
+        "version": 1
+      },
       "id": 8,
       "identity": "list",
       "label": "Stable-ID list",
@@ -393,6 +402,19 @@
       "version": 1
     }
   ],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      520,
+      540
+    ],
+    "focus": 3,
+    "focus_generation": 2,
+    "focus_surface": 164,
+    "id": 165,
+    "version": 1
+  },
   "size": [
     520,
     540
@@ -416,7 +438,7 @@
         0.0
       ],
       "resource": "b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed",
-      "scene_id": 14,
+      "scene_id": 15,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 50
     },
@@ -438,7 +460,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 15,
+      "scene_id": 16,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -460,7 +482,7 @@
         0.0
       ],
       "resource": "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1",
-      "scene_id": 16,
+      "scene_id": 17,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 71
     },
@@ -482,7 +504,7 @@
         0.0
       ],
       "resource": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-      "scene_id": 17,
+      "scene_id": 18,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 76
     },
@@ -504,7 +526,7 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 18,
+      "scene_id": 19,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     },
@@ -526,7 +548,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 19,
+      "scene_id": 20,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -548,7 +570,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 20,
+      "scene_id": 21,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -570,7 +592,7 @@
         0.21428571428571427
       ],
       "resource": "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
-      "scene_id": 21,
+      "scene_id": 22,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 92
     },
@@ -592,7 +614,7 @@
         0.0
       ],
       "resource": "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
-      "scene_id": 22,
+      "scene_id": 23,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 42
     },
@@ -614,7 +636,7 @@
         0.0
       ],
       "resource": "e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21",
-      "scene_id": 23,
+      "scene_id": 24,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 55
     },
@@ -636,7 +658,7 @@
         0.0
       ],
       "resource": "cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e",
-      "scene_id": 24,
+      "scene_id": 25,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 46
     },
@@ -658,7 +680,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 25,
+      "scene_id": 26,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -680,7 +702,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 26,
+      "scene_id": 27,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -702,7 +724,7 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 27,
+      "scene_id": 28,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     },
@@ -724,7 +746,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 28,
+      "scene_id": 29,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -746,7 +768,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 29,
+      "scene_id": 30,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -768,7 +790,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 30,
+      "scene_id": 31,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -790,7 +812,7 @@
         0.0
       ],
       "resource": "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c",
-      "scene_id": 31,
+      "scene_id": 32,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 79
     },
@@ -812,7 +834,7 @@
         0.0
       ],
       "resource": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
-      "scene_id": 32,
+      "scene_id": 33,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 86
     },
@@ -834,7 +856,7 @@
         -0.21540178571428573
       ],
       "resource": "4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2",
-      "scene_id": 33,
+      "scene_id": 34,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 2016
     },
@@ -856,7 +878,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 34,
+      "scene_id": 35,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -878,7 +900,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 35,
+      "scene_id": 36,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -900,7 +922,7 @@
         0.0
       ],
       "resource": "5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f",
-      "scene_id": 36,
+      "scene_id": 37,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 73
     },
@@ -922,7 +944,7 @@
         0.0
       ],
       "resource": "af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea",
-      "scene_id": 37,
+      "scene_id": 38,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 171
     },
@@ -944,7 +966,7 @@
         0.0
       ],
       "resource": "e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19",
-      "scene_id": 39,
+      "scene_id": 40,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 859
     },
@@ -966,7 +988,7 @@
         0.0
       ],
       "resource": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
-      "scene_id": 45,
+      "scene_id": 46,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 86
     },
@@ -988,7 +1010,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 46,
+      "scene_id": 47,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -1010,7 +1032,7 @@
         0.0
       ],
       "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-      "scene_id": 47,
+      "scene_id": 48,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 88
     },
@@ -1032,7 +1054,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 48,
+      "scene_id": 49,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -1054,7 +1076,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 49,
+      "scene_id": 50,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -1076,7 +1098,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 50,
+      "scene_id": 51,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -1098,7 +1120,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 51,
+      "scene_id": 52,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1120,7 +1142,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 52,
+      "scene_id": 53,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -1142,7 +1164,7 @@
         0.0
       ],
       "resource": "465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762",
-      "scene_id": 53,
+      "scene_id": 54,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 91
     },
@@ -1164,7 +1186,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 54,
+      "scene_id": 55,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1186,7 +1208,7 @@
         0.0
       ],
       "resource": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
-      "scene_id": 57,
+      "scene_id": 58,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 86
     },
@@ -1208,7 +1230,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 58,
+      "scene_id": 59,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -1230,7 +1252,7 @@
         0.0
       ],
       "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-      "scene_id": 59,
+      "scene_id": 60,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 88
     },
@@ -1252,7 +1274,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 60,
+      "scene_id": 61,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -1274,7 +1296,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 61,
+      "scene_id": 62,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -1296,7 +1318,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 62,
+      "scene_id": 63,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -1318,7 +1340,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 63,
+      "scene_id": 64,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1340,7 +1362,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 64,
+      "scene_id": 65,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -1362,7 +1384,7 @@
         0.0
       ],
       "resource": "465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762",
-      "scene_id": 65,
+      "scene_id": 66,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 91
     },
@@ -1384,7 +1406,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 66,
+      "scene_id": 67,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1406,7 +1428,7 @@
         0.0
       ],
       "resource": "7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197",
-      "scene_id": 76,
+      "scene_id": 77,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 36
     },
@@ -1428,7 +1450,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 77,
+      "scene_id": 78,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -1450,7 +1472,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 78,
+      "scene_id": 79,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1472,7 +1494,7 @@
         0.0
       ],
       "resource": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-      "scene_id": 79,
+      "scene_id": 80,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 76
     },
@@ -1494,7 +1516,7 @@
         0.0
       ],
       "resource": "67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9",
-      "scene_id": 80,
+      "scene_id": 81,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 89
     },
@@ -1516,7 +1538,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 81,
+      "scene_id": 82,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -1538,7 +1560,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 82,
+      "scene_id": 83,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1560,7 +1582,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 83,
+      "scene_id": 84,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -1582,7 +1604,7 @@
         0.0
       ],
       "resource": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
-      "scene_id": 84,
+      "scene_id": 85,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 86
     },
@@ -1604,7 +1626,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 85,
+      "scene_id": 86,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -1626,7 +1648,7 @@
         0.0
       ],
       "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-      "scene_id": 86,
+      "scene_id": 87,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 88
     },
@@ -1648,7 +1670,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 87,
+      "scene_id": 88,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -1670,7 +1692,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 88,
+      "scene_id": 89,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -1692,7 +1714,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 89,
+      "scene_id": 90,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -1714,7 +1736,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 90,
+      "scene_id": 91,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -1736,7 +1758,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 91,
+      "scene_id": 92,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -1758,7 +1780,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 92,
+      "scene_id": 93,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -1780,7 +1802,7 @@
         0.0
       ],
       "resource": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-      "scene_id": 93,
+      "scene_id": 94,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 76
     },
@@ -1802,7 +1824,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 94,
+      "scene_id": 95,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -1824,7 +1846,7 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 95,
+      "scene_id": 96,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     },
@@ -1846,7 +1868,7 @@
         0.0
       ],
       "resource": "7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197",
-      "scene_id": 103,
+      "scene_id": 104,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 36
     },
@@ -1868,7 +1890,7 @@
         0.0
       ],
       "resource": "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c",
-      "scene_id": 104,
+      "scene_id": 105,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 79
     },
@@ -1890,7 +1912,7 @@
         0.21428571428571427
       ],
       "resource": "b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e",
-      "scene_id": 105,
+      "scene_id": 106,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 83
     },
@@ -1912,7 +1934,7 @@
         0.0
       ],
       "resource": "1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7",
-      "scene_id": 106,
+      "scene_id": 107,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 75
     },
@@ -1934,7 +1956,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 107,
+      "scene_id": 108,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -1956,7 +1978,7 @@
         0.0
       ],
       "resource": "eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d",
-      "scene_id": 112,
+      "scene_id": 113,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 37
     },
@@ -1978,7 +2000,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 113,
+      "scene_id": 114,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -2000,7 +2022,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 114,
+      "scene_id": 115,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -2022,7 +2044,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 115,
+      "scene_id": 116,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -2044,7 +2066,7 @@
         0.0
       ],
       "resource": "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
-      "scene_id": 120,
+      "scene_id": 121,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 42
     },
@@ -2066,7 +2088,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 121,
+      "scene_id": 122,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -2088,7 +2110,7 @@
         0.0
       ],
       "resource": "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
-      "scene_id": 122,
+      "scene_id": 123,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 80
     },
@@ -2110,7 +2132,7 @@
         0.0
       ],
       "resource": "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
-      "scene_id": 123,
+      "scene_id": 124,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 80
     },
@@ -2132,7 +2154,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 124,
+      "scene_id": 125,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -2154,7 +2176,7 @@
         0.0
       ],
       "resource": "b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed",
-      "scene_id": 141,
+      "scene_id": 142,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 50
     },
@@ -2176,7 +2198,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 142,
+      "scene_id": 143,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -2198,7 +2220,7 @@
         0.0
       ],
       "resource": "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1",
-      "scene_id": 143,
+      "scene_id": 144,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 71
     },
@@ -2220,7 +2242,7 @@
         0.0
       ],
       "resource": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-      "scene_id": 144,
+      "scene_id": 145,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 76
     },
@@ -2242,7 +2264,7 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 145,
+      "scene_id": 146,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     },
@@ -2264,7 +2286,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 146,
+      "scene_id": 147,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -2286,7 +2308,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 147,
+      "scene_id": 148,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -2308,7 +2330,7 @@
         0.21428571428571427
       ],
       "resource": "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
-      "scene_id": 148,
+      "scene_id": 149,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 92
     },
@@ -2330,7 +2352,7 @@
         0.0
       ],
       "resource": "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
-      "scene_id": 149,
+      "scene_id": 150,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 42
     },
@@ -2352,7 +2374,7 @@
         0.0
       ],
       "resource": "e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21",
-      "scene_id": 150,
+      "scene_id": 151,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 55
     },
@@ -2374,7 +2396,7 @@
         0.0
       ],
       "resource": "cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e",
-      "scene_id": 151,
+      "scene_id": 152,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 46
     },
@@ -2396,7 +2418,7 @@
         0.0
       ],
       "resource": "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
-      "scene_id": 152,
+      "scene_id": 153,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 80
     },
@@ -2418,7 +2440,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 153,
+      "scene_id": 154,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -2440,7 +2462,7 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 154,
+      "scene_id": 155,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     },
@@ -2462,13 +2484,13 @@
         0.0
       ],
       "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-      "scene_id": 155,
+      "scene_id": 156,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 88
     }
   ],
-  "source_revision": 1,
-  "surface_id": 163,
+  "source_revision": 3,
+  "surface_id": 164,
   "surface_key": "main-content",
-  "uses_glyph_outline": true
+  "surface_role": 1
 }

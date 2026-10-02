@@ -16,6 +16,18 @@ import uuid
 MAX_RECORDS = 20_000
 MAX_RESOURCE_BYTES = 16 << 20
 MAX_ENVELOPE_BYTES = 1 << 20
+MAX_TEXT_BYTES = 16 << 10
+MAX_COLLECTION_ITEMS = 4096
+MAX_MODEL_CACHE_BYTES = 4 << 20
+
+
+def model_memory(value):
+    """Conservative local Python model-cache charge, separate from GTK memory."""
+    if isinstance(value, (tuple, list)):
+        return 128 + 64 * len(value) + sum(model_memory(item) for item in value)
+    if isinstance(value, str):
+        return 128 + 4 * len(value.encode('utf-8'))
+    return 64
 
 
 def varint(value: int) -> bytes:
@@ -123,16 +135,46 @@ def encode_semantic(record: dict) -> bytes:
     if "value" in record:
         data += blob(6, text(1, str(record["value"])))
     data += b"".join(blob(8, ref(3, child)) for child in record["children"])
+    data += b"".join(blob(7, scalar(1, key) + scalar(2, value)) for key, value in sorted(record.get("states", {}).items()))
     data += b"".join(blob(10, text(1, action) + scalar(2, 1)) for action in record.get("actions", []))
+    if record.get("text_model"):
+        data += blob(11, ref(4, record["text_model"]))
+    if record.get("collection_model"):
+        collection = record["collection_model"]
+        model = scalar(1, collection["version"])
+        model += b"".join(blob(2, ref(3, item)) for item in collection["items"])
+        if collection.get("total_count") is not None:
+            model += scalar(3, collection["total_count"])
+        model += scalar(4, collection["materialization"])
+        model += b"".join(blob(5, ref(3, item)) for item in collection["selected_items"])
+        data += blob(12, model)
     # Explicit corpus scope contains only public, complete cooperating semantics.
     data += scalar(16, 1) + scalar(17, 1)
     return blob(3, data)
 
 
+def encode_text(record: dict) -> bytes:
+    data = scalar(1, record["id"]) + scalar(2, record["version"]) + scalar(3, record["text_version"]) + scalar(4, record["status"])
+    if record.get("content") is not None:
+        data += text(5, record["content"])
+    if record.get("selection") is not None:
+        data += blob(6, scalar(1, record["selection"][0]) + scalar(2, record["selection"][1]))
+    data += scalar(7, record["editable"]) + scalar(8, record["selectable"])
+    return blob(4, data)
+
+
+def encode_session(record: dict) -> bytes:
+    data = scalar(1, record["id"]) + scalar(2, record["version"]) + blob(3, doubles(record["canvas"]))
+    if record.get("focus"):
+        data += blob(5, ref(3, record["focus"])) + blob(6, ref(1, record["focus_surface"]))
+    data += scalar(7, record["focus_generation"])
+    return blob(6, data)
+
+
 def encode_surface(frame: dict) -> bytes:
     data = scalar(1, frame["surface_id"]) + scalar(2, frame["revision"]) + scalar(3, frame.get("surface_role", 1))
     data += blob(5, doubles([*frame.get("origin", [0, 0]), *frame["size"]])) + blob(6, doubles(frame["size"]))
-    data += blob(7, doubles([1, 0, 0, 1, 0, 0])) + double(9, 1) + scalar(11, 1)
+    data += blob(7, doubles([1, 0, 0, 1, 0, 0])) + double(9, 1) + scalar(11, frame.get("mapped", True)) + scalar(12, frame.get("focused", False))
     if frame.get("parent_surface"):
         data += blob(4, ref(1, frame["parent_surface"]["surface_id"]))
     if frame.get("scene_root"):
@@ -150,11 +192,14 @@ def encode_surface(frame: dict) -> bytes:
 
 
 def encode_snapshot(frame: dict, binding: dict) -> bytes:
-    records = [encode_surface(frame)]
+    records = [] if frame.get("destroyed") else [encode_surface(frame)]
     if frame.get("parent_surface"):
         records.append(encode_surface({**frame["parent_surface"], "revision": frame["revision"], "capture_token": frame["capture_token"], "gaps": [{"reason": "parent-topology-only"}]}))
     records += [encode_scene(record) for record in frame["scene"]]
     records += [encode_semantic(record) for record in frame["semantics"]]
+    records += [encode_text(record["text"]) for record in frame["semantics"] if record.get("text")]
+    if frame.get("session"):
+        records.append(encode_session(frame["session"]))
     if len(records) > MAX_RECORDS:
         raise ValueError("record ceiling")
     payload = scalar(1, frame["revision"]) + b"".join(blob(2, record) for record in records)
@@ -187,10 +232,18 @@ class CoherentSource:
         self._frames = {}
         self.resources = {}
         self._scene_ids = {}
+        self._models = {}
+        self._model_sizes = {}
+        self.model_cache_bytes = 0
+        self._focus = {}
         self.retired_scene_ids = set()
         self.retired_semantic_ids = set()
+        self.retired_object_ids = set()
 
     def identifier(self, key: str) -> int:
+        # Bounded generated scene paths at depth128 can exceed768 bytes.
+        if len(key.encode('utf-8')) > 2048:
+            raise ValueError("identity key ceiling")
         if key not in self._ids:
             if len(self._ids) >= MAX_RECORDS:
                 raise ValueError("identity ceiling")
@@ -217,19 +270,79 @@ class CoherentSource:
             identifier = self._ids.pop("semantic:" + name, None)
             if identifier is not None:
                 self.retired_semantic_ids.add(identifier)
-        if len(self.retired_semantic_ids) + len(self.retired_scene_ids) > MAX_RECORDS:
+                self.remove_model("collection", identifier)
+            text_id = self._ids.pop("text:" + name, None)
+            if text_id is not None:
+                self.retired_semantic_ids.add(text_id)
+                self.remove_model("text", text_id)
+        for surface, (focus, _) in list(self._focus.items()):
+            if focus in removed:
+                self.focus_changed(surface, None)
+        if len(self.retired_semantic_ids) + len(self.retired_scene_ids) + len(self.retired_object_ids) > MAX_RECORDS:
             raise ValueError("retired identity ceiling; start a new epoch")
         self.changed()
 
+    def retire_surface(self, surface):
+        """Destroy this source surface and its per-view Session identity.
+
+        Unmapping preserves both identities. Recreating the same registered
+        source key starts a fresh surface/view and a fresh Session clock scope.
+        """
+        keys = ("surface:" + surface, "session:" + surface)
+        identifiers = {self._ids[key] for key in keys if key in self._ids}
+        if len(self.retired_semantic_ids) + len(self.retired_scene_ids) + len(self.retired_object_ids | identifiers) > MAX_RECORDS:
+            raise ValueError("retired identity ceiling; start a new epoch")
+        self.retired_object_ids.update(identifiers)
+        for key in keys:
+            self._ids.pop(key, None)
+        self._scene_ids.pop(surface, None)
+        self._focus.pop(surface, None)
+
     def changed(self):
         self.source_revision += 1
+
+    def model_clock(self, kind, identifier, state):
+        previous, version = self._models.get((kind, identifier), (state, 1))
+        if previous != state:
+            version += 1
+        key = (kind, identifier)
+        charge = model_memory(state) + 256
+        next_bytes = self.model_cache_bytes - self._model_sizes.get(key, 0) + charge
+        if next_bytes > MAX_MODEL_CACHE_BYTES:
+            raise ValueError("source model cache ceiling")
+        self.model_cache_bytes = next_bytes
+        self._model_sizes[key] = charge
+        self._models[(kind, identifier)] = (state, version)
+        return version
+
+    def remove_model(self, kind, identifier):
+        key = (kind, identifier)
+        self._models.pop(key, None)
+        self.model_cache_bytes -= self._model_sizes.pop(key, 0)
+
+    def focus_changed(self, surface, focus):
+        """Called on actual source focus transitions, including away-and-back."""
+        previous, generation = self._focus.get(surface, (None, 1))
+        if previous != focus:
+            generation += 1
+            self._focus[surface] = (focus, generation)
+            self.changed()
+        else:
+            self._focus[surface] = (focus, generation)
+
+    def session(self, surface, revision, size, semantic_ids, *, mapped=True):
+        focus, generation = self._focus.get(surface, (None, 1))
+        identifier = self._ids.get("semantic:" + focus) if focus else None
+        if not mapped or identifier not in semantic_ids:
+            identifier = None
+        return {"id": self.identifier("session:" + surface), "version": revision, "canvas": [0, 0, *size], "focus": identifier, "focus_surface": self.identifier("surface:" + surface) if identifier else None, "focus_generation": generation}
 
     def reconcile_scene(self, surface: str, scene: list[dict]):
         current = {record["id"] for record in scene}
         previous = self._scene_ids.get(surface, set())
         disappeared = previous - current
         self.retired_scene_ids.update(disappeared)
-        if len(self.retired_scene_ids) + len(self.retired_semantic_ids) > MAX_RECORDS:
+        if len(self.retired_scene_ids) + len(self.retired_semantic_ids) + len(self.retired_object_ids) > MAX_RECORDS:
             raise ValueError("retired identity ceiling; start a new epoch")
         for key, identifier in list(self._ids.items()):
             if key.startswith("scene:" + surface + ":") and identifier in disappeared:
@@ -249,7 +362,35 @@ class CoherentSource:
         for key, (role, read, parent, actions) in self._semantics.items():
             if key in selected:
                 fields = dict(read())
-                result.append({"id": self.identifier("semantic:" + key), "identity": key, "version": revision, "role": role, "children": [self.identifier("semantic:" + child) for child, (_, _, owner, _) in self._semantics.items() if owner == key and child in selected], "actions": list(actions), **fields})
+                identifier = self.identifier("semantic:" + key)
+                children = [self.identifier("semantic:" + child) for child, (_, _, owner, _) in self._semantics.items() if owner == key and child in selected]
+                if fields.get("text"):
+                    model = dict(fields["text"])
+                    text_id = self.identifier("text:" + key)
+                    content = model.get("content")
+                    status = model.get("status", 1)
+                    if (status == 1) != (content is not None) or (content is not None and len(content.encode("utf-8")) > MAX_TEXT_BYTES):
+                        raise ValueError("text content/status ceiling")
+                    selection = model.get("selection")
+                    if selection is not None and (len(selection) != 2 or any(value < 0 or value > len(content or "") for value in selection)):
+                        raise ValueError("scalar selection outside source text")
+                    if status not in (1, 2, 3) or (selection is not None and not model.get("selectable")) or (status != 1 and (selection is not None or model.get("editable"))):
+                        raise ValueError("text availability/editability mismatch")
+                    model.update(id=text_id, version=revision, text_version=self.model_clock("text", text_id, (status, content)), status=status)
+                    fields["text"], fields["text_model"] = model, text_id
+                if fields.get("collection"):
+                    model = dict(fields.pop("collection"))
+                    items = [self._ids["semantic:" + item] for item in model["items"]]
+                    chosen = [self._ids["semantic:" + item] for item in model.get("selected_items", [])]
+                    total = model.get("total_count")
+                    materialization = model["materialization"]
+                    if len(items) > MAX_COLLECTION_ITEMS or len(set(items)) != len(items) or len(set(chosen)) != len(chosen) or not set(chosen) <= set(items) or not set(items) <= set(children):
+                        raise ValueError("collection membership ceiling")
+                    if materialization not in (1, 2) or (total is not None and total < len(items)) or (materialization == 1 and total != len(items)):
+                        raise ValueError("collection materialization/count mismatch")
+                    model.update(items=items, selected_items=chosen, version=self.model_clock("collection", identifier, (tuple(items), total, materialization, tuple(chosen))))
+                    fields["collection_model"] = model
+                result.append({"id": identifier, "identity": key, "version": revision, "role": role, "children": children, "actions": list(actions), **fields})
         return result
 
     def write(self, output: Path, frame: dict):
@@ -263,7 +404,9 @@ class CoherentSource:
             resource = self.resources[digest]
             (output / (digest + ".rvp")).write_bytes(resource["body"])
             resources.append({key: value for key, value in resource.items() if key != "body"})
-        summary = {**frame, "binding": binding, "resource_offers": resources, "envelope_sha256": hashlib.sha256(envelope).hexdigest()}
+        frame["binding"] = binding
+        frame["envelope_sha256"] = hashlib.sha256(envelope).hexdigest()
+        summary = {**frame, "resource_offers": resources}
         (output / (label + ".bin")).write_bytes(envelope)
         (output / (label + ".json")).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
         # The artifact is the consumer handoff. No source memory cache or hidden

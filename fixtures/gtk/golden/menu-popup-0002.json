@@ -1,0 +1,82 @@
+{
+  "binding": {
+    "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "0000000000000000000000000000013c"
+  },
+  "capture_boundary": "source-lifecycle-signal",
+  "capture_token": "0d2808d63b0c435680fc9ca2cc6071ac:menu-popup:21:2",
+  "destroyed": false,
+  "envelope_sha256": "78d7dd5fb4450a8e9d72a06e2d04b4188e5b77d1b33a87c9ae94c3dc3370194d",
+  "focused": false,
+  "gaps": [],
+  "gsk_node_counts": {},
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "mapped": false,
+  "origin": [
+    188,
+    394
+  ],
+  "parent_surface": {
+    "size": [
+      520,
+      540
+    ],
+    "surface_id": 164
+  },
+  "resource_offers": [],
+  "revision": 2,
+  "routing_token": "78778c7bc2bb47ef147f1c245e51a395",
+  "scene_root": 318,
+  "semantic_root": 11,
+  "semantics": [
+    {
+      "actions": [],
+      "children": [
+        12
+      ],
+      "id": 11,
+      "identity": "menu-popup",
+      "label": "Menu popup",
+      "role": 1,
+      "version": 2
+    },
+    {
+      "actions": [
+        "Activate"
+      ],
+      "children": [],
+      "id": 12,
+      "identity": "menu-item",
+      "label": "Menu source action",
+      "role": 3,
+      "version": 2
+    }
+  ],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      145,
+      58
+    ],
+    "focus": null,
+    "focus_generation": 3,
+    "focus_surface": null,
+    "id": 317,
+    "version": 2
+  },
+  "size": [
+    145,
+    58
+  ],
+  "source_glyph_evidence": [],
+  "source_revision": 21,
+  "surface_id": 316,
+  "surface_key": "menu-popup",
+  "surface_role": 2
+}

@@ -13,6 +13,7 @@ from gi.repository import Gtk, Gsk, Gdk, Graphene, GLib, Gio
 
 from adapters.gtk4.capture import CaptureWidget, CapturePopover
 from adapters.sdk.producer import CoherentSource
+from adapters.gtk4.state import NativeRegistry, editable_text
 
 
 STRICT_CSS = b"""
@@ -66,6 +67,7 @@ class Corpus:
         self.captures = []
         self.window = Gtk.ApplicationWindow(application=app, title="RUI cooperating GTK corpus")
         self.window.set_default_size(520, 540)
+        self.registry = NativeRegistry(self.source, self.window)
         if theme == "strict":
             provider = Gtk.CssProvider()
             provider.load_from_data(STRICT_CSS)
@@ -81,25 +83,34 @@ class Corpus:
         self.source.register("heading", 6, lambda: {"label": self.label.get_text()}, parent="main")
         self.entry = Gtk.Entry(text="source text")
         box.append(self.entry)
-        self.source.register("entry", 5, lambda: {"label": "Editable text", "value": self.entry.get_text()}, parent="main", actions=["ReplaceText", "SetSelection"])
+        self.source.register("entry", 5, lambda: {"label": "Editable text", "text": editable_text(self.entry), "states": {1: 1 if self.entry.get_sensitive() else 2, 5: 1 if self.entry.get_editable() else 2}}, parent="main", actions=["ReplaceText", "SetSelection", "Focus"])
         self.entry.connect("changed", lambda *_: self.source.changed())
+        self.entry.connect("notify::cursor-position", lambda *_: self.source.changed())
+        self.entry.connect("notify::selection-bound", lambda *_: self.source.changed())
+        self.registry.bind("entry", self.entry, "main-content")
         self.button = Gtk.Button(label="Activate source action")
         box.append(self.button)
         self.source.register("button", 3, lambda: {"label": self.button.get_label()}, parent="main", actions=["Activate"])
         self.button.connect("clicked", self.clicked)
+        self.registry.bind("button", self.button, "main-content")
         self.list = Gtk.ListBox()
         self.list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.rows = {}
+        self.item_total = 3
         for key, name in [("row-alpha", "Alpha"), ("row-beta", "Beta"), ("row-gamma", "Gamma")]:
             row = Gtk.ListBoxRow()
             row.set_child(Gtk.Label(label=name))
             self.list.append(row)
-            self.source.register(key, 8, lambda row=row, name=name: {"label": name, "value": "selected" if row.is_selected() else "unselected"}, parent="list", actions=["Activate"])
-        self.source.register("list", 7, lambda: {"label": "Stable-ID list"}, parent="main", actions=["ScrollTo"])
+            self.rows[key] = row
+            self.source.register(key, 8, lambda row=row, name=name: {"label": name, "states": {3: 2 if row.is_selected() else 1}}, parent="list", actions=["Activate", "Focus"])
+            self.registry.bind(key, row, "main-content")
+        self.source.register("list", 7, lambda: {"label": "Stable-ID list", "collection": {"items": list(self.rows), "selected_items": [key for key, row in self.rows.items() if row.is_selected()], "total_count": self.item_total, "materialization": 1 if len(self.rows) == self.item_total else 2}}, parent="main", actions=["ScrollTo"])
         self.list.connect("row-selected", lambda *_: self.source.changed())
         scroll = Gtk.ScrolledWindow()
         scroll.set_min_content_height(110)
         scroll.set_child(self.list)
         box.append(scroll)
+        self.registry.bind("list", self.list, "main-content")
         self.canvas = VectorCanvas()
         box.append(self.canvas)
         self.source.register("canvas", 9, lambda: {"label": "Source-authored vector canvas"}, parent="main")
@@ -113,6 +124,7 @@ class Corpus:
             self.menu.set_child(Gtk.Label(label="Ordinary GTK menu"))
         box.append(self.menu)
         self.source.register("menu-button", 3, lambda: {"label": "Ordinary GTK menu"}, parent="main", actions=["Activate"])
+        self.registry.bind("menu-button", self.menu, "main-content")
         self.source.register("menu-popup", 1, lambda: {"label": "Menu popup"})
         self.source.register("menu-item", 3, lambda: {"label": "Menu source action"}, parent="menu-popup", actions=["Activate"])
         self.popup_capture = CapturePopover(self.source, model, "menu-popup", "menu-popup", output, self.captured)
@@ -121,20 +133,29 @@ class Corpus:
         self.menu.set_popover(self.popup_capture)
         self.capture = CaptureWidget(self.source, box, "main-content", "main", output, self.captured)
         self.popup_capture.parent_capture = self.capture
+        self.registry.bind("menu-popup", self.popup_capture, "menu-popup")
+        self.registry.surface("main-content", self.capture)
+        self.registry.surface("menu-popup", self.popup_capture)
         self.window.set_child(self.capture)
         self.window.present()
         GLib.timeout_add(350, self.edit)
+        GLib.timeout_add(550, self.selection_only)
         GLib.timeout_add(650, self.select)
         GLib.timeout_add(950, self.open_menu)
         GLib.timeout_add(1300, self.activate_menu)
         GLib.timeout_add(1650, self.close_menu)
+        GLib.timeout_add(1750, self.open_menu)
+        GLib.timeout_add(1850, self.close_menu)
         GLib.timeout_add(1900, self.hide_canvas)
         GLib.timeout_add(2100, self.show_canvas)
         GLib.timeout_add(2300, self.resize)
-        GLib.timeout_add(2900, self.finish)
+        GLib.timeout_add(2500, self.destroy_menu)
+        GLib.timeout_add(2750, self.unmaterialize_row)
+        GLib.timeout_add(3000, self.materialize_row)
+        GLib.timeout_add(3500, self.finish)
 
     def captured(self, widget, frame):
-        self.captures.append({"surface": widget.surface_key, "revision": frame["revision"], "source_revision": frame["source_revision"], "node_counts": frame["gsk_node_counts"], "gaps": frame["gaps"], "capture_duration_ns": frame["capture_duration_ns"]})
+        self.captures.append({"surface": widget.surface_key, "revision": frame["revision"], "source_revision": frame["source_revision"], "binding": frame["binding"], "envelope_sha256": frame["envelope_sha256"], "node_counts": frame["gsk_node_counts"], "gaps": frame["gaps"], "capture_duration_ns": frame["capture_duration_ns"], "capture_boundary": frame["capture_boundary"], "mapped": frame["mapped"], "destroyed": frame.get("destroyed", False)})
 
     def record_action(self, name):
         self.source.changed()
@@ -155,6 +176,14 @@ class Corpus:
     def select(self):
         self.list.select_row(self.list.get_row_at_index(1))
         self.record_action("select-beta")
+        return False
+
+    def selection_only(self):
+        # select_region(start,end) sorts/clamps a backward request on this GTK
+        # build. Native GtkText movement preserves the real anchor/focus pair.
+        self.entry.set_position(19)
+        self.entry.get_delegate().emit("move-cursor", Gtk.MovementStep.LOGICAL_POSITIONS, -4, True)
+        self.record_action("scalar-selection-only")
         return False
 
     def open_menu(self):
@@ -184,6 +213,30 @@ class Corpus:
     def resize(self):
         self.window.set_default_size(640, 580)
         self.record_action("resize-source")
+        return False
+
+    def destroy_menu(self):
+        self.popup_capture.retire_source()
+        self.menu.set_popover(None)
+        self.registry.widgets.pop("menu-popup", None)
+        self.record_action("destroy-menu")
+        return False
+
+    def unmaterialize_row(self):
+        row = self.rows.pop("row-gamma")
+        self.list.remove(row)
+        self.registry.retire("row-gamma")
+        self.record_action("unmaterialize-gamma")
+        return False
+
+    def materialize_row(self):
+        row = Gtk.ListBoxRow()
+        row.set_child(Gtk.Label(label="Gamma"))
+        self.list.append(row)
+        self.rows["row-gamma"] = row
+        self.source.register("row-gamma", 8, lambda: {"label": "Gamma", "states": {3: 2 if row.is_selected() else 1}}, parent="list", actions=["Activate", "Focus"])
+        self.registry.bind("row-gamma", row, "main-content")
+        self.record_action("materialize-gamma")
         return False
 
     def finish(self):

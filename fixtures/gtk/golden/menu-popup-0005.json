@@ -1,0 +1,59 @@
+{
+  "binding": {
+    "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "0000000000000000000000000000013c"
+  },
+  "capture_boundary": "source-lifecycle-signal",
+  "capture_token": "0d2808d63b0c435680fc9ca2cc6071ac:menu-popup:34:5",
+  "destroyed": true,
+  "envelope_sha256": "0d21547266a93d9c192ca4be2363216367101326560157335bc3f795023501da",
+  "focused": false,
+  "gaps": [],
+  "gsk_node_counts": {},
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "mapped": false,
+  "origin": [
+    188,
+    394
+  ],
+  "parent_surface": {
+    "size": [
+      520,
+      540
+    ],
+    "surface_id": 164
+  },
+  "resource_offers": [],
+  "revision": 5,
+  "routing_token": "237157f8beb411efdeeba4ec6ec8fa36",
+  "scene_root": null,
+  "semantic_root": null,
+  "semantics": [],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      145,
+      58
+    ],
+    "focus": null,
+    "focus_generation": 5,
+    "focus_surface": null,
+    "id": 317,
+    "version": 5
+  },
+  "size": [
+    145,
+    58
+  ],
+  "source_glyph_evidence": [],
+  "source_revision": 34,
+  "surface_id": 316,
+  "surface_key": "menu-popup",
+  "surface_role": 2
+}

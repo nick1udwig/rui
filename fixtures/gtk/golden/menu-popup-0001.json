@@ -1,12 +1,13 @@
 {
   "binding": {
-    "epoch": "23dd96fb98f54d9489686f1f31c8a69e",
+    "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
     "session_id": "01010101010101010101010101010101",
-    "view_id": "0000000000000000000000000000013a"
+    "view_id": "0000000000000000000000000000013c"
   },
   "capture_boundary": "actual-snapshot-vfunc-same-node-append",
-  "capture_token": "23dd96fb98f54d9489686f1f31c8a69e:menu-popup:8:1",
-  "envelope_sha256": "55510bf31add8054a534930893cdc5ce53f2734a474e52278ca3c7b5683f9967",
+  "capture_token": "0d2808d63b0c435680fc9ca2cc6071ac:menu-popup:18:1",
+  "envelope_sha256": "61212d9e40f5839a488aa863436b09bb4ccd5fab4a8b2d0b40e61e90c66f2d2e",
+  "focused": true,
   "gaps": [],
   "gsk_node_counts": {
     "border-node": 2,
@@ -28,6 +29,7 @@
     "stride": 580,
     "width": 145
   },
+  "mapped": true,
   "origin": [
     188,
     394
@@ -37,7 +39,7 @@
       520,
       540
     ],
-    "surface_id": 163
+    "surface_id": 164
   },
   "resource_offers": [
     {
@@ -118,22 +120,9 @@
       "version": 1
     }
   ],
-  "resources": [
-    "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-    "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-    "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-    "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-    "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-    "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-    "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-    "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-    "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
-    "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-    "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53"
-  ],
   "revision": 1,
-  "routing_token": "4fa58711b82d19178d791ba8d9550d92",
-  "scene_root": 313,
+  "routing_token": "36a7ee4675cfb31effa25962defff676",
+  "scene_root": 315,
   "semantic_root": 11,
   "semantics": [
     {
@@ -159,6 +148,19 @@
       "version": 1
     }
   ],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      145,
+      58
+    ],
+    "focus": 11,
+    "focus_generation": 2,
+    "focus_surface": 316,
+    "id": 317,
+    "version": 1
+  },
   "size": [
     145,
     58
@@ -182,7 +184,7 @@
         0.0
       ],
       "resource": "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
-      "scene_id": 293,
+      "scene_id": 295,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 48
     },
@@ -204,7 +206,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 294,
+      "scene_id": 296,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -226,7 +228,7 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 295,
+      "scene_id": 297,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     },
@@ -248,7 +250,7 @@
         0.0
       ],
       "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-      "scene_id": 296,
+      "scene_id": 298,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 88
     },
@@ -270,7 +272,7 @@
         0.0
       ],
       "resource": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
-      "scene_id": 297,
+      "scene_id": 299,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 86
     },
@@ -292,7 +294,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 298,
+      "scene_id": 300,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -314,7 +316,7 @@
         0.0
       ],
       "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
-      "scene_id": 299,
+      "scene_id": 301,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 88
     },
@@ -336,7 +338,7 @@
         0.0
       ],
       "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
-      "scene_id": 300,
+      "scene_id": 302,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 85
     },
@@ -358,7 +360,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 301,
+      "scene_id": 303,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -380,7 +382,7 @@
         0.0
       ],
       "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
-      "scene_id": 302,
+      "scene_id": 304,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 72
     },
@@ -402,7 +404,7 @@
         0.0
       ],
       "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
-      "scene_id": 303,
+      "scene_id": 305,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 68
     },
@@ -424,7 +426,7 @@
         0.0
       ],
       "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
-      "scene_id": 304,
+      "scene_id": 306,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 70
     },
@@ -446,7 +448,7 @@
         0.0
       ],
       "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
-      "scene_id": 305,
+      "scene_id": 307,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 87
     },
@@ -468,7 +470,7 @@
         0.0
       ],
       "resource": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
-      "scene_id": 306,
+      "scene_id": 308,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 76
     },
@@ -490,7 +492,7 @@
         0.0
       ],
       "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
-      "scene_id": 307,
+      "scene_id": 309,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 82
     },
@@ -512,13 +514,13 @@
         0.0
       ],
       "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
-      "scene_id": 308,
+      "scene_id": 310,
       "source_font": "Liberation Sans 10.5",
       "source_glyph_id": 81
     }
   ],
-  "source_revision": 8,
-  "surface_id": 314,
+  "source_revision": 18,
+  "surface_id": 316,
   "surface_key": "menu-popup",
-  "uses_glyph_outline": true
+  "surface_role": 2
 }

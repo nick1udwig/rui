@@ -4,7 +4,7 @@ This foundation demonstrates an actual GTK content snapshot boundary, a
 vector-only Protobuf publication accepted by the Rust receiver, and a local
 native-versus-replay comparison of the full constrained corpus. It measures a
 small ordinary-control corpus under GTK 4.22.4. It is not a generic GTK desktop
-adapter, a complete window lifecycle producer or completed M3 interaction.
+adapter, a combined multi-surface session producer or completed M3 interaction.
 
 ## Source boundary and identity
 
@@ -39,10 +39,16 @@ invalidating earlier route evidence.
 The popup artifact is a **per-surface snapshot**: its parent is a topology-only
 `PARTIAL` Surface without the main scene. Rendering a selected popup scene is
 valid; rendering the whole standalone popup view as complete is rejected. The
-fixture closes its real popup but does not yet publish popup unmap/destroy, so
-replaying these snapshots alone leaves the captured popup mapped. Combining
-current main and popup projections, explicit map/unmap/destroy publications and
-late-event rejection after source destruction remain required.
+fixture publishes actual popup snapshots for map/remap and explicit native
+lifecycle signals for unmap/destruction. Unmapping clears focus and the resource
+closure, preserves the Surface and semantic identities, and retires the old
+scene. Destruction removes and retires the Surface, scene and semantic objects.
+Recreating the same source key starts a fresh Surface/view and per-view Session
+identity; the old capture cannot publish again. Capture bookkeeping is committed
+before observer callbacks, including synchronous unmap/destruction callbacks.
+Source guards reject old incarnations, routes, clocks and destroyed objects.
+These are source checks, not command authentication. Combining current main and
+popup projections and publishing main-window teardown remain required.
 
 ## Pinned measured environment
 
@@ -85,7 +91,9 @@ runtime directory, uses memory-only GSettings, and runs both source styles. The
 JSON report in `fixtures/gtk/measurement.json` was measured from the actual
 submitted snapshots. Strict exact envelopes, manifests and vector resources are
 retained in `fixtures/gtk/golden/`; producer epochs and timing values naturally
-vary across fresh runs.
+vary across fresh runs. Each measured publication includes its session/epoch/view
+binding and exact envelope SHA-256; regression checks match all strict entries
+and the visual report to the retained golden envelope bytes.
 
 ## Corpus and rendering coverage
 
@@ -94,31 +102,37 @@ entry, an ordinary button, native Gio.Menu/Gtk.PopoverMenu, a ListBox of three
 explicitly identified rows inside a ScrolledWindow, and a custom source widget
 that submits GSK vector fill and stroke nodes. Source callbacks change text and
 selection, activate button/menu actions, open and close the popup, remove and
-restore the canvas, and resize the source window. These are application callback
+restore the canvas, resize the source window, remove and rematerialize a list
+row, and unmap/remap/destroy the popup. These are application callback
 observations; they are not broker-dispatched remote command evidence.
 
 | Measurement | Default source style | Constrained source style |
 | --- | ---: | ---: |
-| Actual content snapshots | 10 | 10 |
-| Main / popup snapshots | 9 / 1 | 9 / 1 |
+| Publications / actual content snapshots | 20 / 17 | 20 / 17 |
+| Main / popup snapshots | 15 / 2 | 15 / 2 |
+| Popup lifecycle publications | 3 | 3 |
 | Peak GSK nodes in one snapshot | 53 | 59 |
-| Reported unsupported regions | 61 | 0 |
-| Export/census median | 105.4 ms | 101.1 ms |
-| Export/census maximum | 147.2 ms | 128.8 ms |
-| Permanently retired scene IDs | 207 | 155 |
+| Reported unsupported regions | 104 | 0 |
+| Export/census median | 8.32 ms | 7.66 ms |
+| Export/census maximum | 12.33 ms | 12.14 ms |
+| Permanently retired scene IDs | 305 | 228 |
 | Source resource bytes after handoff | 0 | 0 |
 
 Durations cover child snapshot, semantic read, vector export and census; they
-exclude local image diagnostics and file writing. This Python prototype does
-not meet a 60 Hz export budget. Gap counts describe individual reports, not
+exclude local image diagnostics and file writing. These 17 frames per style
+fall below a 16.7 ms export budget in this run; they do not establish end-to-end
+60 Hz latency or sustained throughput. Earlier foundation measurements took
+101–105 ms median under their measured load; this report records the current
+run without attributing that difference to an implementation speedup. Gap counts
+describe individual reports, not
 unique pixels or percentage coverage: node bounds use each node's coordinate
 space and may overlap.
 
 The default source emitted container, transform, color, border, clip,
 rounded-clip, text, linear-gradient, outset-shadow, fill, stroke and Cairo nodes.
-It reported 25 `nonopaque-srgb-composition`, 17
-`unsupported-outset-shadow-node`, 18 `rounded-clip-on-nonuniform-content` and
-one `unsupported-cairo-node` gaps. Census still visits descendants of rejected
+It reported 43 `nonopaque-srgb-composition`, 29
+`unsupported-outset-shadow-node`, 30 `rounded-clip-on-nonuniform-content` and
+two `unsupported-cairo-node` gaps. Census still visits descendants of rejected
 subtrees, so unsupported rounded clips do not hide the observed gradient nodes.
 
 The constrained run **changes the actual source style**: it removes shadows,
@@ -149,6 +163,32 @@ local GSK node pointer. It accepts no pointers from a peer. Source glyph IDs,
 font descriptions, outline bounds and placement evidence accompany local test
 manifests; Rust tests verify decoded placement against that evidence.
 
+## Typed native state and interaction boundary
+
+The registered entry exports a typed `TextModel` from the actual `GtkText`
+delegate. Content/status changes advance `text_version`; changing selection
+alone retains that clock. Positions are Unicode scalar indices. The measured
+21-scalar, 23-byte text `edited source: café Ω` retains the backward native
+selection anchor 19/focus 15. Reading the delegate avoids this pinned build's
+`GtkEntry.get_position()` returning the sorted selection end.
+
+The ListBox exports a typed `CollectionModel`, stable materialized item
+references, native selected-item state, total count and materialization status.
+Removing Gamma changes full three-item materialization to partial two-item
+materialization with total count three; its semantic ID is permanently retired.
+Recreating the native row allocates a fresh ID while Alpha/Beta retain theirs.
+Selection and each materialization change advance the collection clock. Core
+replay asserts these values and rejects stale text/collection clocks atomically.
+
+A per-view `SessionState` carries actual native focus and focus-generation
+transitions. The registry observes window focus notifications, resolves only
+explicitly registered native ancestors, and clears focus when the popup unmaps
+or objects are destroyed. Tests check the actual recorded transitions and reject
+stale focus clocks. IME composition, guarded remote command dispatch through the
+shared Rust session authority/ledger, and causal command-result publication are
+still acceptance work. Timed local corpus callbacks are not remote command
+proof, and `NativeRegistry.resolve_event` alone cannot admit a command.
+
 ## Exact replay, resources and bounds
 
 The Python SDK produces exact existing RUI Protobuf envelopes with bound session,
@@ -161,19 +201,27 @@ bridge is a trusted local fixture consumer: approving this producer policy is
 the caller's responsibility, and manifest strings are not authentication or
 proof of source provenance.
 
-The tests replay all ten strict frames into two receiver views, exercise actual
-conditional scene disappearance/reappearance, verify stable source semantic IDs
-and shaped-glyph placement, reject a restarted producer epoch on an existing
-view, reject mismatched resource lengths before policy grants, and close both
-receivers with their shared memory use reduced to zero. Python tests also cover
-destroyed semantic registration, fresh producer epochs and resource handoff.
+The tests replay all 20 strict publications into two receiver views, exercise
+actual conditional scene disappearance/reappearance, verify stable source
+semantic IDs and shaped-glyph placement, and reject restarted epochs and
+mismatched resource lengths. Popup unmap releases outline pins and rejects late
+resource replies; remap reacquires an evicted outline, and destruction rejects
+late attempts to resurrect retired records. Both receivers close with their
+shared memory use reduced to zero. Python regressions also cover fresh surface
+identities after destruction, disposal before the first snapshot, reentrant
+lifecycle callbacks, source guards and resource handoff.
 Replay reports applied state and resource readiness. It deliberately does not
 acknowledge `Presented`, because no renderer callback runs in that CLI or test.
 
 Source limits are 4,096 traversed GSK nodes, depth 128, 4,096 glyphs per
 text node, 20,000 registered identities/records, 20,000 permanently retired
-identities per epoch, 100,000 path commands, 16 MiB per resource and 32 MiB of
-temporary source resource bodies. A depth guard runs before recursive export,
+identities per epoch across scene, semantic, text, surface and Session objects,
+2,048 UTF-8 bytes per identity key, 16 KiB per text value, 4,096 collection items,
+a conservative 4 MiB retained model-clock cache, 100,000 path commands, 16 MiB
+per resource and 32 MiB of temporary source resource bodies. The model cache
+charges retained string/container capacity before updates and releases state
+on object retirement; its quota is separate from GTK application memory and
+the receiver budget. A depth guard runs before recursive export,
 leaving room for text's per-glyph children within the reducer's depth128 bound.
 Deep supported trees become an explicit `source-depth-ceiling` gap and the
 census truncates at its bound. A native 180-layer ClipNode regression verifies
@@ -212,18 +260,22 @@ mean maximum RGB error over edge pixels to eight, and maximum alpha error to
 128. Viewport mean maximum RGB error is bounded to four and mean alpha error to
 one. Channel levels use the 0..255 display encoding.
 
-The initial viewport mean maximum RGB criterion was three. Nine main snapshots
-passed; the compact popup measured 3.122 and failed that criterion. The popup's
+The initial foundation viewport mean maximum RGB criterion was three. Its nine
+main snapshots passed; the compact popup measured 3.122 and failed that criterion.
+The popup's
 source-derived edge band covers 54% of its pixels, compared with about 18% for
 main content. Calibration therefore changed the viewport bound to four and
 added the separate edge-mean bound of eight, retaining zero out-of-bound interior
 pixels and all independent geometry checks. This calibration is explicit in
 the retained comparison report and does not discard the popup measurement.
 
-The full ten-snapshot report is `fixtures/gtk/pixel-comparison.json`. Every
+The refreshed full 17-snapshot report is `fixtures/gtk/pixel-comparison.json`. Every
 snapshot has zero interior mismatch and identical alpha. Edge maximum RGB error
 is 127 for main content and 114 for the popup; native glyph outline bounds versus
-decoded RVP1 bounds differ by at most 1.56e-15 source pixels. The SDK's reusable
+decoded RVP1 bounds for 1,577 shaped glyphs differ by at most 1.56e-15 source
+pixels. Main viewport mean maximum RGB error stays at or below 0.569 and popup
+mean at 3.122; edge means remain at or below 3.209 and 5.825 respectively. The
+SDK's reusable
 `verify_native_glyph_evidence` also checks the actual decoded scene's glyph count,
 unique IDs, resources, font sizes, glyph IDs and exact native source placements.
 Both the replay CLI and renderer CLI invoke it on fresh captures. Negative
@@ -245,11 +297,12 @@ comparison under that tolerance, with independent geometry and decoded-scene
 checks; it does not claim bit-identical rendering or coverage of other styles,
 font backends, scales or omitted effects.
 
-The current semantic encoder exposes roles, labels, typed string values and
-action names. Typed TextModel versions/ranges, collection operations, selected
-and focused state, focus routing, composition/IME ownership, broker-dispatched
-source commands with revision evidence, and popup map/unmap/destroy are still
-required for M3 interaction completion. AT-SPI was not used to infer coherence.
+The current semantic encoder exposes roles, labels, typed values, action names,
+TextModel clocks/scalar ranges, CollectionModel membership/materialization and
+selected state, Session focus clocks, and explicit popup lifecycle. Guarded
+broker-dispatched source commands with causal revision evidence, composition/IME
+ownership, and combined surface projection remain required for M3 interaction
+completion. AT-SPI was not used to infer coherence.
 
 The alternate GTK 4.22.4 Broadway harness repeatedly aborted while repainting a
 native popup at `gdk/broadway/broadway-output.c:456`,

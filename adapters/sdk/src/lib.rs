@@ -120,8 +120,10 @@ impl CaptureArtifact {
         let bytes = bounded_read(&path, MAX_MANIFEST_BYTES)?;
         manifest_preflight(&bytes)?;
         let manifest: Value = serde_json::from_slice(&bytes)?;
-        if manifest["capture_boundary"] != "actual-snapshot-vfunc-same-node-append"
-            || manifest["gtk_version"] != serde_json::json!([4, 22, 4])
+        if !matches!(
+            manifest["capture_boundary"].as_str(),
+            Some("actual-snapshot-vfunc-same-node-append" | "source-lifecycle-signal")
+        ) || manifest["gtk_version"] != serde_json::json!([4, 22, 4])
         {
             return Err(CaptureError::Invalid);
         }

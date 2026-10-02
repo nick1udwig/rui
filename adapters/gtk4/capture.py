@@ -299,6 +299,17 @@ class CaptureMixin:
         self.role = role
         self.frames = 0
         self.captures = deque(maxlen=64)
+        self.focus_reader = None
+        self.source_alive = True
+        self.source_mapped = False
+        self.last_frame = None
+
+    def source_boundary(self):
+        if not self.source_alive:
+            raise RuntimeError("retired source surface cannot capture")
+        if self.focus_reader:
+            self.source.focus_changed(self.surface_key, self.focus_reader())
+        return self.source.source_revision
 
     def capture_node(self, submitted_snapshot, node, source_revision, started):
         if node is None:
@@ -306,6 +317,7 @@ class CaptureMixin:
         # Critical boundary: the very same immutable GskRenderNode object
         # becomes the actual local snapshot child. No WidgetPaintable sampling.
         submitted_snapshot.append_node(node)
+        self.source_mapped = True
         self.frames += 1
         semantics = self.source.semantics(self.semantic_root, self.frames)
         if source_revision != self.source.source_revision:
@@ -317,6 +329,9 @@ class CaptureMixin:
         counts, region_bounds = census(node)
         frame = {"revision": self.frames, "source_revision": source_revision, "surface_key": self.surface_key, "surface_id": self.source.identifier("surface:" + self.surface_key), "surface_role": self.role, "size": [self.get_width(), self.get_height()], "capture_token": token, "capture_boundary": "actual-snapshot-vfunc-same-node-append", "scene_root": scene_root, "semantic_root": self.source.identifier("semantic:" + self.semantic_root), "semantics": semantics, "scene": exporter.scene, "gaps": exporter.gaps, "resources": sorted(exporter.resources), "uses_glyph_outline": exporter.uses_glyph_outline, "gsk_node_counts": counts, "gsk_node_bounds": region_bounds, "capture_duration_ns": time.monotonic_ns() - started, "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font", "gtk_version": list(PINNED_GTK)}
         frame["source_glyph_evidence"] = exporter.glyph_evidence
+        frame["session"] = self.source.session(self.surface_key, self.frames, frame["size"], {record["id"] for record in semantics})
+        frame["focused"] = frame["session"]["focus"] is not None
+        frame["mapped"] = True
         if getattr(self, "parent_capture", None) is not None:
             parent = self.parent_capture
             frame["parent_surface"] = {"surface_id": self.source.identifier("surface:" + parent.surface_key), "size": [parent.get_width(), parent.get_height()]}
@@ -339,8 +354,52 @@ class CaptureMixin:
         reference.write_to_png(str(self.output / (label + ".local.png")))
         (self.output / (label + ".local.bgra")).write_bytes(raw)
         self.captures.append({"label": label, "source_revision": source_revision, "counts": counts, "gaps": frame["gaps"]})
+        # Publish bookkeeping before an observer can synchronously unmap or
+        # destroy the native source. Such a lifecycle publication owns the new
+        # last_frame; returning from this callback must not overwrite it.
+        self.last_frame = frame
         if self.on_capture:
             self.on_capture(self, frame)
+
+    def publish_lifecycle(self, destroyed=False):
+        """Source-issued lifecycle evidence; no synthetic visual frame claim."""
+        if not self.source_alive or self.last_frame is None or (not self.source_mapped and not destroyed):
+            return
+        self.source.changed()
+        self.source.focus_changed(self.surface_key, None)
+        self.source_mapped = False
+        self.frames += 1
+        exporter = Exporter(self.source, self.surface_key, self.frames)
+        root = None if destroyed else exporter.record("unmapped", {"type": "Group"})
+        self.source.reconcile_scene(self.surface_key, exporter.scene)
+        semantics = [] if destroyed else self.source.semantics(self.semantic_root, self.frames)
+        frame = {**self.last_frame, "revision": self.frames, "source_revision": self.source.source_revision,
+                 "capture_boundary": "source-lifecycle-signal", "capture_token": f"{self.source.identity}:{self.surface_key}:{self.source.source_revision}:{self.frames}",
+                 "mapped": False, "focused": False, "destroyed": destroyed, "scene_root": root,
+                 "semantic_root": None if destroyed else self.source.identifier("semantic:" + self.semantic_root),
+                 "scene": exporter.scene, "semantics": semantics, "resources": [], "gaps": [],
+                 "source_glyph_evidence": [], "uses_glyph_outline": False,
+                 "gsk_node_counts": {}, "gsk_node_bounds": [], "capture_duration_ns": 0}
+        frame.pop("local_reference", None)
+        frame["session"] = self.source.session(self.surface_key, self.frames, frame["size"], set(), mapped=False)
+        self.source.write(self.output, frame)
+        self.last_frame = frame
+        if destroyed:
+            self.source_alive = False
+            self.source.unregister(self.semantic_root)
+            self.source.retire_surface(self.surface_key)
+        if self.on_capture:
+            self.on_capture(self, frame)
+
+    def retire_source(self):
+        if self.source_alive and self.last_frame is None:
+            # No mapped publication exists to remove, but disposal still burns
+            # any registered source identities and forbids later capture.
+            self.source_alive = False
+            self.source.unregister(self.semantic_root)
+            self.source.retire_surface(self.surface_key)
+            return
+        self.publish_lifecycle(destroyed=True)
 
 
 class CaptureWidget(CaptureMixin, Gtk.Widget):
@@ -353,7 +412,7 @@ class CaptureWidget(CaptureMixin, Gtk.Widget):
 
     def do_snapshot(self, submitted_snapshot):
         started = time.monotonic_ns()
-        revision = self.source.source_revision
+        revision = self.source_boundary()
         captured = Gtk.Snapshot()
         self.snapshot_child(self.child, captured)
         self.capture_node(submitted_snapshot, captured.to_node(), revision, started)
@@ -364,10 +423,11 @@ class CapturePopover(CaptureMixin, Gtk.PopoverMenu):
     def __init__(self, source, menu_model, surface_key, semantic_root, output, on_capture=None):
         super().__init__(menu_model=menu_model)
         self.setup_capture(source, surface_key, semantic_root, output, on_capture, role=2)
+        self.connect('unmap', lambda *_: self.publish_lifecycle())
 
     def do_snapshot(self, submitted_snapshot):
         started = time.monotonic_ns()
-        revision = self.source.source_revision
+        revision = self.source_boundary()
         captured = Gtk.Snapshot()
         Gtk.PopoverMenu.do_snapshot(self, captured)
         self.capture_node(submitted_snapshot, captured.to_node(), revision, started)

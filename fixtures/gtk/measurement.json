@@ -10,54 +10,92 @@
         {
           "evidence": "application-callback",
           "name": "button-activate",
-          "source_revision": 4
-        },
-        {
-          "evidence": "application-callback",
-          "name": "replace-text",
-          "source_revision": 5
-        },
-        {
-          "evidence": "application-callback",
-          "name": "select-beta",
-          "source_revision": 7
-        },
-        {
-          "evidence": "application-callback",
-          "name": "open-menu",
           "source_revision": 8
         },
         {
           "evidence": "application-callback",
-          "name": "menu-activate",
+          "name": "replace-text",
           "source_revision": 9
         },
         {
           "evidence": "application-callback",
+          "name": "scalar-selection-only",
+          "source_revision": 13
+        },
+        {
+          "evidence": "application-callback",
+          "name": "select-beta",
+          "source_revision": 15
+        },
+        {
+          "evidence": "application-callback",
+          "name": "open-menu",
+          "source_revision": 18
+        },
+        {
+          "evidence": "application-callback",
+          "name": "menu-activate",
+          "source_revision": 19
+        },
+        {
+          "evidence": "application-callback",
           "name": "close-menu",
-          "source_revision": 10
+          "source_revision": 23
+        },
+        {
+          "evidence": "application-callback",
+          "name": "open-menu",
+          "source_revision": 26
+        },
+        {
+          "evidence": "application-callback",
+          "name": "close-menu",
+          "source_revision": 30
         },
         {
           "evidence": "application-callback",
           "name": "hide-canvas",
-          "source_revision": 11
+          "source_revision": 31
         },
         {
           "evidence": "application-callback",
           "name": "show-canvas",
-          "source_revision": 12
+          "source_revision": 32
         },
         {
           "evidence": "application-callback",
           "name": "resize-source",
-          "source_revision": 13
+          "source_revision": 33
+        },
+        {
+          "evidence": "application-callback",
+          "name": "destroy-menu",
+          "source_revision": 37
+        },
+        {
+          "evidence": "application-callback",
+          "name": "unmaterialize-gamma",
+          "source_revision": 39
+        },
+        {
+          "evidence": "application-callback",
+          "name": "materialize-gamma",
+          "source_revision": 40
         }
       ],
       "cairo_version": "1.18.4",
       "capture_scope": "cooperating main content and explicitly registered menu popup; excludes window decorations/compositor",
       "captures": [
         {
-          "capture_duration_ns": 130638152,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 12327530,
+          "destroyed": false,
+          "envelope_sha256": "fede3d8d3eec7b889911a644cc5ce280af8811d322b45603c82aa1e3d3f0a3e3",
           "gaps": [
             {
               "bounds": [
@@ -126,6 +164,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 4,
             "clip-node": 1,
@@ -140,11 +179,19 @@
             "transform-node": 12
           },
           "revision": 1,
-          "source_revision": 1,
+          "source_revision": 3,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 147199666,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8629220,
+          "destroyed": false,
+          "envelope_sha256": "4817c96dca2915fc3a8cbbcb7225135ad7893b42a4f33add17ed28dfec9d085a",
           "gaps": [
             {
               "bounds": [
@@ -213,6 +260,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 4,
             "clip-node": 1,
@@ -227,11 +275,19 @@
             "transform-node": 12
           },
           "revision": 2,
-          "source_revision": 5,
+          "source_revision": 9,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 103237304,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8215653,
+          "destroyed": false,
+          "envelope_sha256": "872878a144dea5a9cc0dfaa0c21b4df0f50a7e343e39f7f8c0d6bf71c7e2b5f2",
           "gaps": [
             {
               "bounds": [
@@ -300,6 +356,103 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 4,
+            "clip-node": 1,
+            "color-node": 7,
+            "container-node": 7,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 3,
+          "source_revision": 13,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8297018,
+          "destroyed": false,
+          "envelope_sha256": "7eb5def940056d6fce2015942dc72b039700d4351540cb19970603d557d48abd",
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -9.0,
+                -1.0,
+                504.0,
+                34.0
+              ],
+              "node_type": "border-node",
+              "path": "root/child/1/child/5",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "mapped": true,
           "node_counts": {
             "border-node": 4,
             "clip-node": 1,
@@ -313,12 +466,20 @@
             "text-node": 10,
             "transform-node": 12
           },
-          "revision": 3,
-          "source_revision": 7,
+          "revision": 4,
+          "source_revision": 15,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 107553013,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 9012251,
+          "destroyed": false,
+          "envelope_sha256": "30e30645e3e37f15d578ab3c38dafdc053393ca8ce21fcbadd1d7d2a3f16ddc4",
           "gaps": [
             {
               "bounds": [
@@ -387,6 +548,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 3,
             "clip-node": 1,
@@ -400,12 +562,20 @@
             "text-node": 10,
             "transform-node": 12
           },
-          "revision": 4,
-          "source_revision": 8,
+          "revision": 5,
+          "source_revision": 18,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 20064597,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000139"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 2269182,
+          "destroyed": false,
+          "envelope_sha256": "124ad834f31e99ef626db6ab69b50562c089596e4a982eacf77e489761a1d427",
           "gaps": [
             {
               "bounds": [
@@ -441,6 +611,7 @@
               "reason": "unsupported-cairo-node"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 1,
             "cairo-node": 1,
@@ -452,11 +623,19 @@
             "transform-node": 2
           },
           "revision": 1,
-          "source_revision": 8,
+          "source_revision": 18,
           "surface": "menu-popup"
         },
         {
-          "capture_duration_ns": 87664163,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8317448,
+          "destroyed": false,
+          "envelope_sha256": "6ad0e6fe0f531d4afc9b2b4a27c7cdafb7ca0c0889d71c85be67931d7b045df6",
           "gaps": [
             {
               "bounds": [
@@ -525,6 +704,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 3,
             "clip-node": 1,
@@ -538,12 +718,37 @@
             "text-node": 10,
             "transform-node": 12
           },
-          "revision": 5,
-          "source_revision": 9,
+          "revision": 6,
+          "source_revision": 19,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 115890850,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000139"
+          },
+          "capture_boundary": "source-lifecycle-signal",
+          "capture_duration_ns": 0,
+          "destroyed": false,
+          "envelope_sha256": "ac904b19529ac5fa57b216616bd61708cd17dc3487642c44b0aa5d321d4b0b61",
+          "gaps": [],
+          "mapped": false,
+          "node_counts": {},
+          "revision": 2,
+          "source_revision": 21,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 9423054,
+          "destroyed": false,
+          "envelope_sha256": "4de4baa6dc7bff29d483b12d6de3ed48252b775c1c5ba974794b879d464266f8",
           "gaps": [
             {
               "bounds": [
@@ -623,6 +828,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 3,
             "clip-node": 1,
@@ -636,12 +842,300 @@
             "text-node": 10,
             "transform-node": 12
           },
-          "revision": 6,
-          "source_revision": 10,
+          "revision": 7,
+          "source_revision": 23,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 116885491,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7927210,
+          "destroyed": false,
+          "envelope_sha256": "bbd1da653c3360f4afe0e72a4a3dda6714faa1217130a29a1a257e65165774a3",
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 9,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 1,
+            "outset-shadow-node": 1,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 8,
+          "source_revision": 26,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000139"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 2007529,
+          "destroyed": false,
+          "envelope_sha256": "c5e140d00dac697b9a3dfbfb3c08ce58a367b50448dd6ffa9c612df33ffe07b3",
+          "gaps": [
+            {
+              "bounds": [
+                -9.0,
+                -8.0,
+                180.0,
+                64.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/0/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -6.0,
+                -6.0,
+                174.0,
+                58.0
+              ],
+              "node_type": "border-node",
+              "path": "root/0/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                180.0,
+                76.0
+              ],
+              "node_type": "cairo-node",
+              "path": "root/1",
+              "reason": "unsupported-cairo-node"
+            }
+          ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 1,
+            "cairo-node": 1,
+            "color-node": 2,
+            "container-node": 3,
+            "outset-shadow-node": 1,
+            "rounded-clip-node": 2,
+            "text-node": 1,
+            "transform-node": 2
+          },
+          "revision": 3,
+          "source_revision": 26,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000139"
+          },
+          "capture_boundary": "source-lifecycle-signal",
+          "capture_duration_ns": 0,
+          "destroyed": false,
+          "envelope_sha256": "43838cf145fb37f58e3b1424cd841b3ee21e0c316b45b7425b836bee1a2d24a5",
+          "gaps": [],
+          "mapped": false,
+          "node_counts": {},
+          "revision": 4,
+          "source_revision": 28,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7539642,
+          "destroyed": false,
+          "envelope_sha256": "cc4aeecc35d0e7345ec844a6cd204fda515d88045a9c4c23902338692d364627",
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 8,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 9,
+          "source_revision": 30,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8350392,
+          "destroyed": false,
+          "envelope_sha256": "10487f40138b733b74c36450fe134ec5a3db16b9825335598c012c76489f505b",
           "gaps": [
             {
               "bounds": [
@@ -721,6 +1215,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 3,
             "clip-node": 1,
@@ -733,12 +1228,20 @@
             "text-node": 10,
             "transform-node": 11
           },
-          "revision": 7,
-          "source_revision": 11,
+          "revision": 10,
+          "source_revision": 31,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 99419128,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8314803,
+          "destroyed": false,
+          "envelope_sha256": "38ebb9b1e5cd4f941f58947a4176ed76c9d92e1dc48c4d76dc1ebc3d2eee5a89",
           "gaps": [
             {
               "bounds": [
@@ -818,6 +1321,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 3,
             "clip-node": 1,
@@ -831,12 +1335,20 @@
             "text-node": 10,
             "transform-node": 12
           },
-          "revision": 8,
-          "source_revision": 12,
+          "revision": 11,
+          "source_revision": 32,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 93752424,
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7716864,
+          "destroyed": false,
+          "envelope_sha256": "21f9d603578f976e3f30fd40d1ea89a5cf91eea21736cfadc1f204addcf54ad4",
           "gaps": [
             {
               "bounds": [
@@ -916,6 +1428,7 @@
               "reason": "rounded-clip-on-nonuniform-content"
             }
           ],
+          "mapped": true,
           "node_counts": {
             "border-node": 3,
             "clip-node": 1,
@@ -929,8 +1442,346 @@
             "text-node": 10,
             "transform-node": 12
           },
-          "revision": 9,
-          "source_revision": 13,
+          "revision": 12,
+          "source_revision": 33,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000139"
+          },
+          "capture_boundary": "source-lifecycle-signal",
+          "capture_duration_ns": 0,
+          "destroyed": true,
+          "envelope_sha256": "87af965294eb16b9ba9a6d8103608ff9ca40ecd400f788ceb8097ff542104cf6",
+          "gaps": [],
+          "mapped": false,
+          "node_counts": {},
+          "revision": 5,
+          "source_revision": 34,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 9043101,
+          "destroyed": false,
+          "envelope_sha256": "27feaf7484ce19ec6b90a7cd1fbdcf10ee2ece0b6708bc0df2c1286f10b355dd",
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                606.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 9,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 1,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 13,
+          "source_revision": 37,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 11923326,
+          "destroyed": false,
+          "envelope_sha256": "496bd3e72c76edb404277c2f63e77aea77dd7af9cfe17aabc5d317c3293fd735",
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                606.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 9,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 1,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 11
+          },
+          "revision": 14,
+          "source_revision": 39,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "c208ac6e200142748e0d37ef42b5bfcd",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "00000000000000000000000000000098"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 9144072,
+          "destroyed": false,
+          "envelope_sha256": "aa4dd355a37469b83b17134eaefa1737ef91faf8f0173ed94cb0aeeb5efabfcf",
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                606.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 9,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 1,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 15,
+          "source_revision": 40,
           "surface": "main-content"
         }
       ],
@@ -941,15 +1792,14 @@
       ],
       "retained_resource_bytes": 0,
       "retired_scene_ids": [
-        19,
-        24,
-        32,
+        20,
+        25,
         33,
         34,
         35,
         36,
-        38,
-        42,
+        37,
+        39,
         43,
         44,
         45,
@@ -959,7 +1809,7 @@
         49,
         50,
         51,
-        53,
+        52,
         54,
         55,
         56,
@@ -972,8 +1822,8 @@
         63,
         64,
         65,
-        67,
-        73,
+        66,
+        68,
         74,
         75,
         76,
@@ -993,7 +1843,8 @@
         90,
         91,
         92,
-        96,
+        93,
+        94,
         97,
         98,
         99,
@@ -1014,7 +1865,7 @@
         114,
         115,
         116,
-        119,
+        117,
         120,
         121,
         122,
@@ -1044,8 +1895,7 @@
         146,
         147,
         148,
-        177,
-        178,
+        149,
         179,
         180,
         181,
@@ -1061,12 +1911,18 @@
         191,
         192,
         193,
+        194,
         195,
-        199,
-        227,
-        228,
+        197,
+        201,
         229,
         230,
+        231,
+        232,
+        234,
+        235,
+        236,
+        237,
         238,
         239,
         240,
@@ -1090,8 +1946,8 @@
         258,
         259,
         260,
-        267,
-        268,
+        261,
+        262,
         269,
         270,
         271,
@@ -1107,9 +1963,35 @@
         281,
         282,
         283,
+        284,
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        297,
+        298,
+        299,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
         312,
-        313,
-        314,
         315,
         316,
         317,
@@ -1147,7 +2029,74 @@
         349,
         350,
         351,
-        352
+        352,
+        353,
+        354,
+        355,
+        356,
+        357,
+        358,
+        359,
+        360,
+        361,
+        362,
+        363,
+        364,
+        365,
+        366,
+        367,
+        368,
+        369,
+        370,
+        371,
+        372,
+        373,
+        374,
+        375,
+        376,
+        377,
+        378,
+        379,
+        380,
+        381,
+        382,
+        383,
+        384,
+        385,
+        386,
+        387,
+        388,
+        389,
+        390,
+        391,
+        392,
+        393,
+        394,
+        395,
+        396,
+        397,
+        398,
+        399,
+        400,
+        401,
+        402,
+        403,
+        404,
+        405,
+        406,
+        407,
+        408,
+        409,
+        410,
+        411,
+        412,
+        413,
+        414,
+        415,
+        416,
+        417,
+        418,
+        419
       ],
       "stable_semantic_ids": {
         "button": 4,
@@ -1157,11 +2106,9 @@
         "list": 8,
         "main": 1,
         "menu-button": 10,
-        "menu-item": 12,
-        "menu-popup": 11,
         "row-alpha": 5,
         "row-beta": 6,
-        "row-gamma": 7
+        "row-gamma": 448
       },
       "theme": "default"
     },
@@ -1170,55 +2117,94 @@
         {
           "evidence": "application-callback",
           "name": "button-activate",
-          "source_revision": 4
-        },
-        {
-          "evidence": "application-callback",
-          "name": "replace-text",
-          "source_revision": 5
-        },
-        {
-          "evidence": "application-callback",
-          "name": "select-beta",
-          "source_revision": 7
-        },
-        {
-          "evidence": "application-callback",
-          "name": "open-menu",
           "source_revision": 8
         },
         {
           "evidence": "application-callback",
-          "name": "menu-activate",
+          "name": "replace-text",
           "source_revision": 9
         },
         {
           "evidence": "application-callback",
+          "name": "scalar-selection-only",
+          "source_revision": 13
+        },
+        {
+          "evidence": "application-callback",
+          "name": "select-beta",
+          "source_revision": 15
+        },
+        {
+          "evidence": "application-callback",
+          "name": "open-menu",
+          "source_revision": 18
+        },
+        {
+          "evidence": "application-callback",
+          "name": "menu-activate",
+          "source_revision": 19
+        },
+        {
+          "evidence": "application-callback",
           "name": "close-menu",
-          "source_revision": 10
+          "source_revision": 23
+        },
+        {
+          "evidence": "application-callback",
+          "name": "open-menu",
+          "source_revision": 26
+        },
+        {
+          "evidence": "application-callback",
+          "name": "close-menu",
+          "source_revision": 30
         },
         {
           "evidence": "application-callback",
           "name": "hide-canvas",
-          "source_revision": 11
+          "source_revision": 31
         },
         {
           "evidence": "application-callback",
           "name": "show-canvas",
-          "source_revision": 12
+          "source_revision": 32
         },
         {
           "evidence": "application-callback",
           "name": "resize-source",
-          "source_revision": 13
+          "source_revision": 33
+        },
+        {
+          "evidence": "application-callback",
+          "name": "destroy-menu",
+          "source_revision": 37
+        },
+        {
+          "evidence": "application-callback",
+          "name": "unmaterialize-gamma",
+          "source_revision": 39
+        },
+        {
+          "evidence": "application-callback",
+          "name": "materialize-gamma",
+          "source_revision": 40
         }
       ],
       "cairo_version": "1.18.4",
       "capture_scope": "cooperating main content and explicitly registered menu popup; excludes window decorations/compositor",
       "captures": [
         {
-          "capture_duration_ns": 128831034,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 12137435,
+          "destroyed": false,
+          "envelope_sha256": "bcb70f895caeb50229715f0ffa739401e679dd1441e60826a10f8f3a2bb6201e",
           "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1230,12 +2216,21 @@
             "transform-node": 11
           },
           "revision": 1,
-          "source_revision": 1,
+          "source_revision": 3,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 118467434,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7873077,
+          "destroyed": false,
+          "envelope_sha256": "86a701e390edbcf83e719075a69d76d37b5ccbb1ee20296e1002e909421fc6af",
           "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1247,12 +2242,21 @@
             "transform-node": 11
           },
           "revision": 2,
-          "source_revision": 5,
+          "source_revision": 9,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 88835110,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7520457,
+          "destroyed": false,
+          "envelope_sha256": "0c9c929db3a9fb78944d107805fd9277c01fef0b32d7375501a0dcfded2127ed",
           "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1264,12 +2268,21 @@
             "transform-node": 11
           },
           "revision": 3,
-          "source_revision": 7,
+          "source_revision": 13,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 97204339,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7655834,
+          "destroyed": false,
+          "envelope_sha256": "cd25390b6ef5289fe4de5910cede6a438c49324495ce2ba1d79b1b5cf759cee2",
           "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1281,26 +2294,21 @@
             "transform-node": 11
           },
           "revision": 4,
-          "source_revision": 8,
+          "source_revision": 15,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 17106302,
-          "gaps": [],
-          "node_counts": {
-            "border-node": 2,
-            "color-node": 8,
-            "container-node": 2,
-            "text-node": 1,
-            "transform-node": 2
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
           },
-          "revision": 1,
-          "source_revision": 8,
-          "surface": "menu-popup"
-        },
-        {
-          "capture_duration_ns": 81721768,
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7549220,
+          "destroyed": false,
+          "envelope_sha256": "e5a59f375a9373d64f8c27c5249b5a9ff0e9714362e67a1888e9196cc8c270c3",
           "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1312,12 +2320,44 @@
             "transform-node": 11
           },
           "revision": 5,
-          "source_revision": 9,
+          "source_revision": 18,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 104943455,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "0000000000000000000000000000013c"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 1670277,
+          "destroyed": false,
+          "envelope_sha256": "61212d9e40f5839a488aa863436b09bb4ccd5fab4a8b2d0b40e61e90c66f2d2e",
           "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 2,
+            "color-node": 8,
+            "container-node": 2,
+            "text-node": 1,
+            "transform-node": 2
+          },
+          "revision": 1,
+          "source_revision": 18,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7366568,
+          "destroyed": false,
+          "envelope_sha256": "dc3a3f77e09f4b39b45554bd2fb80fe760a3034a374712067e6c418454298b97",
+          "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1329,27 +2369,64 @@
             "transform-node": 11
           },
           "revision": 6,
-          "source_revision": 10,
+          "source_revision": 19,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 111408149,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "0000000000000000000000000000013c"
+          },
+          "capture_boundary": "source-lifecycle-signal",
+          "capture_duration_ns": 0,
+          "destroyed": false,
+          "envelope_sha256": "78d7dd5fb4450a8e9d72a06e2d04b4188e5b77d1b33a87c9ae94c3dc3370194d",
           "gaps": [],
+          "mapped": false,
+          "node_counts": {},
+          "revision": 2,
+          "source_revision": 21,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 10130444,
+          "destroyed": false,
+          "envelope_sha256": "1af7bc1b772b3a3195d924e1a1548629edd17bf8e072129fdf8a83178043f98b",
+          "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
-            "color-node": 15,
-            "container-node": 11,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
             "text-node": 10,
-            "transform-node": 10
+            "transform-node": 11
           },
           "revision": 7,
-          "source_revision": 11,
+          "source_revision": 23,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 107757007,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 9186613,
+          "destroyed": false,
+          "envelope_sha256": "3795860deff2ead51dbf21e47a90b645c8a14658ebf9b2b7cd277403af3deb1b",
           "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1361,12 +2438,61 @@
             "transform-node": 11
           },
           "revision": 8,
-          "source_revision": 12,
+          "source_revision": 26,
           "surface": "main-content"
         },
         {
-          "capture_duration_ns": 93721885,
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "0000000000000000000000000000013c"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 2230963,
+          "destroyed": false,
+          "envelope_sha256": "13f7fbe5ef905ae89bb78be881077131f6d6218bc53250ced318750bc811409a",
           "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 2,
+            "color-node": 8,
+            "container-node": 2,
+            "text-node": 1,
+            "transform-node": 2
+          },
+          "revision": 3,
+          "source_revision": 26,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "0000000000000000000000000000013c"
+          },
+          "capture_boundary": "source-lifecycle-signal",
+          "capture_duration_ns": 0,
+          "destroyed": false,
+          "envelope_sha256": "c1e4a3ce72698c22e41bfb36daf4f11e5f823892c8a1fa94b2c18b7c43503f76",
+          "gaps": [],
+          "mapped": false,
+          "node_counts": {},
+          "revision": 4,
+          "source_revision": 28,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 9999536,
+          "destroyed": false,
+          "envelope_sha256": "e3cd3bddd649d5312559aab8dd9de91ace1c449a391408f28c5f189dfaf3ec2d",
+          "gaps": [],
+          "mapped": true,
           "node_counts": {
             "border-node": 5,
             "clip-node": 1,
@@ -1378,7 +2504,178 @@
             "transform-node": 11
           },
           "revision": 9,
-          "source_revision": 13,
+          "source_revision": 30,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8506150,
+          "destroyed": false,
+          "envelope_sha256": "36467102c3502331869cd3430a7efada0f07d4cd5d76a1010c2b98edfb1b646d",
+          "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 15,
+            "container-node": 11,
+            "text-node": 10,
+            "transform-node": 10
+          },
+          "revision": 10,
+          "source_revision": 31,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7737861,
+          "destroyed": false,
+          "envelope_sha256": "eb0c274d2b6fc6f8cb7718856e3c6f743ff3a1e296398c0e1962128e6568dd82",
+          "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 11,
+          "source_revision": 32,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 8262953,
+          "destroyed": false,
+          "envelope_sha256": "3b738cd5c490f670194e1309303c3e1f83c86fd25fc6e2896e71c5574ae101eb",
+          "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 12,
+          "source_revision": 33,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "0000000000000000000000000000013c"
+          },
+          "capture_boundary": "source-lifecycle-signal",
+          "capture_duration_ns": 0,
+          "destroyed": true,
+          "envelope_sha256": "0d21547266a93d9c192ca4be2363216367101326560157335bc3f795023501da",
+          "gaps": [],
+          "mapped": false,
+          "node_counts": {},
+          "revision": 5,
+          "source_revision": 34,
+          "surface": "menu-popup"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7652982,
+          "destroyed": false,
+          "envelope_sha256": "913ffc412cfa4896c65239cbef8f9e1fc7de6dce4c427678c779106ebdce7af4",
+          "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 13,
+          "source_revision": 37,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 6897629,
+          "destroyed": false,
+          "envelope_sha256": "d2fcb2175b7c27b297f8260b7badc9187e1949018c3e8f0d6988077f21124a02",
+          "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 17,
+            "container-node": 11,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 10
+          },
+          "revision": 14,
+          "source_revision": 39,
+          "surface": "main-content"
+        },
+        {
+          "binding": {
+            "epoch": "0d2808d63b0c435680fc9ca2cc6071ac",
+            "session_id": "01010101010101010101010101010101",
+            "view_id": "000000000000000000000000000000a4"
+          },
+          "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+          "capture_duration_ns": 7331537,
+          "destroyed": false,
+          "envelope_sha256": "81e54839aa2feea6e0d417deba4521cc15da0d78bf533f3b7ba5a6281a1270e4",
+          "gaps": [],
+          "mapped": true,
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 15,
+          "source_revision": 40,
           "surface": "main-content"
         }
       ],
@@ -1389,15 +2686,14 @@
       ],
       "retained_resource_bytes": 0,
       "retired_scene_ids": [
-        20,
-        25,
-        33,
+        21,
+        26,
         34,
         35,
         36,
         37,
-        39,
-        43,
+        38,
+        40,
         44,
         45,
         46,
@@ -1425,7 +2721,7 @@
         68,
         69,
         70,
-        76,
+        71,
         77,
         78,
         79,
@@ -1445,7 +2741,7 @@
         93,
         94,
         95,
-        102,
+        96,
         103,
         104,
         105,
@@ -1471,7 +2767,7 @@
         125,
         126,
         127,
-        130,
+        128,
         131,
         132,
         133,
@@ -1502,6 +2798,14 @@
         158,
         159,
         160,
+        161,
+        255,
+        256,
+        257,
+        258,
+        259,
+        260,
+        261,
         262,
         263,
         264,
@@ -1523,9 +2827,39 @@
         280,
         281,
         282,
+        283,
+        284,
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        297,
+        298,
+        299,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
+        312,
+        313,
+        314,
         315,
-        316,
-        317,
         318,
         319,
         320,
@@ -1543,7 +2877,43 @@
         332,
         333,
         334,
-        335
+        335,
+        336,
+        337,
+        338,
+        339,
+        340,
+        341,
+        342,
+        343,
+        344,
+        345,
+        346,
+        347,
+        348,
+        349,
+        350,
+        351,
+        352,
+        353,
+        354,
+        355,
+        356,
+        357,
+        358,
+        359,
+        360,
+        361,
+        362,
+        363,
+        364,
+        365,
+        366,
+        367,
+        368,
+        369,
+        370,
+        371
       ],
       "stable_semantic_ids": {
         "button": 4,
@@ -1553,11 +2923,9 @@
         "list": 8,
         "main": 1,
         "menu-button": 10,
-        "menu-item": 12,
-        "menu-popup": 11,
         "row-alpha": 5,
         "row-beta": 6,
-        "row-gamma": 7
+        "row-gamma": 398
       },
       "theme": "strict"
     }
