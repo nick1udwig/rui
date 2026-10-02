@@ -627,6 +627,12 @@ impl Replica {
     pub fn pending_resources(&self) -> Option<&BTreeSet<ResourceId>> {
         self.pending.as_ref().map(|v| &v.resources)
     }
+    pub(crate) fn pending_state(&self) -> Option<&State> {
+        self.pending.as_ref().map(|v| &v.state)
+    }
+    pub(crate) fn reset_presentation(&mut self) {
+        self.presented_revision = None;
+    }
     pub fn abort_pending(&mut self) -> bool {
         self.pending.take().is_some()
     }

@@ -371,6 +371,9 @@ impl PinOwner {
 
 struct Grant {
     resources: BTreeMap<ResourceDigest, MemoryReservation>,
+    // A live owner has a preallocated slot so staged -> live promotion never
+    // allocates a BTree node after the replica has committed.
+    live: Option<Pins>,
     _memory: MemoryReservation,
 }
 
@@ -454,6 +457,7 @@ impl ResourceCache {
             view_id,
             Grant {
                 resources: BTreeMap::new(),
+                live: None,
                 _memory: memory,
             },
         );
@@ -514,7 +518,13 @@ impl ResourceCache {
             let owned = grants
                 .values()
                 .any(|grant| grant.resources.contains_key(digest))
-                || pins.values().any(|owner| owner.digests.contains(digest));
+                || pins.values().any(|owner| owner.digests.contains(digest))
+                || grants.values().any(|grant| {
+                    grant
+                        .live
+                        .as_ref()
+                        .is_some_and(|pins| pins.digests.contains(digest))
+                });
             if !owned {
                 *cache_bytes -= entry.offer.total_bytes as usize;
             }
@@ -702,7 +712,7 @@ impl ResourceCache {
             Ok(metadata) => {
                 let entry = self.entries.get_mut(&digest).unwrap();
                 entry.spans = Vec::new();
-                entry.memory.resize(entry.bytes.len() + ENTRY_MEMORY)?;
+                entry.memory.resize(entry.bytes.capacity() + ENTRY_MEMORY)?;
                 entry.metadata = Some(metadata);
                 Ok(metadata)
             }
@@ -795,10 +805,17 @@ impl ResourceCache {
         for digest in digests {
             self.check_resource(context, *digest)?;
         }
-        let old_count = self.pins.get(&owner).map_or(0, |pins| pins.digests.len());
+        let old_pins = match owner {
+            PinOwner::Live { view_id } => self.grants[&view_id].live.as_ref(),
+            _ => self.pins.get(&owner),
+        };
+        let old_count = old_pins.map_or(0, |pins| pins.digests.len());
+        let exists = old_pins.is_some();
+        let live_owners = self.grants.values().filter_map(|grant| grant.live.as_ref());
         let total = self
             .pins
             .values()
+            .chain(live_owners)
             .map(|pins| pins.digests.len())
             .sum::<usize>();
         if total
@@ -807,13 +824,14 @@ impl ResourceCache {
             .ok_or(ResourceError::Limit)?
             > self.limits.max_pin_references
             || (!digests.is_empty()
-                && !self.pins.contains_key(&owner)
-                && self.pins.len() >= self.limits.max_pin_owners)
+                && !exists
+                && self.pins.len() + self.grants.values().filter(|g| g.live.is_some()).count()
+                    >= self.limits.max_pin_owners)
         {
             return Err(ResourceError::Limit);
         }
         if digests.is_empty() {
-            self.pins.remove(&owner);
+            self.remove_pins(owner);
             self.purge_unowned();
             return Ok(());
         }
@@ -823,13 +841,16 @@ impl ResourceCache {
             .and_then(|n| n.checked_add(PIN_OWNER_MEMORY))
             .ok_or(ResourceError::Limit)?;
         let memory = self.budget.reserve(charge)?;
-        self.pins.insert(
-            owner,
-            Pins {
-                digests: digests.clone(),
-                _memory: memory,
-            },
-        );
+        let pins = Pins {
+            digests: digests.clone(),
+            _memory: memory,
+        };
+        match owner {
+            PinOwner::Live { view_id } => self.grants.get_mut(&view_id).unwrap().live = Some(pins),
+            _ => {
+                self.pins.insert(owner, pins);
+            }
+        }
         self.purge_unowned();
         Ok(())
     }
@@ -843,7 +864,7 @@ impl ResourceCache {
         if owner.view_id() != context.view_id {
             return Err(ResourceError::Unauthorized);
         }
-        self.pins.remove(&owner);
+        self.remove_pins(owner);
         self.purge_unowned();
         Ok(())
     }
@@ -851,7 +872,82 @@ impl ResourceCache {
     pub fn is_pinned(&self, digest: ResourceDigest) -> bool {
         self.pins
             .values()
+            .chain(self.grants.values().filter_map(|grant| grant.live.as_ref()))
             .any(|pins| pins.digests.contains(&digest))
+    }
+
+    fn remove_pins(&mut self, owner: PinOwner) {
+        match owner {
+            PinOwner::Live { view_id } => {
+                if let Some(grant) = self.grants.get_mut(&view_id) {
+                    grant.live = None;
+                }
+            }
+            _ => {
+                self.pins.remove(&owner);
+            }
+        }
+    }
+
+    /// Receiver-only commit step. Authorization and staged pin allocation were
+    /// checked before reducer commit, and serialized access prevents changes.
+    /// Moving into the view's live slot cannot allocate or fail.
+    pub(crate) fn promote_staged_pins(&mut self, context: ResourceContext, id: PublicationId) {
+        debug_assert!(self.check_view(context).is_ok());
+        let staged = self.pins.remove(&PinOwner::Staged {
+            view_id: context.view_id,
+            publication_id: id,
+        });
+        self.grants.get_mut(&context.view_id).unwrap().live = staged;
+        self.purge_unowned();
+    }
+
+    pub(crate) fn available_offer(
+        &self,
+        context: ResourceContext,
+        digest: ResourceDigest,
+    ) -> Result<&ResourceOffer, ResourceError> {
+        self.read(context, digest)?;
+        Ok(&self.entries[&digest].offer)
+    }
+
+    /// Drop partial transfers on disconnect without discarding verified cache
+    /// entries or the live scene's ownership.
+    pub(crate) fn abort_receiving(&mut self) {
+        let cache_bytes = &mut self.cache_bytes;
+        self.entries.retain(|_, entry| {
+            let complete = entry.metadata.is_some();
+            if !complete {
+                *cache_bytes -= entry.offer.total_bytes as usize;
+            }
+            complete
+        });
+    }
+
+    /// Trusted renderer/cache restart notification. Owners and authorization
+    /// remain; availability must be reacquired before presentation.
+    pub(crate) fn lose_entries(&mut self) {
+        self.entries.clear();
+        self.cache_bytes = 0;
+    }
+
+    /// Release grants left by rejected/abandoned candidate work. Verified cache
+    /// entries retain their grants for reuse; live/staged pins retain theirs.
+    pub(crate) fn prune_unused_authorizations(&mut self, context: ResourceContext) {
+        let pins = &self.pins;
+        let entries = &self.entries;
+        let grant = self.grants.get_mut(&context.view_id).unwrap();
+        let live = &grant.live;
+        grant.resources.retain(|digest, _| {
+            entries
+                .get(digest)
+                .is_some_and(|entry| entry.metadata.is_some())
+                || live
+                    .as_ref()
+                    .is_some_and(|owner| owner.digests.contains(digest))
+                || pins.values().any(|owner| owner.digests.contains(digest))
+        });
+        self.purge_unowned();
     }
 
     pub fn evict(

@@ -2,6 +2,7 @@
 pub mod commands;
 pub mod model;
 pub mod publication;
+pub mod receiver;
 pub mod resources;
 pub mod session;
 pub mod wire;

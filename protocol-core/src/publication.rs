@@ -177,6 +177,10 @@ impl PublicationAssembler {
         self.staging.len()
     }
 
+    pub(crate) fn max_chunk_bytes(&self) -> usize {
+        self.limits.max_chunk_bytes
+    }
+
     pub fn staged_bytes(&self) -> usize {
         self.staging.values().map(|stage| stage.bytes.len()).sum()
     }
@@ -323,7 +327,9 @@ impl PublicationAssembler {
             return Err(PublicationError::Integrity);
         }
         stage.spans = Vec::new();
-        stage.memory.resize(stage.bytes.len() + STAGING_MEMORY)?;
+        stage
+            .memory
+            .resize(stage.bytes.capacity() + STAGING_MEMORY)?;
         Ok(AssembledPublication {
             begin: stage.begin,
             bytes: stage.bytes,

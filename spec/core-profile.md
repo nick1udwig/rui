@@ -18,17 +18,19 @@ Reusing a remembered publication revision with different exact bytes is a digest
 
 ## Receiver integration contract
 
-Use one `MemoryBudget` for the publication assembler, resource cache, and replica. Independent default constructors are useful in unit tests; they do not establish an aggregate receiver ceiling across separately constructed components.
+`receiver::ViewReceiver` owns a private assembler, resource cache, and replica under one shared `MemoryBudget`. Construct it with a trusted session/epoch/principal/view binding and negotiated receiver limits. It accepts exact bound envelopes or the bounded publication chunk API. Local ceilings can only lower the negotiated limits. One publication may be assembling or waiting for resources at a time.
+
+The lower-level APIs remain available. When integrating them directly, use one `MemoryBudget` for the publication assembler, resource cache, and replica. Independent default constructors are useful in unit tests; they do not establish an aggregate receiver ceiling across separately constructed components.
 
 The assembler validates chunk indices, lengths, counts, and the exact digest. `Replica::apply_publication` additionally binds the decoded record/mutation count and revisions to the assembler's validated metadata. Direct `apply_snapshot` and `apply_transaction` are low-level entry points for already assembled payloads.
 
-Resource availability is a trusted input to the reducer. Supply only safely decoded, currently authorized cache entries and locally fingerprint-verified fonts. A fingerprint does not authorize fetching a font file. The cache supports vector resources; font installation and fingerprint verification are not implemented.
+Resource availability is a trusted input to the low-level reducer. Supply only safely decoded, currently authorized cache entries and locally fingerprint-verified fonts. A fingerprint does not authorize fetching a font file. The cache supports vector resources; font installation and fingerprint verification are not implemented. The coordinated `ViewReceiver` explicitly rejects `GlyphRun` until exact font verification or an outline-to-glyph mapping is implemented; model decoding alone does not establish glyph usability.
 
-The caller owns resource pins: pin the complete candidate closure while staged/in flight, install live pins before releasing staged pins, and retain the old live pins until the atomic state swap succeeds. Rejected or abandoned publications must release their staged owners. `protocol-core/tests/pipeline.rs` exercises this lifecycle. The low-level APIs do not themselves form a complete connection event loop.
+`ViewReceiver` pins the full candidate closure before requesting resources, preserves the old live closure during staging, and promotes staged pins without allocation after successful atomic application. Resource grants remain trusted policy inputs; a peer offer cannot authorize itself. Offers must belong to the live or pending closure and match the resource kind used by that scene. Rejected and abandoned candidates release their staged ownership. Direct users of the lower-level APIs must implement this lifecycle themselves; `protocol-core/tests/pipeline.rs` demonstrates it.
 
-Pending-resource replies retain allocation reservations until dropped. A memory-pressure failure while resuming a validated pending publication preserves that publication for a later retry. The caller must still bound outstanding network work and abort staged owners when abandoning a view.
+Pending-resource replies retain allocation reservations until dropped, including after receiver closure. `ViewReceiver` additionally bounds their aggregate bookkeeping by the negotiated outbound queue allowance. A memory-pressure failure while resuming a validated pending publication preserves that publication for a later retry. Transport buffers and network work remain the caller's responsibility.
 
-Presentation acknowledgement must follow actual renderer presentation. The replica does not render; recording a revision as presented is a trusted adapter operation. A network implementation must gate presentation on currently available resources and gate input on presentation and a current control lease.
+Presentation acknowledgement must follow actual renderer presentation. `ViewReceiver::mark_presented` accepts only the current committed revision with an available resource closure; the callback remains trusted renderer evidence. Disconnect aborts partial work and clears presentation while retaining verified live state for authorized same-view reconnection. Cache loss clears presentation and requires resource recovery. Close/revoke irreversibly disposes of the view. A network implementation must connect those lifecycle events to authenticated session policy and gate input on presentation and a current control lease.
 
 ## Authority and privacy
 
