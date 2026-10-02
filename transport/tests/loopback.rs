@@ -516,3 +516,55 @@ async fn semantic_only_projection_controls_after_explicit_ready_without_presente
     ));
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_receive_retains_staging_and_applied_ack_without_losing_event() {
+    let (server, _, token, _) = setup().await;
+    let mut client = connect(&server, &token, 3).await;
+    client.open_view().await.unwrap();
+    assert!(matches!(
+        client.receive().await.unwrap(),
+        ClientEvent::ViewOpened(_)
+    ));
+    let mut cancellations = 0;
+    let mut applied = false;
+    for _ in 0..500 {
+        match tokio::time::timeout(Duration::from_millis(1), client.receive()).await {
+            Err(_) => cancellations += 1,
+            Ok(Ok(ClientEvent::Applied { revision: 1 })) => {
+                applied = true;
+                break;
+            }
+            other => panic!("unexpected public event: {other:?}"),
+        }
+    }
+    assert!(cancellations > 0 && applied);
+    assert_eq!(client.receiver().state().unwrap().revision, 1);
+    assert_eq!(client.pending_outbound_packets(), 1);
+    // The deterministic duplex unit test exercises an actually polled send
+    // under backpressure. Here real TLS presentation flushes the retained ACK.
+    client.presented(1).await.unwrap();
+    assert_eq!(client.pending_outbound_packets(), 0);
+    let lease = lease(&mut client).await;
+    let command = activate(&client, 3, &lease, 1, 1).encode_to_vec();
+    client.submit(&command).await.unwrap();
+    let result = result_and_revision(&mut client, 2).await;
+    assert_eq!(result.status, "Applied");
+    assert_eq!(server.host.lock().await.diagnostics().counter, 1);
+    client
+        .send(p::Kind::Ping, &p::Ping { nonce: 44 })
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match tokio::time::timeout(Duration::from_millis(1), client.receive()).await {
+                Err(_) => {}
+                Ok(Ok(ClientEvent::Pong(44))) => break,
+                other => panic!("unexpected public event: {other:?}"),
+            }
+        }
+    })
+    .await
+    .expect("Pong must arrive before deadline");
+    server.shutdown().await;
+}

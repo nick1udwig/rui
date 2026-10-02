@@ -1,12 +1,22 @@
 use crate::{codec, pairing::Credential, proto as p, tls, websocket, TransportError};
+use futures_util::SinkExt;
 use prost::Message;
 use rui_protocol_core::commands::Id;
 use rui_protocol_core::receiver::{NeededResources, ReceiveOutcome, ReceiverConfig, ViewReceiver};
-use rui_protocol_core::resources::{ResourceContext, ResourceScope};
+use rui_protocol_core::resources::{
+    MemoryBudget, MemoryReservation, ResourceContext, ResourceScope,
+};
 use rui_protocol_core::session::{ClientHello, ReceiverLimits};
-use std::{net::SocketAddr, time::Duration};
-use tokio::{net::TcpStream, time::timeout};
-use tokio_tungstenite::WebSocketStream;
+use std::{collections::VecDeque, net::SocketAddr, time::Duration};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+    time::timeout,
+};
+use tokio_tungstenite::{
+    tungstenite::{Bytes, Message as WsMessage},
+    WebSocketStream,
+};
 use zeroize::Zeroize;
 
 #[derive(Debug)]
@@ -23,6 +33,7 @@ pub enum ClientEvent {
     Pong(u64),
     Error(String),
 }
+
 pub struct NetworkClient {
     socket: WebSocketStream<websocket::ResponseGuard<tokio_rustls::client::TlsStream<TcpStream>>>,
     pub session_id: Id,
@@ -34,6 +45,161 @@ pub struct NetworkClient {
     receiver: ViewReceiver,
     needed: Option<NeededResources>,
     deadline: Duration,
+    pending: PendingReplies,
+}
+
+struct PendingReply {
+    encoded: Bytes,
+    submitted: bool,
+    _memory: MemoryReservation,
+}
+struct PendingReplies {
+    entries: VecDeque<PendingReply>,
+    bytes: usize,
+    envelope_limit: usize,
+    queue_limit: usize,
+    budget: MemoryBudget,
+    // Retained for the socket lifetime: a cancelled flush can leave a frame in
+    // the maintained sink, and its allocation may remain after a later flush.
+    _writer_memory: MemoryReservation,
+}
+impl PendingReplies {
+    fn new(budget: MemoryBudget, limits: &ReceiverLimits) -> Result<Self, TransportError> {
+        let writer_bytes = limits
+            .envelope_bytes
+            .checked_mul(4)
+            .and_then(|n| n.checked_add(64 * 1024))
+            .ok_or(TransportError::Limit)?;
+        let writer_memory = budget
+            .reserve(writer_bytes)
+            .map_err(|_| TransportError::Limit)?;
+        Ok(Self {
+            entries: VecDeque::new(),
+            bytes: 0,
+            envelope_limit: limits.envelope_bytes,
+            queue_limit: limits.outbound_queue_bytes,
+            budget,
+            _writer_memory: writer_memory,
+        })
+    }
+    fn reserve(&self, bytes: usize) -> Result<MemoryReservation, TransportError> {
+        if bytes > self.envelope_limit
+            || self.entries.len() >= 8
+            || self
+                .bytes
+                .checked_add(bytes)
+                .is_none_or(|n| n > self.queue_limit)
+        {
+            return Err(TransportError::Limit);
+        }
+        // Covers sparse VecDeque storage, transient typed payload/Packet and
+        // encoding allocations. Sink framing has its separate lifetime charge.
+        let charge = bytes
+            .checked_mul(4)
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(TransportError::Limit)?;
+        self.budget
+            .reserve(charge)
+            .map_err(|_| TransportError::Limit)
+    }
+    fn enqueue_with<T: Message>(
+        &mut self,
+        kind: p::Kind,
+        payload_len: usize,
+        binding: Option<(Id, Id, Id)>,
+        make: impl FnOnce() -> T,
+    ) -> Result<(), TransportError> {
+        self.enqueue_reserved(kind, payload_len, binding, || {
+            codec::wrap(kind, &make(), binding)
+        })
+    }
+    fn enqueue<T: Message>(
+        &mut self,
+        kind: p::Kind,
+        payload: &T,
+        binding: Option<(Id, Id, Id)>,
+    ) -> Result<(), TransportError> {
+        self.enqueue_reserved(kind, payload.encoded_len(), binding, || {
+            codec::wrap(kind, payload, binding)
+        })
+    }
+    fn enqueue_reserved(
+        &mut self,
+        kind: p::Kind,
+        payload_len: usize,
+        binding: Option<(Id, Id, Id)>,
+        make: impl FnOnce() -> p::Packet,
+    ) -> Result<(), TransportError> {
+        fn varint_len(mut n: usize) -> usize {
+            let mut len = 1;
+            while n >= 128 {
+                n >>= 7;
+                len += 1;
+            }
+            len
+        }
+        // Exactly codec::wrap's fields, without allocating a temporary Packet.
+        let bytes = 2usize
+            .checked_add(1 + varint_len(kind as usize))
+            .and_then(|n| n.checked_add(if binding.is_some() { 54 } else { 0 }))
+            .and_then(|n| {
+                n.checked_add(if payload_len == 0 {
+                    0
+                } else {
+                    1 + varint_len(payload_len)
+                })
+            })
+            .and_then(|n| n.checked_add(payload_len))
+            .ok_or(TransportError::Limit)?;
+        let memory = self.reserve(bytes)?;
+        self.push(make(), memory, bytes)
+    }
+    fn enqueue_packet(&mut self, packet: p::Packet) -> Result<(), TransportError> {
+        let bytes = packet.encoded_len();
+        let memory = self.reserve(bytes)?;
+        self.push(packet, memory, bytes)
+    }
+    fn push(
+        &mut self,
+        packet: p::Packet,
+        memory: MemoryReservation,
+        bytes: usize,
+    ) -> Result<(), TransportError> {
+        if packet.encoded_len() != bytes {
+            return Err(TransportError::Protocol);
+        }
+        let encoded = packet.encode_to_vec().into();
+        self.entries.push_back(PendingReply {
+            encoded,
+            submitted: false,
+            _memory: memory,
+        });
+        self.bytes += bytes;
+        Ok(())
+    }
+    async fn flush<S: AsyncRead + AsyncWrite + Unpin>(
+        &mut self,
+        socket: &mut WebSocketStream<S>,
+    ) -> Result<(), TransportError> {
+        while let Some(reply) = self.entries.front_mut() {
+            if !reply.submitted {
+                socket
+                    .feed(WsMessage::Binary(reply.encoded.clone()))
+                    .await
+                    .map_err(|_| TransportError::WebSocket)?;
+                // feed completes synchronously with start_send. There is no
+                // cancellation boundary between sink admission and this flag.
+                reply.submitted = true;
+            }
+            socket
+                .flush()
+                .await
+                .map_err(|_| TransportError::WebSocket)?;
+            let reply = self.entries.pop_front().expect("flushed queue front");
+            self.bytes -= reply.encoded.len();
+        }
+        Ok(())
+    }
 }
 impl NetworkClient {
     pub async fn connect(
@@ -151,6 +317,7 @@ impl NetworkClient {
         };
         let receiver = ViewReceiver::new(context, limits.clone(), config)
             .map_err(|_| TransportError::Receiver)?;
+        let pending = PendingReplies::new(receiver.memory_budget(), &limits)?;
         Ok(Self {
             socket,
             session_id: binding.0,
@@ -162,6 +329,7 @@ impl NetworkClient {
             receiver,
             needed: None,
             deadline,
+            pending,
         })
     }
     fn binding(&self) -> Option<(Id, Id, Id)> {
@@ -170,24 +338,33 @@ impl NetworkClient {
     pub fn receiver(&self) -> &ViewReceiver {
         &self.receiver
     }
+    fn queue<T: Message>(&mut self, kind: p::Kind, payload: &T) -> Result<(), TransportError> {
+        self.pending.enqueue(kind, payload, self.binding())
+    }
+    /// Replies and their accounting are retained across cancellation. Sink
+    /// admission is tracked separately from flushing, so resumption cannot
+    /// silently omit a reply or enqueue its frame twice.
+    pub async fn flush_pending(&mut self) -> Result<(), TransportError> {
+        timeout(self.deadline, self.pending.flush(&mut self.socket))
+            .await
+            .map_err(|_| TransportError::Deadline)?
+    }
+    pub fn pending_outbound_packets(&self) -> usize {
+        self.pending.entries.len()
+    }
     /// Low-level binary binding used by adapters and conformance tests. The host
     /// validates direction, kind, binding and authority for every packet.
     pub async fn send_packet(&mut self, packet: p::Packet) -> Result<(), TransportError> {
-        websocket::send(
-            &mut self.socket,
-            packet,
-            self.limits.envelope_bytes,
-            self.deadline,
-        )
-        .await
+        self.pending.enqueue_packet(packet)?;
+        self.flush_pending().await
     }
     pub async fn send<T: Message>(
         &mut self,
         kind: p::Kind,
         payload: &T,
     ) -> Result<(), TransportError> {
-        self.send_packet(codec::wrap(kind, payload, self.binding()))
-            .await
+        self.queue(kind, payload)?;
+        self.flush_pending().await
     }
     pub async fn open_view(&mut self) -> Result<(), TransportError> {
         self.send(
@@ -264,12 +441,11 @@ impl NetworkClient {
         )
         .await
     }
-    async fn outcome(&mut self, outcome: ReceiveOutcome) -> Result<ClientEvent, TransportError> {
+    fn outcome(&mut self, outcome: ReceiveOutcome) -> Result<ClientEvent, TransportError> {
         match outcome {
             ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
                 self.needed = None;
-                self.send(p::Kind::AppliedAck, &p::RevisionAck { revision })
-                    .await?;
+                self.queue(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
                 Ok(ClientEvent::Applied { revision })
             }
             ReceiveOutcome::NeedResources {
@@ -279,17 +455,25 @@ impl NetworkClient {
                 if missing.len() > maximum {
                     return Err(TransportError::Limit);
                 }
-                let request = p::ResourceIds {
-                    digests: missing.iter().map(|d| d.to_vec()).collect(),
-                };
+                self.pending.enqueue_with(
+                    p::Kind::NeedResources,
+                    missing.len() * 34,
+                    self.binding(),
+                    || p::ResourceIds {
+                        digests: missing.iter().map(|d| d.to_vec()).collect(),
+                    },
+                )?;
                 self.needed = Some(missing);
-                self.send(p::Kind::NeedResources, &request).await?;
                 Ok(ClientEvent::ResourcesNeeded { revision })
             }
         }
     }
+    /// Cancellation-safe for receiver state and observable events: every received
+    /// packet is handled synchronously through its event return. Required replies
+    /// are queued before returning; the next receive/send flushes them reliably.
     pub async fn receive(&mut self) -> Result<ClientEvent, TransportError> {
         loop {
+            self.flush_pending().await?;
             let raw = timeout(self.deadline, websocket::receive(&mut self.socket))
                 .await
                 .map_err(|_| TransportError::Deadline)??;
@@ -332,7 +516,7 @@ impl NetworkClient {
                         .receiver
                         .commit_publication(context, id, codec::publication_commit(commit)?)
                         .map_err(|_| TransportError::Receiver)?;
-                    return self.outcome(outcome).await;
+                    return self.outcome(outcome);
                 }
                 p::Kind::AbortPublication => {
                     let abort: p::AbortPublication = codec::decode(&packet.payload, ceiling)?;
@@ -377,15 +561,16 @@ impl NetworkClient {
                         .receiver
                         .complete_resource(context, digest)
                         .map_err(|_| TransportError::Receiver)?;
-                    self.send(
+                    self.pending.enqueue_with(
                         p::Kind::ResourceAvailable,
-                        &p::ResourceIds {
+                        34,
+                        self.binding(),
+                        || p::ResourceIds {
                             digests: vec![digest.to_vec()],
                         },
-                    )
-                    .await?;
+                    )?;
                     if let Some(outcome) = outcome {
-                        return self.outcome(outcome).await;
+                        return self.outcome(outcome);
                     }
                     return Ok(ClientEvent::ResourceAvailable);
                 }
@@ -430,5 +615,107 @@ impl NetworkClient {
                 _ => return Err(TransportError::Protocol),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::protocol::{Role, WebSocketConfig};
+
+    fn limits() -> ReceiverLimits {
+        ReceiverLimits {
+            envelope_bytes: 4096,
+            outbound_queue_bytes: 4096,
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelled_polled_flush_retains_charge_and_resumes_exactly_one_frame() {
+        let budget = MemoryBudget::new(1024 * 1024);
+        let mut pending = PendingReplies::new(budget.clone(), &limits()).unwrap();
+        let writer_charge = budget.used();
+        pending
+            .enqueue_with(
+                p::Kind::AppliedAck,
+                2,
+                Some(([1; 16], [2; 16], [3; 16])),
+                || p::RevisionAck { revision: 1 },
+            )
+            .unwrap();
+        let queued_charge = budget.used();
+        assert!(queued_charge > writer_charge && queued_charge <= budget.limit());
+        let (writer, reader) = tokio::io::duplex(16);
+        let config = WebSocketConfig::default()
+            .write_buffer_size(0)
+            .max_write_buffer_size(8320)
+            .max_message_size(Some(4096))
+            .max_frame_size(Some(4096));
+        let mut socket = WebSocketStream::from_raw_socket(writer, Role::Client, Some(config)).await;
+        let mut peer = WebSocketStream::from_raw_socket(reader, Role::Server, Some(config)).await;
+
+        // This polls feed/start_send and then blocks on the 16-byte duplex pipe.
+        assert!(
+            timeout(Duration::from_millis(10), pending.flush(&mut socket))
+                .await
+                .is_err()
+        );
+        assert!(pending.entries.front().unwrap().submitted);
+        assert_eq!(pending.entries.len(), 1);
+        assert_eq!(budget.used(), queued_charge);
+
+        let (flushed, frame) = timeout(Duration::from_secs(1), async {
+            tokio::join!(pending.flush(&mut socket), peer.next())
+        })
+        .await
+        .expect("resume and peer read must finish");
+        flushed.unwrap();
+        let WsMessage::Binary(bytes) = frame.unwrap().unwrap() else {
+            panic!("binary ACK required")
+        };
+        let packet: p::Packet = codec::decode(&bytes, 4096).unwrap();
+        assert_eq!(packet.kind, p::Kind::AppliedAck as i32);
+        let ack: p::RevisionAck = codec::decode(&packet.payload, 4096).unwrap();
+        assert_eq!(ack.revision, 1);
+        assert!(pending.entries.is_empty());
+        assert_eq!(budget.used(), writer_charge);
+        assert!(timeout(Duration::from_millis(10), peer.next())
+            .await
+            .is_err());
+        drop(socket);
+        drop(pending);
+        assert_eq!(budget.used(), 0);
+    }
+
+    #[test]
+    fn shared_budget_exhaustion_rejects_before_payload_allocation() {
+        let negotiated = limits();
+        let writer_charge = negotiated.envelope_bytes * 4 + 64 * 1024;
+        let budget = MemoryBudget::new(writer_charge + 1);
+        let mut pending = PendingReplies::new(budget.clone(), &negotiated).unwrap();
+        let called = std::cell::Cell::new(false);
+        assert_eq!(
+            pending.enqueue_with(
+                p::Kind::AppliedAck,
+                2,
+                Some(([1; 16], [2; 16], [3; 16])),
+                || {
+                    called.set(true);
+                    p::RevisionAck { revision: 1 }
+                }
+            ),
+            Err(TransportError::Limit)
+        );
+        assert!(!called.get());
+        assert!(pending.entries.is_empty());
+        assert_eq!(budget.used(), writer_charge);
+        drop(pending);
+        assert_eq!(budget.used(), 0);
+        assert!(matches!(
+            PendingReplies::new(MemoryBudget::new(writer_charge - 1), &negotiated),
+            Err(TransportError::Limit)
+        ));
     }
 }
