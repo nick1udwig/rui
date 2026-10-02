@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import random
 import subprocess
+from shrink import shrink_transcript
 
 from reference import ReferenceReplica
 
@@ -101,7 +102,13 @@ def seeded(seed):
         revision += 1
 
 
-def verify(entries):
+class ReplayMismatch(AssertionError):
+    def __init__(self, category, detail):
+        self.category = category
+        super().__init__(detail)
+
+
+def compare(entries):
     oracle = ReferenceReplica()
     expected = []
     for item in entries:
@@ -118,11 +125,30 @@ def verify(entries):
     )
     actual = [json.loads(line) for line in result.stdout.splitlines()]
     if len(actual) != len(expected):
-        raise AssertionError(f"response count: {len(actual)} != {len(expected)}")
+        raise ReplayMismatch('response-count', f"response count: {len(actual)} != {len(expected)}")
     for index, (left, right) in enumerate(zip(actual, expected)):
         if left != right:
-            raise AssertionError(f"prefix {index}: Rust={left!r}\nPython={right!r}")
+            category = 'admission' if left['accepted'] != right['accepted'] else 'state'
+            raise ReplayMismatch(category, f"prefix {index}: Rust={left!r}\nPython={right!r}")
     return len(expected)
+
+
+def verify(entries):
+    try:
+        return compare(entries)
+    except ReplayMismatch as original:
+        def reproduces(candidate):
+            try:
+                compare(candidate)
+            except ReplayMismatch as mismatch:
+                return mismatch.category == original.category
+            return False
+
+        minimized, runs = shrink_transcript(entries, reproduces)
+        destination = ROOT / 'target/conformance-failure.jsonl'
+        destination.write_text(''.join(json.dumps(item) + '\n' for item in minimized))
+        raise AssertionError(f'{original}\nReduced {len(entries)} operations to {len(minimized)} '
+                             f'in {runs} runs; exact reproducer: {destination}') from original
 
 
 def main():

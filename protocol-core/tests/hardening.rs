@@ -1,6 +1,7 @@
 //! Deterministic mutation fuzzing and replay properties. Seeds and failing
-//! operation indexes make every counterexample reproducible; the first failing
-//! prefix is already a reduced transcript for diagnosis.
+//! operation indexes make every counterexample reproducible. Independent replay
+//! failures are additionally minimized by conformance/shrink.py; this Rust test
+//! itself reports the seed and first failing prefix rather than shrinking it.
 use prost::Message;
 use rui_protocol_core::model::{ApplyOutcome, Limits, Replica};
 use rui_protocol_core::resources::{validate_vector_bytes, MemoryBudget, ResourceLimits};
