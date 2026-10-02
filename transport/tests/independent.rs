@@ -21,6 +21,15 @@ impl Drop for PrivateFiles {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn int_001_independent_semantic_client_uses_real_tls_and_exact_command_retry() {
+    run_independent(false).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn independent_semantics_edits_and_selects_source_items_over_tls() {
+    run_independent(true).await;
+}
+
+async fn run_independent(expanded: bool) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -65,7 +74,12 @@ async fn int_001_independent_semantic_client_uses_real_tls_and_exact_command_ret
         .unwrap();
     drop(file);
     drop(credential);
-    let host = ControlledHost::new(HostConfig::default(), "A😀e\u{301}אב".into()).unwrap();
+    let host = if expanded {
+        ControlledHost::new_corpus(HostConfig::default(), "private-source-sentinel".into())
+    } else {
+        ControlledHost::new(HostConfig::default(), "A😀e\u{301}אב".into())
+    }
+    .unwrap();
     let server = ServerHandle::bind(
         "127.0.0.1:0".parse().unwrap(),
         HostIdentity::from_der(
@@ -81,7 +95,8 @@ async fn int_001_independent_semantic_client_uses_real_tls_and_exact_command_ret
     .unwrap();
     let port = server.address.port();
     let output = tokio::task::spawn_blocking(move || {
-        let mut child = Command::new("python3")
+        let mut command = Command::new("python3");
+        command
             .current_dir(&root)
             .arg("conformance/semantic_client.py")
             .args(["--port", &port.to_string(), "--instance", &"07".repeat(16)])
@@ -93,10 +108,18 @@ async fn int_001_independent_semantic_client_uses_real_tls_and_exact_command_ret
                 "--activate-label",
                 "Increment",
                 "--replace-label",
-                "Private field",
+                if expanded {
+                    "Public text"
+                } else {
+                    "Private field"
+                },
                 "--replacement",
                 "Aé🦀Z",
-            ])
+            ]);
+        if expanded {
+            command.args(["--select-item-label", "Item 2"]);
+        }
+        let mut child = command
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -122,9 +145,13 @@ async fn int_001_independent_semantic_client_uses_real_tls_and_exact_command_ret
     );
     let report = String::from_utf8(output.stdout).unwrap();
     assert!(report.contains("\"presented_acknowledgements\": 0"));
-    assert_eq!(report.matches("\"status\": \"Applied\"").count(), 2);
+    let expected_commands = if expanded { 3 } else { 2 };
+    assert_eq!(
+        report.matches("\"status\": \"Applied\"").count(),
+        expected_commands
+    );
     let diagnostics = server.host.lock().await.diagnostics();
     assert_eq!(diagnostics.counter, 1);
-    assert_eq!(diagnostics.consumed_commands, 2);
+    assert_eq!(diagnostics.consumed_commands, expected_commands);
     server.shutdown().await;
 }
