@@ -45,6 +45,7 @@ fn normalized(replica: &Replica) -> Value {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let full_state = std::env::args().any(|argument| argument == "--full-state");
     let mut replica = Replica::new(Limits::default());
     let available = BTreeSet::new();
     for line in io::stdin().lock().lines() {
@@ -57,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         println!(
             "{}",
-            json!({"accepted":outcome.is_ok(), "state":normalized(&replica)})
+            json!({"accepted":outcome.is_ok(), "state":if full_state { serde_json::to_value(replica.state())? } else { normalized(&replica) }})
         );
     }
     Ok(())
