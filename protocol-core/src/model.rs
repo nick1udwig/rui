@@ -48,6 +48,9 @@ pub struct Limits {
     pub max_history: usize,
     pub max_string_bytes: usize,
     pub max_geometry: f64,
+    pub max_gradient_stops: usize,
+    pub max_dash_segments: usize,
+    pub max_stroke_miter_limit: f64,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -62,6 +65,9 @@ impl Default for Limits {
             max_history: 256,
             max_string_bytes: 1 << 20,
             max_geometry: 1e9,
+            max_gradient_stops: 4096,
+            max_dash_segments: 1024,
+            max_stroke_miter_limit: 32.0,
         }
     }
 }
@@ -117,6 +123,9 @@ vocabulary!(VisualCoverage { Complete=1, Partial=2, Unsupported=3 });
 vocabulary!(SemanticCoverage { Rich=1, Partial=2, Opaque=3 });
 vocabulary!(CaptureConsistency { Coherent=1, Observed=2 });
 vocabulary!(FillRule { Nonzero=1, EvenOdd=2 });
+vocabulary!(GradientSpread { Pad=1 });
+vocabulary!(StrokeCap { Butt=1, Round=2, Square=3 });
+vocabulary!(StrokeJoin { Miter=1, Round=2, Bevel=3 });
 vocabulary!(SemanticRole { Root=1, Group=2, Button=3, Checkbox=4, TextField=5, Label=6, List=7, ListItem=8, CustomCanvas=9 });
 vocabulary!(StateKey { Disabled=1, Checked=2, Selected=3, Expanded=4, ReadOnly=5 });
 vocabulary!(TriState { False=1, True=2, Unknown=3 });
@@ -164,6 +173,18 @@ pub struct Color {
     pub green: f64,
     pub blue: f64,
     pub alpha: f64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct CornerRadii {
+    pub top_left: Size,
+    pub top_right: Size,
+    pub bottom_right: Size,
+    pub bottom_left: Size,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct GradientStop {
+    pub offset: f64,
+    pub color: Color,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -215,6 +236,42 @@ pub enum Primitive {
         positions: Vec<Point>,
         scalar_clusters: Vec<u64>,
         color: Color,
+    },
+    RoundedRect {
+        rect: Rect,
+        radii: CornerRadii,
+        color: Color,
+    },
+    Border {
+        rect: Rect,
+        radii: CornerRadii,
+        width: f64,
+        color: Color,
+    },
+    LinearGradient {
+        rect: Rect,
+        start: Point,
+        end: Point,
+        stops: Vec<GradientStop>,
+        spread: GradientSpread,
+    },
+    RadialGradient {
+        rect: Rect,
+        center: Point,
+        inner_radius: f64,
+        outer_radius: f64,
+        stops: Vec<GradientStop>,
+        spread: GradientSpread,
+    },
+    StrokePath {
+        resource: ResourceId,
+        color: Color,
+        width: f64,
+        cap: StrokeCap,
+        join: StrokeJoin,
+        miter_limit: f64,
+        dash_lengths: Vec<f64>,
+        dash_offset: f64,
     },
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -375,7 +432,8 @@ impl State {
                 Record::Scene(scene) => {
                     result.extend(&scene.resources);
                     match &scene.primitive {
-                        Primitive::FillPath { resource, .. } => {
+                        Primitive::FillPath { resource, .. }
+                        | Primitive::StrokePath { resource, .. } => {
                             result.insert(*resource);
                         }
                         Primitive::GlyphRun { font, .. } => {
@@ -437,6 +495,11 @@ impl State {
                                 vector_memory(glyph_ids)
                                     + vector_memory(positions)
                                     + vector_memory(scalar_clusters)
+                            }
+                            Primitive::LinearGradient { stops, .. }
+                            | Primitive::RadialGradient { stops, .. } => vector_memory(stops),
+                            Primitive::StrokePath { dash_lengths, .. } => {
+                                vector_memory(dash_lengths)
                             }
                             _ => 0,
                         }
@@ -1052,6 +1115,12 @@ fn number(value: f64, limits: &Limits) -> Result<f64, ModelError> {
     }
     Ok(if value == 0.0 { 0.0 } else { value })
 }
+fn finite_scalar(value: f64) -> Result<f64, ModelError> {
+    if !value.is_finite() {
+        return Err(invalid("nonfinite scalar"));
+    }
+    Ok(if value == 0.0 { 0.0 } else { value })
+}
 fn unit(value: f64) -> Result<f64, ModelError> {
     if !value.is_finite() || !(0.0..=1.0).contains(&value) {
         return Err(invalid("invalid opacity/color"));
@@ -1110,6 +1179,139 @@ fn string(value: String, limits: &Limits) -> Result<String, ModelError> {
 }
 fn required<T>(value: Option<T>, field: &str) -> Result<T, ModelError> {
     value.ok_or_else(|| invalid(field))
+}
+
+fn corner_size(value: pb::Size, limits: &Limits) -> Result<Size, ModelError> {
+    let radius = Size {
+        width: number(value.width, limits)?,
+        height: number(value.height, limits)?,
+    };
+    if radius.width < 0.0
+        || radius.height < 0.0
+        || ((radius.width == 0.0) != (radius.height == 0.0))
+    {
+        return Err(invalid(
+            "corner radii must be nonnegative paired zeros or paired positives",
+        ));
+    }
+    Ok(radius)
+}
+fn check_radii(radii: CornerRadii, bounds: Rect) -> Result<(), ModelError> {
+    if radii.top_left.width + radii.top_right.width > bounds.width
+        || radii.bottom_left.width + radii.bottom_right.width > bounds.width
+        || radii.top_left.height + radii.bottom_left.height > bounds.height
+        || radii.top_right.height + radii.bottom_right.height > bounds.height
+    {
+        return Err(invalid("corner radii overlap adjacent edges"));
+    }
+    Ok(())
+}
+fn corner_radii(
+    value: pb::CornerRadii,
+    bounds: Rect,
+    limits: &Limits,
+) -> Result<CornerRadii, ModelError> {
+    let radii = CornerRadii {
+        top_left: corner_size(required(value.top_left, "top-left radius")?, limits)?,
+        top_right: corner_size(required(value.top_right, "top-right radius")?, limits)?,
+        bottom_right: corner_size(required(value.bottom_right, "bottom-right radius")?, limits)?,
+        bottom_left: corner_size(required(value.bottom_left, "bottom-left radius")?, limits)?,
+    };
+    check_radii(radii, bounds)?;
+    Ok(radii)
+}
+fn check_border(bounds: Rect, radii: CornerRadii, width: f64) -> Result<(), ModelError> {
+    if width < 0.0 || width > bounds.width.min(bounds.height) / 2.0 {
+        return Err(invalid("border width must fit inside its rectangle"));
+    }
+    let inset = |r: Size| {
+        let rx = (r.width - width).max(0.0);
+        let ry = (r.height - width).max(0.0);
+        if rx == 0.0 || ry == 0.0 {
+            Size {
+                width: 0.0,
+                height: 0.0,
+            }
+        } else {
+            Size {
+                width: rx,
+                height: ry,
+            }
+        }
+    };
+    check_radii(
+        CornerRadii {
+            top_left: inset(radii.top_left),
+            top_right: inset(radii.top_right),
+            bottom_right: inset(radii.bottom_right),
+            bottom_left: inset(radii.bottom_left),
+        },
+        Rect {
+            x: bounds.x + width,
+            y: bounds.y + width,
+            width: bounds.width - 2.0 * width,
+            height: bounds.height - 2.0 * width,
+        },
+    )
+}
+fn gradient_stops(
+    values: Vec<pb::GradientStop>,
+    limits: &Limits,
+) -> Result<Vec<GradientStop>, ModelError> {
+    if values.len() > limits.max_gradient_stops {
+        return Err(ModelError::Limit("gradient stops"));
+    }
+    if values.len() < 2 {
+        return Err(invalid("gradient needs at least two stops"));
+    }
+    let stops = values
+        .into_iter()
+        .map(|v| {
+            Ok(GradientStop {
+                offset: unit(v.offset)?,
+                color: color(required(v.color, "gradient stop color")?)?,
+            })
+        })
+        .collect::<Result<Vec<_>, ModelError>>()?;
+    if stops.first().unwrap().offset != 0.0
+        || stops.last().unwrap().offset != 1.0
+        || stops.windows(2).any(|v| v[0].offset > v[1].offset)
+    {
+        return Err(invalid(
+            "gradient stops must be ordered and cover zero through one",
+        ));
+    }
+    Ok(stops)
+}
+fn stroke_dash(values: Vec<f64>, offset: f64, limits: &Limits) -> Result<Vec<f64>, ModelError> {
+    if values.len() > limits.max_dash_segments {
+        return Err(ModelError::Limit("stroke dash segments"));
+    }
+    if !values.len().is_multiple_of(2) {
+        return Err(invalid(
+            "dash pattern must contain an even number of lengths",
+        ));
+    }
+    let lengths = values
+        .into_iter()
+        .map(|v| {
+            let length = number(v, limits)?;
+            if length <= 0.0 {
+                return Err(invalid("dash lengths must be positive"));
+            }
+            Ok(length)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let period = lengths.iter().sum::<f64>();
+    if !period.is_finite()
+        || period > limits.max_geometry
+        || offset < 0.0
+        || (lengths.is_empty() && offset != 0.0)
+        || (!lengths.is_empty() && offset >= period)
+    {
+        return Err(invalid("dash period/offset must be bounded and normalized"));
+    }
+    Ok(lengths)
 }
 
 fn convert_record(value: pb::Record, limits: &Limits) -> Result<Record, ModelError> {
@@ -1232,6 +1434,97 @@ fn convert_record(value: pb::Record, limits: &Limits) -> Result<Record, ModelErr
                             .collect::<Result<_, _>>()?,
                         scalar_clusters: v.scalar_clusters,
                         color: color(required(v.color, "glyph color")?)?,
+                    }
+                }
+                pb::scene_node::Primitive::RoundedRect(v) => {
+                    let bounds = rect(required(v.rect, "rounded rectangle")?, limits)?;
+                    Primitive::RoundedRect {
+                        rect: bounds,
+                        radii: corner_radii(required(v.radii, "corner radii")?, bounds, limits)?,
+                        color: color(required(v.color, "rounded color")?)?,
+                    }
+                }
+                pb::scene_node::Primitive::Border(v) => {
+                    let bounds = rect(required(v.rect, "border rectangle")?, limits)?;
+                    let radii =
+                        corner_radii(required(v.radii, "border corner radii")?, bounds, limits)?;
+                    let width = number(v.width, limits)?;
+                    check_border(bounds, radii, width)?;
+                    Primitive::Border {
+                        rect: bounds,
+                        radii,
+                        width,
+                        color: color(required(v.color, "border color")?)?,
+                    }
+                }
+                pb::scene_node::Primitive::LinearGradient(v) => {
+                    let start = point(required(v.start, "gradient start")?, limits)?;
+                    let end = point(required(v.end, "gradient end")?, limits)?;
+                    let span = (end.x - start.x).hypot(end.y - start.y);
+                    if !span.is_finite() || span == 0.0 {
+                        return Err(invalid("linear gradient requires a finite nonzero span"));
+                    }
+                    Primitive::LinearGradient {
+                        rect: rect(required(v.rect, "gradient rectangle")?, limits)?,
+                        start,
+                        end,
+                        stops: gradient_stops(v.stops, limits)?,
+                        spread: GradientSpread::from_wire(v.spread)?,
+                    }
+                }
+                pb::scene_node::Primitive::RadialGradient(v) => {
+                    let center = point(required(v.center, "radial center")?, limits)?;
+                    let inner_radius = number(v.inner_radius, limits)?;
+                    let outer_radius = number(v.outer_radius, limits)?;
+                    if inner_radius < 0.0
+                        || inner_radius >= outer_radius
+                        || [
+                            center.x - outer_radius,
+                            center.x + outer_radius,
+                            center.y - outer_radius,
+                            center.y + outer_radius,
+                        ]
+                        .iter()
+                        .any(|v| !v.is_finite() || v.abs() > limits.max_geometry)
+                    {
+                        return Err(invalid(
+                            "radial circles require bounded center and zero<=inner<outer",
+                        ));
+                    }
+                    Primitive::RadialGradient {
+                        rect: rect(required(v.rect, "radial rectangle")?, limits)?,
+                        center,
+                        inner_radius,
+                        outer_radius,
+                        stops: gradient_stops(v.stops, limits)?,
+                        spread: GradientSpread::from_wire(v.spread)?,
+                    }
+                }
+                pb::scene_node::Primitive::StrokePath(v) => {
+                    let width = number(v.width, limits)?;
+                    let cap = StrokeCap::from_wire(v.cap)?;
+                    let join = StrokeJoin::from_wire(v.join)?;
+                    let miter_limit = finite_scalar(v.miter_limit)?;
+                    if width <= 0.0
+                        || !limits.max_stroke_miter_limit.is_finite()
+                        || limits.max_stroke_miter_limit < 1.0
+                        || miter_limit < 1.0
+                        || miter_limit > limits.max_stroke_miter_limit
+                        || (join != StrokeJoin::Miter && miter_limit != 1.0)
+                        || !(width * miter_limit).is_finite()
+                    {
+                        return Err(invalid("stroke width or miter limit"));
+                    }
+                    let dash_offset = number(v.dash_offset, limits)?;
+                    Primitive::StrokePath {
+                        resource: resource_id(v.resource)?,
+                        color: color(required(v.color, "stroke color")?)?,
+                        width,
+                        cap,
+                        join,
+                        miter_limit,
+                        dash_lengths: stroke_dash(v.dash_lengths, dash_offset, limits)?,
+                        dash_offset,
                     }
                 }
             };

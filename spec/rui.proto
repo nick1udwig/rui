@@ -38,6 +38,24 @@ message Surface {
 }
 message Group {}
 message SolidRect { Rect rect = 1; Color color = 2; }
+// All new primitive messages reserve tags below128 for required behavior.
+// Only optional metadata may use tags128 and above.
+message CornerRadii { Size top_left = 1; Size top_right = 2; Size bottom_right = 3; Size bottom_left = 4; }
+message RoundedRect { Rect rect = 1; CornerRadii radii = 2; Color color = 3; }
+// A uniform, solid-color border entirely inside the outer rounded rectangle.
+message Border { Rect rect = 1; CornerRadii radii = 2; double width = 3; Color color = 4; }
+message GradientStop { double offset = 1; Color color = 2; }
+enum GradientSpread { GRADIENT_SPREAD_UNSPECIFIED = 0; PAD = 1; }
+message LinearGradient { Rect rect = 1; Point start = 2; Point end = 3; repeated GradientStop stops = 4; GradientSpread spread = 5; }
+// Initial radial vocabulary consists of concentric circles, with no focal point.
+message RadialGradient { Rect rect = 1; Point center = 2; double inner_radius = 3; double outer_radius = 4; repeated GradientStop stops = 5; GradientSpread spread = 6; }
+enum StrokeCap { STROKE_CAP_UNSPECIFIED = 0; BUTT = 1; ROUND_CAP = 2; SQUARE = 3; }
+enum StrokeJoin { STROKE_JOIN_UNSPECIFIED = 0; MITER = 1; ROUND_JOIN = 2; BEVEL = 3; }
+message StrokePath {
+  bytes resource = 1; Color color = 2; double width = 3; StrokeCap cap = 4;
+  StrokeJoin join = 5; double miter_limit = 6;
+  repeated double dash_lengths = 7; double dash_offset = 8;
+}
 message FillPath { bytes resource = 1; Color color = 2; FillRule fill_rule = 3; }
 enum FillRule { FILL_RULE_UNSPECIFIED = 0; NONZERO = 1; EVEN_ODD = 2; }
 message GlyphRun {
@@ -50,7 +68,11 @@ message SceneNode {
   // optional metadata must use tags >=128; this also applies to GlyphRun.
   uint64 id = 1; uint64 version = 2; repeated ObjectRef ordered_children = 3;
   Affine transform = 4; Rect clip = 5; double opacity = 6;
-  oneof primitive { Group group = 10; SolidRect solid_rect = 11; FillPath fill_path = 12; GlyphRun glyph_run = 13; }
+  oneof primitive {
+    Group group = 10; SolidRect solid_rect = 11; FillPath fill_path = 12; GlyphRun glyph_run = 13;
+    RoundedRect rounded_rect = 14; Border border = 15; LinearGradient linear_gradient = 16;
+    RadialGradient radial_gradient = 17; StrokePath stroke_path = 18;
+  }
   repeated bytes resource_refs = 20;
 }
 enum SemanticRole { SEMANTIC_ROLE_UNSPECIFIED = 0; ROOT = 1; GROUP_ROLE = 2; BUTTON = 3; CHECKBOX = 4; TEXT_FIELD = 5; LABEL = 6; LIST = 7; LIST_ITEM = 8; CUSTOM_CANVAS = 9; }

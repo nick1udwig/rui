@@ -124,6 +124,13 @@ pub(crate) enum Context {
     Solid,
     Path,
     Glyph,
+    Radii,
+    Rounded,
+    Border,
+    Stop,
+    Linear,
+    Radial,
+    Stroke,
     Value,
     State,
     Relation,
@@ -147,8 +154,14 @@ impl Context {
         match self {
             Self::Record => tag < 128 && !(1..=6).contains(&tag),
             Self::Mutation => tag < 128 && !(1..=2).contains(&tag),
-            Self::Scene => tag < 128 && !matches!(tag,1..=6|10..=13|20),
+            Self::Scene => tag < 128 && !matches!(tag,1..=6|10..=18|20),
             Self::Glyph => tag < 128 && !matches!(tag, 1..=7),
+            Self::Radii | Self::Border => tag < 128 && !matches!(tag, 1..=4),
+            Self::Rounded => tag < 128 && !matches!(tag, 1..=3),
+            Self::Stop => tag < 128 && !matches!(tag, 1..=2),
+            Self::Linear => tag < 128 && !matches!(tag, 1..=5),
+            Self::Radial => tag < 128 && !matches!(tag, 1..=6),
+            Self::Stroke => tag < 128 && !matches!(tag, 1..=8),
             _ => false,
         }
     }
@@ -161,6 +174,8 @@ impl Context {
             Text=>TextModel, Binding=>Binding, Session=>SessionState, Ref=>ObjectRef,
             Rect=>Rect, Point=>Point, Size=>Size, Affine=>Affine, Color=>Color,
             Group=>Group, Solid=>SolidRect, Path=>FillPath, Glyph=>GlyphRun,
+            Radii=>CornerRadii,Rounded=>RoundedRect,Border=>Border,Stop=>GradientStop,
+            Linear=>LinearGradient,Radial=>RadialGradient,Stroke=>StrokePath,
             Value=>TypedValue, State=>StateValue, Relation=>Relation, Action=>Action,
             Collection=>CollectionModel, Range=>TextRange, Cursor=>Cursor,
             Command=>SemanticCommand, Preconditions=>Preconditions, EmptyArguments=>EmptyArguments,
@@ -188,17 +203,28 @@ impl Context {
             | (Relation, 2)
             | (Collection, 2 | 5)
             | (Mutation, 2) => Some(Ref),
-            (Surface, 5 | 8 | 16) | (Scene, 5) | (Solid, 1) | (Binding, 6) | (Session, 3) => {
-                Some(Rect)
-            }
-            (Surface, 6) => Some(Size),
+            (Surface, 5 | 8 | 16)
+            | (Scene, 5)
+            | (Solid | Rounded | Border | Linear | Radial, 1)
+            | (Binding, 6)
+            | (Session, 3) => Some(Rect),
+            (Surface, 6) | (Radii, 1..=4) => Some(Size),
             (Surface, 7) | (Scene, 4) => Some(Affine),
             (Scene, 10) => Some(Group),
             (Scene, 11) => Some(Solid),
             (Scene, 12) => Some(Path),
             (Scene, 13) => Some(Glyph),
-            (Glyph, 5) | (Cursor, 1 | 2) => Some(Point),
-            (Solid, 2) | (Path, 2) | (Glyph, 7) => Some(Color),
+            (Scene, 14) => Some(Rounded),
+            (Scene, 15) => Some(Border),
+            (Scene, 16) => Some(Linear),
+            (Scene, 17) => Some(Radial),
+            (Scene, 18) => Some(Stroke),
+            (Rounded | Border, 2) => Some(Radii),
+            (Linear, 4) | (Radial, 5) => Some(Stop),
+            (Glyph, 5) | (Cursor, 1 | 2) | (Linear, 2 | 3) | (Radial, 2) => Some(Point),
+            (Solid | Path | Stop | Stroke, 2) | (Glyph, 7) | (Rounded, 3) | (Border, 4) => {
+                Some(Color)
+            }
             (Semantic, 6) => Some(Value),
             (Semantic, 7) => Some(State),
             (Semantic, 9) => Some(Relation),
@@ -257,11 +283,15 @@ fn scan(
     depth: usize,
     budget: &mut ScanBudget,
     limits: &Limits,
-) -> Result<(), WireError> {
+) -> Result<SceneValues, WireError> {
     if depth > 16 {
         return Err(WireError::Limit);
     }
     charge(budget, context.size() + 64, limits)?;
+    let mut values = SceneValues {
+        stops: usize::from(matches!(context, Context::Stop)),
+        dashes: 0,
+    };
     if matches!(context, Context::Record | Context::Mutation) {
         budget.records += 1;
         // Transaction counts both wrappers; snapshots count one wrapper per record.
@@ -271,7 +301,15 @@ fn scan(
     }
     while !input.is_empty() {
         budget.fields += 1;
-        if budget.fields > limits.max_records.saturating_mul(128).max(128) {
+        let fields_per_record = 128usize
+            .saturating_add(limits.max_gradient_stops.saturating_mul(8))
+            .saturating_add(limits.max_dash_segments);
+        if budget.fields
+            > limits
+                .max_records
+                .saturating_mul(fields_per_record)
+                .max(128)
+        {
             return Err(WireError::Limit);
         }
         charge(budget, 32, limits)?;
@@ -292,6 +330,9 @@ fn scan(
             }
             1 => {
                 take(&mut input, 8)?;
+                if matches!((context, tag), (Context::Stroke, 7)) {
+                    values.dashes = values.dashes.saturating_add(1);
+                }
             }
             2 => {
                 let len = usize::try_from(varint(&mut input)?).map_err(|_| WireError::Limit)?;
@@ -306,8 +347,16 @@ fn scan(
                     }
                 }
                 if let Some(nested) = context.nested(tag) {
-                    scan(data, nested, depth + 1, budget, limits)?;
+                    let child = scan(data, nested, depth + 1, budget, limits)?;
+                    values.stops = values.stops.saturating_add(child.stops);
+                    values.dashes = values.dashes.saturating_add(child.dashes);
                 } else {
+                    if matches!((context, tag), (Context::Stroke, 7)) {
+                        if len % 8 != 0 {
+                            return Err(WireError::Malformed("packed dash length".into()));
+                        }
+                        values.dashes = values.dashes.saturating_add(len / 8);
+                    }
                     charge(budget, len.saturating_mul(8), limits)?;
                 }
             }
@@ -316,8 +365,26 @@ fn scan(
             }
             _ => return Err(WireError::Malformed("unsupported wire type".into())),
         }
+        if matches!(
+            context,
+            Context::Scene
+                | Context::Record
+                | Context::Mutation
+                | Context::Linear
+                | Context::Radial
+                | Context::Stroke
+        ) && (values.stops > limits.max_gradient_stops
+            || values.dashes > limits.max_dash_segments)
+        {
+            return Err(WireError::Limit);
+        }
     }
-    Ok(())
+    Ok(values)
+}
+
+struct SceneValues {
+    stops: usize,
+    dashes: usize,
 }
 
 /// Scalar publication metadata inspection, after preflight, without allocation.

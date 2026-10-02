@@ -767,9 +767,9 @@ fn neg_004_unknown_required_variants_reject_even_alongside_known_variants() {
         &mut replica,
         &transaction(1, vec![put(p::record::Record::Scene(node))]),
     );
-    // Scene group (tag 10) plus an unknown primitive (tag 14).
+    // Scene group (tag 10) plus an unknown primitive (tag 19).
     let mut encoded = scene(99).encode_to_vec();
-    encoded.extend_from_slice(&[0x72, 0]);
+    encoded.extend_from_slice(&[0x9a, 0x01, 0]);
     let mut record = vec![0x12, encoded.len() as u8];
     record.extend(encoded);
     let mut mutation = vec![0x0a, record.len() as u8];

@@ -6,7 +6,7 @@ This implementation is a foundation for the proposed RUI/0.1 protocol. `rui.prot
 
 Each binary envelope binds a payload to a protocol version, session, epoch, and view. The current envelope kinds carry a snapshot, transaction, or semantic command. Resource/publication transfer, negotiation, recovery, and lease APIs are Rust model APIs; their complete network message schemas and TLS WebSocket binding remain future work.
 
-The scene vocabulary currently includes Group, SolidRect, FillPath, and GlyphRun. Rounded rectangles, borders, gradients, stroke primitives, rendering effects, and a renderer are not implemented. Unknown required mutations, record kinds, primitives, and features fail explicitly. Recognizing the profile identifiers does not assert that a renderer exists or that every proposed primitive is available.
+The scene vocabulary includes Group, SolidRect, RoundedRect, Border, LinearGradient, RadialGradient, FillPath, StrokePath, and GlyphRun. Their supported geometry and paint rules are defined in [rendering-profile.md](rendering-profile.md). Rendering effects and a renderer remain unimplemented. Unknown required mutations, record kinds, primitives, and features fail explicitly. Recognizing the profile identifiers does not assert that a renderer exists or that every proposed effect is available.
 
 Geometry is finite and bounded; model decoding normalizes negative zero. Colors are validated as premultiplied channels in the range zero to one. Text selections count Unicode scalar values. No text shaping, reflow, font substitution, or grapheme navigation occurs in the replica.
 

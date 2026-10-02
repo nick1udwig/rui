@@ -126,7 +126,7 @@ def verify(entries):
 
 
 def main():
-    subprocess.run(["cargo", "build", "--offline", "--locked", "--example", "replay"],
+    subprocess.run(["cargo", "build", "--offline", "--locked", "-p", "rui-protocol-core", "--examples"],
                    cwd=ROOT, check=True)
     path = ROOT / "conformance/golden/semantic.jsonl"
     stored = [json.loads(line) for line in path.read_text().splitlines()]
@@ -149,6 +149,8 @@ def main():
         ])
         checked += verify([entry("snapshot", direct)])
     print(f"Independent replay passed: {checked} prefixes, 16 seeds, exact golden bytes")
+    from scene_reference import verify_scenes
+    verify_scenes()
 
 
 if __name__ == "__main__":
