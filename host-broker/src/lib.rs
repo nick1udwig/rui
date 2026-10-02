@@ -8,8 +8,8 @@ pub use fixture::{
 };
 use prost::Message;
 use rui_protocol_core::commands::{
-    AuthenticatedClient, CommandLedger, CommandResult, DispatchFailure, DispatchOutcome, Id,
-    LedgerError, LedgerLimits, Rejection, SourceEvidence,
+    AuthenticatedClient, Command, CommandFamily, CommandLedger, CommandResult, DispatchFailure,
+    DispatchOutcome, Id, LedgerError, LedgerLimits, Rejection, SourceEvidence,
 };
 use rui_protocol_core::session::{
     ClientHello, ControlLease, InputCleanup, NegotiatedSession, Permissions, ReceiverLimits,
@@ -87,6 +87,7 @@ struct Projection {
     profiles: BTreeSet<String>,
     limits: ReceiverLimits,
     permissions: Permissions,
+    semantic_only: bool,
     revision: Option<u64>,
     capture_commit: u64,
     counter_clock: u64,
@@ -104,6 +105,7 @@ impl Projection {
             profiles: session.profiles.clone(),
             limits: session.limits.clone(),
             permissions: session.permissions.clone(),
+            semantic_only: session.profiles.contains("semantics.only.v1"),
             revision: None,
             capture_commit: 0,
             counter_clock: 0,
@@ -145,7 +147,11 @@ pub struct ControlledHost {
     projections: BTreeMap<Id, Projection>,
 }
 impl ControlledHost {
-    pub fn new(config: HostConfig, initial_secret: String) -> Result<Self, HostError> {
+    pub fn new(mut config: HostConfig, initial_secret: String) -> Result<Self, HostError> {
+        config
+            .session
+            .supported_profiles
+            .insert("semantics.only.v1".into());
         Ok(Self {
             session_id: config.session_id,
             epoch: config.epoch,
@@ -233,7 +239,7 @@ impl ControlledHost {
             .ok_or(HostError::FixtureLimit)?;
         let snapshot = p::Snapshot {
             revision,
-            records: self.source.records(projection),
+            records: projection_records(self.source.records(projection), projection),
             required_resources: vec![],
             required_features: projection.profiles.iter().cloned().collect(),
         };
@@ -272,7 +278,7 @@ impl ControlledHost {
         let revision = projection.revision.ok_or(HostError::CheckpointRequired)?;
         let snapshot = p::Snapshot {
             revision,
-            records: self.source.records(projection),
+            records: projection_records(self.source.records(projection), projection),
             required_resources: vec![],
             required_features: projection.profiles.iter().cloned().collect(),
         };
@@ -293,6 +299,15 @@ impl ControlledHost {
         raw_command: &[u8],
         now: u64,
     ) -> Result<CommandResult, HostError> {
+        self.submit_family(client, CommandFamily::Semantic, raw_command, now)
+    }
+    pub fn submit_family(
+        &mut self,
+        client: &AuthenticatedClient,
+        family: CommandFamily,
+        raw_command: &[u8],
+        now: u64,
+    ) -> Result<CommandResult, HostError> {
         let view = self
             .projections
             .get(&client.client_instance_id)
@@ -301,16 +316,20 @@ impl ControlledHost {
         if raw_command.len() > self.projection(client, view)?.limits.envelope_bytes {
             return Err(SessionError::Oversized.into());
         }
-        let sessions = RefCell::new(&mut self.sessions);
         let source = RefCell::new(&mut self.source);
         let projections = RefCell::new(&mut self.projections);
         let session_id = self.session_id;
         let epoch = self.epoch;
-        let result = self.ledger.submit(
+        let result = self.ledger.submit_controlled_with_session(
+            &mut self.sessions,
             client,
+            family,
             raw_command,
             now,
             |command| {
+                let Command::Semantic(command) = command else {
+                    return Err(Rejection::UnsupportedAction);
+                };
                 let all = projections.borrow();
                 let projection = all
                     .get(&client.client_instance_id)
@@ -318,12 +337,12 @@ impl ControlledHost {
                 if projection.checkpoint_required {
                     return Err(Rejection::WrongView);
                 }
-                sessions
-                    .borrow_mut()
-                    .validate_control(client, command, now)?;
                 source.borrow().validate(projection, command)
             },
-            |command| {
+            |command, sessions| {
+                let Command::Semantic(command) = command else {
+                    return Err(DispatchFailure::Failed);
+                };
                 let commit = {
                     let all = projections.borrow();
                     let projection = all
@@ -335,7 +354,7 @@ impl ControlledHost {
                         .map_err(|_| DispatchFailure::Failed)?
                 };
                 publish_projections(
-                    &mut sessions.borrow_mut(),
+                    sessions,
                     &source.borrow(),
                     &mut projections.borrow_mut(),
                     session_id,
@@ -392,6 +411,17 @@ impl ControlledHost {
         self.projection(client, view)?;
         self.sessions
             .acknowledge_presented(client, view, revision)?;
+        Ok(())
+    }
+    pub fn acknowledge_semantic_ready(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        revision: u64,
+    ) -> Result<(), HostError> {
+        self.projection(client, view)?;
+        self.sessions
+            .acknowledge_semantic_ready(client, view, revision)?;
         Ok(())
     }
     pub fn acquire_control(
@@ -508,6 +538,41 @@ impl ControlledHost {
         }
     }
 }
+/// A distinct projection scope excludes all visual content and resources before
+/// serialization/history. Semantic object IDs and source clocks remain stable.
+fn projection_records(records: Vec<p::Record>, projection: &Projection) -> Vec<p::Record> {
+    if !projection.semantic_only {
+        return records;
+    }
+    records
+        .into_iter()
+        .filter_map(|mut record| {
+            match record.record.as_mut()? {
+                p::record::Record::Surface(surface) => {
+                    surface.scene_root = None;
+                    surface.visual_coverage = p::VisualCoverage::Unsupported as i32;
+                    surface.unsupported_features = vec!["semantic-only-projection".into()];
+                }
+                p::record::Record::Semantic(node) => {
+                    node.visual_bindings.clear();
+                    for relation in &mut node.relations {
+                        relation.targets.retain(|r| {
+                            !matches!(
+                                p::ObjectKind::try_from(r.kind),
+                                Ok(p::ObjectKind::Scene | p::ObjectKind::Binding)
+                            )
+                        });
+                    }
+                }
+                p::record::Record::Session(session) => session.cursor = None,
+                p::record::Record::Text(_) => {}
+                p::record::Record::Scene(_) | p::record::Record::Binding(_) => return None,
+            }
+            Some(record)
+        })
+        .collect()
+}
+
 fn publish_projections(
     sessions: &mut SessionBroker,
     source: &ControlledApplication,
@@ -532,8 +597,7 @@ fn publish_projections(
             );
             continue;
         };
-        let mutations: Vec<_> = source
-            .changed_records(projection)
+        let mutations: Vec<_> = projection_records(source.changed_records(projection), projection)
             .into_iter()
             .map(|record| p::Mutation {
                 mutation: Some(p::mutation::Mutation::Put(record)),

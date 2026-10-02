@@ -194,7 +194,12 @@ impl NetworkClient {
             p::Kind::OpenView,
             &p::OpenView {
                 selection: "fixture".into(),
-                mirror_canvas_policy: "host-canvas".into(),
+                mirror_canvas_policy: if self.profiles.iter().any(|p| p == "semantics.only.v1") {
+                    "semantic-only"
+                } else {
+                    "host-canvas"
+                }
+                .into(),
             },
         )
         .await
@@ -222,10 +227,32 @@ impl NetworkClient {
     /// Trusted renderer completion callback; this is never called automatically
     /// merely because application state was received.
     pub async fn presented(&mut self, revision: u64) -> Result<(), TransportError> {
+        if self.profiles.iter().any(|p| p == "semantics.only.v1") {
+            return Err(TransportError::Authority);
+        }
         self.receiver
             .mark_presented(revision)
             .map_err(|_| TransportError::Receiver)?;
         self.send(p::Kind::PresentedAck, &p::RevisionAck { revision })
+            .await
+    }
+    /// Semantic-only consumption is explicit and never calls mark_presented.
+    pub async fn semantic_ready(&mut self, revision: u64) -> Result<(), TransportError> {
+        if !self.profiles.iter().any(|p| p == "semantics.only.v1")
+            || self
+                .receiver
+                .state()
+                .map_err(|_| TransportError::Receiver)?
+                .revision
+                != revision
+            || !self
+                .receiver
+                .resources_ready()
+                .map_err(|_| TransportError::Receiver)?
+        {
+            return Err(TransportError::Authority);
+        }
+        self.send(p::Kind::SemanticReady, &p::RevisionAck { revision })
             .await
     }
     pub async fn close(mut self) -> Result<(), TransportError> {

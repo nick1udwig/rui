@@ -454,21 +454,54 @@ impl CommandLedger {
         V: FnOnce(&Command) -> Result<(), Rejection>,
         D: FnOnce(&Command) -> Result<DispatchOutcome, DispatchFailure>,
     {
+        self.submit_controlled_with_session(
+            sessions,
+            client,
+            family,
+            raw,
+            now,
+            validate_source,
+            |command, _| dispatch(command),
+        )
+    }
+    /// A cooperating source may publish its actual commit through this unique
+    /// session reference before returning APPLIED evidence. Authority has already
+    /// passed the same mandatory checks; callbacks remain trusted host code.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_controlled_with_session<V, D>(
+        &mut self,
+        sessions: &mut crate::session::SessionBroker,
+        client: &AuthenticatedClient,
+        family: CommandFamily,
+        raw: &[u8],
+        now: u64,
+        validate_source: V,
+        dispatch: D,
+    ) -> Result<CommandResult, LedgerError>
+    where
+        V: FnOnce(&Command) -> Result<(), Rejection>,
+        D: FnOnce(
+            &Command,
+            &mut crate::session::SessionBroker,
+        ) -> Result<DispatchOutcome, DispatchFailure>,
+    {
+        let sessions = std::cell::RefCell::new(sessions);
         self.submit_family(
             client,
             family,
             raw,
             now,
             |command| {
-                sessions.validate_command_control(
+                sessions.borrow_mut().validate_family_control(
                     client,
                     &command.header(),
+                    command.family(),
                     command.operation_permission(),
                     now,
                 )?;
                 validate_source(command)
             },
-            dispatch,
+            |command| dispatch(command, &mut sessions.borrow_mut()),
         )
     }
     fn submit_family<V, D>(

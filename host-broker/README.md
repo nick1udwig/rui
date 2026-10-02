@@ -53,3 +53,5 @@ The source limits private text to a configured maximum of 64 KiB; readable views
 reserve its worst-case decoded size. Client metadata, ledger entries, outcomes,
 history, and outbound queues use the core's bounded retention. A failed or slow
 view closes explicitly while other authorized views continue.
+
+For a nonvisual consumer, explicitly require and advertise `semantics.only.v1`. The host constructs a distinct projection without Scene/Binding records or resource references, preserving semantic/text/source focus and surface topology with Unsupported visual coverage. `acknowledge_semantic_ready` follows `acknowledge_applied`, permits only semantic-family dispatch, and never fabricates a presentation acknowledgement. The source broker now admits all families through the shared controlled ledger; this baseline fixture rejects families that its cooperating application does not implement.

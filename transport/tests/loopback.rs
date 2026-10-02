@@ -452,3 +452,67 @@ async fn control_messages_interleave_and_slow_observer_closes_independently() {
     ));
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn semantic_only_projection_controls_after_explicit_ready_without_presented() {
+    let (server, _, token, _) = setup().await;
+    let mut advertised = hello(3);
+    advertised
+        .supported_profiles
+        .insert("semantics.only.v1".into());
+    advertised
+        .required_profiles
+        .insert("semantics.only.v1".into());
+    let mut client = NetworkClient::connect(
+        server.address,
+        "localhost".into(),
+        include_bytes!("data/localhost.der").to_vec(),
+        &token,
+        advertised,
+    )
+    .await
+    .unwrap();
+    client.open_view().await.unwrap();
+    assert!(
+        matches!(client.receive().await.unwrap(),ClientEvent::ViewOpened(v) if v.coverage=="semantic-only")
+    );
+    assert!(matches!(
+        client.receive().await.unwrap(),
+        ClientEvent::Applied { revision: 1 }
+    ));
+    let state = client.receiver().state().unwrap();
+    assert!(state
+        .records
+        .values()
+        .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_))));
+    for record in state.records.values() {
+        match record {
+            Record::Surface(s) => assert!(s.scene_root.is_none()),
+            Record::Semantic(s) => assert!(s.bindings.is_empty()),
+            Record::Session(s) => assert!(s.cursor.is_none()),
+            _ => {}
+        }
+    }
+    assert_eq!(client.presented(1).await, Err(TransportError::Authority));
+    client.acquire_control([11; 16]).await.unwrap();
+    assert!(matches!(
+        client.receive().await.unwrap(),
+        ClientEvent::Error(_)
+    ));
+    client.semantic_ready(1).await.unwrap();
+    let lease = lease(&mut client).await;
+    let raw = activate(&client, 3, &lease, 1, 1).encode_to_vec();
+    client.submit(&raw).await.unwrap();
+    let result = result_and_revision(&mut client, 2).await;
+    assert_eq!(result.status, "Applied");
+    assert_eq!(server.host.lock().await.diagnostics().counter, 1);
+    client
+        .send(p::Kind::PresentedAck, &p::RevisionAck { revision: 2 })
+        .await
+        .unwrap();
+    assert!(matches!(
+        client.receive().await.unwrap(),
+        ClientEvent::Error(_)
+    ));
+    server.shutdown().await;
+}

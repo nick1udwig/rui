@@ -1,7 +1,9 @@
 //! Transport-independent authenticated negotiation, bounded recovery and one
 //! shared-seat control lease. Cleanup records describe work for a host adapter;
 //! this module does not inject OS input, authenticate credentials, or serve TLS.
-use crate::commands::{AuthenticatedClient, CommandHeader, Id, Rejection, SemanticCommand};
+use crate::commands::{
+    AuthenticatedClient, CommandFamily, CommandHeader, Id, Rejection, SemanticCommand,
+};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ops::Deref;
 use std::sync::{
@@ -279,12 +281,27 @@ struct Connection {
     acknowledged_revision: Option<u64>,
     resources_ready: bool,
     presented_revision: Option<u64>,
+    semantic_only: bool,
+    semantic_ready_revision: Option<u64>,
     budget: Arc<MemoryBudget>,
     snapshot_allocation: Option<Reservation>,
     history: VecDeque<HistoryEntry>,
     history_bytes: usize,
     queue: VecDeque<SharedPayload>,
     queue_bytes: usize,
+}
+
+impl Connection {
+    fn input_ready(&self, allow_semantic: bool) -> bool {
+        self.authorization.permissions.can_control
+            && self.acknowledged_revision.is_some()
+            && self.resources_ready
+            && if self.semantic_only {
+                allow_semantic && self.semantic_ready_revision.is_some()
+            } else {
+                self.presented_revision.is_some()
+            }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -565,6 +582,8 @@ impl SessionBroker {
                     acknowledged_revision: None,
                     resources_ready: false,
                     presented_revision: None,
+                    semantic_only: profiles.contains("semantics.only.v1"),
+                    semantic_ready_revision: None,
                     budget,
                     snapshot_allocation: None,
                     history: VecDeque::new(),
@@ -581,6 +600,7 @@ impl SessionBroker {
                 .limit
                 .store(limits.view_memory_bytes, Ordering::Release);
             old.presented_revision = None;
+            old.semantic_ready_revision = None;
             old.queue.clear();
             old.queue_bytes = 0;
             // Previously retained history may exceed newly lowered limits.
@@ -747,6 +767,7 @@ impl SessionBroker {
         conn.acknowledged_revision = None;
         conn.resources_ready = false;
         conn.presented_revision = None;
+        conn.semantic_ready_revision = None;
         conn.snapshot_allocation = None;
         if self
             .active
@@ -779,6 +800,7 @@ impl SessionBroker {
         conn.snapshot_revision = Some(revision);
         conn.acknowledged_revision = None;
         conn.presented_revision = None;
+        conn.semantic_ready_revision = None;
         conn.resources_ready = false;
         conn.history.clear();
         conn.history_bytes = 0;
@@ -930,6 +952,7 @@ impl SessionBroker {
         conn.resources_ready = resources_ready;
         if !resources_ready {
             conn.presented_revision = None;
+            conn.semantic_ready_revision = None;
         }
         Ok(())
     }
@@ -941,6 +964,7 @@ impl SessionBroker {
         let conn = self.connection_mut(client, view)?;
         conn.resources_ready = false;
         conn.presented_revision = None;
+        conn.semantic_ready_revision = None;
         Ok(())
     }
     pub fn acknowledge_presented(
@@ -964,7 +988,8 @@ impl SessionBroker {
         revision: u64,
     ) -> Result<(), SessionError> {
         let conn = self.connection(client, view)?;
-        if revision == 0
+        if conn.semantic_only
+            || revision == 0
             || !conn.resources_ready
             || conn.acknowledged_revision.is_none_or(|r| revision > r)
             || !(conn.snapshot_revision == Some(revision)
@@ -976,6 +1001,32 @@ impl SessionBroker {
         Ok(())
     }
 
+    /// Explicit validated semantic consumption, never visual presentation. Only
+    /// semantic-family commands may use this readiness, and only in a negotiated
+    /// semantics.only.v1 view. Resource and reconnect resets clear the marker.
+    pub fn acknowledge_semantic_ready(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        revision: u64,
+    ) -> Result<(), SessionError> {
+        let conn = self.connection_mut(client, view)?;
+        if !conn.semantic_only
+            || revision == 0
+            || !conn.resources_ready
+            || conn.acknowledged_revision != Some(revision)
+        {
+            return Err(SessionError::NotPresentable);
+        }
+        if conn
+            .semantic_ready_revision
+            .is_some_and(|old| revision < old)
+        {
+            return Err(SessionError::WrongRevision);
+        }
+        conn.semantic_ready_revision = Some(revision);
+        Ok(())
+    }
     fn prior_request(
         &self,
         client: &AuthenticatedClient,
@@ -1011,14 +1062,18 @@ impl SessionBroker {
     ) -> Result<ControlLease, SessionError> {
         self.tick(now);
         let conn = self.connection(client, view)?;
-        if !conn.authorization.permissions.can_control
-            || conn.acknowledged_revision.is_none()
-            || conn.presented_revision.is_none()
-            || !conn.resources_ready
-        {
+        if !conn.input_ready(true) {
             return Err(SessionError::Unauthorized);
         }
-        let allowed_actions = conn.authorization.permissions.actions.clone();
+        let mut allowed_actions = conn.authorization.permissions.actions.clone();
+        if conn.semantic_only {
+            allowed_actions.retain(|a| {
+                !matches!(
+                    a.as_str(),
+                    "RawInputBatch" | "TextComposition" | "ResizeRequest"
+                )
+            });
+        }
         let payload = RequestPayload::Acquire { view };
         if let Some(RequestResult::Grant(grant)) = self.prior_request(client, request, &payload)? {
             return self
@@ -1089,7 +1144,7 @@ impl SessionBroker {
         now: u64,
     ) -> Result<ControlLease, SessionError> {
         self.tick(now);
-        self.check_control(client, view, lease, generation)?;
+        self.check_control_scope(client, view, lease, generation, true)?;
         let payload = RequestPayload::Renew { lease, generation };
         if let Some(RequestResult::Grant(grant)) = self.prior_request(client, request, &payload)? {
             return Ok(grant);
@@ -1164,12 +1219,18 @@ impl SessionBroker {
         lease: Id,
         generation: u64,
     ) -> Result<(), SessionError> {
+        self.check_control_scope(client, view, lease, generation, false)
+    }
+    fn check_control_scope(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        lease: Id,
+        generation: u64,
+        allow_semantic: bool,
+    ) -> Result<(), SessionError> {
         let conn = self.connection(client, view)?;
-        if !conn.authorization.permissions.can_control
-            || conn.acknowledged_revision.is_none()
-            || conn.presented_revision.is_none()
-            || !conn.resources_ready
-        {
+        if !conn.input_ready(allow_semantic) {
             return Err(SessionError::Unauthorized);
         }
         let active = self.active.as_ref().ok_or(SessionError::StaleControl)?;
@@ -1189,7 +1250,13 @@ impl SessionBroker {
         command: &SemanticCommand,
         now: u64,
     ) -> Result<(), Rejection> {
-        self.validate_command_control(client, &command.header(), &command.action_id, now)
+        self.validate_family_control(
+            client,
+            &command.header(),
+            CommandFamily::Semantic,
+            &command.action_id,
+            now,
+        )
     }
     /// Trusted ledger admission calls this with the header/permission decoded
     /// from the retained exact wire payload. This does not validate source
@@ -1202,15 +1269,26 @@ impl SessionBroker {
         operation: &str,
         now: u64,
     ) -> Result<(), Rejection> {
+        self.validate_family_control(client, header, CommandFamily::RawInput, operation, now)
+    }
+    pub fn validate_family_control(
+        &mut self,
+        client: &AuthenticatedClient,
+        header: &CommandHeader,
+        family: CommandFamily,
+        operation: &str,
+        now: u64,
+    ) -> Result<(), Rejection> {
         self.tick(now);
         if header.epoch != self.epoch || header.client_instance_id != client.client_instance_id {
             return Err(Rejection::Unauthorized);
         }
-        self.check_control(
+        self.check_control_scope(
             client,
             header.view_id,
             header.control_lease_id,
             header.control_generation,
+            family == CommandFamily::Semantic,
         )
         .map_err(|error| match error {
             SessionError::WrongView => Rejection::WrongView,

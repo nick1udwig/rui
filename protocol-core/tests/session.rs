@@ -993,3 +993,103 @@ fn snapshot_read_handles_respect_envelope_and_total_memory_limits() {
         .snapshot_payload(&session.client, session.view_id, vec![1; 4])
         .is_ok());
 }
+
+#[test]
+fn semantic_only_readiness_never_grants_raw_or_visual_authority() {
+    let mut config = SessionConfig::default();
+    config.supported_profiles.insert("semantics.only.v1".into());
+    let mut broker = SessionBroker::new([1; 16], [2; 16], config).unwrap();
+    let mut hello = hello(3);
+    hello.supported_profiles.insert("semantics.only.v1".into());
+    hello.required_profiles.insert("semantics.only.v1".into());
+    let mut authorization = auth("semantic", true);
+    authorization.permissions.actions.extend(
+        ["RawInputBatch", "TextComposition", "ResizeRequest"]
+            .into_iter()
+            .map(str::to_owned),
+    );
+    let session = broker.negotiate(Some(authorization), hello, 0).unwrap();
+    broker
+        .install_snapshot(&session.client, session.view_id, 1, 1)
+        .unwrap();
+    assert_eq!(
+        broker.acknowledge_semantic_ready(&session.client, session.view_id, 1),
+        Err(SessionError::NotPresentable)
+    );
+    broker
+        .acknowledge_applied(&session.client, session.view_id, 1, true)
+        .unwrap();
+    assert_eq!(
+        broker.acquire_control(&session.client, session.view_id, [1; 16], 0),
+        Err(SessionError::Unauthorized)
+    );
+    assert_eq!(
+        broker.acknowledge_presented(&session.client, session.view_id, 1),
+        Err(SessionError::NotPresentable)
+    );
+    assert_eq!(
+        broker.acknowledge_semantic_ready(&session.client, session.view_id, 0),
+        Err(SessionError::NotPresentable)
+    );
+    broker
+        .acknowledge_semantic_ready(&session.client, session.view_id, 1)
+        .unwrap();
+    let lease = broker
+        .acquire_control(&session.client, session.view_id, [1; 16], 0)
+        .unwrap();
+    assert!(!lease.allowed_actions.contains("RawInputBatch"));
+    let command = command(&session, &lease);
+    assert_eq!(
+        broker.validate_control(&session.client, &command, 0),
+        Ok(())
+    );
+    for (family, operation) in [
+        (CommandFamily::RawInput, "RawInputBatch"),
+        (CommandFamily::TextComposition, "TextComposition"),
+        (CommandFamily::Resize, "ResizeRequest"),
+    ] {
+        assert_eq!(
+            broker.validate_family_control(
+                &session.client,
+                &command.header(),
+                family,
+                operation,
+                0
+            ),
+            Err(Rejection::Unauthorized)
+        );
+    }
+    broker
+        .renew_control(
+            &session.client,
+            session.view_id,
+            [2; 16],
+            lease.lease_id,
+            lease.generation,
+            1,
+        )
+        .unwrap();
+    broker
+        .mark_resources_missing(&session.client, session.view_id)
+        .unwrap();
+    assert_eq!(
+        broker.validate_control(&session.client, &command, 1),
+        Err(Rejection::Unauthorized)
+    );
+    broker
+        .acknowledge_applied(&session.client, session.view_id, 1, true)
+        .unwrap();
+    assert_eq!(
+        broker.validate_control(&session.client, &command, 1),
+        Err(Rejection::Unauthorized)
+    );
+    broker
+        .acknowledge_semantic_ready(&session.client, session.view_id, 1)
+        .unwrap();
+    assert_eq!(
+        broker.validate_control(&session.client, &command, 1),
+        Ok(())
+    );
+    broker.disconnect(&session.client, 1).unwrap();
+    assert!(broker.take_cleanup().is_some());
+}

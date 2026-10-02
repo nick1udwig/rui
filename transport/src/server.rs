@@ -327,8 +327,9 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                 if !shared.pairing.lock().map_err(|_|TransportError::Authentication)?.remains_authorized(approval,session.client.client_instance_id,&authorization) {return Err(TransportError::Authentication);}
                 if kind==p::Kind::OpenView {
                     if opened {return Err(TransportError::Protocol);}let view:p::OpenView=codec::decode(&packet.payload,ceiling)?;
-                    if view.selection!="fixture" || view.mirror_canvas_policy!="host-canvas" {return Err(TransportError::Protocol);}opened=true;
-                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:160.0,canvas_height:100.0,coverage:"complete".into(),granted_input_modes:if session.permissions.can_control {vec!["semantic.v1".into()]} else {vec![]}};
+                    let semantic_only=session.profiles.contains("semantics.only.v1");
+                    if view.selection!="fixture" || view.mirror_canvas_policy!=if semantic_only {"semantic-only"}else {"host-canvas"} {return Err(TransportError::Protocol);}opened=true;
+                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:160.0,canvas_height:100.0,coverage:if semantic_only {"semantic-only"}else {"complete"}.into(),granted_input_modes:if session.permissions.can_control {vec!["semantic.v1".into()]} else {vec![]}};
                     websocket::send(socket,codec::wrap(p::Kind::ViewOpened,&opened,binding),ceiling,timeout).await?;
                     match &session.resume {
                         ResumeDisposition::Accepted {from_revision,through_revision,transactions,requires_resources}=>{
@@ -408,6 +409,12 @@ async fn handle(
         p::Kind::AppliedAck => {
             let ack: p::RevisionAck = codec::decode(raw, ceiling)?;
             host.acknowledge_applied(client, view, ack.revision)
+                .map_err(|_| TransportError::Authority)?;
+            None
+        }
+        p::Kind::SemanticReady => {
+            let ack: p::RevisionAck = codec::decode(raw, ceiling)?;
+            host.acknowledge_semantic_ready(client, view, ack.revision)
                 .map_err(|_| TransportError::Authority)?;
             None
         }
