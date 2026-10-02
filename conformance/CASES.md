@@ -4,8 +4,8 @@ This audit tracks every case from the unchanged historical `conformance.yaml`.
 It distinguishes accepted component evidence from required integration evidence.
 A row is not a completion claim: the final milestone decision requires checking
 the stated fixture and every expected outcome, including the remaining gate.
-Evidence below is committed through `95a431d`; uncommitted desktop, expanded
-host and native dispatch work is intentionally excluded.
+Evidence below is committed through `e6ba02a`. Work still under review, including
+native dispatch, cursor rendering and source resource delivery, is excluded.
 
 | Case | Layer | Accepted evidence | Remaining gate or final-suite obligation |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ host and native dispatch work is intentionally excluded.
 | TXN-002 | model (P0) | [model.rs](../protocol-core/tests/model.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Core publication/replay contract covered; network recovery scenarios remain. |
 | TXN-003 | model (P0) | [model.rs](../protocol-core/tests/model.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Core publication/replay contract covered; network recovery scenarios remain. |
 | TXN-004 | model (P0) | [model.rs](../protocol-core/tests/model.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Core publication/replay contract covered; network recovery scenarios remain. |
-| TXN-005 | model (P0) | [model.rs](../protocol-core/tests/model.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Applied/Presented split covered; actual GUI frame skipping evidence under review. |
+| TXN-005 | model (P0) | [model.rs](../protocol-core/tests/model.rs); [receiver.rs](../protocol-core/tests/receiver.rs); [desktop.rs](../client-desktop/src/desktop.rs) | Applied/Presented split and current-frame callback checks covered; full resource-bearing GUI recovery scenario remains. |
 | RES-001 | model (P0) | [resources.rs](../protocol-core/tests/resources.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Core closure, integrity, pins and scope covered; source resources and cache protocol over real TLS remain. |
 | RES-002 | model (P0) | [resources.rs](../protocol-core/tests/resources.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Core closure, integrity, pins and scope covered; source resources and cache protocol over real TLS remain. |
 | RES-003 | model (P0) | [resources.rs](../protocol-core/tests/resources.rs); [receiver.rs](../protocol-core/tests/receiver.rs) | Core closure, integrity, pins and scope covered; source resources and cache protocol over real TLS remain. |
@@ -59,8 +59,8 @@ host and native dispatch work is intentionally excluded.
 | INP-006 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Physical namespace and no client repeat covered; host layout/repeat on actual backend remains. |
 | INP-007 | integration (P0) | No accepted injector integration. | Deny unenforceable app-only scope and prove isolated fully authorized session enforcement. |
 | TXT-001 | integration (P0) | [controlled.rs](../host-broker/tests/controlled.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Scalar source edits and backward native selection covered separately; combined supplementary/combining/RTL remote native scenario remains. |
-| TXT-002 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Transient composition and invalidation components covered; native shell key path under correction; wire/native composition integration remains. |
-| TXT-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Transient composition and invalidation components covered; native shell key path under correction; wire/native composition integration remains. |
+| TXT-002 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [interaction.rs](../client-desktop/tests/interaction.rs) | Transient composition, context invalidation and native IM key-path probe covered; visible preedit, rapid typing and wire/native composition integration remain. |
+| TXT-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [interaction.rs](../client-desktop/tests/interaction.rs) | Transient composition, context invalidation and native IM key-path probe covered; visible preedit, rapid typing and wire/native composition integration remain. |
 | TXT-004 | integration (P0) | [pixels.rs](../client-desktop/tests/pixels.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Pinned outlines, decoded glyph geometry and missing-resource errors covered; real transport resource closure remains. |
 | VIS-001 | render (P0) | [pixel-comparison.json](../fixtures/gtk/pixel-comparison.json); [pixels.rs](../client-desktop/tests/pixels.rs) | Seventeen exact captured scenes pass declared native tolerance; expanded host-local versus two wire mirrors remains. |
 | VIS-002 | render (P0) | [pixels.rs](../client-desktop/tests/pixels.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Surface rendering and popup lifecycle components covered; coherent whole-view toplevel/popup/tooltip/modal composition remains. |
@@ -70,9 +70,9 @@ host and native dispatch work is intentionally excluded.
 | PIX-002 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs) | Raster resource denial covered; actual original-photo source with explicit unsupported region remains. |
 | MUL-001 | integration (P0) | [loopback.rs](../transport/tests/loopback.rs) | Real TLS controller/observer convergence covered; expanded actions plus actual mirror presentation remain. |
 | MUL-002 | integration (P0) | [session.rs](../protocol-core/tests/session.rs) | Local-priority lease cleanup covered; isolated backend native takeover remains. |
-| MUL-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Local transform component covered; two-mirror resize/pan/zoom and authorized source ResizeRequest comparison remain. |
+| MUL-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [corpus_reference.rs](../client-desktop/tests/corpus_reference.rs) | Local transform and two-replica viewport isolation covered; complete native mirrors and authorized source ResizeRequest comparison remain. |
 | MUL-004 | integration (P0) | [loopback.rs](../transport/tests/loopback.rs); [controlled.rs](../host-broker/tests/controlled.rs) | Slow-view closure and healthy progress covered; sustained integrated resource-bearing memory measurements remain. |
-| MUL-005 | integration (P0) | [session.rs](../protocol-core/tests/session.rs) | Idempotent acquisition/renewal/release covered; desktop request/renewal behavior under review. |
+| MUL-005 | integration (P0) | [session.rs](../protocol-core/tests/session.rs); [desktop.rs](../client-desktop/src/desktop.rs) | Idempotent acquisition/renewal/release and desktop request sequencing covered; sustained native takeover/recovery remains. |
 | SEC-001 | model (P0) | [session.rs](../protocol-core/tests/session.rs); [loopback.rs](../transport/tests/loopback.rs) | Authentication and binding deny disclosure/dispatch; resource-bearing network negative case remains. |
 | SEC-002 | model (P0) | [controlled.rs](../host-broker/tests/controlled.rs); [loopback.rs](../transport/tests/loopback.rs); [transcript.rs](../protocol-core/tests/transcript.rs) | Private projections/resume and metadata-only recorder covered; post-auth integrated transcript/cache resource sentinel scan remains. |
 | SEC-003 | model (P0) | [resources.rs](../protocol-core/tests/resources.rs); [hardening.rs](../protocol-core/tests/hardening.rs) | Bounded inert vocabulary and 10,000 payload mutations covered; retain transport framing and nesting checks in final run. |
@@ -81,7 +81,7 @@ host and native dispatch work is intentionally excluded.
 | ADP-002 | integration (P0) | No accepted AT-SPI integration. | Implement bounded worker/reconciliation with actual gap, crawl race, restart and explicit identity tests; retain OBSERVED classification. |
 | ADP-003 | integration (P0) | No accepted AT-SPI integration. | Implement bounded worker/reconciliation with actual gap, crawl race, restart and explicit identity tests; retain OBSERVED classification. |
 | ADP-004 | integration (P0) | [test_capture.py](../adapters/gtk4/test_capture.py); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Fresh source/object identities and stale events covered; broker survives actual native process restart scenario remains. |
-| TRN-001 | integration (P0) | [independent.rs](../transport/tests/independent.rs) | Independent Python activates and edits through real TLS without scenes; stable-item selection plus desktop convergence remains. |
+| TRN-001 | integration (P0) | [independent.rs](../transport/tests/independent.rs) | Independent Python activates, edits Unicode and selects stable items through real TLS without scenes; combined desktop convergence remains. |
 | TRN-002 | integration (P0) | [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Typed partial/full materialization and fresh rematerialized IDs covered; independent semantic selection through reorder and visual rebuild remains. |
 | INT-001 | interop (P0) | [check.py](../conformance/check.py); [typed_interop.py](../conformance/typed_interop.py); [independent.rs](../transport/tests/independent.rs) | Independent exact snapshot/delta prefixes and actual command result evidence covered; expanded complete trace remains. |
 | PRO-001 | property (P0) | [hardening.rs](../protocol-core/tests/hardening.rs); [check.py](../conformance/check.py); [shrink.py](../conformance/shrink.py) | 2,048 core prefixes, 1,275 independent semantic prefixes, 144 scene fixtures and mismatch shrinker covered; retain deterministic seeds. |

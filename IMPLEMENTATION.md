@@ -10,10 +10,10 @@ remain historical inputs; acceptance is tracked separately.
 |---|---|---|
 | M0 | Pinned GTK corpus, actual shared capture boundary, measured coverage and no-raster report | Accepted for the declared corpus; see docs/gtk-coverage.md |
 | M1 | GUI/network-independent core cases, schema, exact transcripts, independent replay and generated properties | Common ledger and transcript recorder implemented; complete host command-family and post-auth recorder integration, then close the case audit |
-| M2 | Local authoritative rendering and two desktop mirrors, controls/text/list/scroll/transients/canvas, reconnect/cache recovery, local-only resize | Reference renderer and real TLS binding accepted; expanded fixture, desktop shell, source resources, retained reconnect and comparison runner remain |
+| M2 | Local authoritative rendering and two desktop mirrors, controls/text/list/scroll/transients/canvas, reconnect/cache recovery, local-only resize | Expanded source corpus, guarded GTK mirror and provisional direct-source/TLS comparison accepted; complete source resources, rapid native typing, retained reconnect and combined two-mirror comparison remain |
 | M3 | Real GTK producer with explicit identities, source evidence, lifecycle/action/no-raster checks | Typed capture, source clocks, explicit popup lifecycle and seventeen-frame comparison accepted; guarded remote actions, IME and coherent whole-view composition remain |
 | M4 | Explicitly supported isolated compositor/session with geometry/modality/focus/scaling, local takeover and permissioned region input | Session shell, portal/libei adapter, enforceable scope and backend integration tests |
-| M5 | Independent semantic-only client, fault injection, fuzz/property/churn tests, named-hardware measurements | Independent Python client and core hardening accepted; stable-item plus graphical convergence, integrated fault/churn traces and performance report remain |
+| M5 | Independent semantic-only client, fault injection, fuzz/property/churn tests, named-hardware measurements | Independent Python Unicode/stable-item actions over TLS and core hardening accepted; combined graphical convergence, integrated fault/churn traces and performance report remain |
 
 Current parallel tracks extend the accepted foundations: desktop mirrors,
 typed GTK source interactions and lifecycle, and the common command ledger plus
