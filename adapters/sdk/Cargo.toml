@@ -1,0 +1,12 @@
+[package]
+name = "rui-producer-sdk"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rui-protocol-core = { path = "../../protocol-core" }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+prost = "0.13"

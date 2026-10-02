@@ -1,0 +1,524 @@
+{
+  "binding": {
+    "epoch": "23dd96fb98f54d9489686f1f31c8a69e",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "0000000000000000000000000000013a"
+  },
+  "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+  "capture_token": "23dd96fb98f54d9489686f1f31c8a69e:menu-popup:8:1",
+  "envelope_sha256": "55510bf31add8054a534930893cdc5ce53f2734a474e52278ca3c7b5683f9967",
+  "gaps": [],
+  "gsk_node_counts": {
+    "border-node": 2,
+    "color-node": 8,
+    "container-node": 2,
+    "text-node": 1,
+    "transform-node": 2
+  },
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "local_reference": {
+    "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB",
+    "height": 58,
+    "scope": "local-comparison-only-never-wire",
+    "sha256": "ac06556b6f4d579b8cca57daee003f785e8ccdd139650f33320764672ec18af7",
+    "stride": 580,
+    "width": 145
+  },
+  "origin": [
+    188,
+    394
+  ],
+  "parent_surface": {
+    "size": [
+      520,
+      540
+    ],
+    "surface_id": 163
+  },
+  "resource_offers": [
+    {
+      "digest": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 861,
+      "version": 1
+    },
+    {
+      "digest": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 799,
+      "version": 1
+    },
+    {
+      "digest": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 520,
+      "version": 1
+    },
+    {
+      "digest": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 163,
+      "version": 1
+    },
+    {
+      "digest": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 799,
+      "version": 1
+    },
+    {
+      "digest": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 796,
+      "version": 1
+    },
+    {
+      "digest": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 781,
+      "version": 1
+    },
+    {
+      "digest": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 1520,
+      "version": 1
+    },
+    {
+      "digest": "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 609,
+      "version": 1
+    },
+    {
+      "digest": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 475,
+      "version": 1
+    },
+    {
+      "digest": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
+      "kind": 2,
+      "provenance": 2,
+      "total_bytes": 1466,
+      "version": 1
+    }
+  ],
+  "resources": [
+    "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+    "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+    "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
+    "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
+    "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+    "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+    "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+    "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
+    "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
+    "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
+    "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53"
+  ],
+  "revision": 1,
+  "routing_token": "4fa58711b82d19178d791ba8d9550d92",
+  "scene_root": 313,
+  "semantic_root": 11,
+  "semantics": [
+    {
+      "actions": [],
+      "children": [
+        12
+      ],
+      "id": 11,
+      "identity": "menu-popup",
+      "label": "Menu popup",
+      "role": 1,
+      "version": 1
+    },
+    {
+      "actions": [
+        "Activate"
+      ],
+      "children": [],
+      "id": 12,
+      "identity": "menu-item",
+      "label": "Menu source action",
+      "role": 3,
+      "version": 1
+    }
+  ],
+  "size": [
+    145,
+    58
+  ],
+  "source_glyph_evidence": [
+    {
+      "advance": 0.0,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 11942,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.08258928571428571,
+        -0.7142857142857143,
+        0.7511160714285714,
+        0.0
+      ],
+      "resource": "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
+      "scene_id": 293,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 48
+    },
+    {
+      "advance": 11.662109375,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.5122767857142857,
+        0.0
+      ],
+      "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+      "scene_id": 294,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 72
+    },
+    {
+      "advance": 19.4482421875,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.06696428571428571,
+        -0.5714285714285714,
+        0.49107142857142855,
+        0.0
+      ],
+      "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+      "scene_id": 295,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 81
+    },
+    {
+      "advance": 27.234375,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.06473214285714286,
+        -0.5714285714285714,
+        0.48995535714285715,
+        0.0
+      ],
+      "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+      "scene_id": 296,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 88
+    },
+    {
+      "advance": 38.91015625,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7168,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.027901785714285716,
+        -0.5714285714285714,
+        0.4642857142857143,
+        0.0
+      ],
+      "resource": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
+      "scene_id": 297,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 86
+    },
+    {
+      "advance": 45.91015625,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.5145089285714286,
+        0.0
+      ],
+      "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+      "scene_id": 298,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 82
+    },
+    {
+      "advance": 53.6962890625,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.06473214285714286,
+        -0.5714285714285714,
+        0.48995535714285715,
+        0.0
+      ],
+      "resource": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+      "scene_id": 299,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 88
+    },
+    {
+      "advance": 61.482421875,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 4774,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.06696428571428571,
+        -0.5758928571428571,
+        0.3169642857142857,
+        0.0
+      ],
+      "resource": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
+      "scene_id": 300,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 85
+    },
+    {
+      "advance": 66.14453125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7168,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.4732142857142857,
+        0.0
+      ],
+      "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+      "scene_id": 301,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 70
+    },
+    {
+      "advance": 73.14453125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.5122767857142857,
+        0.0
+      ],
+      "resource": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+      "scene_id": 302,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 72
+    },
+    {
+      "advance": 84.8203125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.5558035714285714,
+        0.0
+      ],
+      "resource": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
+      "scene_id": 303,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 68
+    },
+    {
+      "advance": 92.6064453125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7168,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.4732142857142857,
+        0.0
+      ],
+      "resource": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+      "scene_id": 304,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 70
+    },
+    {
+      "advance": 99.6064453125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 3983,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.015625,
+        -0.6785714285714286,
+        0.2700892857142857,
+        0.0
+      ],
+      "resource": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
+      "scene_id": 305,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 87
+    },
+    {
+      "advance": 103.49609375,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 3185,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.06696428571428571,
+        -0.7857142857142857,
+        0.15513392857142858,
+        0.0
+      ],
+      "resource": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
+      "scene_id": 306,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 76
+    },
+    {
+      "advance": 106.6064453125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.04241071428571429,
+        -0.5714285714285714,
+        0.5145089285714286,
+        0.0
+      ],
+      "resource": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+      "scene_id": 307,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 82
+    },
+    {
+      "advance": 114.392578125,
+      "font_size": 14.0,
+      "node_offset": [
+        0.0,
+        19.673828125
+      ],
+      "pango_scale": 1024,
+      "pango_width": 7973,
+      "pango_x_offset": 0,
+      "pango_y_offset": 0,
+      "path_bounds_em": [
+        0.06696428571428571,
+        -0.5714285714285714,
+        0.49107142857142855,
+        0.0
+      ],
+      "resource": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+      "scene_id": 308,
+      "source_font": "Liberation Sans 10.5",
+      "source_glyph_id": 81
+    }
+  ],
+  "source_revision": 8,
+  "surface_id": 314,
+  "surface_key": "menu-popup",
+  "uses_glyph_outline": true
+}

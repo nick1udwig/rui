@@ -1,0 +1,1565 @@
+{
+  "display_harness": "xvfb",
+  "pin": {
+    "cairo": "1.18.4",
+    "gtk": "4.22.4"
+  },
+  "runs": [
+    {
+      "actions": [
+        {
+          "evidence": "application-callback",
+          "name": "button-activate",
+          "source_revision": 4
+        },
+        {
+          "evidence": "application-callback",
+          "name": "replace-text",
+          "source_revision": 5
+        },
+        {
+          "evidence": "application-callback",
+          "name": "select-beta",
+          "source_revision": 7
+        },
+        {
+          "evidence": "application-callback",
+          "name": "open-menu",
+          "source_revision": 8
+        },
+        {
+          "evidence": "application-callback",
+          "name": "menu-activate",
+          "source_revision": 9
+        },
+        {
+          "evidence": "application-callback",
+          "name": "close-menu",
+          "source_revision": 10
+        },
+        {
+          "evidence": "application-callback",
+          "name": "hide-canvas",
+          "source_revision": 11
+        },
+        {
+          "evidence": "application-callback",
+          "name": "show-canvas",
+          "source_revision": 12
+        },
+        {
+          "evidence": "application-callback",
+          "name": "resize-source",
+          "source_revision": 13
+        }
+      ],
+      "cairo_version": "1.18.4",
+      "capture_scope": "cooperating main content and explicitly registered menu popup; excludes window decorations/compositor",
+      "captures": [
+        {
+          "capture_duration_ns": 130638152,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/2/child/3/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -9.0,
+                -1.0,
+                504.0,
+                34.0
+              ],
+              "node_type": "border-node",
+              "path": "root/child/2/child/4",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/3/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/3/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/6/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/6/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 4,
+            "clip-node": 1,
+            "color-node": 7,
+            "container-node": 7,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 12
+          },
+          "revision": 1,
+          "source_revision": 1,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 147199666,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -9.0,
+                -1.0,
+                504.0,
+                34.0
+              ],
+              "node_type": "border-node",
+              "path": "root/child/1/child/5",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 4,
+            "clip-node": 1,
+            "color-node": 7,
+            "container-node": 7,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 2,
+          "source_revision": 5,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 103237304,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -9.0,
+                -1.0,
+                504.0,
+                34.0
+              ],
+              "node_type": "border-node",
+              "path": "root/child/1/child/5",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 4,
+            "clip-node": 1,
+            "color-node": 8,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 3,
+          "source_revision": 7,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 107553013,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 9,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 1,
+            "outset-shadow-node": 1,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 4,
+          "source_revision": 8,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 20064597,
+          "gaps": [
+            {
+              "bounds": [
+                -9.0,
+                -8.0,
+                180.0,
+                64.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/0/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -6.0,
+                -6.0,
+                174.0,
+                58.0
+              ],
+              "node_type": "border-node",
+              "path": "root/0/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                180.0,
+                76.0
+              ],
+              "node_type": "cairo-node",
+              "path": "root/1",
+              "reason": "unsupported-cairo-node"
+            }
+          ],
+          "node_counts": {
+            "border-node": 1,
+            "cairo-node": 1,
+            "color-node": 2,
+            "container-node": 3,
+            "outset-shadow-node": 1,
+            "rounded-clip-node": 2,
+            "text-node": 1,
+            "transform-node": 2
+          },
+          "revision": 1,
+          "source_revision": 8,
+          "surface": "menu-popup"
+        },
+        {
+          "capture_duration_ns": 87664163,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 9,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 1,
+            "outset-shadow-node": 1,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 5,
+          "source_revision": 9,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 115890850,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 8,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 6,
+          "source_revision": 10,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 116885491,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/4/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/4/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 5,
+            "container-node": 7,
+            "fill-node": 1,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 7,
+          "source_revision": 11,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 99419128,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                486.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                510.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                502.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 8,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 8,
+          "source_revision": 12,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 93752424,
+          "gaps": [
+            {
+              "bounds": [
+                0.0,
+                0.0,
+                606.0,
+                32.0
+              ],
+              "node_type": "color-node",
+              "path": "root/child/1/child/4/child/0",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                0.7451171875,
+                10.037109375,
+                132.009765625,
+                11.357421875
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/1",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                138.4697265625,
+                10.39453125,
+                9.546875,
+                10.814453125
+              ],
+              "node_type": "text-node",
+              "path": "root/child/1/child/4/child/2",
+              "reason": "nonopaque-srgb-composition"
+            },
+            {
+              "bounds": [
+                -20.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/2/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -16.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/2/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            },
+            {
+              "bounds": [
+                -14.0,
+                -7.0,
+                630.0,
+                40.0
+              ],
+              "node_type": "outset-shadow-node",
+              "path": "root/child/5/child/child/0",
+              "reason": "unsupported-outset-shadow-node"
+            },
+            {
+              "bounds": [
+                -10.0,
+                -4.0,
+                622.0,
+                32.0
+              ],
+              "node_type": "rounded-clip-node",
+              "path": "root/child/5/child/child/1",
+              "reason": "rounded-clip-on-nonuniform-content"
+            }
+          ],
+          "node_counts": {
+            "border-node": 3,
+            "clip-node": 1,
+            "color-node": 8,
+            "container-node": 8,
+            "fill-node": 2,
+            "linear-gradient-node": 2,
+            "outset-shadow-node": 2,
+            "rounded-clip-node": 3,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 12
+          },
+          "revision": 9,
+          "source_revision": 13,
+          "surface": "main-content"
+        }
+      ],
+      "gtk_version": [
+        4,
+        22,
+        4
+      ],
+      "retained_resource_bytes": 0,
+      "retired_scene_ids": [
+        19,
+        24,
+        32,
+        33,
+        34,
+        35,
+        36,
+        38,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        67,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        195,
+        199,
+        227,
+        228,
+        229,
+        230,
+        238,
+        239,
+        240,
+        241,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250,
+        251,
+        252,
+        253,
+        254,
+        255,
+        256,
+        257,
+        258,
+        259,
+        260,
+        267,
+        268,
+        269,
+        270,
+        271,
+        272,
+        273,
+        274,
+        275,
+        276,
+        277,
+        278,
+        279,
+        280,
+        281,
+        282,
+        283,
+        312,
+        313,
+        314,
+        315,
+        316,
+        317,
+        318,
+        319,
+        320,
+        321,
+        322,
+        323,
+        324,
+        325,
+        326,
+        327,
+        328,
+        329,
+        330,
+        331,
+        332,
+        333,
+        334,
+        335,
+        336,
+        337,
+        338,
+        339,
+        340,
+        341,
+        342,
+        343,
+        344,
+        345,
+        346,
+        347,
+        348,
+        349,
+        350,
+        351,
+        352
+      ],
+      "stable_semantic_ids": {
+        "button": 4,
+        "canvas": 9,
+        "entry": 3,
+        "heading": 2,
+        "list": 8,
+        "main": 1,
+        "menu-button": 10,
+        "menu-item": 12,
+        "menu-popup": 11,
+        "row-alpha": 5,
+        "row-beta": 6,
+        "row-gamma": 7
+      },
+      "theme": "default"
+    },
+    {
+      "actions": [
+        {
+          "evidence": "application-callback",
+          "name": "button-activate",
+          "source_revision": 4
+        },
+        {
+          "evidence": "application-callback",
+          "name": "replace-text",
+          "source_revision": 5
+        },
+        {
+          "evidence": "application-callback",
+          "name": "select-beta",
+          "source_revision": 7
+        },
+        {
+          "evidence": "application-callback",
+          "name": "open-menu",
+          "source_revision": 8
+        },
+        {
+          "evidence": "application-callback",
+          "name": "menu-activate",
+          "source_revision": 9
+        },
+        {
+          "evidence": "application-callback",
+          "name": "close-menu",
+          "source_revision": 10
+        },
+        {
+          "evidence": "application-callback",
+          "name": "hide-canvas",
+          "source_revision": 11
+        },
+        {
+          "evidence": "application-callback",
+          "name": "show-canvas",
+          "source_revision": 12
+        },
+        {
+          "evidence": "application-callback",
+          "name": "resize-source",
+          "source_revision": 13
+        }
+      ],
+      "cairo_version": "1.18.4",
+      "capture_scope": "cooperating main content and explicitly registered menu popup; excludes window decorations/compositor",
+      "captures": [
+        {
+          "capture_duration_ns": 128831034,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 11
+          },
+          "revision": 1,
+          "source_revision": 1,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 118467434,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 2,
+          "source_revision": 5,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 88835110,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 3,
+          "source_revision": 7,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 97204339,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 4,
+          "source_revision": 8,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 17106302,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 2,
+            "color-node": 8,
+            "container-node": 2,
+            "text-node": 1,
+            "transform-node": 2
+          },
+          "revision": 1,
+          "source_revision": 8,
+          "surface": "menu-popup"
+        },
+        {
+          "capture_duration_ns": 81721768,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 5,
+          "source_revision": 9,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 104943455,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 6,
+          "source_revision": 10,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 111408149,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 15,
+            "container-node": 11,
+            "text-node": 10,
+            "transform-node": 10
+          },
+          "revision": 7,
+          "source_revision": 11,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 107757007,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 8,
+          "source_revision": 12,
+          "surface": "main-content"
+        },
+        {
+          "capture_duration_ns": 93721885,
+          "gaps": [],
+          "node_counts": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 18,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 10,
+            "transform-node": 11
+          },
+          "revision": 9,
+          "source_revision": 13,
+          "surface": "main-content"
+        }
+      ],
+      "gtk_version": [
+        4,
+        22,
+        4
+      ],
+      "retained_resource_bytes": 0,
+      "retired_scene_ids": [
+        20,
+        25,
+        33,
+        34,
+        35,
+        36,
+        37,
+        39,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        262,
+        263,
+        264,
+        265,
+        266,
+        267,
+        268,
+        269,
+        270,
+        271,
+        272,
+        273,
+        274,
+        275,
+        276,
+        277,
+        278,
+        279,
+        280,
+        281,
+        282,
+        315,
+        316,
+        317,
+        318,
+        319,
+        320,
+        321,
+        322,
+        323,
+        324,
+        325,
+        326,
+        327,
+        328,
+        329,
+        330,
+        331,
+        332,
+        333,
+        334,
+        335
+      ],
+      "stable_semantic_ids": {
+        "button": 4,
+        "canvas": 9,
+        "entry": 3,
+        "heading": 2,
+        "list": 8,
+        "main": 1,
+        "menu-button": 10,
+        "menu-item": 12,
+        "menu-popup": 11,
+        "row-alpha": 5,
+        "row-beta": 6,
+        "row-gamma": 7
+      },
+      "theme": "strict"
+    }
+  ]
+}
