@@ -4,6 +4,8 @@ The original root `conformance.yaml` remains an unchanged design artifact.
 Passing a component test does not by itself complete an integration case.
 The authorized implementation scope is RFC M0–M5, including all 79 specified
 cases and the P1 measurements; RFC section 14 remains deferred.
+The [case-by-case audit](CASES.md) maps all 79 cases to committed evidence and
+remaining integration gates.
 
 ## Accepted foundations
 
@@ -18,10 +20,11 @@ cases and the P1 measurements; RFC section 14 remains deferred.
 | Replay minimization | `conformance/shrink.py`, `test_shrink.py` | Independent replay failures produce a bounded, minimized exact-byte transcript preserving the mismatch class |
 | Receiver recovery matrix | `protocol-core/tests/recovery_matrix.rs` | Every publication/resource chunk cut, duplicate chunks, cache loss, fresh-state equivalence and 256-resource churn; synthetic command and presentation callbacks, not network/visual evidence |
 | Independent decoder/reducer | `python3 conformance/check.py` | 1,275 semantic replay prefixes and 144 scene fixtures across exact bytes and 16 seeds |
-| Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | 18 tests: pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation |
+| Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | Pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation; cancelled receives and polled flushes retain budgeted replies without duplicate frames |
+| Independent semantic client | `conformance/semantic_client.py`, `test_semantic_client.py`, `typed_interop.py`; `transport/tests/independent.rs` | Standard-library Python decoder, reducer and TLS client; six typed replay prefixes agree with Rust; real source activation, Unicode replacement and exact retry without scenes or Presented; stable-item plus graphical-observer integration remains |
 | CPU reference renderer | `client-desktop/tests/` | 26 tests: nine primitives, analytic pixels, linear composition, transforms, clipping, surfaces, paths, glyphs, bounds and explicit failure |
-| Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Ten strict snapshots, native source glyph evidence, exact resource replay, retirement and bounded artifact decoding |
-| GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Ten strict frames pass declared native/replay tolerance; zero interior mismatches, 942 outline bounds checked; actual decoded glyph omission/shift/size rejected |
+| Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Twenty strict publications: seventeen mapped snapshots and three lifecycle signals; typed scalar text/selection, collection and focus clocks, unmap/remap pin release, fresh identities after destruction, reentrant lifecycle ordering and bounded artifact decoding |
+| GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Seventeen strict frames pass declared native/replay tolerance; zero interior mismatches, 1,577 outline bounds checked; actual decoded glyph omission/shift/size rejected; reports bind exact golden envelope bytes |
 
 Root review required corrections to authorization revocation races, cleanup
 ordering and panic handling, recursive allocation preflight, private transport
@@ -33,20 +36,21 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
 
 - **M0 accepted for the declared corpus.** [Measured GTK coverage](../docs/gtk-coverage.md)
   identifies the actual same-node snapshot boundary, cooperating stable semantics,
-  ten frames per style, 61 default-style gaps and zero constrained-style gaps.
+  seventeen mapped frames per style, 104 default-style gaps and zero constrained-style gaps.
   Window decorations and compositor output are outside that capture scope.
 - **M1 remains open.** Complete all controlled command families, post-auth transcript
   integration, independent result interoperability and the full core-case audit.
 - **M2 remains open.** The graphical host fixture, two actual desktop mirrors,
   controls/text/list/scroll/transients/canvas, authorized resize, resource-bearing
   transport, retained reconnect and host/reference comparisons must work together.
-- **M3 remains open.** Typed source interaction, focus/IME, explicit popup lifecycle
-  and guarded remote source dispatch remain. The declared ten-frame local visual
-  comparison has passed; whole-view composition with coherent transients remains.
+- **M3 remains open.** Typed text/collection/focus capture and explicit popup lifecycle
+  have passed review. Broker-authorized native interaction, focus/IME and causal
+  action evidence remain. The declared seventeen-frame local visual comparison
+  has passed; whole-view composition with coherent transients remains.
 - **M4 remains open.** Implement and test the explicitly supported isolated session
   shell, permissioned libei input, geometry/modality/focus/scaling, takeover,
   observed accessibility reconciliation and enforceable scope.
-- **M5 remains open.** Complete the independent semantic client, network fault and
+- **M5 remains open.** Complete the semantic-client stable-item and mirror scenario, network fault and
   recovery traces, sustained resource churn, case-by-case acceptance audit and
   integrated named-hardware CPU/latency/bandwidth/memory measurements.
 
