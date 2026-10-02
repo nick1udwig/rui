@@ -1,0 +1,134 @@
+syntax = "proto3";
+package rui.v1;
+
+// Initial transport-independent vocabulary. Unknown optional fields are ignored.
+// Unknown oneof variants are rejected: absence is never an implicit mutation.
+message Envelope {
+  uint32 protocol_version = 1;
+  bytes session_id = 2;
+  bytes epoch = 3;
+  bytes view_id = 4;
+  MessageKind kind = 5;
+  bytes payload = 6;
+  repeated string required_features = 7;
+}
+enum MessageKind { MESSAGE_KIND_UNSPECIFIED = 0; SNAPSHOT = 1; TRANSACTION = 2; SEMANTIC_COMMAND = 3; }
+enum ObjectKind { OBJECT_KIND_UNSPECIFIED = 0; SURFACE = 1; SCENE = 2; SEMANTIC = 3; TEXT = 4; BINDING = 5; SESSION = 6; }
+message ObjectRef { ObjectKind kind = 1; uint64 id = 2; }
+message Rect { double x = 1; double y = 2; double width = 3; double height = 4; }
+message Point { double x = 1; double y = 2; }
+message Size { double width = 1; double height = 2; }
+message Affine { double xx = 1; double yx = 2; double xy = 3; double yy = 4; double tx = 5; double ty = 6; }
+message Color { double red = 1; double green = 2; double blue = 3; double alpha = 4; }
+
+enum SurfaceRole { SURFACE_ROLE_UNSPECIFIED = 0; TOPLEVEL = 1; POPUP = 2; TOOLTIP = 3; SHELL = 4; }
+enum VisualCoverage { VISUAL_COVERAGE_UNSPECIFIED = 0; COMPLETE = 1; PARTIAL = 2; UNSUPPORTED = 3; }
+enum SemanticCoverage { SEMANTIC_COVERAGE_UNSPECIFIED = 0; RICH = 1; SEMANTIC_PARTIAL = 2; OPAQUE = 3; }
+enum CaptureConsistency { CAPTURE_CONSISTENCY_UNSPECIFIED = 0; COHERENT = 1; OBSERVED = 2; }
+message Surface {
+  uint64 id = 1; uint64 version = 2; SurfaceRole role = 3;
+  ObjectRef parent_surface = 4; Rect desktop_rect = 5; Size content_size = 6;
+  Affine transform = 7; Rect clip = 8; double opacity = 9;
+  sint64 stacking_order = 10; bool mapped = 11; bool focused = 12;
+  ObjectRef modal_for = 13; ObjectRef scene_root = 14; ObjectRef semantic_root = 15;
+  repeated Rect input_region = 16; bytes routing_token = 17;
+  VisualCoverage visual_coverage = 18; SemanticCoverage semantic_coverage = 19;
+  CaptureConsistency capture_consistency = 20;
+  repeated bytes source_capture_tokens = 21; repeated string unsupported_features = 22;
+}
+message Group {}
+message SolidRect { Rect rect = 1; Color color = 2; }
+message FillPath { bytes resource = 1; Color color = 2; FillRule fill_rule = 3; }
+enum FillRule { FILL_RULE_UNSPECIFIED = 0; NONZERO = 1; EVEN_ODD = 2; }
+message GlyphRun {
+  oneof font { bytes font_fingerprint = 1; bytes outline_resource = 2; }
+  double size = 3; repeated uint32 glyph_ids = 4; repeated Point positions = 5;
+  repeated uint64 scalar_clusters = 6; Color color = 7;
+}
+message SceneNode {
+  // Unrecognized fields below 128 are required primitive vocabulary. Future
+  // optional metadata must use tags >=128; this also applies to GlyphRun.
+  uint64 id = 1; uint64 version = 2; repeated ObjectRef ordered_children = 3;
+  Affine transform = 4; Rect clip = 5; double opacity = 6;
+  oneof primitive { Group group = 10; SolidRect solid_rect = 11; FillPath fill_path = 12; GlyphRun glyph_run = 13; }
+  repeated bytes resource_refs = 20;
+}
+enum SemanticRole { SEMANTIC_ROLE_UNSPECIFIED = 0; ROOT = 1; GROUP_ROLE = 2; BUTTON = 3; CHECKBOX = 4; TEXT_FIELD = 5; LABEL = 6; LIST = 7; LIST_ITEM = 8; CUSTOM_CANVAS = 9; }
+enum StateKey { STATE_KEY_UNSPECIFIED = 0; DISABLED = 1; CHECKED = 2; SELECTED = 3; EXPANDED = 4; READ_ONLY = 5; }
+enum TriState { TRI_STATE_UNSPECIFIED = 0; FALSE = 1; TRUE = 2; UNKNOWN = 3; }
+message StateValue { StateKey key = 1; TriState value = 2; }
+message TypedValue { oneof value { string text = 1; bool boolean = 2; double number = 3; sint64 integer = 4; } }
+enum RelationKind { RELATION_KIND_UNSPECIFIED = 0; LABEL_FOR = 1; LABELLED_BY = 2; CONTROLS = 3; DESCRIBES = 4; MEMBER_OF = 5; }
+message Relation { RelationKind kind = 1; repeated ObjectRef targets = 2; }
+message Action { string id = 1; uint32 schema_version = 2; }
+enum Sensitivity { SENSITIVITY_UNSPECIFIED = 0; PUBLIC = 1; SENSITIVE = 2; REDACTED = 3; }
+enum Completeness { COMPLETENESS_UNSPECIFIED = 0; FULL = 1; INCOMPLETE = 2; OPAQUE_COMPLETENESS = 3; }
+enum Materialization { MATERIALIZATION_UNSPECIFIED = 0; FULLY_MATERIALIZED = 1; PARTIALLY_MATERIALIZED = 2; }
+message CollectionModel {
+  uint64 version = 1; repeated ObjectRef items = 2; optional uint64 total_count = 3;
+  Materialization materialization = 4; repeated ObjectRef selected_items = 5;
+}
+message SemanticNode {
+  uint64 id = 1; uint64 version = 2; SemanticRole role = 3;
+  optional string label = 4; optional string description = 5; TypedValue typed_value = 6;
+  repeated StateValue states = 7; repeated ObjectRef ordered_children = 8;
+  repeated Relation relations = 9; repeated Action actions = 10;
+  ObjectRef text_model = 11; CollectionModel collection_model = 12;
+  repeated ObjectRef visual_bindings = 13; ObjectRef semantic_group = 14;
+  optional uint64 reading_order = 15; Sensitivity sensitivity = 16; Completeness completeness = 17;
+}
+enum TextStatus { TEXT_STATUS_UNSPECIFIED = 0; AVAILABLE = 1; UNAVAILABLE = 2; TEXT_REDACTED = 3; }
+message TextRange { uint64 anchor = 1; uint64 focus = 2; }
+message TextModel {
+  uint64 id = 1; uint64 version = 2; uint64 text_version = 3;
+  TextStatus status = 4; optional string content = 5; TextRange selection = 6;
+  bool editable = 7; bool selectable = 8;
+}
+message Binding {
+  uint64 id = 1; uint64 version = 2; ObjectRef surface = 3;
+  repeated ObjectRef semantic_nodes = 4; repeated ObjectRef scene_nodes = 5;
+  Rect interaction_region = 6;
+}
+enum CursorShape { CURSOR_SHAPE_UNSPECIFIED = 0; DEFAULT_CURSOR = 1; TEXT_CURSOR = 2; POINTER_CURSOR = 3; HIDDEN_CURSOR = 4; }
+message Cursor {
+  Point position = 1; Point hotspot = 2;
+  oneof appearance { CursorShape shape = 3; bytes outline_resource = 4; }
+}
+message SessionState {
+  uint64 id = 1; uint64 version = 2; Rect canvas = 3; Cursor cursor = 4;
+  ObjectRef focus = 5; ObjectRef focus_surface = 6; uint64 focus_generation = 7;
+}
+message Record {
+  // Tags 1..127 are required record variants; optional metadata starts at 128.
+  oneof record { Surface surface = 1; SceneNode scene = 2; SemanticNode semantic = 3; TextModel text = 4; Binding binding = 5; SessionState session = 6; }
+}
+message Snapshot {
+  uint64 revision = 1; repeated Record records = 2; repeated bytes required_resources = 3;
+  repeated string required_features = 4;
+}
+message Mutation {
+  // Tags 1..127 are required mutation variants; optional metadata starts at 128.
+  oneof mutation { Record put = 1; ObjectRef delete = 2; }
+}
+message Transaction {
+  uint64 base_revision = 1; uint64 new_revision = 2; repeated Mutation mutations = 3;
+  repeated bytes required_resources = 4; repeated string required_features = 5;
+}
+
+// Command admission schema; execution and authorization remain host-side.
+message SemanticCommand {
+  bytes epoch = 1; bytes view_id = 2; bytes client_instance_id = 3;
+  uint64 command_seq = 4; bytes control_lease_id = 5; uint64 control_generation = 6;
+  uint64 target_id = 7; string action_id = 8; uint32 action_schema_version = 9;
+  uint64 observed_view_revision = 10; Preconditions preconditions = 11;
+  oneof arguments { EmptyArguments no_arguments = 12; ValueArguments set_value = 13; TextArguments replace_text = 14; SelectionArguments set_selection = 15; ScrollArguments scroll_to = 16; }
+}
+message Preconditions {
+  optional uint64 target_version = 1; optional uint64 text_version = 2;
+  optional uint64 model_version = 3; optional uint64 focus_generation = 4;
+}
+message EmptyArguments {}
+message ValueArguments { oneof value { bool checked = 1; double number = 2; string text = 3; } }
+message TextArguments { uint64 start = 1; uint64 end = 2; string text = 3; }
+message SelectionArguments { uint64 anchor = 1; uint64 focus = 2; }
+message ScrollArguments { double x = 1; double y = 2; }

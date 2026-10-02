@@ -1,0 +1,41 @@
+# Initial core implementation boundary
+
+This implementation is a foundation for the proposed RUI/0.1 protocol. `rui.proto` is the versioned, toolkit-independent initial vocabulary. It is not a complete implementation of every RFC message family.
+
+## Wire and model
+
+Each binary envelope binds a payload to a protocol version, session, epoch, and view. The current envelope kinds carry a snapshot, transaction, or semantic command. Resource/publication transfer, negotiation, recovery, and lease APIs are Rust model APIs; their complete network message schemas and TLS WebSocket binding remain future work.
+
+The scene vocabulary currently includes Group, SolidRect, FillPath, and GlyphRun. Rounded rectangles, borders, gradients, stroke primitives, rendering effects, and a renderer are not implemented. Unknown required mutations, record kinds, primitives, and features fail explicitly. Recognizing the profile identifiers does not assert that a renderer exists or that every proposed primitive is available.
+
+Geometry is finite and bounded; model decoding normalizes negative zero. Colors are validated as premultiplied channels in the range zero to one. Text selections count Unicode scalar values. No text shaping, reflow, font substitution, or grapheme navigation occurs in the replica.
+
+Snapshot and transaction APIs consume exact received Protobuf payload bytes. Digests cover those bytes, including unknown optional fields; they never cover a reserialization. Full-record replacement clears absent optional fields. Record IDs are globally typed within an epoch, and deleted IDs remain retired. A caller must use a fresh replica for a new epoch/view.
+
+In a transaction, changing text content or availability advances the text clock by exactly one; a selection-only replacement retains that clock. Changes to collection membership, selection, counts, or materialization advance its clock by exactly one. Replacement snapshots may skip intervening clock values but cannot regress them. `COHERENT` capture requires a nonempty producer token; `OBSERVED` requires separate nonempty semantic/visual tokens. The trusted producer remains responsible for the truth of that evidence.
+
+Reusing a remembered publication revision with different exact bytes is a digest conflict. An unknown old revision outside retained history is a revision error. Both leave committed state intact and require the connection layer to recover or close explicitly.
+
+## Receiver integration contract
+
+Use one `MemoryBudget` for the publication assembler, resource cache, and replica. Independent default constructors are useful in unit tests; they do not establish an aggregate receiver ceiling across separately constructed components.
+
+The assembler validates chunk indices, lengths, counts, and the exact digest. `Replica::apply_publication` additionally binds the decoded record/mutation count and revisions to the assembler's validated metadata. Direct `apply_snapshot` and `apply_transaction` are low-level entry points for already assembled payloads.
+
+Resource availability is a trusted input to the reducer. Supply only safely decoded, currently authorized cache entries and locally fingerprint-verified fonts. A fingerprint does not authorize fetching a font file. The cache supports vector resources; font installation and fingerprint verification are not implemented.
+
+The caller owns resource pins: pin the complete candidate closure while staged/in flight, install live pins before releasing staged pins, and retain the old live pins until the atomic state swap succeeds. Rejected or abandoned publications must release their staged owners. `protocol-core/tests/pipeline.rs` exercises this lifecycle. The low-level APIs do not themselves form a complete connection event loop.
+
+Pending-resource replies retain allocation reservations until dropped. A memory-pressure failure while resuming a validated pending publication preserves that publication for a later retry. The caller must still bound outstanding network work and abort staged owners when abandoning a view.
+
+Presentation acknowledgement must follow actual renderer presentation. The replica does not render; recording a revision as presented is a trusted adapter operation. A network implementation must gate presentation on currently available resources and gate input on presentation and a current control lease.
+
+## Authority and privacy
+
+Authentication, projection policy, and application completion evidence are trusted host inputs. A struct named `VerifiedAuthorization` is not a credential validator. Connect it to real authentication and authorization before exposing a network endpoint.
+
+Command admission binds the authenticated principal/producer to the exact Protobuf payload. Sequence and identity retention deliberately fail closed at configured exhaustion; discarding the ledger requires a new epoch. Dispatch callbacks must validate source state at the application boundary. Source completion evidence must come from the application rather than inferred timing.
+
+The session broker emits input-cleanup work for an adapter. It does not inject or release operating-system input itself. Resource revocation and replica disposal must be coordinated with broker view invalidation by the future host/client connection layer.
+
+The only stored transcripts are synthetic conformance fixtures. There is no production session recorder or cross-representation secret-redaction pipeline. Resource provenance is an assertion made by a cooperating producer; a vector decoder cannot prove that an untrusted producer did not derive geometry from raster pixels.
