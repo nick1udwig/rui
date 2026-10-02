@@ -168,6 +168,76 @@ explicit errors and allocation/work cleanup. This renderer alone does not satisf
 the RFC's multi-client control/reconnect gates, GTK fidelity comparison gate,
 desktop integration or hardened graphics sandbox requirement.
 
+## Optional GTK mirror shell
+
+`rui-mirror` is built with the `desktop` feature (gtk4-rs 0.9.7). A connection
+actor owns the authenticated `NetworkClient`, receiver and shared budget. GTK
+owns local chrome and an observer viewport; pan, zoom and window resize change
+only that viewport. A custom widget displays exact CPU output without implicitly
+rescaling the texture. The mirror has no fixture IDs, labels or application
+business rules. Generic pointer routing uses published `Binding.interaction_region`
+in **surface-content coordinates**, the exact displayed viewport, inverse surface
+placement, mapped input regions, stacking and modality. Ambiguous, disabled or
+unavailable targets reject. Advertised schema-1 Focus, Activate, boolean SetValue,
+SetSelection and ReplaceText are the initial GUI action forms.
+
+Frame sampling and linear composition finish before RGBA transfer. The f64 frame
+remains charged while its replacement RGBA allocation is reserved and built.
+The RGBA owner moves into GLib Bytes/GdkMemoryTexture, retaining its reservation
+until those bytes are released. The charge includes one additional RGBA-sized
+native copy allowance and 8 KiB overhead. Native GTK/GSK/GPU allocation is not
+instrumented; this is a bounded ownership policy, not a total process/GPU RSS
+proof. The connection actor's bounded command queue is charged for its actual
+element size; frame/status delivery has one slot plus one replaceable pending
+frame. Input text is limited to 1024 UTF-8 bytes and reserved before ownership.
+Resources are borrowed through the authorized receiver, never decoded from an
+untrusted client-side font substitute.
+
+The custom widget records the exact frame stamp in its GTK snapshot. Its frame
+clock's `after-paint` callback reports that stamp; the actor verifies that it
+still describes the currently applied revision before sending PresentedAck.
+This contract means completed CPU rendering plus a GTK frame submission/
+presentation opportunity. It does **not** prove physical display scanout.
+Receiving Applied or allocating a texture alone cannot generate this ack.
+Local viewport changes require another actual GTK frame before pointer input
+uses the new mapping. Control requests use fresh bounded request IDs and renew
+the current lease; control is never inferred from a rendered semantic action.
+
+The initial IM integration keeps native preedit local and sends one guarded
+ReplaceText on commit. It captures epoch/view, lease/generation, target version,
+text identity/content/selection record versions, scalar replacement range and
+focus generation before native key filtering can synchronously emit IM signals.
+Unrelated scene revisions preserve that identity and the command retains its
+original observed revision. Relevant context changes invalidate the capture
+**before** calling IM.reset. A delayed old signal cannot implicitly capture a
+new context; native key filtering must arm it. A context admits only one commit
+until new source evidence or explicit focus reacquisition unlocks input.
+This is not implementation or acceptance of the wire TextComposition family.
+
+Lifecycle and editing state use a separate bounded latest-state watch channel.
+Clear/Closed/Quit cannot be lost behind a full frame/status queue; generations
+prevent old queued textures from reviving an invalidated view. Closed and Quit
+are terminal. A rendered-revision reset, disconnect or permission loss disables
+editing and clears the displayed frame. This first shell does not retain and
+reconnect a replica, implement raw input/resize commands or visible cursor assets.
+
+Build and run the isolated probes (an Xvfb path is required if not installed):
+
+```
+cargo build -p rui-client-desktop --features desktop --bins --examples --offline --locked
+cargo test -p rui-client-desktop --features desktop --offline --locked
+python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe ime
+python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe mirror
+```
+
+The IM probe sends actual XTest keys to its authenticated private display:
+ordinary `a`, then Ctrl+Shift+U U+00E9 preedit/commit. It uses the mirror's same
+arm-before-filter helper and checks reset/late callback rejection. The mirror
+probe launches two actual GTK clients and a pinned local TLS source; the
+controller exits only after the source grants control following native
+presentation. Its trusted cleanup callback verifies disconnect cleanup. This
+baseline probe has no source command effects and no expanded M2 corpus claim.
+
 ## Pinned local source font helper
 
 `fixtures/render/native_font.py` is bounded local producer IPC, not a wire font.

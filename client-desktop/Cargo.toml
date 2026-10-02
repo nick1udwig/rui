@@ -3,11 +3,32 @@ name = "rui-client-desktop"
 version.workspace = true
 edition.workspace = true
 
+[features]
+desktop = ["dep:gtk4", "dep:rui-transport", "dep:tokio", "dep:prost"]
+
+[[bin]]
+name = "rui-mirror"
+path = "src/bin/rui-mirror.rs"
+required-features = ["desktop"]
+
+[[example]]
+name = "native_ime_probe"
+required-features = ["desktop"]
+
+[[example]]
+name = "desktop_smoke"
+required-features = ["desktop"]
+
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }
 cairo-rs = { version = "=0.20.12", default-features = false }
 thiserror = "2"
+gtk4 = { version = "=0.9.7", optional = true }
+rui-transport = { path = "../transport", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }
+prost = { version = "0.13", optional = true }
 
 [dev-dependencies]
 prost = "0.13"
 rui-producer-sdk = { path = "../adapters/sdk" }
+rui-host-broker = { path = "../host-broker" }

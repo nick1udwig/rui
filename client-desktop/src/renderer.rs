@@ -208,7 +208,56 @@ pub struct Frame {
     budget: MemoryBudget,
     _memory: MemoryReservation,
 }
+/// Owned display pixels. The extra charge allows one bounded native texture
+/// copy; GLib.Bytes::from_owned can retain this value without copying it.
+pub struct RgbaFrame {
+    pub revision: u64,
+    pub viewport: Viewport,
+    pixels: Vec<u8>,
+    _memory: MemoryReservation,
+}
+impl AsRef<[u8]> for RgbaFrame {
+    fn as_ref(&self) -> &[u8] {
+        &self.pixels
+    }
+}
 impl Frame {
+    pub fn into_rgba8(self) -> Result<RgbaFrame, RenderError> {
+        self.display_pixels(None)
+    }
+    pub fn into_rgba8_over(self, background: Color) -> Result<RgbaFrame, RenderError> {
+        valid_color(background)?;
+        if background.alpha != 1.0 {
+            return Err(RenderError::Invalid);
+        }
+        self.display_pixels(Some(LinearPixel::from_color(background)))
+    }
+    fn display_pixels(self, background: Option<LinearPixel>) -> Result<RgbaFrame, RenderError> {
+        let length = self
+            .pixels
+            .len()
+            .checked_mul(4)
+            .ok_or(RenderError::Limit("RGBA bytes"))?;
+        let memory = self.budget.reserve(
+            length
+                .checked_mul(2)
+                .and_then(|n| n.checked_add(8192))
+                .ok_or(RenderError::Limit("texture bytes"))?,
+        )?;
+        let mut pixels = Vec::new();
+        pixels
+            .try_reserve_exact(length)
+            .map_err(|_| RenderError::Allocation)?;
+        for pixel in &self.pixels {
+            pixels.extend_from_slice(&background.map_or(*pixel, |bg| pixel.over(bg)).rgba8());
+        }
+        Ok(RgbaFrame {
+            revision: self.revision,
+            viewport: self.viewport,
+            pixels,
+            _memory: memory,
+        })
+    }
     pub fn pixels(&self) -> &[LinearPixel] {
         &self.pixels
     }
