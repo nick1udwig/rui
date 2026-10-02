@@ -869,6 +869,29 @@ impl SessionBroker {
         }
         Ok(bytes)
     }
+    /// Reserve a read-only snapshot envelope without resetting history, state or
+    /// acknowledgements. The caller separately installs an explicit checkpoint
+    /// when needed. Every returned clone remains charged until its last drop.
+    pub fn snapshot_payload(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        bytes: Vec<u8>,
+    ) -> Result<SharedPayload, SessionError> {
+        let conn = self.connection(client, view)?;
+        if bytes.len() > conn.limits.snapshot_bytes || bytes.len() > conn.limits.envelope_bytes {
+            return Err(SessionError::Oversized);
+        }
+        let charge = bytes
+            .len()
+            .checked_add(PUBLICATION_OVERHEAD_BYTES)
+            .ok_or(SessionError::Oversized)?;
+        let reservation = Reservation::new(conn.budget.clone(), charge)?;
+        Ok(SharedPayload(Arc::new(Payload {
+            bytes: bytes.into_boxed_slice(),
+            _reservation: reservation,
+        })))
+    }
     pub fn queued_bytes(
         &self,
         client: &AuthenticatedClient,

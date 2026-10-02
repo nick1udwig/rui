@@ -1,0 +1,9 @@
+[package]
+name = "rui-host-broker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rui-protocol-core = { path = "../protocol-core" }
+prost = "0.13"
+thiserror = "2"

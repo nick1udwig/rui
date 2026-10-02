@@ -19,14 +19,21 @@ python3 conformance/check.py
 
 The workspace lockfile pins Rust dependencies. Toolkit types and graphics API handles do not belong in the public protocol.
 
-The Python check independently decodes exact Protobuf golden fixtures and compares Rust/Python logical state after each accepted or rejected update. It also exercises seeded replay and equivalent fresh snapshots. It needs no third-party Python packages.
+The Python check independently decodes exact Protobuf golden fixtures and compares Rust/Python logical state after each accepted or rejected update. It exercises seeded replay, equivalent fresh snapshots, and retained values for all nine scene primitives. It needs no third-party Python packages.
 
 ## Layout
 
 - `spec/`: initial Protobuf vocabulary and resource encoding details.
-- `protocol-core/`: replica model, bounded framing/publications/resources, command admission, and session authority.
+- `protocol-core/`: replica model, coordinated receiver, bounded framing/publications/resources, command admission, and session authority.
+- `host-broker/`: controlled headless application, two-client projections, and guarded semantic dispatch.
 - `conformance/`: independent reference checks and implementation coverage notes.
 
 The implemented vocabulary is deliberately smaller than the proposed RFC. Unsupported required variants must fail explicitly. Passing core tests does not establish visual fidelity, OS input safety, or full RFC conformance.
 
 See [the core integration contract](spec/core-profile.md) for API trust boundaries and [acceptance status](conformance/STATUS.md) for outstanding milestone gates.
+
+The [headless host fixture](spec/host-fixture.md) exercises authority and observer redaction with simulated renderer callbacks. It is a foundation for the graphical vertical slice; desktop rendering remains unimplemented.
+
+```sh
+cargo run -p rui-host-broker --example controlled
+```

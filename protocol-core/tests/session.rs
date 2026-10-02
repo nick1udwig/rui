@@ -918,3 +918,78 @@ fn lowering_memory_ceiling_waits_for_inflight_payloads_to_drop() {
         PUBLICATION_OVERHEAD_BYTES + 1
     );
 }
+
+#[test]
+fn snapshot_read_handles_are_charged_without_resetting_acknowledgements_or_history() {
+    let mut broker = broker();
+    let session = connect(&mut broker, 3, "alice", true);
+    usable(&mut broker, &session, 30);
+    broker
+        .publish(&session.client, session.view_id, 30, 31, vec![1], 0)
+        .unwrap();
+    let before = broker
+        .retained_memory_bytes(&session.client, session.view_id)
+        .unwrap();
+    let snapshot = broker
+        .snapshot_payload(&session.client, session.view_id, vec![9; 4])
+        .unwrap();
+    let clone = snapshot.clone();
+    drop(snapshot);
+    assert_eq!(
+        broker
+            .retained_memory_bytes(&session.client, session.view_id)
+            .unwrap(),
+        before + 4 + PUBLICATION_OVERHEAD_BYTES
+    );
+    drop(clone);
+    assert_eq!(
+        broker
+            .retained_memory_bytes(&session.client, session.view_id)
+            .unwrap(),
+        before
+    );
+    broker.disconnect(&session.client, 1).unwrap();
+    let mut hello = hello(3);
+    hello.resume = Some(ResumeRequest {
+        epoch: session.epoch,
+        view_id: session.view_id,
+        acknowledged_revision: 30,
+    });
+    let resumed = broker
+        .negotiate(Some(auth("alice", true)), hello, 2)
+        .unwrap();
+    assert!(matches!(
+        resumed.resume,
+        ResumeDisposition::Accepted {
+            from_revision: 30,
+            through_revision: 31,
+            ..
+        }
+    ));
+}
+#[test]
+fn snapshot_read_handles_respect_envelope_and_total_memory_limits() {
+    let mut broker = broker();
+    let mut hello = hello(3);
+    hello.receiver_limits.envelope_bytes = 8;
+    hello.receiver_limits.view_memory_bytes = 1 + 4 + PUBLICATION_OVERHEAD_BYTES;
+    let session = broker
+        .negotiate(Some(auth("alice", false)), hello, 0)
+        .unwrap();
+    usable(&mut broker, &session, 30);
+    assert_eq!(
+        broker.snapshot_payload(&session.client, session.view_id, vec![1; 9]),
+        Err(SessionError::Oversized)
+    );
+    let retained = broker
+        .snapshot_payload(&session.client, session.view_id, vec![1; 4])
+        .unwrap();
+    assert_eq!(
+        broker.snapshot_payload(&session.client, session.view_id, vec![1]),
+        Err(SessionError::Oversized)
+    );
+    drop(retained);
+    assert!(broker
+        .snapshot_payload(&session.client, session.view_id, vec![1; 4])
+        .is_ok());
+}
