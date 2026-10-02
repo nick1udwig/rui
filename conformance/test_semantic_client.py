@@ -4,7 +4,7 @@ import unittest
 
 from conformance.semantic_client import (
     ProtocolError, PinnedWebSocket, SemanticClient, SemanticReplica,
-    blob, decode, scalar, value,
+    binary, blob, decode, scalar, value,
 )
 
 
@@ -183,6 +183,31 @@ def packet(kind, payload, view=3):
 
 
 class ClientTests(unittest.TestCase):
+    def test_item_command_uses_owner_clock_after_reorder_without_coordinates(self):
+        action = blob(10, blob(1, 'Activate') + scalar(2, 1))
+        def listing(version, clock, order):
+            collection = (scalar(1, clock) + b''.join(blob(2, ref(3, item)) for item in order)
+                          + scalar(3, 10) + scalar(4, 2))
+            return node(3, version=version, role=7, children=order, extra=blob(12, collection))
+        client = client_fixture([])
+        client.replica.apply(1, snapshot([listing(1, 7, (4, 5)),
+                                         node(4, role=8, extra=action), node(5, role=8, extra=action)]))
+        for clock in (7, 8):
+            client.command(4, 'Activate')
+            command = decode(client.last_command, set(range(1, 17)))
+            self.assertEqual(value(command, 7), 4)
+            self.assertEqual(value(decode(binary(command, 11), {1, 2, 3, 4}), 3), clock)
+            if clock == 7:
+                client.replica.apply(2, scalar(1, 1) + scalar(2, 2)
+                                     + blob(3, blob(1, listing(2, 8, (5, 4)))))
+        # Defense in depth: an ambiguous in-memory owner cannot send a command
+        # or consume a producer sequence, even if validation was bypassed.
+        client.replica.records[6] = dict(client.replica.records[3], id=6)
+        with self.assertRaises(ProtocolError):
+            client.command(4, 'Activate')
+        self.assertEqual(client.sequence, 2)
+        self.assertEqual(len(client.wire.sent), 2)
+
     def test_exact_publication_then_applied_and_semantic_ready_never_presented(self):
         body = snapshot([node(1, extra=blob(10, blob(1, 'Activate') + scalar(2, 1)))])
         publication = bytes([9]) * 16

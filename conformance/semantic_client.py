@@ -763,6 +763,13 @@ class SemanticClient:
                 preconditions += scalar(4, focused[0]['focus_generation'])
         if 'collection' in target:
             preconditions += scalar(3, target['collection']['version'])
+        elif action == 'Activate':
+            owners = [record for record in self.replica.records.values()
+                      if target_id in record.get('collection', {}).get('items', [])]
+            if len(owners) > 1 or (target['role'] == 8 and not owners):
+                raise ProtocolError('item has no unambiguous materialized collection')
+            if owners:
+                preconditions += scalar(3, owners[0]['collection']['version'])
         arguments = blob(12, b'')
         if replacement is not None:
             start, end, inserted = replacement
