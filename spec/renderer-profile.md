@@ -167,3 +167,21 @@ geometry, gradients, fill rules, stroke caps/joins/dashes, glyph positions/overl
 explicit errors and allocation/work cleanup. This renderer alone does not satisfy
 the RFC's multi-client control/reconnect gates, GTK fidelity comparison gate,
 desktop integration or hardened graphics sandbox requirement.
+
+## Pinned local source font helper
+
+`fixtures/render/native_font.py` is bounded local producer IPC, not a wire font.
+It pins Pango 1.58.2, Cairo 1.18.4 and GTK 4.22.4, with a process-private Fontconfig
+configuration containing only bundled Liberation Sans Regular (SIL OFL 1.1;
+410820 bytes; SHA-256
+`baccc64becc3eb7d104b7c84d99f5314a0a1f896e2b3ea6c2f22fc08d2003bee`).
+Its actual Pango layout/GSK text node supplies shaped source glyphs and positions;
+the existing exporter yields normalized `glyph.outline-single.v1` RVP1 bodies.
+The helper returns exact descriptors/body hashes, bounds and source evidence.
+No font atlas, client reshaping or system fallback is admitted. Input JSON is
+at most 4096 bytes, text at most 2048 UTF-8 bytes, size in [1,256] logical pixels;
+output is at most 8 MiB, 1024 glyphs and 4 MiB vector bodies with at most 4096
+commands each. Missing/colored glyphs and unsupported forms fail explicitly,
+without echoing the request. Source semantic Unicode acceptance must remain
+independent: producers may keep valid text and report truthful Partial/
+Unsupported visual coverage. This helper is not complete Unicode font coverage.
