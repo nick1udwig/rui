@@ -14,6 +14,12 @@ provenance. The bridge enables the explicit `glyph.outline-single.v1` profile.
 It never acknowledges presentation. A renderer must complete rendering before
 calling the receiver's presentation method.
 
+Fixture renderers must call `verify_native_glyph_evidence` after applying the
+envelope. It compares the native manifest evidence to the actual decoded scene,
+including glyph count, identities, resources, sizes and exact source placements.
+This diagnostic check prevents omitted or shifted glyphs from passing an edge
+pixel tolerance; it does not authenticate manifest provenance.
+
 ```sh
 python3 -m unittest adapters.sdk.test_producer
 cargo test -p rui-producer-sdk --locked

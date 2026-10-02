@@ -1,0 +1,247 @@
+{
+  "calibration": {
+    "initial_exceeded_captures": [
+      {
+        "capture": "menu-popup-0001.json",
+        "measured": 3.1222354340071345
+      }
+    ],
+    "initial_viewport_mean_max_rgb_error": 3.0,
+    "rationale": "Compact popup has higher source-edge density; calibrated viewport bound4 plus independent edge-mean bound8, retaining zero bad interior pixels and native geometry checks."
+  },
+  "captures": [
+    {
+      "capture": "main-content-0001.json",
+      "envelope_sha256": "eeb305ddf338551b40abb77d0b7c0ee49f1906b82eba011faa69005c3922b515",
+      "geometry": {
+        "glyphs_checked": 94,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "e588ecc256daafebd9fec0ea870329ee0bb6a9de404d30c74db4a03a0215f6b7",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.074495810111864,
+        "edge_pixels": 49882,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5461609686609686
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=1 work=32865178"
+    },
+    {
+      "capture": "main-content-0002.json",
+      "envelope_sha256": "a3c14afb15f3bbce83fe9d04fa6831608e4dcba6aa628a2963bb9b19c8c97a2b",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "06eed75c8d3095ab68b0a405be44d8a2a02ec1525b96468a64107ae3b87bd656",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.193174294255733,
+        "edge_pixels": 49841,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5667770655270655
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=2 work=32121572"
+    },
+    {
+      "capture": "main-content-0003.json",
+      "envelope_sha256": "77a6f25379249c7c5c640fcfc627dfc1da46634529948facbca32a349de44c5d",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "06eed75c8d3095ab68b0a405be44d8a2a02ec1525b96468a64107ae3b87bd656",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.193174294255733,
+        "edge_pixels": 49841,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5667770655270655
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=3 work=32121572"
+    },
+    {
+      "capture": "main-content-0004.json",
+      "envelope_sha256": "2059a5fb93fe3ced6c28bdfd4ab0f71b32f452ece1abbc2c64c787b672b5df45",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "06eed75c8d3095ab68b0a405be44d8a2a02ec1525b96468a64107ae3b87bd656",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.193174294255733,
+        "edge_pixels": 49841,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5667770655270655
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=4 work=32121572"
+    },
+    {
+      "capture": "main-content-0005.json",
+      "envelope_sha256": "18c9fbfaa871e5bc2c7ac89e0903b7440e3dafb348cd5eeecce1c462b0519214",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "06eed75c8d3095ab68b0a405be44d8a2a02ec1525b96468a64107ae3b87bd656",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.193174294255733,
+        "edge_pixels": 49841,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5667770655270655
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=5 work=32121572"
+    },
+    {
+      "capture": "main-content-0006.json",
+      "envelope_sha256": "ea802f33353cfae846491aae125fe5fab2f5451a93907fb549936538ed4d3ebe",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "06eed75c8d3095ab68b0a405be44d8a2a02ec1525b96468a64107ae3b87bd656",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.193174294255733,
+        "edge_pixels": 49841,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5667770655270655
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=6 work=32121572"
+    },
+    {
+      "capture": "main-content-0007.json",
+      "envelope_sha256": "7540487fc1e1b8141c1b5092305bfe56ebd009404b4d433b428f1c6f4a7065e7",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "27f33630375af44c09d3b34644d881a1f4077161fe15b157fd9736fab8e6c041",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 2.920147551120493,
+        "edge_pixels": 46899,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.48772079772079774
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=7 work=19143249"
+    },
+    {
+      "capture": "main-content-0008.json",
+      "envelope_sha256": "fc7ed540d8d583b02a2375d626253f3b829550e007f1326d8344449a45ceaf18",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "06eed75c8d3095ab68b0a405be44d8a2a02ec1525b96468a64107ae3b87bd656",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 3.193174294255733,
+        "edge_pixels": 49841,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 280800,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.5667770655270655
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=8 work=32121572"
+    },
+    {
+      "capture": "main-content-0009.json",
+      "envelope_sha256": "c00f67ab51028b0237d4074e21256a310229a29bec8e46b185a159441b81e37e",
+      "geometry": {
+        "glyphs_checked": 104,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "8ed566f3fb7caedbab48c9280c3e39c7b67ac28b160e872ac057498138214cbf",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 127,
+        "edge_mean_max_rgb_error": 2.7401559890497755,
+        "edge_pixels": 58081,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 371200,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.42874730603448274
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=9 work=37075492"
+    },
+    {
+      "capture": "menu-popup-0001.json",
+      "envelope_sha256": "55510bf31add8054a534930893cdc5ce53f2734a474e52278ca3c7b5683f9967",
+      "geometry": {
+        "glyphs_checked": 16,
+        "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+      },
+      "local_reference_sha256": "ac06556b6f4d579b8cca57daee003f785e8ccdd139650f33320764672ec18af7",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 114,
+        "edge_mean_max_rgb_error": 5.824755989352263,
+        "edge_pixels": 4508,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 8410,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 3.1222354340071345
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=1 work=1210694"
+    }
+  ],
+  "criteria": {
+    "edge_max_alpha_error": 128,
+    "edge_max_rgb_error": 160,
+    "edge_mean_max_rgb_error": 8.0,
+    "interior_max_channel_error": 3,
+    "native_glyph_bounds_max_source_pixel_error": 0.00390625,
+    "profile": "gtk-cairo1184-vs-rui-samples2x2.v1",
+    "source_edge_dilation_pixels": 1,
+    "source_edge_neighbor_threshold": 2,
+    "viewport_mean_alpha_error": 1.0,
+    "viewport_mean_max_rgb_error": 4.0
+  },
+  "passed": true
+}

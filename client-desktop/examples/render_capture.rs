@@ -13,6 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     artifact
         .apply_trusted_fixture(&mut receiver)
         .map_err(|e| format!("capture application: {e}"))?;
+    artifact.verify_native_glyph_evidence(&receiver)?;
     let width = artifact.manifest()["size"][0]
         .as_u64()
         .ok_or("missing width")?

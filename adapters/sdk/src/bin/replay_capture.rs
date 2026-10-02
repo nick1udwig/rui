@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let receiver = receivers.get_mut(&context.view_id).unwrap();
         let revision = capture.apply_trusted_fixture(receiver)?;
         assert!(receiver.resources_ready()?);
+        capture.verify_native_glyph_evidence(receiver)?;
         let records = receiver.state()?.records.len();
         println!(
             "{} revision={} records={} retired={} memory={}",

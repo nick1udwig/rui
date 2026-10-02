@@ -31,6 +31,7 @@ fn actual_submitted_gtk_frames_replay_retirement_glyph_geometry_and_resource_lif
         }
         let receiver = receivers.get_mut(&view).unwrap();
         let revision = artifact.apply_trusted_fixture(receiver).unwrap();
+        artifact.verify_native_glyph_evidence(receiver).unwrap();
         assert_eq!(receiver.state().unwrap().revision, revision);
         assert!(receiver.resources_ready().unwrap());
         assert!(
@@ -95,6 +96,61 @@ fn actual_submitted_gtk_frames_replay_retirement_glyph_geometry_and_resource_lif
         "real shaped source glyphs were verified without reshaping"
     );
     for receiver in receivers.values_mut() {
+        receiver.close();
+        assert_eq!(receiver.memory_used(), 0);
+    }
+}
+
+#[test]
+fn actual_decoded_glyph_omission_shift_and_font_size_fail_source_geometry_gate() {
+    use prost::Message;
+    use rui_protocol_core::wire::proto as pb;
+    let artifact = CaptureArtifact::read(golden().join("main-content-0001.json")).unwrap();
+    let original = fs::read(golden().join("main-content-0001.bin")).unwrap();
+    for change in ["omission", "position", "size"] {
+        let mut receiver = artifact.receiver().unwrap();
+        artifact.apply_trusted_fixture(&mut receiver).unwrap();
+        let mut envelope = pb::Envelope::decode(original.as_slice()).unwrap();
+        let mut snapshot = pb::Snapshot::decode(envelope.payload.as_slice()).unwrap();
+        snapshot.revision = 2;
+        let mut changed = false;
+        for record in &mut snapshot.records {
+            match record.record.as_mut().unwrap() {
+                pb::record::Record::Surface(surface) => surface.version = 2,
+                pb::record::Record::Semantic(semantic) => semantic.version = 2,
+                pb::record::Record::Scene(scene) => {
+                    scene.version = 2;
+                    if !changed {
+                        if let Some(pb::scene_node::Primitive::GlyphRun(glyph)) =
+                            &mut scene.primitive
+                        {
+                            match change {
+                                "position" => glyph.positions[0].x += 1.0,
+                                "size" => glyph.size += 1.0,
+                                "omission" => {
+                                    scene.primitive =
+                                        Some(pb::scene_node::Primitive::Group(pb::Group {}))
+                                }
+                                _ => unreachable!(),
+                            }
+                            changed = true;
+                        }
+                    }
+                }
+                _ => panic!("unexpected foundation record"),
+            }
+        }
+        assert!(changed);
+        envelope.payload = snapshot.encode_to_vec();
+        receiver
+            .receive_envelope([2; 16], &envelope.encode_to_vec())
+            .unwrap();
+        assert_eq!(receiver.state().unwrap().revision, 2);
+        assert!(matches!(
+            artifact.verify_native_glyph_evidence(&receiver),
+            Err(CaptureError::Invalid)
+        ));
+        assert!(receiver.presented_revision().unwrap().is_none());
         receiver.close();
         assert_eq!(receiver.memory_used(), 0);
     }

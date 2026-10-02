@@ -1,5 +1,6 @@
 //! Bounded capture artifact consumer. This is a local fixture bridge, not a
 //! network or authenticated broker. Trust policy is supplied by the caller.
+use rui_protocol_core::model::{GlyphFont, Primitive, Record};
 use rui_protocol_core::receiver::{ReceiveOutcome, ReceiverConfig, ReceiverError, ViewReceiver};
 use rui_protocol_core::resources::{
     OfferOutcome, ResourceContext, ResourceKind, ResourceOffer, ResourceProvenance, ResourceScope,
@@ -144,6 +145,69 @@ impl CaptureArtifact {
     }
     pub fn manifest(&self) -> &Value {
         &self.manifest
+    }
+    /// Compare native source glyph evidence against the actual decoded state.
+    /// This is a diagnostic consistency check, not proof that a manifest came
+    /// from GTK. It must pass before a fixture renderer presents this capture.
+    pub fn verify_native_glyph_evidence(
+        &self,
+        receiver: &ViewReceiver,
+    ) -> Result<usize, CaptureError> {
+        let evidence = self.manifest["source_glyph_evidence"]
+            .as_array()
+            .ok_or(CaptureError::Invalid)?;
+        if evidence.len() > 20_000 {
+            return Err(CaptureError::Invalid);
+        }
+        let state = receiver.state()?;
+        let actual_count = state.records.values().filter(|record| {
+            matches!(record, Record::Scene(scene) if matches!(scene.primitive, Primitive::GlyphRun { .. }))
+        }).count();
+        if evidence.len() != actual_count {
+            return Err(CaptureError::Invalid);
+        }
+        let number = |value: &Value| {
+            value
+                .as_f64()
+                .filter(|number| number.is_finite())
+                .ok_or(CaptureError::Invalid)
+        };
+        let mut seen = BTreeSet::new();
+        for glyph in evidence {
+            let id = glyph["scene_id"].as_u64().ok_or(CaptureError::Invalid)?;
+            if !seen.insert(id) {
+                return Err(CaptureError::Invalid);
+            }
+            let Some(Record::Scene(scene)) = state.records.get(&id) else {
+                return Err(CaptureError::Invalid);
+            };
+            let Primitive::GlyphRun {
+                font: GlyphFont::Outline(resource),
+                size,
+                glyph_ids,
+                positions,
+                ..
+            } = &scene.primitive
+            else {
+                return Err(CaptureError::Invalid);
+            };
+            let scale = number(&glyph["pango_scale"])?;
+            let x = number(&glyph["node_offset"][0])?
+                + number(&glyph["advance"])?
+                + number(&glyph["pango_x_offset"])? / scale;
+            let y = number(&glyph["node_offset"][1])? + number(&glyph["pango_y_offset"])? / scale;
+            if scale != 1024.0
+                || *resource != hex::<32>(&glyph["resource"])?
+                || *size != number(&glyph["font_size"])?
+                || glyph_ids != &[0]
+                || positions.len() != 1
+                || positions[0].x != x
+                || positions[0].y != y
+            {
+                return Err(CaptureError::Invalid);
+            }
+        }
+        Ok(evidence.len())
     }
     pub fn receiver(&self) -> Result<ViewReceiver, CaptureError> {
         let config = ReceiverConfig {

@@ -132,6 +132,7 @@ class Exporter:
         self.uses_glyph_outline = False
         self.glyph_evidence = []
         self.visited = 0
+        self.depth = 0
 
     def record(self, key, primitive, children=(), transform=None, clip=None):
         if len(self.scene) >= 20_000:
@@ -157,7 +158,13 @@ class Exporter:
         previous_resources = set(self.resources)
         previous_glyphs = self.uses_glyph_outline
         previous_evidence = len(self.glyph_evidence)
+        previous_depth = self.depth
         try:
+            # Leave one scene level for a text node's per-glyph children and
+            # the bounded placeholder, so the default reducer depth128 holds.
+            if self.depth >= 127:
+                raise Unsupported("source-depth-ceiling")
+            self.depth += 1
             return self.supported(node, path)
         except Unsupported as error:
             del self.scene[previous_count:]
@@ -166,6 +173,8 @@ class Exporter:
             del self.glyph_evidence[previous_evidence:]
             self.gaps.append({"path": path, "reason": str(error), "node_type": node.get_node_type().value_nick, "bounds": rect(node.get_bounds())})
             return self.record(path, {"type": "Group"})
+        finally:
+            self.depth = previous_depth
 
     def supported(self, node, path):
         if isinstance(node, Gsk.ContainerNode):
@@ -257,12 +266,16 @@ def census(node):
     counts = Counter()
     bounds = []
     def visit(current, depth=0):
-        if depth > 128 or sum(counts.values()) >= MAX_NODES:
-            raise Unsupported("census-node-depth-ceiling")
         name = current.get_node_type().value_nick
         counts[name] += 1
         bounds.append({"type": name, "bounds": rect(current.get_bounds())})
+        if depth == 127:
+            bounds[-1]["truncated"] = "source-depth-ceiling"
+            return
         for child in current.get_children() or []:
+            if sum(counts.values()) >= MAX_NODES:
+                bounds[-1]["truncated"] = "source-node-ceiling"
+                break
             visit(child, depth + 1)
     visit(node)
     return dict(sorted(counts.items())), bounds
