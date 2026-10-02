@@ -200,6 +200,7 @@ pub async fn worker(
     let mut ui_state = UiState::default();
     let mut profiles = SessionConfig::default().supported_profiles;
     profiles.insert("glyph.outline-single.v1".into());
+    profiles.insert(CURSOR_PROFILE.into());
     let hello = ClientHello {
         client_instance_id: options.client_id,
         supported_versions: [1].into_iter().collect(),
@@ -238,7 +239,16 @@ pub async fn worker(
             return;
         }
     };
-    let renderer = match Renderer::new(RenderLimits::default(), budget.clone()) {
+    let renderer = match Renderer::new_with_profile(
+        RenderLimits::default(),
+        budget.clone(),
+        RenderProfile {
+            cursor_vectors: client
+                .profiles
+                .iter()
+                .any(|profile| profile == CURSOR_PROFILE),
+        },
+    ) {
         Ok(r) => r,
         Err(_) => {
             status(&events, "Pinned renderer is unavailable.");

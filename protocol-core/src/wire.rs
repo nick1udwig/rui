@@ -26,6 +26,7 @@ pub const SUPPORTED_FEATURES: &[&str] = &[
     "semantics.core.v1",
     "semantics.only.v1",
     "glyph.outline-single.v1",
+    "cursor.vector.v1",
 ];
 
 pub fn required_features(features: &[String]) -> Result<(), WireError> {

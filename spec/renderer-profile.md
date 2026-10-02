@@ -94,8 +94,8 @@ A session canvas clips the desktop. Unmapped surfaces contribute no coverage.
 Partial or Unsupported mapped surfaces fail the entire render. Missing resources,
 bad descriptors, unavailable fonts, unsupported cursor appearances, malformed
 geometry and exhausted limits also fail without returning a frame. Hidden
-cursors are supported; this profile has no default system-cursor asset or
-cursor-outline paint convention, so visible cursors require a future profile.
+cursors are supported. Visible bundled vectors and authorized custom outlines
+require explicit opt-in to [cursor.vector.v1](cursor-profile.md).
 Nothing silently disappears under a successful Complete render.
 
 `ResourceProvider` must return only authorized resources for the current view.
@@ -219,7 +219,8 @@ Clear/Closed/Quit cannot be lost behind a full frame/status queue; generations
 prevent old queued textures from reviving an invalidated view. Closed and Quit
 are terminal. A rendered-revision reset, disconnect or permission loss disables
 editing and clears the displayed frame. This first shell does not retain and
-reconnect a replica, implement raw input/resize commands or visible cursor assets.
+reconnect a replica or implement raw input/resize commands. Visible cursors use
+the separately negotiated vector cursor profile.
 
 Build and run the isolated probes (an Xvfb path is required if not installed):
 

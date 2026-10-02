@@ -12,6 +12,11 @@ use thiserror::Error;
 
 pub const PROFILE: &str = "renderer.cpu-samples2x2.cairo1184.v1";
 pub const CAIRO_VERSION: &str = "1.18.4";
+pub const CURSOR_PROFILE: &str = "cursor.vector.v1";
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RenderProfile {
+    pub cursor_vectors: bool,
+}
 
 #[derive(Debug, Error)]
 pub enum RenderError {
@@ -547,13 +552,21 @@ struct Plan<'a> {
     nodes: Vec<Node<'a>>,
     surfaces: Vec<SurfacePlan>,
     canvas: Option<Rect>,
+    cursor: Option<CursorPaint>,
     work: u64,
     _memory: MemoryReservation,
+}
+struct CursorPaint {
+    origin: Point,
+    fill: PathMask,
+    outline: Option<PathMask>,
+    white: bool,
 }
 
 pub struct Renderer {
     pub limits: RenderLimits,
     budget: MemoryBudget,
+    profile: RenderProfile,
 }
 impl Renderer {
     pub fn new(limits: RenderLimits, budget: MemoryBudget) -> Result<Self, RenderError> {
@@ -577,7 +590,21 @@ impl Renderer {
         {
             return Err(RenderError::Invalid);
         }
-        Ok(Self { limits, budget })
+        Ok(Self {
+            limits,
+            budget,
+            profile: RenderProfile::default(),
+        })
+    }
+    /// Explicit local opt-in; network callers must enable only selected profiles.
+    pub fn new_with_profile(
+        limits: RenderLimits,
+        budget: MemoryBudget,
+        profile: RenderProfile,
+    ) -> Result<Self, RenderError> {
+        let mut renderer = Self::new(limits, budget)?;
+        renderer.profile = profile;
+        Ok(renderer)
     }
     /// Renders one retained root without surface composition, for reference tests.
     pub fn render_scene(
@@ -676,11 +703,80 @@ impl Renderer {
                 valid_rect(session.canvas)?;
                 plan.canvas = Some(session.canvas);
                 if let Some(cursor) = &session.cursor {
+                    valid_point(cursor.position)?;
+                    valid_point(cursor.hotspot)?;
+                    let origin = Point {
+                        x: cursor.position.x - cursor.hotspot.x,
+                        y: cursor.position.y - cursor.hotspot.y,
+                    };
+                    valid_point(origin)?;
                     if !matches!(
                         cursor.appearance,
                         CursorAppearance::Shape(CursorShape::Hidden)
                     ) {
-                        return Err(RenderError::UnsupportedCursor);
+                        if !self.profile.cursor_vectors {
+                            return Err(RenderError::UnsupportedCursor);
+                        }
+                        if plan.cursor.is_some() {
+                            return Err(RenderError::Invalid);
+                        }
+                        let (fill, outline, white) = match cursor.appearance {
+                            CursorAppearance::Shape(shape) => {
+                                let asset =
+                                    crate::cursor::Asset::new(shape).ok_or(RenderError::Invalid)?;
+                                let fill = path::compile(
+                                    asset.digest(),
+                                    ResourceKind::VectorPath,
+                                    &asset,
+                                    FillRule::Nonzero,
+                                    None,
+                                    viewport.scale,
+                                    &self.limits,
+                                    &self.budget,
+                                    &mut plan.work,
+                                )?;
+                                let outline = path::compile(
+                                    asset.digest(),
+                                    ResourceKind::VectorPath,
+                                    &asset,
+                                    FillRule::Nonzero,
+                                    Some(StrokeStyle {
+                                        width: 1.0,
+                                        cap: rui_protocol_core::model::StrokeCap::Butt,
+                                        join: rui_protocol_core::model::StrokeJoin::Miter,
+                                        miter_limit: 4.0,
+                                        dashes: &[],
+                                        offset: 0.0,
+                                    }),
+                                    viewport.scale,
+                                    &self.limits,
+                                    &self.budget,
+                                    &mut plan.work,
+                                )?;
+                                (fill, Some(outline), true)
+                            }
+                            CursorAppearance::Outline(resource) => (
+                                path::compile(
+                                    resource,
+                                    ResourceKind::VectorPath,
+                                    resources,
+                                    FillRule::Nonzero,
+                                    None,
+                                    viewport.scale,
+                                    &self.limits,
+                                    &self.budget,
+                                    &mut plan.work,
+                                )?,
+                                None,
+                                false,
+                            ),
+                        };
+                        plan.cursor = Some(CursorPaint {
+                            origin,
+                            fill,
+                            outline,
+                            white,
+                        });
                     }
                 }
             }
@@ -737,6 +833,7 @@ impl Renderer {
             nodes,
             surfaces,
             canvas: None,
+            cursor: None,
             work: 0,
             _memory: memory,
         })
@@ -1077,6 +1174,36 @@ impl Renderer {
                                     .sample(surface.root, point, plan, &mut work)?
                                     .multiply(surface.opacity);
                                 result = source.over(result);
+                            }
+                            if let Some(cursor) = &plan.cursor {
+                                let local = Point {
+                                    x: point.x - cursor.origin.x,
+                                    y: point.y - cursor.origin.y,
+                                };
+                                valid_point(local)?;
+                                charge(&mut work, 1, &self.limits)?;
+                                let filled =
+                                    cursor.fill.contains(local, &mut work, &self.limits)?;
+                                let outlined = cursor
+                                    .outline
+                                    .as_ref()
+                                    .map(|mask| mask.contains(local, &mut work, &self.limits))
+                                    .transpose()?
+                                    .unwrap_or(false);
+                                if filled || outlined {
+                                    let channel = if cursor.white && filled && !outlined {
+                                        1.0
+                                    } else {
+                                        0.0
+                                    };
+                                    result = LinearPixel::from_color(Color {
+                                        red: channel,
+                                        green: channel,
+                                        blue: channel,
+                                        alpha: 1.0,
+                                    })
+                                    .over(result);
+                                }
                             }
                         }
                         sum = sum.add(result);
