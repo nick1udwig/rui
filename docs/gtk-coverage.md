@@ -639,7 +639,7 @@ is still a separate integration gate.
 
 `native-fence-interaction.json` records an actual core-admitted command deferred
 in the GTK queue. A bounded source receipt identifies the exact private request,
-source generation1 and still-valid atomic control generation1 at queue entry.
+source generation 1 and still-valid atomic control generation 1 at queue entry.
 The trusted host invalidator waits for that exact receipt, then clears the word.
 The deferred callback waits for zero with a two-second deadline, before returning
 to the final native guard. Its later receipt identifies the same request, atomic
@@ -773,3 +773,87 @@ records identified `gtk4-broadwayd` SIGABRT; recorded stacks reached the GLib
 assertion/abort path. These runs did not
 produce accepted corpus evidence. Isolated Xvfb completed the measured corpus
 and is the harness used for the retained fixtures.
+
+## Optional GTK producer port and actual TLS
+
+The SDK's optional `transport` feature consumes one `GtkCommandHost` into
+`GtkProducerPort`. The same owner retains its broker, common command ledger,
+private native socket and authoritative unredacted capture. Network tasks submit
+compound operations through a bounded 32-slot queue; they never borrow the native
+source or hold its lock across a network await. Queued requests, reply containers,
+owner/watcher stacks, four scope slots and resource-index capacity are charged
+before retention. Execution uses the monotonic owner clock including queue wait.
+The source remains the bounded cooperating 30-second fixture.
+
+Disconnect, immutable approval revocation and shutdown invalidate the inherited
+native fence independently of the normal owner lane. Lifecycle flush also waits
+for admitted owner work and unsent capabilities to finish dropping before it
+reports cleanup. Further normal admission can extend that bounded wait; immediate
+dispatch denial does not wait for it. Deterministic cancellation tests stop a
+Connect after its capability exists, drop the waiting caller, and prove that
+flush cannot settle before cleanup. The same client can then reconnect without
+a stranded slot. An active-request shutdown returns every reservation to zero.
+
+This adapter disposes its private consumer and exact keeper on disconnect, so
+it explicitly retires that public view. An actual retained client requesting
+resume receives `ResetRequired(ViewChanged)` and a snapshot in a fresh scope.
+It recovers neither its lease nor Presented readiness. Principal spoofing cannot
+invalidate the former principal binding. Lower envelope, record, ownership-depth
+and memory ceilings either produce a validated fresh projection or reject and
+clean up independently of another live view. Old-view ACK witnesses fail in the
+new scope; retained command outcomes stay in the same common ledger.
+
+The public view negotiates at most 32 MiB for normal mirror frame and transport
+allocations, a 128 KiB envelope and 32 KiB chunks. The private per-view verification
+receiver has a separate 8 MiB allowance. Actual broker IO, publication, attachment
+and resource reservations share the host's 256 MiB parent budget, and escaped
+keepers/handles retain their charge after owner teardown. Lower peer ceilings
+still apply. The TLS server's WebSocket upgrade ceiling is also 128 KiB. Resource
+handles check the original approval and connection scope synchronously; the
+periodic native watcher is not their access-control boundary.
+
+The retained `transport-interaction.json` and `transport-golden/` contain three
+isolated pinned-TLS runs. The full-visual run opens two real network clients on
+the public ordinary GTK corpus, delivers authored paths and native font outlines,
+dispatches a guarded native modal-close action, binds its own coherent capture
+token to Applied, and returns the identical outcome for an exact retry. A stalled
+observer keeps its old mapped modal while the controller advances, then receives
+the new snapshot after acknowledging its old frame. Approved viewers receive the
+same public corpus with separate action permissions; this is not evidence of
+an independently redacted observer projection.
+
+The disconnect and revocation runs stop a command at the exact trusted native
+queue receipt with fence generation 1. The later final guard sees word 0 and zero
+native dispatches. For revocation the original socket remains alive through that
+receipt, so socket loss cannot explain the rejection. The fresh retained client
+queries the old Failed outcome under its new scope and receives the same result
+for the old command's exact bytes, with no redispatch. A new sequence under a
+fresh generation reaches one actual native action and its own source capture.
+
+Every retained packet has exact bytes, direction, sequence, kind, size, SHA-256
+and session/epoch/principal/view scope in its phase index. The report hashes all
+indexes, packets and source vector manifests/bodies; no source photo or raster
+diagnostic enters this retained protocol corpus. Rust replay verifies the decoded
+network publications against source geometry and resource descriptors, including
+the final native command cause. Root’s independent Python/Rust audit passes all four complete full-visual
+network prefixes across two scopes: 335 exact packets, 76 verified vector
+transfers, five record kinds and six primitives. The retained
+`transport-full.audit.json` binds the index and converted trace hashes for CI.
+Root’s frozen SDK review also passes 38 tests, strict all-target Clippy and
+formatting. Recording prefixes exclude handshake credentials and
+can end before a canceled native command finishes; the ordered native receipts
+and fresh-scope result query establish that lifecycle outcome separately.
+
+The driver's Presented calls are explicitly simulated callback inputs. These
+runs do not establish actual mirror after-paint readiness, wire composition,
+preedit or physical input. Those remain required subsequent integration gates.
+
+```sh
+cargo build --locked --offline -p rui-producer-sdk \
+  --features transport,gtk-fixture-hooks --bin gtk_transport_check
+python3 fixtures/gtk/transport_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-gtk-tls-empty --scenario full-visual
+# Separate fresh output directories: --scenario disconnect and revocation.
+cargo test --locked --offline -p rui-producer-sdk \
+  --features transport,gtk-fixture-hooks --test transport_trace
+```

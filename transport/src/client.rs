@@ -665,6 +665,20 @@ impl NetworkClient {
         self.submit_family(CommandFamily::Semantic, exact_command_bytes)
             .await
     }
+    /// Query this authenticated producer's retained common-ledger outcome.
+    /// This neither redispatches the command nor restores its former control.
+    pub async fn get_command_result(&mut self, sequence: u64) -> Result<(), TransportError> {
+        if sequence == 0 {
+            return Err(TransportError::Protocol);
+        }
+        self.send(
+            p::Kind::GetCommandResult,
+            &p::GetCommandResult {
+                command_seq: sequence,
+            },
+        )
+        .await
+    }
     /// Send exact command bytes in the common producer sequence space. The host
     /// binds the family to its decoder and performs all authority checks.
     pub async fn submit_family(

@@ -10,14 +10,22 @@ libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+rui-transport = { path = "../../transport", optional = true }
+tokio = { version = "1", features = ["sync", "time"], optional = true }
 
 [dev-dependencies]
 sha2 = "0.10"
 
 [features]
 gtk-fixture-hooks = []
+transport = ["dep:rui-transport", "dep:tokio"]
 
 [[bin]]
 name = "gtk_command_check"
 path = "src/bin/gtk_command_check.rs"
 required-features = ["gtk-fixture-hooks"]
+
+[[bin]]
+name = "gtk_transport_check"
+path = "src/bin/gtk_transport_check.rs"
+required-features = ["transport", "gtk-fixture-hooks"]

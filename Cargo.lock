@@ -941,10 +941,12 @@ dependencies = [
  "libc",
  "prost",
  "rui-protocol-core",
+ "rui-transport",
  "serde",
  "serde_json",
  "sha2",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

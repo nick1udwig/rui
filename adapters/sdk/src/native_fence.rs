@@ -119,6 +119,7 @@ impl NativeFence {
         unsafe { self.0.mapping.0.as_ref() }
     }
     /// A retired generation is never revived, including an exact grant retry.
+    #[cfg(test)]
     pub(crate) fn grant(&self, generation: u64) -> io::Result<()> {
         self.grant_if(generation, || true)
     }
@@ -145,12 +146,17 @@ impl NativeFence {
         self.word().load(Ordering::Acquire)
     }
     pub(crate) fn invalidate(&self) {
+        self.invalidate_if(|| true);
+    }
+    pub(crate) fn invalidate_if(&self, authorized: impl FnOnce() -> bool) {
         let _issued = self
             .0
             .issued
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        self.word().store(0, Ordering::Release);
+        if authorized() {
+            self.word().store(0, Ordering::Release);
+        }
     }
     pub(crate) fn inherit(&self, command: &mut Command) {
         let fd = self.0.reader.as_raw_fd();

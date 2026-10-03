@@ -38,10 +38,17 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 
+#[cfg(feature = "transport")]
+#[path = "gtk_port.rs"]
+mod port;
+#[cfg(feature = "transport")]
+pub use port::GtkProducerPort;
+
 const MAX_REQUEST: usize = 128 << 10;
 const MAX_REPLY: usize = 8 << 10;
 const SOURCE_MEMORY: usize = 96 << 20;
 const CLIENT_MEMORY: usize = 8 << 20;
+const PUBLIC_VIEW_MEMORY: usize = 32 << 20;
 const ARTIFACT_MEMORY: usize = MAX_MANIFEST_ALLOCATION;
 // One 16MiB body plus bounded resource descriptor/seen sets and wire scratch.
 // Source resource bodies are also independently charged inside the receiver.
@@ -369,14 +376,12 @@ struct PublishedClosure {
     revision: u64,
     resources: BTreeMap<ResourceDigest, PublishedResource>,
     _memory: Arc<ViewMemoryReservation>,
-    _pool: Arc<MemoryReservation>,
 }
 #[derive(Clone)]
 struct PublishedResource {
     offer: ResourceOffer,
     bytes: Arc<[u8]>,
     _memory: Arc<ViewMemoryReservation>,
-    _pool: Arc<MemoryReservation>,
 }
 
 /// Cooperating-source fixture with mandatory core admission and actual native
@@ -445,7 +450,9 @@ impl GtkCommandHost {
         let mut config = SessionConfig {
             max_clients: MAX_CLIENTS,
             receiver_limits: ReceiverLimits {
-                view_memory_bytes: CLIENT_MEMORY,
+                view_memory_bytes: PUBLIC_VIEW_MEMORY,
+                envelope_bytes: 128 << 10,
+                chunk_bytes: 32 << 10,
                 ..ReceiverLimits::default()
             },
             ..SessionConfig::default()
@@ -454,7 +461,12 @@ impl GtkCommandHost {
         config
             .supported_profiles
             .insert("glyph.outline-single.v1".into());
-        let sessions = SessionBroker::new(context.scope.session_id, context.scope.epoch, config)?;
+        let sessions = SessionBroker::with_memory_budget(
+            context.scope.session_id,
+            context.scope.epoch,
+            config,
+            pipe.budget.clone(),
+        )?;
         let ledger = CommandLedger::new(
             context.scope.epoch,
             LedgerLimits {
@@ -673,8 +685,9 @@ impl GtkCommandHost {
         if self.views.contains_key(&hello.client_instance_id) {
             return Err(GtkHostError::Unsupported);
         }
-        // Two 8MiB pools: actual semantic consumer and core session retention.
-        let memory = Arc::new(self.pipe.budget.reserve(2 * CLIENT_MEMORY)?);
+        // The private receiver has an independent 8MiB allowance. Every core
+        // session allocation carries its actual shared-parent reservation.
+        let memory = Arc::new(self.pipe.budget.reserve(CLIENT_MEMORY)?);
         let negotiated = self.sessions.negotiate(Some(authorization), hello, now)?;
         let consumer = consumer_for_view(&mut self.sessions, &negotiated, now)?;
         self.views.insert(
@@ -761,7 +774,7 @@ impl GtkCommandHost {
         install_replacement(&mut self.sessions, view)?;
         Ok(revision)
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport"))]
     fn acknowledge_applied(
         &mut self,
         client: &AuthenticatedClient,
@@ -781,7 +794,7 @@ impl GtkCommandHost {
             .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
         Ok(())
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport"))]
     fn acknowledge_presented(
         &mut self,
         client: &AuthenticatedClient,
@@ -804,7 +817,7 @@ impl GtkCommandHost {
         view.ready = true;
         install_replacement(&mut self.sessions, view)
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "transport"))]
     fn publication_resource(
         &self,
         client: &AuthenticatedClient,
@@ -827,6 +840,15 @@ impl GtkCommandHost {
         request: Id,
         now: u64,
     ) -> Result<ControlLease, GtkHostError> {
+        self.acquire_control_guarded(client, request, now, || true)
+    }
+    fn acquire_control_guarded(
+        &mut self,
+        client: &AuthenticatedClient,
+        request: Id,
+        now: u64,
+        authorized: impl FnOnce() -> bool,
+    ) -> Result<ControlLease, GtkHostError> {
         if self.pipe.failed || !self.source_alive {
             return Err(GtkHostError::NativePipe);
         }
@@ -841,6 +863,53 @@ impl GtkCommandHost {
             }
             return Ok(lease);
         }
+        if let Err(error) = self.pipe.fence.grant_if(lease.generation, authorized) {
+            self.sessions.revoke_control(now);
+            self.drain_native_cleanup();
+            return Err(error.into());
+        }
+        self.install_native_control(lease, now)
+    }
+    #[cfg(feature = "transport")]
+    fn renew_control_guarded(
+        &mut self,
+        client: &AuthenticatedClient,
+        request: Id,
+        lease_id: Id,
+        generation: u64,
+        now: u64,
+        authorized: impl FnOnce() -> bool,
+    ) -> Result<ControlLease, GtkHostError> {
+        let view = self.view(client)?.negotiated.view_id;
+        let lease = self
+            .sessions
+            .renew_control(client, view, request, lease_id, generation, now)?;
+        if self.native_lease.as_ref().is_none_or(|(native, _)| {
+            native.client != *client
+                || native.lease_id != lease_id
+                || native.generation != generation
+        }) || self.pipe.fence.current() != generation
+            || !authorized()
+        {
+            self.sessions.revoke_control(now);
+            self.drain_native_cleanup();
+            return Err(SessionError::StaleControl.into());
+        }
+        // An exact old renew retry cannot regress a later native deadline.
+        if self
+            .native_lease
+            .as_ref()
+            .is_some_and(|(native, _)| lease.expires_at_ms <= native.expires_at_ms)
+        {
+            return Ok(lease);
+        }
+        self.install_native_control(lease, now)
+    }
+    fn install_native_control(
+        &mut self,
+        lease: ControlLease,
+        now: u64,
+    ) -> Result<ControlLease, GtkHostError> {
         let deadline_ns = monotonic_ns()?
             .checked_add(
                 lease
@@ -850,7 +919,6 @@ impl GtkCommandHost {
                     .ok_or(GtkHostError::Unsupported)?,
             )
             .ok_or(GtkHostError::Unsupported)?;
-        self.pipe.fence.grant(lease.generation)?;
         #[derive(Serialize)]
         struct Control {
             request_id: u64,
@@ -1003,6 +1071,12 @@ impl GtkCommandHost {
             self.native_lease = None;
         }
         self.sessions.disconnect(client, now)?;
+        // This adapter disposes its private consumer and exact publication
+        // keeper on disconnect. Retire the public view at the same boundary;
+        // reconnect must use a fresh snapshot scope rather than claim resume
+        // from a keeper this owner no longer retains. The broker retains the
+        // principal binding and the common command ledger remains unchanged.
+        self.sessions.invalidate_authorization(client, now)?;
         self.drain_native_cleanup();
         if let Some(view) = self.views.remove(&client.client_instance_id) {
             drop(view);
@@ -1288,9 +1362,11 @@ fn consumer_for_view(
         },
         view_id: negotiated.view_id,
     };
+    let mut limits = negotiated.limits.clone();
+    limits.view_memory_bytes = limits.view_memory_bytes.min(CLIENT_MEMORY);
     match ViewReceiver::new(
         context,
-        negotiated.limits.clone(),
+        limits,
         ReceiverConfig {
             single_glyph_outlines: negotiated.profiles.contains("glyph.outline-single.v1"),
             ..ReceiverConfig::default()
@@ -1712,8 +1788,7 @@ fn publish_snapshot(
                     "content.no-raster.v1".into(),
                 ];
             }
-            let closure =
-                retain_closure(&snapshot, source, sessions, &view.negotiated, &view._memory)?;
+            let closure = retain_closure(&snapshot, source, sessions, &view.negotiated)?;
             let bytes = pb::Envelope {
                 protocol_version: 1,
                 session_id: view.negotiated.session_id.to_vec(),
@@ -1765,7 +1840,6 @@ fn retain_closure(
     source: Option<&ViewReceiver>,
     sessions: &SessionBroker,
     negotiated: &NegotiatedSession,
-    pool: &Arc<MemoryReservation>,
 ) -> Result<rui_protocol_core::session::PublicationAttachment, GtkHostError> {
     let mut charge = 8192usize;
     for digest in &snapshot.required_resources {
@@ -1803,7 +1877,6 @@ fn retain_closure(
                     .clone(),
                 bytes: Arc::from(source.read_resource(digest).map_err(CaptureError::from)?),
                 _memory: memory.clone(),
-                _pool: pool.clone(),
             },
         );
     }
@@ -1811,7 +1884,6 @@ fn retain_closure(
         revision: snapshot.revision,
         resources,
         _memory: memory,
-        _pool: pool.clone(),
     }))
 }
 
@@ -1822,9 +1894,7 @@ fn install_replacement(sessions: &mut SessionBroker, view: &mut View) -> Result<
     // Full-view verification does not create a renderer acknowledgement. The
     // native authority remains the private, unredacted source graph.
     let staged = (|| {
-        if !view.negotiated.profiles.contains("semantics.only.v1") {
-            verify_publication(&mut view.consumer, &view.negotiated, &pending.publication)?;
-        }
+        verify_publication(&mut view.consumer, &view.negotiated, &pending.publication)?;
         sessions.install_snapshot(
             &view.negotiated.client,
             view.negotiated.view_id,
@@ -1930,7 +2000,7 @@ fn verify_publication(
 mod tests {
     use super::*;
 
-    fn visual_host() -> GtkCommandHost {
+    pub(super) fn visual_host() -> GtkCommandHost {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/gtk/whole-native-golden/whole-native");
         let budget = MemoryBudget::new(256 << 20);
@@ -1954,7 +2024,7 @@ mod tests {
             socket,
             directory,
             _working: budget.reserve(1 << 20).unwrap(),
-            budget,
+            budget: budget.clone(),
             next_request: 1,
             source_generation: 1,
             failed: false,
@@ -1982,8 +2052,13 @@ mod tests {
             pipe,
             capture,
             source,
-            sessions: SessionBroker::new(context.scope.session_id, context.scope.epoch, config)
-                .unwrap(),
+            sessions: SessionBroker::with_memory_budget(
+                context.scope.session_id,
+                context.scope.epoch,
+                config,
+                budget,
+            )
+            .unwrap(),
             ledger: CommandLedger::new(context.scope.epoch, LedgerLimits::default()).unwrap(),
             views: BTreeMap::new(),
             native_lease: None,
@@ -2123,6 +2198,12 @@ mod tests {
             2
         );
         let resource = old_closure.resources.values().next().unwrap().clone();
+        let retained_charge = 8192
+            + old_closure
+                .resources
+                .values()
+                .map(|resource| resource.bytes.len() + 1024)
+                .sum::<usize>();
         host.source.close();
         assert_eq!(
             old_closure
@@ -2139,7 +2220,7 @@ mod tests {
         drop(controller_first);
         drop(first);
         drop(host);
-        assert_eq!(budget.used(), 2 * CLIENT_MEMORY);
+        assert_eq!(budget.used(), retained_charge);
         drop(resource);
         assert_eq!(budget.used(), 0);
     }
