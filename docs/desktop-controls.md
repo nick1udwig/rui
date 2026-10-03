@@ -46,3 +46,26 @@ python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe corpus \
 Native GTK producer wire composition and native session physical input remain
 separate integration gates. This controlled-source run measures real after-paint
 callbacks; it does not establish physical scanout timing.
+
+The desktop physical-input path recognizes an explicitly granted
+`raw.host.v1`/`HOST_PHYSICAL` device in the `linux.evdev` namespace.
+`rui-mirror --session` requests the exact whole-session selection; reconnect
+preserves that selection. Each actual painted frame retains a charged routing
+summary, bounded to 128 surfaces and 64 input rectangles per surface. A key or
+pointer event captures its target, focus, geometry and route from that summary.
+The worker rejects changed focus, movement, modality and occlusion before
+encoding a command; a Partial or unrouteable top surface cannot expose a
+clickable surface underneath. Ordinary visual-only updates can advance while
+the same route remains valid, using the broker's actual Presented revision.
+
+Key capture preserves physical identity through release and suppresses client
+autorepeat. Potential held input remains owned until its matching dispatch
+result. A separate grant-scoped stop signal cancels even an already-polled,
+backpressured socket write without discarding the exact command queue. Recovery
+returns to observation with a persistent request-for-fresh-control notice;
+physical safety stops do not automatically reacquire a lease.
+
+Root's frozen review passed nine desktop unit tests, six physical preparation
+tests, four actual TLS recovery tests and strict all-target Clippy. These verify
+the bounded client pipeline and its failure behavior. The same-native-source,
+two-mirror physical session gate is assessed separately.

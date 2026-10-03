@@ -1,6 +1,8 @@
 //! Full source/reference/two-window native integration on private Xvfb.
 use rui_client_desktop::{
-    desktop::{self, gtk, DesktopObservation, DisplayedObservation, Options, TypingNotice},
+    desktop::{
+        self, gtk, DesktopObservation, DisplayedObservation, Options, TypingNotice, ViewSelection,
+    },
     *,
 };
 use rui_host_broker::{
@@ -1343,6 +1345,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     certificate: cert.to_vec(),
                     credential,
                     client_id: [61 + index as u8; 16],
+                    view_selection: ViewSelection::Fixture,
                     auto_control: index == 0,
                     smoke_frames: None,
                     title: if index == 0 { CONTROLLER } else { OBSERVER },

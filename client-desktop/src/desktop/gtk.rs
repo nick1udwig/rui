@@ -14,6 +14,10 @@ mod imp {
         pub texture: RefCell<Option<gdk::MemoryTexture>>,
         pub stamp: Cell<Option<Stamp>>,
         pub snapshot_stamp: Cell<Option<Stamp>>,
+        pub actual_stamp: Cell<Option<Stamp>>,
+        pub routing: RefCell<Option<std::sync::Arc<physical_dispatch::PresentedRouting>>>,
+        pub snapshot_routing: RefCell<Option<std::sync::Arc<physical_dispatch::PresentedRouting>>>,
+        pub actual_routing: RefCell<Option<std::sync::Arc<physical_dispatch::PresentedRouting>>>,
         pub resized: RefCell<Option<Resize>>,
     }
     #[glib::object_subclass]
@@ -60,6 +64,7 @@ mod imp {
                     ),
                 );
                 self.snapshot_stamp.set(Some(stamp));
+                self.snapshot_routing.replace(self.routing.borrow().clone());
             }
         }
     }
@@ -73,7 +78,12 @@ impl Canvas {
         canvas.set_focusable(true);
         canvas
     }
-    fn display(&self, stamp: Stamp, pixels: RgbaFrame) {
+    fn display(
+        &self,
+        stamp: Stamp,
+        pixels: RgbaFrame,
+        routing: Option<std::sync::Arc<physical_dispatch::PresentedRouting>>,
+    ) {
         let bytes = glib::Bytes::from_owned(pixels);
         let texture = gdk::MemoryTexture::new(
             stamp.viewport.width as i32,
@@ -84,12 +94,17 @@ impl Canvas {
         );
         self.imp().texture.replace(Some(texture));
         self.imp().stamp.set(Some(stamp));
+        self.imp().routing.replace(routing);
         self.queue_draw();
     }
     fn clear(&self) {
         self.imp().texture.replace(None);
         self.imp().stamp.set(None);
         self.imp().snapshot_stamp.set(None);
+        self.imp().actual_stamp.set(None);
+        self.imp().routing.replace(None);
+        self.imp().snapshot_routing.replace(None);
+        self.imp().actual_routing.replace(None);
         self.queue_draw();
     }
 }
@@ -300,9 +315,15 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             let (event_tx, event_rx) = mpsc::sync_channel(1);
             let (ui_tx, ui_rx) = watch::channel(UiState::default());
             let (shutdown_tx, shutdown_rx) = watch::channel(false);
+            let (priority_tx, priority_rx) = watch::channel(None);
             {
                 let shutdown = shutdown_tx.clone();
+                let priority = priority_tx.clone();
+                let current = ui_rx.clone();
                 app.connect_shutdown(move |_| {
+                    if let Some(control) = current.borrow().physical_control {
+                        priority.send_replace(Some(control));
+                    }
                     shutdown.send_replace(true);
                 });
             }
@@ -314,13 +335,14 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                     .enable_all()
                     .build()
                     .expect("Tokio runtime");
-                runtime.block_on(worker(
+                runtime.block_on(worker_with_priority(
                     options,
                     command_rx,
                     viewport_rx,
                     event_tx,
                     ui_tx,
                     shutdown_rx,
+                    priority_rx,
                 ));
             });
             let window = gtk4::ApplicationWindow::builder()
@@ -400,6 +422,8 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             column.append(&canvas);
             window.set_child(Some(&column));
             let budget = Rc::new(RefCell::new(None::<MemoryBudget>));
+            let physical =
+                super::physical_callbacks::PhysicalCallbacks::new(command_tx.clone(), priority_tx);
             let native = {
                 let budget = budget.clone();
                 let weak_canvas = canvas.downgrade();
@@ -491,7 +515,10 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             {
                 let sender = command_tx.clone();
                 let label = label.clone();
+                let physical = physical.clone();
+                let state = ui_rx.clone();
                 release.connect_clicked(move |_| {
+                    physical.stop_current(*state.borrow());
                     enqueue(&sender, UiCommand::Release, &label);
                 });
             }
@@ -548,7 +575,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                     })));
             }
             let click = gtk4::GestureClick::new();
-            click.set_button(1);
+            click.set_button(0);
             {
                 let canvas = canvas.downgrade();
                 let sender = command_tx.clone();
@@ -559,7 +586,33 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let click_pending = click_pending.clone();
                 let feedback = feedback.clone();
                 let canvas_feedback = canvas_feedback.clone();
-                click.connect_pressed(move |_, _, x, y| {
+                let physical = physical.clone();
+                let budget = budget.clone();
+                click.connect_pressed(move |gesture, _, x, y| {
+                    let current = *state.borrow();
+                    if current.physical_control.is_some() {
+                        native.reset(None, false);
+                        if let Some(canvas) = canvas.upgrade() {
+                            canvas.grab_focus();
+                            if let Err(message) = physical.pointer(
+                                current,
+                                canvas.imp().actual_stamp.get(),
+                                canvas.imp().actual_routing.borrow().clone(),
+                                rui_protocol_core::input::Event::Button {
+                                    code: gesture.current_button(),
+                                    pressed: true,
+                                    position: Point { x, y },
+                                },
+                                budget.borrow().as_ref(),
+                            ) {
+                                label.set_text(message);
+                            }
+                        }
+                        return;
+                    }
+                    if gesture.current_button() != 1 {
+                        return;
+                    }
                     let started_us = glib::monotonic_time();
                     feedback.clear();
                     canvas_feedback.clear();
@@ -587,6 +640,121 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                     }
                 });
             }
+            {
+                let physical = physical.clone();
+                let state = ui_rx.clone();
+                let budget = budget.clone();
+                let canvas = canvas.downgrade();
+                let label = label.clone();
+                click.connect_released(move |gesture, _, x, y| {
+                    let current = *state.borrow();
+                    if current.physical_control.is_some() {
+                        if let Err(message) = physical.pointer(
+                            current,
+                            canvas.upgrade().and_then(|c| c.imp().actual_stamp.get()),
+                            canvas
+                                .upgrade()
+                                .and_then(|c| c.imp().actual_routing.borrow().clone()),
+                            rui_protocol_core::input::Event::Button {
+                                code: gesture.current_button(),
+                                pressed: false,
+                                position: Point { x, y },
+                            },
+                            budget.borrow().as_ref(),
+                        ) {
+                            label.set_text(message);
+                        }
+                    }
+                });
+            }
+            {
+                let physical = physical.clone();
+                let state = ui_rx.clone();
+                click.connect_cancel(move |_, _| {
+                    if state.borrow().physical_control.is_some() {
+                        physical.stop_current(*state.borrow());
+                    }
+                });
+            }
+            let motion = gtk4::EventControllerMotion::new();
+            {
+                let physical = physical.clone();
+                let state = ui_rx.clone();
+                let budget = budget.clone();
+                let canvas = canvas.downgrade();
+                let label = label.clone();
+                motion.connect_motion(move |_, x, y| {
+                    let current = *state.borrow();
+                    if current.physical_control.is_some() {
+                        if let Err(message) = physical.pointer(
+                            current,
+                            canvas.upgrade().and_then(|c| c.imp().actual_stamp.get()),
+                            canvas
+                                .upgrade()
+                                .and_then(|c| c.imp().actual_routing.borrow().clone()),
+                            rui_protocol_core::input::Event::Motion(Point { x, y }),
+                            budget.borrow().as_ref(),
+                        ) {
+                            label.set_text(message);
+                        }
+                    }
+                });
+            }
+            {
+                let physical = physical.clone();
+                motion.connect_leave(move |_| physical.pointer_leave());
+            }
+            canvas.add_controller(motion);
+            let scroll = gtk4::EventControllerScroll::new(gtk4::EventControllerScrollFlags::BOTH_AXES);
+            {
+                let physical = physical.clone();
+                let state = ui_rx.clone();
+                let budget = budget.clone();
+                let canvas = canvas.downgrade();
+                let label = label.clone();
+                scroll.connect_scroll(move |controller, x, y| {
+                    let current = *state.borrow();
+                    if current.physical_control.is_none() {
+                        return glib::Propagation::Proceed;
+                    }
+                    let Some(canvas) = canvas.upgrade() else {
+                        return glib::Propagation::Stop;
+                    };
+                    // Current GDK event positions are surface-local; convert
+                    // through GTK into the exact displayed canvas coordinate.
+                    let position = controller
+                        .current_event()
+                        .and_then(|event| event.position())
+                        .and_then(|(x, y)| {
+                            let native = canvas.native()?;
+                            let widget = native.dynamic_cast::<gtk4::Widget>().ok()?;
+                            widget.compute_point(&canvas, &graphene::Point::new(x as f32, y as f32))
+                        });
+                    if let Some(point) = position {
+                        if let Err(message) = physical.pointer(
+                            current,
+                            canvas.imp().actual_stamp.get(),
+                            canvas.imp().actual_routing.borrow().clone(),
+                            rui_protocol_core::input::Event::Wheel {
+                                x,
+                                y,
+                                position: Point {
+                                    x: point.x() as f64,
+                                    y: point.y() as f64,
+                                },
+                            },
+                            budget.borrow().as_ref(),
+                        ) {
+                            label.set_text(message);
+                        }
+                    } else {
+                        physical.stop_current(current);
+                        label.set_text("Physical wheel position is unavailable; control stopped.");
+                    }
+                    glib::Propagation::Stop
+                });
+            }
+            canvas.add_controller(scroll);
             let source_drag = gtk4::GestureDrag::new();
             source_drag.set_button(1);
             source_drag.group_with(&click);
@@ -635,22 +803,22 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let stroke = source_stroke.clone();
                 let canvas_feedback = canvas_feedback.clone();
                 source_drag.connect_drag_update(move |_, x, y| {
-                    let mut capture = stroke.borrow_mut();
-                    let Some((_, origin, points)) = capture.as_mut() else {
-                        return;
-                    };
-                    let time = u64::try_from(stroke_clock.elapsed().as_micros()).unwrap_or(u64::MAX);
-                    let sample = source_controls::PointerSample {
-                        timestamp_us: time,
-                        point: Point { x: origin.x + x, y: origin.y + y },
-                    };
-                    if points.push(sample).is_err() {
-                        capture.take();
-                        canvas_feedback.reject(
-                            "Canvas stroke exceeded its sample limit or geometry; nothing was submitted.",
-                        );
-                    }
-                });
+                            let mut capture = stroke.borrow_mut();
+                            let Some((_, origin, points)) = capture.as_mut() else {
+                                return;
+                            };
+                            let time = u64::try_from(stroke_clock.elapsed().as_micros()).unwrap_or(u64::MAX);
+                            let sample = source_controls::PointerSample {
+                                timestamp_us: time,
+                                point: Point { x: origin.x + x, y: origin.y + y },
+                            };
+                            if points.push(sample).is_err() {
+                                capture.take();
+                                canvas_feedback.reject(
+                                    "Canvas stroke exceeded its sample limit or geometry; nothing was submitted.",
+                                );
+                            }
+                        });
             }
             {
                 let stroke = source_stroke.clone();
@@ -659,31 +827,31 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let canvas_feedback = canvas_feedback.clone();
                 let observations = observations.clone();
                 source_drag.connect_drag_end(move |_, x, y| {
-                    let started_us = glib::monotonic_time();
-                    let Some((stamp, origin, mut points)) = stroke.borrow_mut().take() else {
-                        return;
-                    };
-                    if points.samples().len() == 1 {
-                        return;
-                    }
-                    let time = u64::try_from(stroke_clock.elapsed().as_micros()).unwrap_or(u64::MAX);
-                    let sample = source_controls::PointerSample {
-                        timestamp_us: time,
-                        point: Point { x: origin.x + x, y: origin.y + y },
-                    };
-                    if points.finish(sample).is_err() {
-                        canvas_feedback.reject(
-                            "Canvas stroke exceeded its sample limit or geometry; nothing was submitted.",
-                        );
-                        return;
-                    }
-                    observe_action(&observations, stamp, ActionKind::StrokeRelease, started_us);
-                    if !enqueue(&sender, UiCommand::Stroke { stamp, stroke: points }, &label) {
-                        canvas_feedback.reject(
-                            "Canvas input queue is full or disconnected; nothing was submitted.",
-                        );
-                    }
-                });
+                            let started_us = glib::monotonic_time();
+                            let Some((stamp, origin, mut points)) = stroke.borrow_mut().take() else {
+                                return;
+                            };
+                            if points.samples().len() == 1 {
+                                return;
+                            }
+                            let time = u64::try_from(stroke_clock.elapsed().as_micros()).unwrap_or(u64::MAX);
+                            let sample = source_controls::PointerSample {
+                                timestamp_us: time,
+                                point: Point { x: origin.x + x, y: origin.y + y },
+                            };
+                            if points.finish(sample).is_err() {
+                                canvas_feedback.reject(
+                                    "Canvas stroke exceeded its sample limit or geometry; nothing was submitted.",
+                                );
+                                return;
+                            }
+                            observe_action(&observations, stamp, ActionKind::StrokeRelease, started_us);
+                            if !enqueue(&sender, UiCommand::Stroke { stamp, stroke: points }, &label) {
+                                canvas_feedback.reject(
+                                    "Canvas input queue is full or disconnected; nothing was submitted.",
+                                );
+                            }
+                        });
             }
             {
                 let stroke = source_stroke.clone();
@@ -702,13 +870,24 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             {
                 let view = view.clone();
                 let origin = drag_origin.clone();
-                drag.connect_drag_begin(move |_, _, _| origin.set(view.get().origin));
+                let state = ui_rx.clone();
+                drag.connect_drag_begin(move |gesture, _, _| {
+                    if state.borrow().physical_control.is_some() {
+                        gesture.set_state(gtk4::EventSequenceState::Denied);
+                    } else {
+                        origin.set(view.get().origin);
+                    }
+                });
             }
             {
                 let view = view.clone();
                 let origin = drag_origin;
                 let tx = viewport_tx.clone();
+                let state = ui_rx.clone();
                 drag.connect_drag_update(move |_, x, y| {
+                    if state.borrow().physical_control.is_some() {
+                        return;
+                    }
                     let mut v = view.get();
                     let p = origin.get();
                     v.origin = Point {
@@ -731,54 +910,87 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let feedback = feedback.clone();
                 let stroke = source_stroke.clone();
                 let canvas_feedback = canvas_feedback.clone();
-                key.connect_key_pressed(move |controller, key, _, modifiers| {
-                        if key==gdk::Key::Escape && stroke.borrow_mut().take().is_some() {
-                            canvas_feedback.reject("Unsubmitted canvas stroke cancelled.");
-                            return glib::Propagation::Stop;
-                        }
-                        if sender.capacity() == 0 {
-                            feedback.reject("Typing queue is full; this key was not accepted. Select the target to resume.");
-                            native.reset(None, true);
-                            return glib::Propagation::Stop;
-                        }
-                        native.route_key(controller, key, modifiers, |shortcut| match shortcut {
-                            Shortcut::SelectAll => {
-                                if let Some(canvas) = canvas.upgrade() {
-                                    if let Some(stamp) = canvas.imp().stamp.get() {
-                                        enqueue(&sender, UiCommand::SelectAll { stamp }, &label);
+                let physical = physical.clone();
+                let state = ui_rx.clone();
+                let budget = budget.clone();
+                key.connect_key_pressed(move |controller, key, hardware, modifiers| {
+                                let current=*state.borrow();
+                                if current.physical_control.is_some() {
+                                    native.reset(None,false);
+                                    if modifiers.contains(gdk::ModifierType::CONTROL_MASK) && key==gdk::Key::Escape {
+                                        physical.stop_current(current);label.set_text("Physical control stopped; request fresh control.");return glib::Propagation::Stop;
                                     }
+                                    if let Some(canvas)=canvas.upgrade(){if let Err(message)=physical.key_press(&WidgetExt::display(&canvas),hardware,current,canvas.imp().actual_stamp.get(),canvas.imp().actual_routing.borrow().clone(),budget.borrow().as_ref()){label.set_text(message);}}
+                                    return glib::Propagation::Stop;
                                 }
-                            }
-                            Shortcut::Pan { x, y } => {
-                                let mut v = view.get();
-                                let distance = 30.0 / v.scale;
-                                v.origin.x += x as f64 * distance;
-                                v.origin.y += y as f64 * distance;
-                                view.set(v);
-                                tx.send_replace(v);
-                            }
-                            Shortcut::BlockedTextInput => label.set_text(
-                                "Text input is unavailable; select an editable remote target.",
-                            ),
-                            Shortcut::Zoom { direction } => {
-                                let mut v = view.get();
-                                v.scale = (v.scale * if direction > 0 { 1.25 } else { 0.8 })
-                                    .clamp(0.125, 8.0);
-                                view.set(v);
-                                tx.send_replace(v);
-                            }
-                            Shortcut::ReleaseControl => {
-                                enqueue(&sender, UiCommand::Release, &label);
-                            }
-                            Shortcut::AcquireControl => {
-                                enqueue(&sender, UiCommand::Acquire, &label);
-                            }
-                        })
-                    });
+                                if key==gdk::Key::Escape && stroke.borrow_mut().take().is_some() {
+                                    canvas_feedback.reject("Unsubmitted canvas stroke cancelled.");
+                                    return glib::Propagation::Stop;
+                                }
+                                if sender.capacity() == 0 {
+                                    feedback.reject("Typing queue is full; this key was not accepted. Select the target to resume.");
+                                    native.reset(None, true);
+                                    return glib::Propagation::Stop;
+                                }
+                                native.route_key(controller, key, modifiers, |shortcut| match shortcut {
+                                    Shortcut::SelectAll => {
+                                        if let Some(canvas) = canvas.upgrade() {
+                                            if let Some(stamp) = canvas.imp().stamp.get() {
+                                                enqueue(&sender, UiCommand::SelectAll { stamp }, &label);
+                                            }
+                                        }
+                                    }
+                                    Shortcut::Pan { x, y } => {
+                                        let mut v = view.get();
+                                        let distance = 30.0 / v.scale;
+                                        v.origin.x += x as f64 * distance;
+                                        v.origin.y += y as f64 * distance;
+                                        view.set(v);
+                                        tx.send_replace(v);
+                                    }
+                                    Shortcut::BlockedTextInput => label.set_text(
+                                        "Text input is unavailable; select an editable remote target.",
+                                    ),
+                                    Shortcut::Zoom { direction } => {
+                                        let mut v = view.get();
+                                        v.scale = (v.scale * if direction > 0 { 1.25 } else { 0.8 })
+                                            .clamp(0.125, 8.0);
+                                        view.set(v);
+                                        tx.send_replace(v);
+                                    }
+                                    Shortcut::ReleaseControl => {
+                                        enqueue(&sender, UiCommand::Release, &label);
+                                    }
+                                    Shortcut::AcquireControl => {
+                                        enqueue(&sender, UiCommand::Acquire, &label);
+                                    }
+                                })
+                            });
             }
             {
                 let native = native.clone();
-                key.connect_key_released(move |controller, _, _, _| {
+                let physical = physical.clone();
+                let state = ui_rx.clone();
+                let budget = budget.clone();
+                let canvas = canvas.downgrade();
+                let label = label.clone();
+                key.connect_key_released(move |controller, _, hardware, _| {
+                    let current = *state.borrow();
+                    if current.physical_control.is_some() {
+                        native.reset(None, false);
+                        if let Err(message) = physical.key_release(
+                            hardware,
+                            current,
+                            canvas.upgrade().and_then(|c| c.imp().actual_stamp.get()),
+                            canvas
+                                .upgrade()
+                                .and_then(|c| c.imp().actual_routing.borrow().clone()),
+                            budget.borrow().as_ref(),
+                        ) {
+                            label.set_text(message);
+                        }
+                        return;
+                    }
                     native.filter_release(controller);
                 });
             }
@@ -791,7 +1003,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let observations = observations.clone();
                 let feedback = feedback.clone();
                 focus.connect_enter(move |_| {
-                    let editing = if click_pending.get() {
+                    let editing = if click_pending.get() || state.borrow().physical_control.is_some() {
                         None
                     } else {
                         feedback.editing_context(state.borrow().editing)
@@ -806,7 +1018,10 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             {
                 let native = native.clone();
                 let observations = observations.clone();
+                let physical = physical.clone();
+                let state = ui_rx.clone();
                 focus.connect_leave(move |_| {
+                    physical.stop_current(*state.borrow());
                     native.reset(None, false);
                     if let Some(observations) = &observations {
                         observations.send_modify(|o| o.editing_target = None);
@@ -834,104 +1049,108 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                     clear_cache.upcast_ref::<gtk4::Widget>().downgrade(),
                 ];
                 window.connect_realize(move |window| {
-                        if let Some(clock) = window.frame_clock() {
-                            let canvas = weak_canvas.clone();
-                            let sender = sender.clone();
-                            let submitted = submitted.clone();
-                            let label = label.clone();
-                            let window = weak_window.clone();
-                            let observations = observations.clone();
-                            let ui = ui.clone();
-                            let canvas_feedback=canvas_feedback.clone();
-                            let controls=controls.clone();
-                            clock.connect_after_paint(move |clock| {
-                                if let Some(observations) = &observations {
-                                    let current = *ui.borrow();
-                                    observations.send_modify(|o| {
-                                        o.notice_visible = current
-                                            .typing_notice
-                                            .message()
-                                            .is_some_and(|message| label.text() == message);
-                                        o.stroke_notice = canvas_feedback.message();
-                                        o.stroke_notice_visible = canvas_feedback
-                                            .message()
-                                            .is_some_and(|message| label.text() == message);
-                                    });
-                                }
-                                if let Some(canvas) = canvas.upgrade() {
-                                    if let Some(stamp) = canvas.imp().snapshot_stamp.get() {
-                                        if submitted.get() != Some(stamp.serial) {
-                                            if enqueue(&sender, UiCommand::Presented(stamp), &label) {
-                                                submitted.set(Some(stamp.serial));
-                                                if let (Some(observations), Some(window)) = (&observations, window.upgrade()) {
-                                                    if let Some(origin) =
-                                                        canvas.compute_point(&window, &graphene::Point::new(0.0, 0.0))
-                                                    {
-                                                        observations.send_modify(|o| {
-                                                            o.displayed = Some(DisplayedObservation {
-                                                                stamp,
-                                                                canvas_origin: Point {
-                                                                    x: origin.x() as f64,
-                                                                    y: origin.y() as f64,
-                                                                },
-                                                                window_scale: window.scale_factor(),
-                                                                frame_time_us: clock.frame_time(),
-                                                                refresh_interval_us: clock.refresh_info(clock.frame_time()).0,
-                                                                predicted_presentation_us: clock
-                                                                    .refresh_info(clock.frame_time())
-                                                                    .1,
-                                                                after_paint_time_us: glib::monotonic_time(),
-                                                            })
-                                                        });
-                                                    }
-                                                    let points = controls.each_ref().map(|weak| {
-                                                        weak.upgrade()
-                                                            .and_then(|widget| {
-                                                                widget.compute_point(
-                                                                    &window,
-                                                                    &graphene::Point::new(
-                                                                        widget.width() as f32 / 2.0,
-                                                                        widget.height() as f32 / 2.0,
-                                                                    ),
-                                                                )
-                                                            })
-                                                            .map(|p| Point {
-                                                                x: p.x() as f64,
-                                                                y: p.y() as f64,
-                                                            })
-                                                    });
-                                                    if let [
-                                                        Some(resize), Some(width), Some(height),
-                                                        Some(scroll), Some(scroll_y), Some(reconnect), Some(cache),
-                                                    ] = points
-                                                    {
-                                                        observations.send_modify(|o| {
-                                                            o.local_controls = Some(LocalControls {
-                                                                resize,
-                                                                width,
-                                                                height,
-                                                                scroll,
-                                                                scroll_y,
-                                                                reconnect,
-                                                                cache,
-                                                            })
-                                                        });
+                                if let Some(clock) = window.frame_clock() {
+                                    let canvas = weak_canvas.clone();
+                                    let sender = sender.clone();
+                                    let submitted = submitted.clone();
+                                    let label = label.clone();
+                                    let window = weak_window.clone();
+                                    let observations = observations.clone();
+                                    let ui = ui.clone();
+                                    let canvas_feedback=canvas_feedback.clone();
+                                    let controls=controls.clone();
+                                    clock.connect_after_paint(move |clock| {
+                                        if let Some(observations) = &observations {
+                                            let current = *ui.borrow();
+                                            observations.send_modify(|o| {
+                                                o.notice_visible = current
+                                                    .typing_notice
+                                                    .message()
+                                                    .is_some_and(|message| label.text() == message);
+                                                o.stroke_notice = canvas_feedback.message();
+                                                o.stroke_notice_visible = canvas_feedback
+                                                    .message()
+                                                    .is_some_and(|message| label.text() == message);
+                                            });
+                                        }
+                                        if let Some(canvas) = canvas.upgrade() {
+                                            if let Some(stamp) = canvas.imp().snapshot_stamp.get() {
+                                                canvas.imp().actual_stamp.set(Some(stamp));
+                                            canvas.imp().actual_routing.replace(canvas.imp().snapshot_routing.borrow().clone());
+                                                if submitted.get() != Some(stamp.serial) {
+                                                    if enqueue(&sender, UiCommand::Presented(stamp), &label) {
+                                                        submitted.set(Some(stamp.serial));
+                                                        if let (Some(observations), Some(window)) = (&observations, window.upgrade()) {
+                                                            if let Some(origin) =
+                                                                canvas.compute_point(&window, &graphene::Point::new(0.0, 0.0))
+                                                            {
+                                                                observations.send_modify(|o| {
+                                                                    o.displayed = Some(DisplayedObservation {
+                                                                        stamp,
+                                                                        canvas_origin: Point {
+                                                                            x: origin.x() as f64,
+                                                                            y: origin.y() as f64,
+                                                                        },
+                                                                        window_scale: window.scale_factor(),
+                                                                        frame_time_us: clock.frame_time(),
+                                                                        refresh_interval_us: clock.refresh_info(clock.frame_time()).0,
+                                                                        predicted_presentation_us: clock
+                                                                            .refresh_info(clock.frame_time())
+                                                                            .1,
+                                                                        after_paint_time_us: glib::monotonic_time(),
+                                                                    })
+                                                                });
+                                                            }
+                                                            let points = controls.each_ref().map(|weak| {
+                                                                weak.upgrade()
+                                                                    .and_then(|widget| {
+                                                                        widget.compute_point(
+                                                                            &window,
+                                                                            &graphene::Point::new(
+                                                                                widget.width() as f32 / 2.0,
+                                                                                widget.height() as f32 / 2.0,
+                                                                            ),
+                                                                        )
+                                                                    })
+                                                                    .map(|p| Point {
+                                                                        x: p.x() as f64,
+                                                                        y: p.y() as f64,
+                                                                    })
+                                                            });
+                                                            if let [
+                                                                Some(resize), Some(width), Some(height),
+                                                                Some(scroll), Some(scroll_y), Some(reconnect), Some(cache),
+                                                            ] = points
+                                                            {
+                                                                observations.send_modify(|o| {
+                                                                    o.local_controls = Some(LocalControls {
+                                                                        resize,
+                                                                        width,
+                                                                        height,
+                                                                        scroll,
+                                                                        scroll_y,
+                                                                        reconnect,
+                                                                        cache,
+                                                                    })
+                                                                });
+                                                            }
+                                                        }
+                                                    } else {
+                                                        canvas.queue_draw();
                                                     }
                                                 }
-                                            } else {
-                                                canvas.queue_draw();
                                             }
                                         }
-                                    }
+                                    });
                                 }
                             });
-                        }
-                    });
             }
             let app_weak = app.downgrade();
             let canvas_weak = canvas.downgrade();
             let label_weak = label.downgrade();
             let previous = Rc::new(Cell::new(UiState::default()));
+            let close_physical = physical.clone();
+            let close_ui = ui_rx.clone();
             let source = glib::timeout_add_local(Duration::from_millis(16), move || {
                 let (Some(app), Some(canvas), Some(label)) = (
                     app_weak.upgrade(),
@@ -948,6 +1167,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                     return glib::ControlFlow::Break;
                 }
                 let current = *ui_rx.borrow();
+                physical.reconcile(current);
                 let old = previous.replace(current);
                 resize_source.set_sensitive(current.source_resize.is_some());
                 scroll_source.set_sensitive(current.source_scroll.is_some());
@@ -977,7 +1197,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                         click_pending.set(false);
                     }
                     native.reset(
-                        if canvas.has_focus() {
+                        if canvas.has_focus() && current.physical_control.is_none() {
                             feedback.editing_context(current.editing)
                         } else {
                             None
@@ -1011,12 +1231,17 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 }
                 for _ in 0..4 {
                     match event_rx.try_recv() {
-                        Ok(UiEvent::Frame { stamp, pixels }) => {
+                        Ok(UiEvent::Frame {
+                            stamp,
+                            pixels,
+                            routing,
+                        }) => {
                             if current.accepts(stamp) {
-                                canvas.display(stamp, pixels);
+                                canvas.display(stamp, pixels, routing);
                             }
                         }
                         Ok(UiEvent::Ready(memory)) => {
+                            physical.replace_budget();
                             budget.replace(Some(memory));
                         }
                         Ok(UiEvent::Status(text)) => label.set_text(text),
@@ -1034,6 +1259,9 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 }
                 feedback.restore();
                 canvas_feedback.restore();
+                if let Some(message) = current.physical_notice {
+                    label.set_text(message);
+                }
                 if let Some(observations) = &observations {
                     observations.send_modify(|o| {
                         if o.typing_notice != current.typing_notice {
@@ -1046,6 +1274,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             });
             let source = Rc::new(RefCell::new(Some(source)));
             window.connect_close_request(move |_| {
+                close_physical.stop_current(*close_ui.borrow());
                 shutdown_tx.send_replace(true);
                 if let Some(source) = source.borrow_mut().take() {
                     source.remove();

@@ -3,6 +3,8 @@
 use crate::{
     command_queue::CommandQueue,
     interaction::{self, CommandBinding, EditingContext},
+    physical_dispatch::{self, CapturedPhysicalInput, PhysicalControl},
+    physical_input::PhysicalKeyOwner,
     source_controls::{self, DeviceScope, PointerStroke, ResizeTarget},
     *,
 };
@@ -27,7 +29,25 @@ use tokio::sync::{mpsc, watch};
 
 pub mod gtk;
 pub mod native;
+mod physical_callbacks;
+mod physical_continuity;
+pub mod physical_io;
 pub mod physical_native;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ViewSelection {
+    #[default]
+    Fixture,
+    WholeSession,
+}
+impl ViewSelection {
+    async fn open(self, client: &mut NetworkClient) -> Result<(), TransportError> {
+        match self {
+            Self::Fixture => client.open_view().await,
+            Self::WholeSession => client.open_view_with("session", "host-canvas").await,
+        }
+    }
+}
 
 pub struct Options {
     pub address: SocketAddr,
@@ -35,6 +55,7 @@ pub struct Options {
     pub certificate: Vec<u8>,
     pub credential: Credential,
     pub client_id: [u8; 16],
+    pub view_selection: ViewSelection,
     pub auto_control: bool,
     pub smoke_frames: Option<u64>,
     pub title: &'static str,
@@ -49,6 +70,8 @@ pub struct DesktopObservation {
     pub displayed: Option<DisplayedObservation>,
     pub has_control: bool,
     pub input_ready: bool,
+    pub physical_ready: bool,
+    pub physical_notice: Option<&'static str>,
     pub control_revoked: bool,
     pub editing_target: Option<u64>,
     pub typing_pending: usize,
@@ -179,6 +202,7 @@ pub enum UiCommand {
         stamp: Stamp,
         stroke: PointerStroke,
     },
+    Physical(CapturedPhysicalInput),
     ResizeSource {
         stamp: Stamp,
         target: ResizeTarget,
@@ -194,7 +218,11 @@ pub enum UiCommand {
     Quit,
 }
 pub enum UiEvent {
-    Frame { stamp: Stamp, pixels: RgbaFrame },
+    Frame {
+        stamp: Stamp,
+        pixels: RgbaFrame,
+        routing: Option<std::sync::Arc<physical_dispatch::PresentedRouting>>,
+    },
     Status(&'static str),
     Ready(MemoryBudget),
 }
@@ -235,6 +263,10 @@ pub struct UiState {
     pub editing: Option<EditingContext>,
     pub typing_notice: TypingNotice,
     pub raw_input: bool,
+    pub physical_control: Option<PhysicalControl>,
+    pub physical_keyboard: Option<PhysicalKeyOwner>,
+    pub physical_ready: bool,
+    pub physical_notice: Option<&'static str>,
     pub source_resize: Option<ResizeTarget>,
     pub source_scroll: Option<u64>,
 }
@@ -247,6 +279,10 @@ impl Default for UiState {
             editing: None,
             typing_notice: TypingNotice::None,
             raw_input: false,
+            physical_control: None,
+            physical_keyboard: None,
+            physical_ready: false,
+            physical_notice: None,
             source_resize: None,
             source_scroll: None,
         }
@@ -266,6 +302,9 @@ impl UiState {
         }
         self.editing = None;
         self.raw_input = false;
+        self.physical_control = None;
+        self.physical_keyboard = None;
+        self.physical_ready = false;
         self.source_resize = None;
         self.source_scroll = None;
     }
@@ -388,7 +427,7 @@ async fn recover_connection(
                 let mut applied = false;
                 let mut opened = None;
                 let recovery = async {
-                    client.open_view().await?;
+                    options.view_selection.open(&mut client).await?;
                     // Old-lease exact retries either recover a retained result
                     // or consume a rejection. They cannot restore source input.
                     while !pending.is_empty() {
@@ -531,13 +570,29 @@ fn request_id(counter: &mut u64) -> Option<[u8; 16]> {
 /// transport's cancellation-safe receive contract, including retained acks.
 pub async fn worker(
     options: Options,
+    commands: mpsc::Receiver<UiCommand>,
+    viewport: watch::Receiver<Viewport>,
+    events: SyncSender<UiEvent>,
+    ui: watch::Sender<UiState>,
+    shutdown: watch::Receiver<bool>,
+) {
+    let (_priority, receiver) = watch::channel(None);
+    worker_with_priority(options, commands, viewport, events, ui, shutdown, receiver).await;
+}
+
+pub async fn worker_with_priority(
+    options: Options,
     mut commands: mpsc::Receiver<UiCommand>,
     mut viewport: watch::Receiver<Viewport>,
     events: SyncSender<UiEvent>,
     ui: watch::Sender<UiState>,
     mut shutdown: watch::Receiver<bool>,
+    mut priority: watch::Receiver<Option<PhysicalControl>>,
 ) {
     let mut ui_state = UiState::default();
+    let mut grant_serial = 0u64;
+    let mut automatic_control = options.auto_control;
+    let mut safety_stopped = false;
     let mut profiles = SessionConfig::default().supported_profiles;
     profiles.insert("glyph.outline-single.v1".into());
     profiles.insert(CURSOR_PROFILE.into());
@@ -607,7 +662,7 @@ pub async fn worker(
         }
     };
     let mut pending = Some(UiEvent::Ready(budget.clone()));
-    let mut initial_reconnect = match client.open_view().await {
+    let mut initial_reconnect = match options.view_selection.open(&mut client).await {
         Ok(()) => false,
         Err(error) if recoverable(&error) => true,
         Err(_) => {
@@ -651,6 +706,14 @@ pub async fn worker(
     ) {
         Ok(queue) => queue,
         Err(_) => {
+            ui_state.clear(Lifecycle::Closed);
+            ui.send_replace(ui_state);
+            return;
+        }
+    };
+    let mut physical = match physical_continuity::Continuity::new(&budget) {
+        Ok(value) => value,
+        Err(()) => {
             ui_state.clear(Lifecycle::Closed);
             ui.send_replace(ui_state);
             return;
@@ -734,9 +797,59 @@ pub async fn worker(
                             .state()
                             .is_ok_and(|s| s.revision == stamp.revision)
                 });
+            let device = opened
+                .as_ref()
+                .filter(|v| v.input_devices.len() == 1)
+                .map(|v| &v.input_devices[0]);
+            let host_physical = device.is_some_and(|d| {
+                d.input_mode == "raw.host.v1"
+                    && d.text_owner == "HOST_PHYSICAL"
+                    && d.key_namespace == "linux.evdev"
+            });
+            ui_state.physical_control = (host_physical
+                && granted("RawInputBatch")
+                && grant_serial > 0)
+                .then_some(PhysicalControl {
+                    connection_generation: ui_state.generation,
+                    grant_serial,
+                });
+            ui_state.physical_ready = ui_state.physical_control.is_some()
+                && !awaiting_resources
+                && client.receiver().resources_ready().unwrap_or(false)
+                && presented.is_some_and(|stamp| {
+                    ui_state.accepts(stamp)
+                        && stamp.revision > 0
+                        && client
+                            .receiver()
+                            .state()
+                            .is_ok_and(|s| s.revision >= stamp.revision)
+                });
+            ui_state.physical_keyboard = ui_state.physical_control.and_then(|control| {
+                client
+                    .receiver()
+                    .state()
+                    .ok()
+                    .and_then(|s| physical_dispatch::keyboard_owner(s, control))
+            });
+            if physical.held()
+                && (!ui_state.physical_ready
+                    || !ui_state.physical_control.is_some_and(|control| {
+                        client
+                            .receiver()
+                            .state()
+                            .is_ok_and(|s| physical.valid(s, control))
+                    }))
+            {
+                safety_stopped = true;
+                reconnect = true;
+                status(&events,"Physical source context changed; control stopped. Request fresh control after recovery.");
+                break;
+            }
             ui_state.raw_input = granted("RawInputBatch")
                 && input_ready
-                && opened.as_ref().is_some_and(|v| v.input_devices.len() == 1);
+                && device.is_some_and(|d| {
+                    d.input_mode == "raw.pointer.v1" && d.text_owner == "CLIENT_TEXT"
+                });
             ui_state.source_resize = if input_ready && granted("ResizeRequest") {
                 client
                     .receiver()
@@ -759,6 +872,8 @@ pub async fn worker(
                     o.typing_pending = typing.pending_count();
                     o.has_control = lease.is_some();
                     o.input_ready = input_ready;
+                    o.physical_ready = ui_state.physical_ready;
+                    o.physical_notice = ui_state.physical_notice;
                 });
             }
             if !deliver(&events, &mut pending) {
@@ -787,8 +902,13 @@ pub async fn worker(
                                     continue;
                                 }
                             };
-                            if let Err(error) =
-                                submit_semantic(&mut client, domain, &mut pending_commands).await
+                            if let Err(error) = physical_io::guarded(
+                                submit_semantic(&mut client, domain, &mut pending_commands),
+                                ui_state.physical_control,
+                                &mut priority,
+                                &mut safety_stopped,
+                            )
+                            .await
                             {
                                 reconnect = recoverable(&error);
                                 break;
@@ -811,6 +931,13 @@ pub async fn worker(
                 }
             }
             tokio::select! {
+                biased;
+                changed=priority.changed(), if ui_state.physical_control.is_some() || priority.has_changed().is_ok()=>{
+                    if ui_state.physical_control.is_some() && (changed.is_err() || *priority.borrow_and_update()==ui_state.physical_control) {
+                        safety_stopped=true;reconnect=true;
+                        status(&events,"Physical input stopped; request fresh control after recovery.");break;
+                    }
+                },
                 _=shutdown.changed()=>{ui_state.clear(Lifecycle::Quit);break;},
                 scheduled=tick.tick()=>{
                     render_timing.accepted_ticks=render_timing.accepted_ticks.saturating_add(1);
@@ -821,7 +948,7 @@ pub async fn worker(
                         let v=*viewport.borrow();
                         match client.receiver().state().map_err(|_|()).and_then(|state|renderer.render_view(state,v,client.receiver()).map_err(|_|())) {
                             Ok(frame)=>match frame.into_rgba8_over(Color{red:1.0,green:1.0,blue:1.0,alpha:1.0}) {
-                                Ok(pixels)=>{if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);pending=Some(UiEvent::Frame{stamp,pixels});dirty=false;},
+                                Ok(pixels)=>{if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);let routing=client.receiver().state().ok().and_then(|state|physical_dispatch::PresentedRouting::capture(state,&budget).ok());pending=Some(UiEvent::Frame{stamp,pixels,routing});dirty=false;},
                                 Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Display allocation limit reached.");dirty=false;},
                             },
                             Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
@@ -833,10 +960,10 @@ pub async fn worker(
                     if let Some(observations)=&options.observations {observations.send_modify(|o|o.render_timing=render_timing);}
                 },
                 _=ping.tick()=>{
-                    if let Err(error)=client.send(session::Kind::Ping,&session::Ping{nonce:serial}).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                    if let Err(error)=physical_io::guarded(client.send(session::Kind::Ping,&session::Ping{nonce:serial}),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                     if let Some(current)=&lease {
                         let Some(request)=request_id(&mut requests) else {break;};
-                        if let Err(error)=client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                        if let Err(error)=physical_io::guarded(client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                     }
                 },
                 changed=viewport.changed()=>{if changed.is_err() {break;}dirty=true;},
@@ -847,11 +974,18 @@ pub async fn worker(
                     Ok(ClientEvent::ControlGranted(granted))=>{
                         if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=false);}
                         let charge=2048+granted.allowed_actions.capacity()*std::mem::size_of::<String>()+granted.allowed_actions.iter().map(String::capacity).sum::<usize>()+granted.lease_id.capacity()+granted.request_id.capacity();
-                        match budget.reserve(charge) {Ok(memory)=>{lease=Some(Lease{wire:granted,_memory:memory});status(&events,"Control granted.");if options.smoke_frames.is_some_and(|n|presented_frames>=n) {ui_state.clear(Lifecycle::Quit);break;}},Err(_)=>break}
+                        match budget.reserve(charge) {Ok(memory)=>{
+                            let fresh=lease.as_ref().is_none_or(|old|old.wire.lease_id!=granted.lease_id||old.wire.generation!=granted.generation);
+                            if fresh {grant_serial=match grant_serial.checked_add(1){Some(v)=>v,None=>break};physical.clear();ui_state.physical_notice=None;safety_stopped=false;}
+                            lease=Some(Lease{wire:granted,_memory:memory});status(&events,"Control granted.");if options.smoke_frames.is_some_and(|n|presented_frames>=n) {ui_state.clear(Lifecycle::Quit);break;}},Err(_)=>break}
                     },
-                    Ok(ClientEvent::ControlRevoked(_))=>{lease=None;selected=None;if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=true);}status(&events,"Observing; control released.");},
+                    Ok(ClientEvent::ControlRevoked(_))=>{physical.clear();lease=None;selected=None;if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=true);}status(&events,"Observing; control released.");},
                     Ok(ClientEvent::CommandResult(result))=>{
                         pending_commands.complete(result.command_seq);
+                        if physical.result(result.command_seq,&result.status).is_some_and(|control|Some(control)==ui_state.physical_control) {
+                            safety_stopped=true;reconnect=true;
+                            status(&events,"Physical dispatch rejected or unconfirmed; request fresh control after recovery.");break;
+                        }
                         if typing.result(result.command_seq,&result.status,&result.source_commit,result.resulting_view_revision).is_err() {
                             typing.cancel();selected=None;
                             ui_state.typing_notice=TypingNotice::Rejected;
@@ -876,29 +1010,47 @@ pub async fn worker(
                         UiCommand::Reconnect=>{reconnect=true;break;},
                         UiCommand::LoseResources=>{
                             if awaiting_resources {status(&events,"Wait for the current publication before dropping its cache.");continue;}
+                            let old_physical=ui_state.physical_control;
                             typing.cancel();selected=None;presented=None;issued=None;pending=None;
                             ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
-                            if let Err(error)=client.resource_cache_lost().await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(client.resource_cache_lost(),old_physical,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             awaiting_resources= !client.receiver().resources_ready().unwrap_or(false);dirty= !awaiting_resources;
                             status(&events,"Cache cleared; waiting for verified resources and a new frame.");
                         },
-                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}},
+                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}},
                         UiCommand::Release=>{
-                            typing.cancel();selected=None;
+                            typing.cancel();selected=None;physical.clear();
                             if let Some(current)=lease.take() {
                                 let Some(request)=request_id(&mut requests) else {break;};
-                                if let Err(error)=client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                                if let Err(error)=physical_io::guarded(client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             }
                         },
                         UiCommand::Presented(stamp)=>{
                             if !ui_state.accepts(stamp) {continue;}
                             if !awaiting_resources && ui_state.accepts(stamp) && issued.is_some_and(|s:Stamp|s.serial==stamp.serial && s.revision==stamp.revision)
                                 && client.receiver().state().is_ok_and(|s|s.revision==stamp.revision) {
-                                if let Err(error)=client.presented(stamp.revision).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                                if let Err(error)=physical_io::guarded(client.presented(stamp.revision),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                                 presented=Some(stamp);presented_frames+=1;status(&events,"Displayed.");
-                                if options.auto_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}}
-                                if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!options.auto_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
+                                if automatic_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}}
+                                if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!automatic_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
                             } else if !awaiting_resources {dirty=true;}
+                        },
+                        UiCommand::Physical(captured)=>{
+                            if Some(captured.control)!=ui_state.physical_control {continue;}
+                            let prepared=if ui_state.physical_ready {
+                                match (binding,presented,device,client.receiver().state()) {
+                                    (Some(binding),Some(stamp),Some(d),Ok(state))=>captured.prepare(state,binding,stamp.revision,ui_state.physical_control.unwrap(),physical.pointer_owner(),DeviceScope{seat:&d.seat_id,device:&d.device_id,key_namespace:&d.key_namespace,input_mode:&d.input_mode,text_owner:&d.text_owner}).ok(),
+                                    _=>None,
+                                }
+                            } else {None};
+                            let Some(prepared)=prepared else {safety_stopped=true;reconnect=true;status(&events,"Physical input route or readiness changed; request fresh control after recovery.");break;};
+                            if physical.before_send(sequence,prepared.owner,&prepared.event).is_err() {safety_stopped=true;reconnect=true;status(&events,"Physical input limit reached; request fresh control after recovery.");break;}
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,&prepared.wire,&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {
+                                if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}
+                                // An ambiguous physical send requires a manual new grant.
+                                safety_stopped=true;reconnect=recoverable(&error);break;
+                            }
+                            sequence=pending_commands.next_sequence();
                         },
                         UiCommand::Stroke{stamp,stroke}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||stroke.revision()!=stamp.revision||!stroke.matches_viewport(stamp.viewport) {status(&events,"Canvas view changed; the unsubmitted stroke was cancelled.");continue;}
@@ -909,21 +1061,21 @@ pub async fn worker(
                             let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
                             let prepared=match stroke.into_command(state,binding,DeviceScope{seat:&device.seat_id,device:&device.device_id,key_namespace:&device.key_namespace,input_mode:&device.input_mode,text_owner:&device.text_owner}) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Canvas stroke cancelled: source route, geometry, or device changed.");continue;}};
                             if let Some(observations)=&options.observations {if let Some(events_digest)=prepared.event_digest() {observations.send_modify(|o|o.last_stroke=Some(StrokeObservation{command_sequence:sequence,event_count:prepared.wire().events.len(),events_digest}));}}
-                            if let Err(error)=submit_wire(&mut client,CommandFamily::RawInput,prepared.wire(),&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,prepared.wire(),&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             sequence=pending_commands.next_sequence();
                         },
                         UiCommand::ResizeSource{stamp,target,width,height}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_resize!=Some(target) {status(&events,"Source resize context changed; wait for its latest frame.");continue;}
                             let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
                             let prepared=match source_controls::resize_command(state,target,width,height,binding,&budget) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Source size or focused surface is unavailable.");continue;}};
-                            if let Err(error)=submit_wire(&mut client,CommandFamily::Resize,prepared.wire(),&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::Resize,prepared.wire(),&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             sequence=pending_commands.next_sequence();
                         },
                         UiCommand::ScrollSource{stamp,target,x,y}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_scroll!=Some(target) {status(&events,"Select the latest remote scroll target first.");continue;}
                             let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
                             let domain=match interaction::command(state,target,"ScrollTo",Arguments::Scroll{x,y},binding) {Ok(domain)=>domain,Err(_)=>{status(&events,"Remote scroll action or context is unavailable.");continue;}};
-                            if let Err(error)=submit_semantic(&mut client,domain,&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             sequence=pending_commands.next_sequence();
                         },
                         input=>{
@@ -959,12 +1111,18 @@ pub async fn worker(
                             if !current.wire.allowed_actions.iter().any(|a|a==action) {status(&events,"This action is not granted.");continue;}
                             let lease_id: [u8;16]=match current.wire.lease_id.as_slice().try_into() {Ok(id)=>id,Err(_)=>break};
                             let domain=match interaction::command(state,target,action,args,CommandBinding{epoch:client.epoch,view:client.view_id,client:options.client_id,lease:lease_id,generation:current.wire.generation,sequence}) {Ok(c)=>c,Err(_)=>{status(&events,"Remote target or editing context is unavailable.");continue;}};
-                            if let Err(error)=submit_semantic(&mut client,domain,&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
+                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
                         },
                     }
                 },
             }
         }
+        if safety_stopped {
+            ui_state.physical_notice =
+                Some("Physical control stopped. Request fresh control after recovery.");
+            automatic_control = false;
+        }
+        physical.clear();
         if !reconnect {
             break 'connection;
         }
@@ -983,6 +1141,7 @@ pub async fn worker(
                 o.displayed = None;
                 o.has_control = false;
                 o.input_ready = false;
+                o.physical_ready = false;
                 o.editing_target = None;
                 o.typing_pending = 0;
             });
@@ -1027,6 +1186,10 @@ pub async fn worker(
             Ok(memory) => memory,
             Err(_) => break 'connection,
         };
+        physical = match physical_continuity::Continuity::new(&budget) {
+            Ok(value) => value,
+            Err(()) => break 'connection,
+        };
         typing = match crate::typing::TypingQueue::new(budget.clone()) {
             Ok(queue) => queue,
             Err(_) => break 'connection,
@@ -1057,7 +1220,7 @@ pub async fn worker(
             o.typing_pending = 0;
         });
     }
-    let _ = client.close().await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), client.close()).await;
 }
 
 #[cfg(test)]

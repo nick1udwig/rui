@@ -136,6 +136,7 @@ impl Worker {
             certificate: include_bytes!("../../transport/tests/data/localhost.der").to_vec(),
             credential,
             client_id: [3; 16],
+            view_selection: desktop::ViewSelection::Fixture,
             auto_control,
             smoke_frames: None,
             title: "worker test",
@@ -174,7 +175,7 @@ impl Worker {
                 self.ui.borrow().lifecycle
             );
             match self.events.try_recv() {
-                Ok(UiEvent::Frame { stamp, pixels }) => {
+                Ok(UiEvent::Frame { stamp, pixels, .. }) => {
                     assert_eq!(pixels.revision, stamp.revision);
                     if stamp.generation >= min_generation
                         && stamp.revision >= min_revision

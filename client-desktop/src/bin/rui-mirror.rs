@@ -13,8 +13,8 @@ fn read(path: &str, limit: usize) -> Result<Vec<u8>, Box<dyn std::error::Error>>
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<_>>();
-    if args.len() < 6 || args.len() > 8 {
-        return Err("usage: rui-mirror ADDRESS TLS_NAME PINNED_CERT.der CREDENTIAL CLIENT_ID_HEX [--control] [--smoke]".into());
+    if args.len() < 6 || args.len() > 9 {
+        return Err("usage: rui-mirror ADDRESS TLS_NAME PINNED_CERT.der CREDENTIAL CLIENT_ID_HEX [--control] [--smoke] [--session]".into());
     }
     if args[5].len() != 32 || !args[5].is_ascii() {
         return Err("client identity must be 16 bytes of hex".into());
@@ -23,7 +23,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (i, byte) in id.iter_mut().enumerate() {
         *byte = u8::from_str_radix(&args[5][i * 2..i * 2 + 2], 16)?;
     }
-    if args[6..].iter().any(|v| v != "--control" && v != "--smoke") {
+    if args[6..]
+        .iter()
+        .any(|v| v != "--control" && v != "--smoke" && v != "--session")
+    {
         return Err("unknown option".into());
     }
     let mut bytes = read(&args[4], 32)?;
@@ -37,6 +40,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         certificate: read(&args[3], 65536)?,
         credential,
         client_id: id,
+        view_selection: if args[6..].iter().any(|s| s == "--session") {
+            rui_client_desktop::desktop::ViewSelection::WholeSession
+        } else {
+            rui_client_desktop::desktop::ViewSelection::Fixture
+        },
         auto_control: args[6..].iter().any(|s| s == "--control"),
         smoke_frames: args[6..].iter().any(|s| s == "--smoke").then_some(1),
         title: "RUI Mirror",
