@@ -82,6 +82,8 @@ pub struct DesktopObservation {
     pub notice_visible: bool,
     pub closed: bool,
     pub local_controls: Option<LocalControls>,
+    /// Bounded, opt-in count of actual GTK Request control button callbacks.
+    pub control_requests: u64,
     pub last_stroke: Option<StrokeObservation>,
     pub stroke_notice: Option<&'static str>,
     pub stroke_notice_visible: bool,

@@ -517,7 +517,13 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             let sender = command_tx.clone();
             let status = label.clone();
             let control_canvas = canvas.downgrade();
+            let control_observations = observations.clone();
             acquire.connect_clicked(move |_| {
+                if let Some(observations) = &control_observations {
+                    observations.send_modify(|o| {
+                        o.control_requests = o.control_requests.saturating_add(1);
+                    });
+                }
                 // Establish the local input focus before the authority request;
                 // otherwise subsequent physical keys stay on the toolbar.
                 if let Some(canvas) = control_canvas.upgrade() {
