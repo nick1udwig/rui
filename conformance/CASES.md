@@ -4,8 +4,8 @@ This audit tracks every case from the unchanged historical `conformance.yaml`.
 It distinguishes accepted component evidence from required integration evidence.
 A row is not a completion claim: the final milestone decision requires checking
 the stated fixture and every expected outcome, including the remaining gate.
-Evidence below is committed through `735b890`. Native unsupported-rendering audit,
-retained reconnect and isolated session backend work remain under review. The accepted native command bridge
+Evidence below is committed through `aae0c4e`. Retained reconnect and isolated
+session backend work remain under review. The accepted native command bridge
 is a bounded private semantic fixture; it does not establish TLS/IME integration.
 
 | Case | Layer | Accepted evidence | Remaining gate or final-suite obligation |
@@ -65,10 +65,10 @@ is a bounded private semantic fixture; it does not establish TLS/IME integration
 | TXT-004 | integration (P0) | [pixels.rs](../client-desktop/tests/pixels.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Pinned source outlines, decoded glyph geometry, authorized host closures and real TLS resource delivery covered; native font/two-mirror presentation passes (`fixtures/render/native-corpus.json`); retain missing-font and cache recovery negatives in final suite. |
 | VIS-001 | render (P0) | [pixel-comparison.json](../fixtures/gtk/pixel-comparison.json); [pixels.rs](../client-desktop/tests/pixels.rs) | Seventeen exact captured scenes pass declared native tolerance; complete 920×480 source and two native mirrors match records/RGBA (`fixtures/render/native-corpus.json`); broader control/transient actions remain. |
 | VIS-002 | render (P0) | [pixels.rs](../client-desktop/tests/pixels.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Surface rendering and popup lifecycle components covered; coherent whole-view toplevel/popup/tooltip/modal composition remains. |
-| VIS-003 | render (P0) | [gtk-coverage.md](../docs/gtk-coverage.md) | Actual constrained/default GTK coverage measured; shader/blur/texture/raster-source negative corpus must be audited. |
+| VIS-003 | render (P0) | [gtk-coverage.md](../docs/gtk-coverage.md) | Actual photo/texture/Cairo/blur/shader nodes produce named Partial regions; observed exporter probes and decoded vector audit pass (`fixtures/gtk/negative-report.json`); retain native negative corpus in final suite. |
 | VIS-004 | render (P0) | [scene.rs](../protocol-core/tests/scene.rs); [cli.rs](../client-desktop/tests/cli.rs) | Unknown required vocabulary and rendering failure covered; retain negotiated feature rejection in final suite. |
-| PIX-001 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs); [gtk-coverage.md](../docs/gtk-coverage.md) | Vector-only allowlist and measured producer covered; full post-auth decoded interaction transcript and fallback counters remain. |
-| PIX-002 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs) | Raster resource denial covered; actual original-photo source with explicit unsupported region remains. |
+| PIX-001 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs); [gtk-coverage.md](../docs/gtk-coverage.md) | Full private native trace (47 source publications/61 command entries) passes exact vector/resource/origin audit with observed exporter probes; post-auth network recorder and complete network trace remain. |
+| PIX-002 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs) | Original NASA photograph is actually drawn locally and exported as an explicit unsupported region, without any image resource or conversion attempt (`fixtures/gtk/negative-report.json`); retain final negative suite. |
 | MUL-001 | integration (P0) | [loopback.rs](../transport/tests/loopback.rs) | Actual two-window GTK/TLS presentation, causal typing and independent Python item convergence pass (`fixtures/render/native-corpus.json`); broader actions/recovery remain. |
 | MUL-002 | integration (P0) | [session.rs](../protocol-core/tests/session.rs) | Local-priority lease cleanup covered; isolated backend native takeover remains. |
 | MUL-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [corpus_reference.rs](../client-desktop/tests/corpus_reference.rs) | Actual observer pan/zoom/resize preserves source commit/command count and matches source rendering (`fixtures/render/native-corpus.json`); authorized source ResizeRequest comparison remains. |

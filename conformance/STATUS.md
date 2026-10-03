@@ -31,7 +31,8 @@ remaining integration gates.
 | Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact result plus source text/version/selection confirmation and actual Presented gate; six rapid native characters, repeated focus, Unicode preedit and sticky full-channel rejection pass |
 | Trusted resource admission | `protocol-core/tests/receiver.rs` | Authenticated producer helper validates the complete graph before granting its declared closure; invalid graphs and allocation failures roll back grants; strict default receiver unchanged |
 | Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Twenty strict publications: seventeen mapped snapshots and three lifecycle signals; typed scalar text/selection, collection and focus clocks, unmap/remap pin release, fresh identities after destruction, reentrant lifecycle ordering and bounded artifact decoding |
-| Guarded native GTK commands | `adapters/sdk/tests/native_trace.rs`, `fixtures/gtk/native_check.py` | Common-ledger admission, live native identity/clocks/modality/lease guards, causal capture, exact retries and unknown-outcome retention; 32 dispatches/37 callbacks, 41 source snapshots and 261 hash-bound vector artifacts; bounded semantic fixture, no TLS/IME claim |
+| Guarded native GTK commands | `adapters/sdk/tests/native_trace.rs`, `fixtures/gtk/native_check.py` | Common-ledger admission, live native identity/clocks/modality/lease guards, causal capture, exact retries and unknown-outcome retention; 32 dispatches/37 callbacks, 47 source publications and 273 hash-bound vector artifacts; bounded semantic fixture, no TLS/IME claim |
+| GTK unsupported sources and vector audit | `adapters/sdk/tests/negative_trace.rs`, `fixtures/gtk/negative-report.json`; refreshed native trace | Actual photograph, texture, Cairo, blur and shader nodes decline with named Partial regions; native path control succeeds; observed Python exporter traps, exact decoded geometry/resources and gap census checks; full network recorder remains open |
 | GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Seventeen strict frames pass declared native/replay tolerance; zero interior mismatches, 1,577 outline bounds checked; actual decoded glyph omission/shift/size rejected; reports bind exact golden envelope bytes |
 
 Root review required corrections to authorization revocation races, cleanup
@@ -53,14 +54,14 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   observer transforms have passed. Complete broader controls/transients, custom
   canvas effects, source resize, retained reconnect and native cache recovery.
 - **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
-  semantic dispatch and causal action evidence have passed review. Wire IME,
-  persistent source restart, complete unsupported-rendering/fallback evidence
-  and coherent whole-view transients remain. The declared seventeen-frame local
+  semantic dispatch, causal action evidence and observed unsupported-source/vector
+  audits have passed review. Wire IME, persistent source restart, full network
+  recording and coherent whole-view transients remain. The declared seventeen-frame local
   visual comparison has passed.
 - **M4 remains open.** Implement and test the explicitly supported isolated session
   shell, permissioned libei input, geometry/modality/focus/scaling, takeover,
   observed accessibility reconciliation and enforceable scope.
-- **M5 remains open.** Combine the accepted semantic-client stable-item scenario with graphical mirrors; complete network fault and
+- **M5 remains open.** Extend accepted Python item/two-mirror convergence to button/text; complete network fault and
   recovery traces, sustained resource churn, case-by-case acceptance audit and
   integrated named-hardware CPU/latency/bandwidth/memory measurements.
 
