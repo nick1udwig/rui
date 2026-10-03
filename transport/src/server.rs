@@ -6,11 +6,15 @@ use crate::source_delivery::Delivery;
 use crate::{
     codec, pairing::PairingAuthority, proto as p, websocket, HostIdentity, TransportError,
 };
+use futures_util::{Sink, Stream, StreamExt};
 use prost::Message;
 use rui_host_broker::ControlledHost;
 use rui_protocol_core::commands::Id;
 use rui_protocol_core::publication::publication_digest;
-use rui_protocol_core::session::{InputCleanup, ResumeDisposition, SharedPayload};
+use rui_protocol_core::resources::{MemoryBudget, MemoryReservation};
+use rui_protocol_core::session::{
+    InputCleanup, ResumeDisposition, SharedPayload, ViewMemoryReservation,
+};
 use rui_protocol_core::transcript::Direction;
 use std::{
     collections::{BTreeSet, VecDeque},
@@ -20,10 +24,11 @@ use std::{
 };
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{oneshot, Mutex, Semaphore},
+    sync::{mpsc, oneshot, Mutex, Semaphore},
     task::{JoinHandle, JoinSet},
 };
-use zeroize::Zeroize;
+use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSocketMessage};
+use zeroize::{Zeroize, Zeroizing};
 
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -325,7 +330,7 @@ async fn connection(
         None
     };
     let result = run_authenticated(
-        &mut socket,
+        socket,
         &shared,
         &connection,
         ceiling,
@@ -361,9 +366,16 @@ async fn reserve(
         .await?
         .into_memory()
 }
+// Field order keeps every socket allocation covered until its own destruction.
+// This owner is disposed before the caller awaits native lifecycle completion.
+struct AuthenticatedSocket<S> {
+    socket: tokio_tungstenite::WebSocketStream<S>,
+    io_memory: Option<ViewMemoryReservation>,
+    ingress_memory: Option<ViewMemoryReservation>,
+}
 #[allow(clippy::too_many_arguments)]
 async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
-    socket: &mut tokio_tungstenite::WebSocketStream<S>,
+    socket: tokio_tungstenite::WebSocketStream<S>,
     shared: &Shared,
     connection: &Connection,
     ceiling: usize,
@@ -371,22 +383,130 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     authorization: &rui_protocol_core::session::VerifiedAuthorization,
     recording: Option<RecordingSession>,
 ) -> Result<(), TransportError> {
+    let mut socket = AuthenticatedSocket {
+        socket,
+        io_memory: None,
+        ingress_memory: None,
+    };
     let session = connection.session();
     if session.limits.envelope_bytes != ceiling {
         return Err(TransportError::Limit);
     }
-    let binding = Some((session.session_id, session.epoch, session.view_id));
-    let timeout = shared.config.send_timeout;
     approved(shared, connection, approval, authorization)?;
-    let _io_memory = reserve(
+    socket.io_memory = Some(
+        reserve(
+            shared,
+            connection,
+            ceiling
+                .checked_mul(8)
+                .and_then(|n| n.checked_add(128 * 1024))
+                .ok_or(TransportError::Limit)?,
+        )
+        .await?,
+    );
+    // Keep reading Close/EOF while the serialized producer owner is blocked.
+    // One envelope of queued bytes plus parser/copy working memory has a
+    // separate per-view reservation; the fixed channel bounds tiny frames too.
+    let ingress_limit = ceiling.checked_add(32 * 256).ok_or(TransportError::Limit)?;
+    socket.ingress_memory = Some(
+        reserve(
+            shared,
+            connection,
+            ceiling
+                .checked_mul(3)
+                .and_then(|n| n.checked_add(64 * 1024))
+                .ok_or(TransportError::Limit)?,
+        )
+        .await?,
+    );
+    let (mut sink, reader) = (&mut socket.socket).split();
+    let (incoming, mut messages) = mpsc::channel(32);
+    let read = read_ingress(reader, incoming, MemoryBudget::new(ingress_limit));
+    let run = run_protocol(
+        &mut sink,
+        &mut messages,
         shared,
         connection,
-        ceiling
-            .checked_mul(8)
-            .and_then(|n| n.checked_add(128 * 1024))
-            .ok_or(TransportError::Limit)?,
-    )
-    .await?;
+        ceiling,
+        approval,
+        authorization,
+        recording,
+    );
+    tokio::pin!(read, run);
+    // This is one connection task, with no detached reader or producer task.
+    // Cancelling the losing future releases its queue and exact request body;
+    // the connection guard invalidates the native owner independently.
+    tokio::select! {
+        biased;
+        result = &mut read => result,
+        result = &mut run => result,
+    }
+}
+
+struct IngressFrame {
+    bytes: Zeroizing<Vec<u8>>,
+    _memory: MemoryReservation,
+}
+async fn read_ingress<R>(
+    mut reader: R,
+    incoming: mpsc::Sender<IngressFrame>,
+    budget: MemoryBudget,
+) -> Result<(), TransportError>
+where
+    R: Stream<Item = Result<WebSocketMessage, WebSocketError>> + Unpin,
+{
+    let mut batch = 0;
+    loop {
+        if batch == 8 {
+            // Buffered control frames must not starve the producer or its
+            // deadlines simply because this reader remains immediately ready.
+            tokio::task::yield_now().await;
+            batch = 0;
+        }
+        batch += 1;
+        match reader
+            .next()
+            .await
+            .ok_or(TransportError::Closed)?
+            .map_err(|_| TransportError::WebSocket)?
+        {
+            WebSocketMessage::Binary(bytes) => {
+                let memory = budget
+                    .reserve(bytes.len().checked_add(256).ok_or(TransportError::Limit)?)
+                    .map_err(|_| TransportError::Limit)?;
+                let frame = IngressFrame {
+                    bytes: Zeroizing::new(bytes.to_vec()),
+                    _memory: memory,
+                };
+                // Never park on a full normal queue: that would hide a Close
+                // behind queued work. Overflow closes this exact connection.
+                incoming
+                    .try_send(frame)
+                    .map_err(|_| TransportError::Limit)?;
+            }
+            WebSocketMessage::Close(_) => return Err(TransportError::Closed),
+            WebSocketMessage::Ping(_) | WebSocketMessage::Pong(_) => {}
+            _ => return Err(TransportError::Protocol),
+        }
+    }
+}
+#[allow(clippy::too_many_arguments)]
+async fn run_protocol<S>(
+    socket: &mut S,
+    incoming: &mut mpsc::Receiver<IngressFrame>,
+    shared: &Shared,
+    connection: &Connection,
+    ceiling: usize,
+    approval: [u8; 32],
+    authorization: &rui_protocol_core::session::VerifiedAuthorization,
+    recording: Option<RecordingSession>,
+) -> Result<(), TransportError>
+where
+    S: Sink<WebSocketMessage, Error = WebSocketError> + Unpin,
+{
+    let session = connection.session();
+    let binding = Some((session.session_id, session.epoch, session.view_id));
+    let timeout = shared.config.send_timeout;
     let mut delivery =
         Delivery::new(reserve(shared, connection, Delivery::reservation_bytes()).await?);
     let hello = p::ServerHello {
@@ -428,15 +548,15 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     let mut heartbeat = tokio::time::interval(Duration::from_millis(2));
     loop {
         tokio::select! {
-            raw=websocket::receive(socket)=>{
-                let raw=raw?;let packet=codec::packet(&raw,ceiling,binding)?;let kind=p::Kind::try_from(packet.kind).map_err(|_|TransportError::Protocol)?;
+            raw=incoming.recv()=>{
+                let frame=raw.ok_or(TransportError::Closed)?;let raw=&frame.bytes;let packet=codec::packet(raw,ceiling,binding)?;let kind=p::Kind::try_from(packet.kind).map_err(|_|TransportError::Protocol)?;
                 approved(shared,connection,approval,authorization)?;
                 if kind==p::Kind::OpenView{
                     if opened{return Err(TransportError::Protocol);}let view:p::OpenView=codec::decode(&packet.payload,ceiling)?;
                     let received=request(shared,connection,Operation::Open{selection:view.selection,mirror_canvas_policy:view.mirror_canvas_policy}).await?;
                     let Reply::Opened{description,checkpoint}=received.value()else{return Err(TransportError::Protocol);};opened=true;
                     let message=p::ViewOpened{view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage.clone(),granted_input_modes:description.input_modes.clone(),input_devices:description.input_devices.iter().map(|d|p::InputDeviceGrant{seat_id:d.seat_id.clone(),device_id:d.device_id.clone(),key_namespace:d.key_namespace.clone(),input_mode:d.input_mode.clone(),text_owner:d.text_owner.clone()}).collect()};
-                    let checkpoint=checkpoint.clone();drop(received);record_incoming(recording.as_ref(),kind,&raw)?;
+                    let checkpoint=checkpoint.clone();drop(received);record_incoming(recording.as_ref(),kind,raw)?;
                     send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ViewOpened,&message,binding),ceiling,timeout,shared,connection,approval,authorization).await?;
                     match &session.resume{
                         ResumeDisposition::Accepted{from_revision,through_revision,transactions,requires_resources}=>{
@@ -459,16 +579,16 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                             p::Kind::ResourceEvicted=>delivery.evicted(shared.port.as_ref(),connection,&ids,shared.now()).await.map(|_|()),
                             _=>unreachable!(),
                         };
-                        match result{Ok(())=>record_incoming(recording.as_ref(),kind,&raw)?,Err(TransportError::Authority) if kind==p::Kind::NeedResources=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
+                        match result{Ok(())=>record_incoming(recording.as_ref(),kind,raw)?,Err(TransportError::Authority) if kind==p::Kind::NeedResources=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
                         continue;
                     }
                     if kind==p::Kind::AppliedAck{
                         let ack:p::RevisionAck=codec::decode(&packet.payload,ceiling)?;delivery.applied(ack.revision)?;
                         request(shared,connection,Operation::Ack(Acknowledgement::Applied{revision:ack.revision,witness:delivery.applied_frame(ack.revision)?.clone()})).await?;
-                        record_incoming(recording.as_ref(),kind,&raw)?;continue;
+                        record_incoming(recording.as_ref(),kind,raw)?;continue;
                     }
                     let response=handle(shared,connection,kind,&packet.payload).await;
-                    if response.is_ok(){record_incoming(recording.as_ref(),kind,&raw)?;}
+                    if response.is_ok(){record_incoming(recording.as_ref(),kind,raw)?;}
                     match response{Ok(Some((kind,bytes)))=>send_recorded(recording.as_ref(),socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout,shared,connection,approval,authorization).await?,Ok(None)=>{},Err(TransportError::Authority)=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
                 }
             }
@@ -518,9 +638,9 @@ fn approved(
     Ok(())
 }
 #[allow(clippy::too_many_arguments)] // Keep the issued scope and approval explicit at every write.
-async fn send_recorded<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+async fn send_recorded<S>(
     recording: Option<&RecordingSession>,
-    socket: &mut tokio_tungstenite::WebSocketStream<S>,
+    socket: &mut S,
     mut packet: p::Packet,
     ceiling: usize,
     timeout: Duration,
@@ -528,7 +648,10 @@ async fn send_recorded<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     connection: &Connection,
     approval: [u8; 32],
     authorization: &rui_protocol_core::session::VerifiedAuthorization,
-) -> Result<(), TransportError> {
+) -> Result<(), TransportError>
+where
+    S: Sink<WebSocketMessage, Error = WebSocketError> + Unpin,
+{
     approved(shared, connection, approval, authorization)?;
     // Approval lifetime alone does not establish the current incarnation. The
     // producer validates the issued capability before every attempted write.
@@ -1241,5 +1364,43 @@ mod tests {
         source_scope(&optional, session).unwrap();
         shared.port.shutdown();
         shared.port.flush_lifecycle(0).await.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod ingress_tests {
+    use super::*;
+    use futures_util::SinkExt;
+    use std::task::Poll;
+    use tokio_tungstenite::{tungstenite::protocol::Role, WebSocketStream};
+
+    #[tokio::test]
+    async fn ping_and_close_are_read_while_the_outgoing_sink_is_backpressured() {
+        let (peer, stream) = tokio::io::duplex(64);
+        let mut client = WebSocketStream::from_raw_socket(peer, Role::Client, None).await;
+        let socket = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
+        let (mut sink, reader) = socket.split();
+        let writer = sink.send(WebSocketMessage::Binary(vec![9; 1024].into()));
+        tokio::pin!(writer);
+        assert!(matches!(futures_util::poll!(&mut writer), Poll::Pending));
+        // The peer never consumes the full server message. Its Ping makes the
+        // server schedule an automatic Pong on that same blocked writer.
+        client
+            .send(WebSocketMessage::Ping(vec![1].into()))
+            .await
+            .unwrap();
+        client.close(None).await.unwrap();
+        let (incoming, _messages) = mpsc::channel(32);
+        let budget = MemoryBudget::new(4096);
+        assert_eq!(
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                read_ingress(reader, incoming, budget.clone()),
+            )
+            .await
+            .unwrap(),
+            Err(TransportError::Closed),
+        );
+        assert_eq!(budget.used(), 0);
     }
 }

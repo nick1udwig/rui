@@ -11,6 +11,25 @@ use rui_transport::{
 };
 use std::time::Duration;
 
+async fn applied(client: &mut NetworkClient, revision: u64) -> (usize, usize) {
+    let result = fixture::applied(client, revision).await;
+    // A flushed local ACK is not proof that the owner processed it. These warm
+    // resume cases require a known broker acknowledgement before socket loss.
+    // Ping is serialized behind ACK on the same protocol owner lane.
+    client
+        .send(
+            rui_transport::proto::Kind::Ping,
+            &rui_transport::proto::Ping { nonce: 991 },
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        client.receive().await.unwrap(),
+        ClientEvent::Pong(991)
+    ));
+    result
+}
+
 async fn offline(server: &ServerHandle, id: u8, view: Id) {
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {

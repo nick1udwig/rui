@@ -2,7 +2,7 @@
 //! A bounded HTTP header prefix is parsed by httparse and replayed unchanged to
 //! tungstenite, which validates the WebSocket handshake and all frame semantics.
 use crate::{proto, TransportError};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{Sink, SinkExt, StreamExt};
 use prost::Message as ProstMessage;
 use std::{
     pin::Pin,
@@ -220,11 +220,14 @@ pub(crate) async fn send<S: AsyncRead + AsyncWrite + Unpin>(
     packet.payload.zeroize();
     send_bytes(socket, bytes, deadline).await
 }
-pub(crate) async fn send_bytes<S: AsyncRead + AsyncWrite + Unpin>(
-    socket: &mut WebSocketStream<S>,
+pub(crate) async fn send_bytes<S>(
+    socket: &mut S,
     bytes: Vec<u8>,
     deadline: Duration,
-) -> Result<(), TransportError> {
+) -> Result<(), TransportError>
+where
+    S: Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
     tokio::time::timeout(deadline, socket.send(Message::Binary(bytes.into())))
         .await
         .map_err(|_| TransportError::Deadline)?
