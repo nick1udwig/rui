@@ -977,6 +977,7 @@ dependencies = [
  "log",
  "prost",
  "prost-build",
+ "rui-client-desktop",
  "rui-host-broker",
  "rui-protocol-core",
  "rustls",

@@ -58,3 +58,22 @@ bytes/results, both directions, credential/private-source exclusion, metadata
 mode, wrong scope, revocation, connection capacity and record exhaustion. These
 are recorder integration evidence; the full native interaction trace and decoded
 no-raster audit remain separate gates.
+
+`tests/fault_matrix.rs` learns the bounded actual packet sequence, then closes
+owned TLS/WebSocket connections before every snapshot/delta begin, publication
+chunk/commit, resource offer/chunk/completion and first command-result boundary.
+The accepted baseline has 34 cold snapshot/resource boundaries and four warm
+command/delta boundaries. Each cut preserves the complete prior record map until
+commit, clears staging on retention, reconnects through the real server and
+compares recovered records and CPU pixels with a direct authoritative capture.
+The pixel comparison covers the entire 920×480 source canvas at half scale.
+Lost command replies retain the same exact result without a second source effect;
+a fresh command using the old lease is rejected. Separate delayed transfers also
+converge. Receiver allocations return to zero after close.
+
+The fault relay uses two private normally verified TLS legs, the exact fixture
+certificate, maintained bounded WebSocket framing and exact forwarded packets.
+It injects application-level connection cuts, not datagram loss. Its vector font
+is deliberately synthetic and resource-bearing; native glyph fidelity and real
+GTK Presented callbacks are separate gates. This suite supplies transport/core
+and CPU render recovery evidence, not native GUI recovery or P1 measurements.
