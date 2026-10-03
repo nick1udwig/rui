@@ -1,0 +1,278 @@
+{
+  "scope": "owned-private-AT-SPI-bus-and-two-GTK-applications",
+  "classification": "OBSERVED",
+  "native_surface_association": "unresolved",
+  "input_modes": [],
+  "captures": [
+    {
+      "name": "initial",
+      "revision": 1,
+      "surfaces": [
+        {
+          "surface": 2,
+          "semantic_root": 3,
+          "classification": "OBSERVED",
+          "source_incarnation": "55faf31f14f04d5e952447166736ab39",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        },
+        {
+          "surface": 29,
+          "semantic_root": 30,
+          "classification": "OBSERVED",
+          "source_incarnation": "24be17bf353340d58af585659c71705e",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        }
+      ],
+      "reconciliations": 0,
+      "calls": 434,
+      "events": 0,
+      "dropped_events": 0,
+      "worker_peak_rss_kib": 33436
+    },
+    {
+      "name": "event-gap",
+      "revision": 2,
+      "surfaces": [
+        {
+          "surface": 2,
+          "semantic_root": 3,
+          "classification": "OBSERVED",
+          "source_incarnation": "55faf31f14f04d5e952447166736ab39",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        },
+        {
+          "surface": 29,
+          "semantic_root": 30,
+          "classification": "OBSERVED",
+          "source_incarnation": "24be17bf353340d58af585659c71705e",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        }
+      ],
+      "reconciliations": 0,
+      "calls": 430,
+      "events": 8,
+      "dropped_events": 8,
+      "worker_peak_rss_kib": 33596
+    },
+    {
+      "name": "crawl-race",
+      "revision": 3,
+      "surfaces": [
+        {
+          "surface": 2,
+          "semantic_root": 3,
+          "classification": "OBSERVED",
+          "source_incarnation": "55faf31f14f04d5e952447166736ab39",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        },
+        {
+          "surface": 29,
+          "semantic_root": 30,
+          "classification": "OBSERVED",
+          "source_incarnation": "24be17bf353340d58af585659c71705e",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        }
+      ],
+      "reconciliations": 1,
+      "calls": 860,
+      "events": 15,
+      "dropped_events": 8,
+      "worker_peak_rss_kib": 33596
+    },
+    {
+      "name": "recovered",
+      "revision": 4,
+      "surfaces": [
+        {
+          "surface": 2,
+          "semantic_root": 3,
+          "classification": "OBSERVED",
+          "source_incarnation": "55faf31f14f04d5e952447166736ab39",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        },
+        {
+          "surface": 29,
+          "semantic_root": 30,
+          "classification": "OBSERVED",
+          "source_incarnation": "24be17bf353340d58af585659c71705e",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        }
+      ],
+      "reconciliations": 0,
+      "calls": 430,
+      "events": 15,
+      "dropped_events": 8,
+      "worker_peak_rss_kib": 33596
+    },
+    {
+      "name": "source-exited",
+      "revision": 5,
+      "surfaces": [
+        {
+          "surface": 29,
+          "semantic_root": 30,
+          "classification": "OBSERVED",
+          "source_incarnation": "24be17bf353340d58af585659c71705e",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        }
+      ],
+      "reconciliations": 0,
+      "calls": 218,
+      "events": 15,
+      "dropped_events": 8,
+      "worker_peak_rss_kib": 33596
+    },
+    {
+      "name": "source-restarted",
+      "revision": 6,
+      "surfaces": [
+        {
+          "surface": 29,
+          "semantic_root": 30,
+          "classification": "OBSERVED",
+          "source_incarnation": "24be17bf353340d58af585659c71705e",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        },
+        {
+          "surface": 60,
+          "semantic_root": 61,
+          "classification": "OBSERVED",
+          "source_incarnation": "a8c8710059844efcbcf3e14fa05488e4",
+          "native_surface_association": "unresolved",
+          "input_modes": [],
+          "record_count": 26,
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ]
+        }
+      ],
+      "reconciliations": 0,
+      "calls": 432,
+      "events": 17,
+      "dropped_events": 8,
+      "worker_peak_rss_kib": 33596
+    }
+  ],
+  "files": {
+    "initial.bin": "8c3d7116e2cf8a0f93b895d36437fdb77858388098adbb4719ef7a52d74a91cb",
+    "event-gap.bin": "9d700e760327fac744946cbc18bbe1c53648d1e08c98b16a5b1f9a5191468052",
+    "crawl-race.bin": "fe73e0d54555570deb4507f870bdaf7f241a8a339e5c8181464e70f54539d2e9",
+    "recovered.bin": "1973083c9c517789aa58e9141607f44732c48cb942eaa870028a08d3ce11f941",
+    "source-exited.bin": "3b1f85b20c2d54c7c4c4965b8418c2d9e6e668bfca2c1ac91f642999d8b5d34a",
+    "source-restarted.bin": "dd94dfe978faae3bb1a42e52da4361d3f3de0ba9366dce225dfb3caaf6b802bf"
+  },
+  "ambiguous_windows": {
+    "same_title": true,
+    "same_bounds": true,
+    "distinct_trusted_process_incarnations": true
+  },
+  "stalled_source": {
+    "owner_poll_iterations": 184,
+    "previous_publication_unchanged": true,
+    "result": "unavailable"
+  },
+  "restart": {
+    "retired_initial_app_ids": 27,
+    "other_app_stable_ids": 27,
+    "new_incarnation": "a8c8710059844efcbcf3e14fa05488e4",
+    "broker_binding_unchanged": true
+  },
+  "limits": {
+    "worker_address_space_bytes": 268435456,
+    "message_bytes": 131072,
+    "nodes_per_frame": 128,
+    "depth": 16,
+    "calls_per_crawl": 1024,
+    "call_timeout_ms": 200,
+    "crawl_seconds": 2,
+    "owner_deadline_seconds": 3,
+    "public_ids_lifetime": 4096,
+    "source_incarnations": 8,
+    "in_flight_jobs": 1
+  },
+  "owner_poll_iterations": 416,
+  "maximum_poll_ms": 0.285153990262188
+}
