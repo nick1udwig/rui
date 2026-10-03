@@ -44,6 +44,11 @@ The server reserves `8 * envelope_bytes + 128 KiB` lifetime framing/decode headr
 
 The authenticated connection polls a socket reader concurrently with its serialized producer operations in the same task. A native owner waiting for a callback therefore cannot hide WebSocket Close or TLS EOF. The reader retains at most 32 frames under a byte quota of one envelope plus 8 KiB of entry overhead; overflow closes that exact connection instead of waiting behind normal producer work. Queued bodies are zeroized when dropped. Reader termination cancels the pending response wait and invokes the producer's independent disconnect path. It does not turn an already admitted native operation into a claimed success or undo a completed effect. Real TLS regressions in `tests/producer_disconnect.rs` cover close, EOF and ingress saturation while normal producer work remains blocked.
 
+Heartbeat publication polling starts only after the producer completes `OpenView`.
+An authenticated client may delay opening its view without causing a premature
+producer `Pump`; `tests/producer_open.rs` exercises that ordering over actual TLS
+against an owner that rejects polling before open.
+
 Semantic, raw input, text composition and source resize share the common exact-byte
 ledger. The controlled corpus implements permission-filtered raw canvas effects,
 transient preedit/scalar commits and bounded source resize; the baseline counter

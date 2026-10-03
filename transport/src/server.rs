@@ -595,11 +595,13 @@ where
             _=heartbeat.tick()=>{
                 approved(shared,connection,approval,authorization)?;
                 if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout){return Err(TransportError::Deadline);}
-                let may_take=opened&&delivery.can_start()&&queued.is_empty();
+                // A producer view does not exist until Open completes. The
+                // interval's first tick can win before OpenView arrives.
+                if !opened{continue;}
+                let may_take=delivery.can_start()&&queued.is_empty();
                 let received=request(shared,connection,Operation::Pump{take_publication:may_take}).await?;
                 let Reply::Pump{publication,revoked}=received.value()else{return Err(TransportError::Protocol);};let publication=publication.clone();let revoked=revoked.clone();drop(received);
                 if let Some(notice)=revoked{send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ControlRevoked,&p::ControlRevoked{lease_id:notice.lease.to_vec(),generation:notice.generation,reason:notice.reason},binding),ceiling,timeout,shared,connection,approval,authorization).await?;}
-                if !opened{continue;}
             if delivery.can_start(){if let Some(frame)=queued.pop_front().or(publication){source_scope(&frame,session)?;delivery.install(Outgoing::new(frame,chunk,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}}
                 if let Some(packet)=delivery.next(binding)?{send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;}
             }
