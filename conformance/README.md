@@ -57,9 +57,10 @@ The typed vectors compare normalized IDs, typed values, text clocks and ranges,
 actions, states, collection order/count/materialization/selection and retirement
 at every prefix. The actual TLS test invokes the Python CLI against a locally
 approved isolated Rust host, confirms one counter effect despite retry and a
-Unicode text edit, and verifies zero presentation acknowledgements. Stable-item
-selection and convergence with two graphical observers also pass in the accepted
-native corpus; combined button/text graphical scenarios remain separately gated.
+Unicode text edit, and verifies zero presentation acknowledgements. Button activation with exact retry, Unicode public-text replacement and stable-item
+selection now converge with two actual graphical observers in
+`fixtures/render/native-python.json`. Source counters show exactly three effects
+and three consumed commands; the Python client emits no Presented acknowledgement.
 
 ## Full native record comparison
 
