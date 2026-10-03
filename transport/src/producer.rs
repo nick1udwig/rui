@@ -257,6 +257,7 @@ pub struct ResourceAccess(Arc<ResourceAccessData>);
 struct ResourceAccessData {
     resource: Box<dyn ResourceData>,
     lifetime: AuthorizationLifetime,
+    scope_lifetime: Option<AuthorizationLifetime>,
     _memory: Arc<ViewMemoryReservation>,
 }
 impl ResourceAccess {
@@ -268,6 +269,23 @@ impl ResourceAccess {
         Self(Arc::new(ResourceAccessData {
             resource,
             lifetime,
+            scope_lifetime: None,
+            _memory: memory,
+        }))
+    }
+    /// Both immutable producer approval and the issued connection scope must
+    /// remain valid. Disconnect may retire a scope while preserving approval
+    /// for a retained view; approval revocation immediately denies old handles.
+    pub fn issued_with_scope(
+        resource: Box<dyn ResourceData>,
+        lifetime: AuthorizationLifetime,
+        scope_lifetime: AuthorizationLifetime,
+        memory: Arc<ViewMemoryReservation>,
+    ) -> Self {
+        Self(Arc::new(ResourceAccessData {
+            resource,
+            lifetime,
+            scope_lifetime: Some(scope_lifetime),
             _memory: memory,
         }))
     }
@@ -280,10 +298,114 @@ impl ResourceAccess {
         Ok(self.0.resource.bytes())
     }
     pub fn check(&self) -> Result<(), TransportError> {
-        if self.0.lifetime.is_authorized() {
+        if self.0.lifetime.is_authorized()
+            && self
+                .0
+                .scope_lifetime
+                .as_ref()
+                .is_none_or(AuthorizationLifetime::is_authorized)
+        {
             Ok(())
         } else {
             Err(TransportError::Authentication)
+        }
+    }
+}
+
+#[cfg(test)]
+mod resource_scope_tests {
+    use super::*;
+    use rui_protocol_core::{
+        resources::{ResourceKind, ResourceProvenance},
+        session::{Permissions, SessionBroker, SessionConfig},
+    };
+    struct Data(ResourceOffer);
+    impl ResourceData for Data {
+        fn offer(&self) -> &ResourceOffer {
+            &self.0
+        }
+        fn bytes(&self) -> &[u8] {
+            &[7]
+        }
+    }
+    #[test]
+    fn either_original_approval_or_scope_revocation_immediately_denies_every_accessor_and_clone() {
+        for revoke_approval in [true, false] {
+            let parent = MemoryBudget::new(4096);
+            let config = SessionConfig::default();
+            let mut broker =
+                SessionBroker::with_memory_budget([1; 16], [2; 16], config.clone(), parent.clone())
+                    .unwrap();
+            let negotiated = broker
+                .negotiate(
+                    Some(VerifiedAuthorization {
+                        principal: "resource-scope".into(),
+                        policy_version: 1,
+                        permissions: Permissions {
+                            can_view: true,
+                            can_control: false,
+                            actions: Default::default(),
+                        },
+                    }),
+                    ClientHello {
+                        client_instance_id: [3; 16],
+                        supported_versions: config.versions,
+                        supported_profiles: config.supported_profiles,
+                        required_profiles: config.required_profiles,
+                        receiver_limits: config.receiver_limits,
+                        resume: None,
+                    },
+                    0,
+                )
+                .unwrap();
+            let memory = Arc::new(
+                broker
+                    .reserve_view_memory(&negotiated.client, negotiated.view_id, 128)
+                    .unwrap(),
+            );
+            let approval = AuthorizationLifetime::new();
+            let scope = AuthorizationLifetime::new();
+            let access = ResourceAccess::issued_with_scope(
+                Box::new(Data(ResourceOffer {
+                    kind: ResourceKind::VectorPath,
+                    version: 1,
+                    provenance: ResourceProvenance::AuthoredVector,
+                    total_bytes: 1,
+                    digest: [4; 32],
+                })),
+                approval.clone(),
+                scope.clone(),
+                memory,
+            );
+            let clone = access.clone();
+            assert_eq!(access.bytes().unwrap(), &[7]);
+            assert_eq!(access.offer().unwrap().digest, [4; 32]);
+            if revoke_approval {
+                approval.revoke();
+                assert!(scope.is_authorized());
+            } else {
+                scope.revoke();
+                assert!(approval.is_authorized());
+            }
+            for handle in [&access, &clone] {
+                assert!(matches!(
+                    handle.check(),
+                    Err(TransportError::Authentication)
+                ));
+                assert!(matches!(
+                    handle.offer(),
+                    Err(TransportError::Authentication)
+                ));
+                assert!(matches!(
+                    handle.bytes(),
+                    Err(TransportError::Authentication)
+                ));
+            }
+            drop(broker);
+            drop(access);
+            assert_eq!(parent.used(), 128);
+            drop(clone);
+            assert_eq!(parent.used(), 0);
         }
     }
 }
