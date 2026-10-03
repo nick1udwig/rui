@@ -43,6 +43,18 @@ Pending-resource replies retain allocation reservations until dropped, including
 
 Presentation acknowledgement must follow actual renderer presentation. `ViewReceiver::mark_presented` accepts only the current committed revision with an available resource closure; the callback remains trusted renderer evidence. Disconnect aborts partial work and clears presentation while retaining verified live state for authorized same-view reconnection. Cache loss clears presentation and requires resource recovery. Close/revoke irreversibly disposes of the view. A network implementation must connect those lifecycle events to authenticated session policy and gate input on presentation and a current control lease.
 
+## Producer allocation ownership
+
+`SessionBroker::with_memory_budget` charges every view reservation against both
+its negotiated view limit and a shared producer budget. Publication bytes,
+history, attachments and escaping transport reservations retain the parent charge
+until their actual owner drops, even after broker shutdown or view replacement.
+An attachment destroys its value before releasing either charge. Failed parent or
+view admission releases temporary reservations without installing a publication.
+The ordinary `SessionBroker::new` retains independent per-view budgets; a host
+using it must supply a separate aggregate allocation policy. Fixed broker and
+command-ledger metadata still need their own bounded producer allowance.
+
 ## Authority and privacy
 
 Authentication, projection policy, and application completion evidence are trusted host inputs. A struct named `VerifiedAuthorization` is not a credential validator. Connect it to real authentication and authorization before exposing a network endpoint.

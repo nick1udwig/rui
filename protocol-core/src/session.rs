@@ -219,11 +219,13 @@ struct MemoryBudget {
     used: AtomicUsize,
     limit: AtomicUsize,
     peak: AtomicUsize,
+    parent: Option<crate::resources::MemoryBudget>,
 }
 #[derive(Debug)]
 struct Reservation {
     budget: Arc<MemoryBudget>,
     bytes: usize,
+    _parent: Option<crate::resources::MemoryReservation>,
 }
 /// Opaque trusted-adapter allocation charge against this authenticated view.
 /// Acquire it before allocating captures, work buffers or diagnostic state and
@@ -239,8 +241,10 @@ pub struct ViewMemoryReservation {
 #[derive(Clone)]
 pub struct PublicationAttachment(Arc<Attachment>);
 struct Attachment {
-    memory: ViewMemoryReservation,
+    // Rust drops fields in declaration order. Keep the reservation until the
+    // value and any destructor-owned allocations have actually been released.
     value: Box<dyn Any + Send + Sync>,
+    memory: ViewMemoryReservation,
 }
 pub struct WeakPublicationAttachment(Weak<Attachment>);
 impl PublicationAttachment {
@@ -269,6 +273,15 @@ impl ViewMemoryReservation {
 }
 impl Reservation {
     fn new(budget: Arc<MemoryBudget>, bytes: usize) -> Result<Self, SessionError> {
+        // Every escaping allocation retains its own aggregate charge. A view
+        // incarnation, broker or adapter can drop without releasing live IO,
+        // attachment, snapshot or history allocations prematurely.
+        let parent = budget
+            .parent
+            .as_ref()
+            .map(|parent| parent.reserve(bytes))
+            .transpose()
+            .map_err(|_| SessionError::Oversized)?;
         let previous = budget
             .used
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
@@ -277,7 +290,11 @@ impl Reservation {
             })
             .map_err(|_| SessionError::Oversized)?;
         budget.peak.fetch_max(previous + bytes, Ordering::AcqRel);
-        Ok(Self { budget, bytes })
+        Ok(Self {
+            budget,
+            bytes,
+            _parent: parent,
+        })
     }
 }
 impl Drop for Reservation {
@@ -440,6 +457,7 @@ pub struct SessionBroker {
     active: Option<ActiveControl>,
     requests: BTreeMap<(AuthenticatedClient, Id), RequestRecord>,
     cleanup: VecDeque<InputCleanup>,
+    memory_parent: Option<crate::resources::MemoryBudget>,
 }
 impl SessionBroker {
     pub fn new(session_id: Id, epoch: Id, config: SessionConfig) -> Result<Self, SessionError> {
@@ -468,7 +486,22 @@ impl SessionBroker {
             active: None,
             requests: BTreeMap::new(),
             cleanup: VecDeque::new(),
+            memory_parent: None,
         })
+    }
+    /// Charge view allocations against a shared aggregate parent before they
+    /// are allocated. The parent charge survives broker/view teardown through
+    /// the actual reservation lifetime. Fixed broker/ledger metadata requires
+    /// its own trusted-adapter allowance; this covers all view reservations.
+    pub fn with_memory_budget(
+        session_id: Id,
+        epoch: Id,
+        config: SessionConfig,
+        parent: crate::resources::MemoryBudget,
+    ) -> Result<Self, SessionError> {
+        let mut broker = Self::new(session_id, epoch, config)?;
+        broker.memory_parent = Some(parent);
+        Ok(broker)
     }
     // Identifiers are unique in this authority epoch; they are never credentials.
     fn identifier(prefix: Id, counter: u64) -> Id {
@@ -631,6 +664,7 @@ impl SessionBroker {
                         used: AtomicUsize::new(0),
                         peak: AtomicUsize::new(0),
                         limit: AtomicUsize::new(limits.view_memory_bytes),
+                        parent: self.memory_parent.clone(),
                     })
                 });
             budget
