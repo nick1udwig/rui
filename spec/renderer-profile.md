@@ -203,15 +203,43 @@ Local viewport changes require another actual GTK frame before pointer input
 uses the new mapping. Control requests use fresh bounded request IDs and renew
 the current lease; control is never inferred from a rendered semantic action.
 
-The initial IM integration keeps native preedit local and sends one guarded
-ReplaceText on commit. It captures epoch/view, lease/generation, target version,
+The IM integration displays native preedit in bounded local chrome and sends
+guarded ReplaceText commands on commit. It captures epoch/view, lease/generation, target version,
 text identity/content/selection record versions, scalar replacement range and
 focus generation before native key filtering can synchronously emit IM signals.
 Unrelated scene revisions preserve that identity and the command retains its
 original observed revision. Relevant context changes invalidate the capture
-**before** calling IM.reset. A delayed old signal cannot implicitly capture a
-new context; native key filtering must arm it. A context admits only one commit
-until new source evidence or explicit focus reacquisition unlocks input.
+**before** calling IM.reset. Each replacement native IM instance has an immutable
+editing-generation identity; callbacks from retired instances are rejected even
+after the new instance has armed its first key. Empty native commits clear local
+preedit and emit no deletion command. Native key filtering arms each capture
+before synchronous commit/preedit signals. Displayed preedit is limited to 1024
+UTF-8 bytes, reserved before GTK retains it, and cleared before reset/context
+changes. It is never authoritative source text or a wire publication.
+
+Accepted commits enter a bounded FIFO with one ReplaceText in flight, at most
+32 commits total, at most 16 KiB of waiting UTF-8 input, and 1024 bytes per commit.
+Expected source text is limited to 64 KiB. The next edit uses fresh confirmed
+scalar selection and source clocks only after the matching command sequence
+returns Applied with nonempty source evidence and a resulting revision, and
+the replica at or after that revision confirms the exact replacement and
+collapsed selection. Publications alone never advance the FIFO. Changed content
+must advance text_version exactly once; an identical replacement keeps it fixed.
+Text/selection changes advance the text record version exactly once, and the
+semantic target version may stay fixed or advance once. Larger jumps cancel
+pending typing even if final text coincidentally matches. This narrow policy
+fails closed for producers using a different editing-clock convention.
+
+New dispatch also waits for verified resources and actual GTK Presented of the
+current applied revision. A resource or render wait preserves the FIFO. An
+unexpected text/selection/focus/authority change, target click, terminal rejection
+or allocation/queue limit cancels queued work with sticky latest-state feedback.
+Cancellation cannot undo a command already dispatched. Native input is rejected
+visibly before IM filtering when no context or GUI queue capacity is available.
+Native commit size/allocation/channel failures also retain local feedback through
+ordinary source statuses and frames, and keep native editing disabled across
+automatic editing-context resets until explicit target reselection. Previously
+accepted FIFO entries continue; a failed handoff emits no command.
 This is not implementation or acceptance of the wire TextComposition family.
 
 Lifecycle and editing state use a separate bounded latest-state watch channel.
@@ -229,20 +257,62 @@ cargo build -p rui-client-desktop --features desktop --bins --examples --offline
 cargo test -p rui-client-desktop --features desktop --offline --locked
 python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe ime
 python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe mirror
+python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe corpus --report /tmp/rui-native-corpus.json
+cargo run -p rui-client-desktop --example source_reference --offline --locked -- /tmp/rui-source.pam
 ```
 
 The IM probe sends actual XTest keys to its authenticated private display:
 ordinary `a`, then Ctrl+Shift+U U+00E9 preedit/commit. It uses the mirror's same
-arm-before-filter helper and checks reset/late callback rejection. The mirror
+arm-before-filter helper and checks reset/late callback rejection. The IM
+probe also checks empty native commits and a failed commit into a full bounded
+channel: no new command, sticky feedback after actual paint, and editing disabled
+across an automatic context reset until explicit reselection. The mirror
 probe launches two actual GTK clients and a pinned local TLS source; the
 controller exits only after the source grants control following native
 presentation. Its trusted cleanup callback verifies disconnect cleanup. This
 baseline probe has no source command effects and no expanded M2 corpus claim.
 
+`run_many` can host up to eight independently authenticated mirror windows on
+one GTK main loop for local integration tests. Every window retains its own
+TLS connection, client identity, receiver, shared budget, viewport, IM instance
+and control permissions. Its optional bounded latest observation hook reports
+binding metadata, current control/editing readiness and SHA-256 of exact submitted
+RGBA bytes only after the actual canvas snapshot's after-paint callback. It never
+synthesizes Presented or command results and contains no document text,
+credentials or lease tokens. The default CLI disables this hook. Shared-process
+tests complement the separate-process smoke; they are not process-isolation or
+physical-scanout claims.
+
+`corpus_smoke` uses two such windows with independent pinned TLS connections and
+permissions. It first compares both complete 920×480 Session canvases against
+direct authoritative `SourceCapture` records/resources and locally rendered RGBA
+with the same white display matte. Each exact record/pixel fingerprint is tied
+to the issued frame's actual GTK after-paint callback. Observer pan/zoom/resize
+then changes only its local viewport. Actual native keys test six rapid accepted
+characters in order, repeat click on an already focused field, and Ctrl+Shift+U
+Unicode preedit/commit. A third independent standard-library Python semantic
+client selects a stable collection item. Direct broker local-activity notification
+cancels pending GUI typing with feedback checked after paint; this proves GUI
+cancellation, not native M4 local-input takeover. Ctrl+Escape releases control;
+Ctrl+F2 requests a fresh grant. Optional bounded proof JSON records final matching
+source/mirror hashes, revision, viewport, resource counts and the successful
+scenario names, without text, credentials or lease tokens. The independently
+rerun [retained report](../fixtures/render/native-corpus.json) records 2,113
+records and 37 verified resources at revision 13; each view matches its direct
+source record and RGBA fingerprints.
+
+`source_reference` renders the full source Session canvas directly from captured
+records and verified resources, independently of encoded publication replay.
+It writes a local transparent PAM diagnostic; GUI comparison uses white-matted
+RGBA. The source checkpoint may encode a publication before this capture, so the
+independence is structural, not a claim about capture preceding encoding.
+These native checks do not close the remaining M2 button/checkbox/reorder/scroll,
+transient-surface, authorized source resize or reconnect/cache-loss gates.
+
 `tests/corpus_reference.rs` is a provisional Partial-scope integration check.
 Two real TLS read-view receivers compare retained records and selected vector
 roots against `ControlledHost::source_capture().state()`, produced directly from
-the authoritative projection before transport encoding. A semantic-only
+the authoritative projection independently of encoded publication replay. A semantic-only
 controller performs checkbox and Unicode edits; observer-local resize/pan/zoom
 rendering does not change the source commit or command count. The corpus's
 missing source glyph provider remains an explicit Partial surface and whole-view

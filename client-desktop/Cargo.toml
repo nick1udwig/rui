@@ -19,10 +19,16 @@ required-features = ["desktop"]
 name = "desktop_smoke"
 required-features = ["desktop"]
 
+[[example]]
+name = "corpus_smoke"
+required-features = ["desktop"]
+
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }
 cairo-rs = { version = "=0.20.12", default-features = false }
 thiserror = "2"
+sha2 = "0.10"
+serde_json = "1"
 gtk4 = { version = "=0.9.7", optional = true }
 rui-transport = { path = "../transport", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }

@@ -39,5 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         client_id: id,
         auto_control: args[6..].iter().any(|s| s == "--control"),
         smoke_frames: args[6..].iter().any(|s| s == "--smoke").then_some(1),
+        title: "RUI Mirror",
+        observations: None,
+        shutdown_signal: None,
     })
 }

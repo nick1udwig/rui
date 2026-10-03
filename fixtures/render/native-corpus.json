@@ -1,0 +1,54 @@
+{
+  "checks": [
+    "full-session-source-reference",
+    "observer-viewport-isolation",
+    "rapid-six-character-typing",
+    "repeat-focused-target",
+    "native-unicode-preedit-commit",
+    "independent-python-stable-item",
+    "broker-triggered-pending-cancellation-after-paint"
+  ],
+  "controller": {
+    "after_paint_rgba_sha256": "28128bcdd2908fb1c2b61e6bd684525ffd425113781054796c7fed1392c9b361",
+    "direct_source_records_sha256": "7a06c81003d11009421e3cf7b4868ae3caf923aefda47c4d1e394eca994a6b36",
+    "direct_source_rgba_sha256": "28128bcdd2908fb1c2b61e6bd684525ffd425113781054796c7fed1392c9b361",
+    "frame_serial": 15,
+    "mirror_records_sha256": "7a06c81003d11009421e3cf7b4868ae3caf923aefda47c4d1e394eca994a6b36",
+    "record_count": 2113,
+    "source_commit": 13,
+    "verified_resource_count": 37,
+    "view_revision": 13,
+    "viewport": {
+      "height": 480,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "width": 920
+    }
+  },
+  "format": "rui.native-corpus-proof.v1",
+  "observer": {
+    "after_paint_rgba_sha256": "9597d86b098b83b1cc159d09ac5a5d0f387c09d3736a5e3750fb8768f6a3ee6f",
+    "direct_source_records_sha256": "1aad7d2255f396186f71a3f443d307e1c5b449ddf2b56ff83eb8c3c6a7783c51",
+    "direct_source_rgba_sha256": "9597d86b098b83b1cc159d09ac5a5d0f387c09d3736a5e3750fb8768f6a3ee6f",
+    "frame_serial": 17,
+    "mirror_records_sha256": "1aad7d2255f396186f71a3f443d307e1c5b449ddf2b56ff83eb8c3c6a7783c51",
+    "record_count": 2113,
+    "source_commit": 13,
+    "verified_resource_count": 37,
+    "view_revision": 13,
+    "viewport": {
+      "height": 440,
+      "origin": [
+        30.0,
+        30.0
+      ],
+      "scale": 1.25,
+      "width": 840
+    }
+  },
+  "result": "passed",
+  "scope": "private Xvfb; shared GTK process; two independent TLS clients; GTK after-paint opportunity, not physical scanout"
+}

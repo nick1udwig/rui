@@ -173,6 +173,7 @@ pub fn hit_test(
 
 /// Fresh authority and sequence are supplied by the connection actor, never
 /// inferred from a semantic node or mirror pointer event.
+#[derive(Clone, Copy)]
 pub struct CommandBinding {
     pub epoch: Id,
     pub view: Id,
@@ -300,6 +301,15 @@ impl LocalComposition {
     pub fn current(&self) -> Option<EditingContext> {
         self.current
     }
+    pub fn can_filter_keys(&self) -> bool {
+        self.current.is_some() && !self.blocked
+    }
+    /// A bounded causal typing queue accepted this commit. Another physical key
+    /// may arm a fresh capture; a late signal alone still has no capture.
+    pub fn allow_next_key(&mut self) {
+        self.blocked = false;
+        self.captured = None;
+    }
     pub fn invalidate(&mut self) {
         self.current = None;
         self.captured = None;
@@ -319,8 +329,9 @@ impl LocalComposition {
         if self.blocked {
             return None;
         }
+        let context = self.captured.take()?;
         self.blocked = true;
-        self.captured.take()
+        Some(context)
     }
 }
 

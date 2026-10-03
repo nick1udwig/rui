@@ -91,9 +91,12 @@ def type_probe(display, authority):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--xvfb', default=shutil.which('Xvfb'))
-    parser.add_argument('--probe', choices=['ime', 'mirror'], required=True)
+    parser.add_argument('--probe', choices=['ime', 'mirror', 'corpus'], required=True)
     parser.add_argument('--target-dir', type=Path, default=Path('target/debug'))
+    parser.add_argument('--report', type=Path, help='optional corpus proof JSON output')
     args = parser.parse_args()
+    if args.report and args.probe != 'corpus':
+        parser.error('--report applies only to --probe corpus')
     if not args.xvfb or not Path(args.xvfb).is_file():
         raise SystemExit('supply the isolated Xvfb binary with --xvfb')
     with tempfile.TemporaryDirectory(prefix='rui-native-smoke-') as directory:
@@ -111,14 +114,20 @@ def main():
                 if server.poll() is not None:
                     log.seek(0)
                     raise RuntimeError('private Xvfb exited: ' + log.read(8192))
-                binary = args.target_dir / 'examples' / ('native_ime_probe' if args.probe == 'ime' else 'desktop_smoke')
+                binary = args.target_dir / 'examples' / {
+                    'ime': 'native_ime_probe',
+                    'mirror': 'desktop_smoke',
+                    'corpus': 'corpus_smoke',
+                }[args.probe]
                 command = ['dbus-run-session', '--', str(binary)]
                 if args.probe == 'mirror':
                     command.append(str(args.target_dir / 'rui-mirror'))
+                elif args.probe == 'corpus' and args.report:
+                    command.append(str(args.report.absolute()))
                 child = subprocess.Popen(command, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 if args.probe == 'ime':
                     type_probe(display, authority)
-                stdout, stderr = child.communicate(timeout=30)
+                stdout, stderr = child.communicate(timeout=120 if args.probe == 'corpus' else 30)
                 if child.returncode:
                     raise RuntimeError(f'native probe failed: {stdout}\n{stderr}')
                 print(stdout.strip())

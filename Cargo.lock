@@ -913,6 +913,8 @@ dependencies = [
  "rui-producer-sdk",
  "rui-protocol-core",
  "rui-transport",
+ "serde_json",
+ "sha2",
  "thiserror",
  "tokio",
 ]
