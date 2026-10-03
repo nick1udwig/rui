@@ -942,3 +942,34 @@ geometry lifecycle also passed. Independent Python/Rust network replay verifies
 the retained controller185/observer176 packet prefixes, two publications each,
 all six record kinds and six source primitives; their expected audits run in CI.
 The runner always disposes its owned process group, including wrapper failures.
+
+
+## Native wire composition producer
+
+The cooperating whole-view source now admits TextComposition through the same
+TLS command sequence, lease checks and exact-byte ledger as semantic actions.
+Begin/UpdatePreedit/Cancel acknowledge private source state as Dispatched without
+editing the document or publishing preedit to observers. Commit consumes the
+original scalar range once and reports Applied only after a fresh, audited
+whole-view capture. Its source_commit is the editing Surface capture token.
+The optional `text.clock.gtk-editable4224.v1` contract records GTK's observed
+clear/insert/caret clocks; see `spec/input-profile.md`. It is negotiated only for
+the exact measured toolkit version and never inferred from coincidental text.
+
+Root independently rebuilt the frozen producer and ran all 15 actual TLS/native
+scenarios: commit, explicit cancel, focus and selection ABA, target removal,
+revocation, disconnect, renewal beyond the original deadline, expiry, insertion,
+whole deletion, same-content replacement, insertion into empty, prefix deletion,
+and empty-to-empty commit. All passed. The producer driver uses simulated
+Presented callbacks; actual desktop IM callbacks and after-paint remain a
+separate acceptance gate. The desktop CompositionQueue has independently passed
+10 tests covering ordered transient stages, exact causal confirmation in both
+arrival orders, measured clocks, strict generic behavior, ABA/context failures,
+exact results, bounds and retained allocation ownership.
+
+Producer validation passed 23 SDK unit tests, the optional-profile core
+regression, 12 native Python tests and strict SDK Clippy. Independent Python/Rust
+replay of the final commit trace passed 364 exact packets, six publications,
+78 vector transfers (58,012 bytes), all six record kinds, four distinct commands
+and one exact retry. This producer acceptance does not close TXT-002/TXT-003
+until actual desktop wire composition is independently verified.

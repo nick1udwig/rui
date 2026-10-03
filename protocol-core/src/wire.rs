@@ -27,6 +27,7 @@ pub const SUPPORTED_FEATURES: &[&str] = &[
     "semantics.only.v1",
     "glyph.outline-single.v1",
     "cursor.vector.v1",
+    "text.clock.gtk-editable4224.v1",
 ];
 
 pub fn required_features(features: &[String]) -> Result<(), WireError> {
@@ -36,6 +37,22 @@ pub fn required_features(features: &[String]) -> Result<(), WireError> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod optional_text_clock_tests {
+    #[test]
+    fn gtk_text_clock_contract_is_known_and_optional_with_unknown_features_rejected() {
+        let profile = "text.clock.gtk-editable4224.v1";
+        super::required_features(&[profile.into()]).unwrap();
+        assert!(!crate::session::SessionConfig::default()
+            .supported_profiles
+            .contains(profile));
+        assert!(matches!(
+            super::required_features(&["text.clock.unknown.v1".into()]),
+            Err(super::WireError::Unsupported(_))
+        ));
+    }
 }
 
 pub fn decode_envelope(bytes: &[u8], limits: &Limits) -> Result<proto::Envelope, WireError> {

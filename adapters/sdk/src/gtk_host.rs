@@ -11,8 +11,9 @@ use crate::{
 use prost::Message;
 use rui_protocol_core::commands::{
     Arguments, AuthenticatedClient, Command, CommandFamily, CommandLedger, CommandResult,
-    DispatchFailure, DispatchOutcome, Id, LedgerError, LedgerLimits, Rejection, SemanticAuthority,
-    SemanticCommand, SourceEvidence, TargetState,
+    CompositionOperation, DispatchFailure, DispatchOutcome, Id, LedgerError, LedgerLimits,
+    Rejection, SemanticAuthority, SemanticCommand, SourceEvidence, TargetState,
+    TextCompositionCommand,
 };
 use rui_protocol_core::model::{
     Limits, Record, SemanticRole, Sensitivity, State, StateKey, TextStatus, TriState,
@@ -37,6 +38,9 @@ use std::process::{Child, Command as ProcessCommand, Stdio};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
+
+#[path = "gtk_composition.rs"]
+mod composition;
 
 #[cfg(feature = "transport")]
 #[path = "gtk_port.rs"]
@@ -331,6 +335,9 @@ struct SourceGuard {
     lease_id: String,
     control_generation: u64,
     deadline_ns: u64,
+    text_record_id: Option<u64>,
+    text_record_version: Option<u64>,
+    selection: Option<(u64, u64)>,
 }
 #[derive(Serialize)]
 #[serde(untagged)]
@@ -352,6 +359,24 @@ struct NativeCommand<'a> {
 struct CaptureRequest {
     request_id: u64,
     kind: &'static str,
+}
+
+#[derive(Serialize)]
+struct NativeComposition<'a> {
+    request_id: u64,
+    kind: &'static str,
+    guard: SourceGuard,
+    text_session_id: String,
+    stage: &'static str,
+    range: Option<(u64, u64)>,
+    text: Option<&'a str>,
+    selection: Option<(u64, u64)>,
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+enum NativeRequest<'a> {
+    Semantic(NativeCommand<'a>),
+    Composition(NativeComposition<'a>),
 }
 
 struct View {
@@ -396,6 +421,7 @@ pub struct GtkCommandHost {
     source: ViewReceiver,
     sessions: SessionBroker,
     ledger: CommandLedger,
+    composition: composition::Composition,
     views: BTreeMap<Id, View>,
     native_lease: Option<(ControlLease, u64)>,
     broker_epoch: Id,
@@ -464,6 +490,11 @@ impl GtkCommandHost {
         config
             .supported_profiles
             .insert("glyph.outline-single.v1".into());
+        if capture.artifact.manifest()["gtk_version"] == serde_json::json!([4, 22, 4]) {
+            config
+                .supported_profiles
+                .insert("text.clock.gtk-editable4224.v1".into());
+        }
         let sessions = SessionBroker::with_memory_budget(
             context.scope.session_id,
             context.scope.epoch,
@@ -481,12 +512,14 @@ impl GtkCommandHost {
                 ..LedgerLimits::default()
             },
         )?;
+        let composition = composition::Composition::new(&pipe.budget)?;
         let mut host = Self {
             pipe,
             capture,
             source,
             sessions,
             ledger,
+            composition,
             views: BTreeMap::new(),
             native_lease: None,
             broker_epoch: context.scope.epoch,
@@ -534,6 +567,13 @@ impl GtkCommandHost {
             self.pipe.budget.clone(),
             self.identities.generation(),
         )?;
+        if self.capture.artifact.manifest()["gtk_version"] == serde_json::json!([4, 22, 4])
+            && capture.artifact.manifest()["gtk_version"] != serde_json::json!([4, 22, 4])
+        {
+            // A negotiated backend clock promise survives this broker epoch;
+            // replacement cannot silently change it beneath existing views.
+            return Err(GtkHostError::Unsupported);
+        }
         if self
             .source_incarnations
             .contains(&capture.artifact.context().scope.epoch)
@@ -559,6 +599,7 @@ impl GtkCommandHost {
             .insert(capture.artifact.context().scope.epoch);
         self.source_offset = self.public_revision;
         self.pipe = pipe;
+        self.composition = composition::Composition::new(&self.pipe.budget)?;
         self.capture = capture;
         self.source = source;
         self.source_alive = true;
@@ -581,6 +622,7 @@ impl GtkCommandHost {
             return Ok(());
         }
         self.source_alive = false;
+        self.composition.cancel();
         self.pipe.fence.invalidate();
         self.pipe.failed = true;
         self.sessions.revoke_control(now);
@@ -617,6 +659,11 @@ impl GtkCommandHost {
     }
     pub fn publication_revision(&self) -> u64 {
         self.public_revision
+    }
+    fn supports_text_composition(&self) -> bool {
+        self.source_alive
+            && self.capture.artifact.manifest()["surfaces"].is_array()
+            && self.capture.artifact.manifest()["source_boundary_facts"].is_object()
     }
     #[cfg(feature = "gtk-fixture-hooks")]
     pub fn last_source_signal(&self) -> Option<i32> {
@@ -913,6 +960,11 @@ impl GtkCommandHost {
         lease: ControlLease,
         now: u64,
     ) -> Result<ControlLease, GtkHostError> {
+        if self.native_lease.as_ref().is_none_or(|(old, _)| {
+            old.lease_id != lease.lease_id || old.generation != lease.generation
+        }) {
+            self.composition.cancel();
+        }
         let deadline_ns = monotonic_ns()?
             .checked_add(
                 lease
@@ -963,16 +1015,17 @@ impl GtkCommandHost {
             native.client == *client && native.lease_id == lease && native.generation == generation
         }) {
             self.pipe.fence.invalidate();
+            self.composition.cancel();
             self.native_lease = None;
         }
         self.drain_native_cleanup();
         Ok(())
     }
     fn drain_native_cleanup(&mut self) {
-        // Raw input and wire composition are unsupported in this slice, so the
-        // only native obligation is to retire the admitted lifecycle fence.
-        // Complete that obligation before acknowledging core cleanup/remapping.
+        // Invalidate immediately. The source thread independently polls the
+        // atomic fence and clears private preedit; no late commit can pass it.
         while let Some(cleanup) = self.sessions.take_cleanup() {
+            self.composition.cancel();
             if self.native_lease.as_ref().is_some_and(|(native, _)| {
                 native.lease_id == cleanup.lease.lease_id
                     && native.generation == cleanup.lease.generation
@@ -1124,7 +1177,23 @@ impl GtkCommandHost {
                 offset: self.source_offset,
                 revision: &mut self.public_revision,
             },
-        )
+        )?;
+        self.synchronize_composition(0)
+    }
+    fn synchronize_composition(&mut self, now: u64) -> Result<(), GtkHostError> {
+        if self
+            .composition
+            .synchronize(composition::context(&self.source, &self.identities)?)
+        {
+            if let Some((lease, _)) = &self.native_lease {
+                // Clear the matching broker obligation when its control scope
+                // remains ready. After readiness loss/revocation/expiry the
+                // conservatively retained obligation drains through mandatory
+                // cleanup; native transient state is already canceled here.
+                let _ = self.sessions.set_composition(lease, None, now);
+            }
+        }
+        Ok(())
     }
     pub fn refresh_source(&mut self) -> Result<(), GtkHostError> {
         let result = (|| {
@@ -1158,6 +1227,15 @@ impl GtkCommandHost {
         let _working = self.pipe.budget.reserve(PROJECT_MEMORY)?;
         self.poll_source(now)?;
         let view_id = self.view(client)?.negotiated.view_id;
+        let composition_allowed = !self
+            .view(client)?
+            .negotiated
+            .profiles
+            .contains("semantics.only.v1")
+            && self.supports_text_composition();
+        if self.source_alive {
+            self.synchronize_composition(now)?;
+        }
         let authority = if self.source_alive {
             Some(public_authority(
                 &self.source,
@@ -1176,126 +1254,215 @@ impl GtkCommandHost {
         let public_revision = &mut self.public_revision;
         let source_offset = self.source_offset;
         let native_deadline = self.native_lease.as_ref().map(|(_, deadline)| *deadline);
+        let native_lease = self.native_lease.as_ref().map(|(lease, _)| lease.clone());
         let mut attempted_native_dispatch = false;
-        let result = self.ledger.submit_controlled_with_session(
-            &mut self.sessions,
-            client,
-            family,
-            bytes,
-            now,
-            |command| {
-                let Command::Semantic(command) = command else {
-                    return Err(Rejection::UnsupportedAction);
-                };
-                let authority = authority.as_ref().ok_or(Rejection::MissingTarget)?;
-                authority.validate(command)?;
-                let owns_model = authority
-                    .targets
-                    .get(&command.target_id)
-                    .is_some_and(|target| target.model_version.is_some());
-                if matches!(command.action_id.as_str(), "Activate" | "ScrollTo")
-                    && owns_model
-                    && command.preconditions.model_version.is_none()
-                {
-                    return Err(Rejection::InvalidArguments);
-                }
-                if matches!(&command.arguments, Arguments::ReplaceText { text, .. }
+        let result = {
+            let composition = std::cell::RefCell::new(&mut self.composition);
+            self.ledger.submit_controlled_with_session(
+                &mut self.sessions,
+                client,
+                family,
+                bytes,
+                now,
+                |command| {
+                    if let Command::TextComposition(command) = command {
+                        if !composition_allowed {
+                            return Err(Rejection::UnsupportedAction);
+                        }
+                        return composition.borrow().validate(client, command);
+                    }
+                    let Command::Semantic(command) = command else {
+                        return Err(Rejection::UnsupportedAction);
+                    };
+                    let authority = authority.as_ref().ok_or(Rejection::MissingTarget)?;
+                    authority.validate(command)?;
+                    let owns_model = authority
+                        .targets
+                        .get(&command.target_id)
+                        .is_some_and(|target| target.model_version.is_some());
+                    if matches!(command.action_id.as_str(), "Activate" | "ScrollTo")
+                        && owns_model
+                        && command.preconditions.model_version.is_none()
+                    {
+                        return Err(Rejection::InvalidArguments);
+                    }
+                    if matches!(&command.arguments, Arguments::ReplaceText { text, .. }
                     if text.len() > 16 << 10 || text.contains('\0'))
-                {
-                    return Err(Rejection::InvalidArguments);
-                }
-                Ok(())
-            },
-            |command, sessions| {
-                let Command::Semantic(command) = command else {
-                    return Err(DispatchFailure::Failed);
-                };
-                // Reserve pending metadata/body scratch before native execution,
-                // alongside the already reserved command/projection scratch.
-                let pending_memory = pipe
-                    .budget
-                    .reserve(ARTIFACT_MEMORY)
-                    .map_err(|_| DispatchFailure::Failed)?;
-                let _capture_working = pipe
-                    .budget
-                    .reserve(CAPTURE_WORKING_MEMORY)
-                    .map_err(|_| DispatchFailure::Failed)?;
-                let authority = authority.as_ref().ok_or(DispatchFailure::Failed)?;
-                let request = native_command(
-                    &capture.artifact,
-                    source,
-                    authority,
-                    command,
-                    pipe.next_request,
-                    native_deadline.ok_or(DispatchFailure::Failed)?,
-                    identities,
-                )
-                .map_err(|_| DispatchFailure::Failed)?;
-                attempted_native_dispatch = true;
-                let reply = pipe
-                    .request(&request)
+                    {
+                        return Err(Rejection::InvalidArguments);
+                    }
+                    Ok(())
+                },
+                |command, sessions| {
+                    // Reserve pending metadata/body scratch before native execution,
+                    // alongside the already reserved command/projection scratch.
+                    let pending_memory = pipe
+                        .budget
+                        .reserve(ARTIFACT_MEMORY)
+                        .map_err(|_| DispatchFailure::Failed)?;
+                    let _capture_working = pipe
+                        .budget
+                        .reserve(CAPTURE_WORKING_MEMORY)
+                        .map_err(|_| DispatchFailure::Failed)?;
+                    let deadline = native_deadline.ok_or(DispatchFailure::Failed)?;
+                    let request_id = pipe.next_request;
+                    let request = match command {
+                        Command::Semantic(command) => NativeRequest::Semantic(
+                            native_command(
+                                &capture.artifact,
+                                source,
+                                authority.as_ref().ok_or(DispatchFailure::Failed)?,
+                                command,
+                                request_id,
+                                deadline,
+                                identities,
+                            )
+                            .map_err(|_| DispatchFailure::Failed)?,
+                        ),
+                        Command::TextComposition(command) => NativeRequest::Composition(
+                            native_composition(
+                                &capture.artifact,
+                                composition
+                                    .borrow()
+                                    .context()
+                                    .ok_or(DispatchFailure::Failed)?,
+                                command,
+                                request_id,
+                                deadline,
+                            )
+                            .map_err(|_| DispatchFailure::Failed)?,
+                        ),
+                        _ => return Err(DispatchFailure::Failed),
+                    };
+                    attempted_native_dispatch = true;
+                    let reply = pipe
+                        .request(&request)
+                        .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                    if reply.status == "rejected" {
+                        if matches!(command, Command::TextComposition(_)) {
+                            composition.borrow_mut().cancel();
+                            if let Some(lease) = &native_lease {
+                                let _ = sessions.set_composition(lease, None, now);
+                            }
+                        }
+                        return Err(DispatchFailure::Failed);
+                    }
+                    if let Command::TextComposition(command) = command {
+                        let commit =
+                            matches!(command.operation, CompositionOperation::CommitText { .. });
+                        if (!commit && reply.status != "dispatched")
+                            || (commit && reply.status != "applied")
+                        {
+                            return Err(DispatchFailure::OutcomeUnknown);
+                        }
+                        composition.borrow_mut().acknowledge(client, command)?;
+                        let active = if matches!(
+                            command.operation,
+                            CompositionOperation::Begin(_)
+                                | CompositionOperation::UpdatePreedit { .. }
+                        ) {
+                            Some(command.text_session_id)
+                        } else {
+                            None
+                        };
+                        sessions
+                            .set_composition(
+                                native_lease
+                                    .as_ref()
+                                    .ok_or(DispatchFailure::OutcomeUnknown)?,
+                                active,
+                                now,
+                            )
+                            .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                        if !commit {
+                            return Ok(DispatchOutcome::Dispatched);
+                        }
+                    }
+                    if reply.status != "applied" {
+                        return Err(DispatchFailure::OutcomeUnknown);
+                    }
+                    let next = pipe
+                        .capture_reserved(reply, pending_memory)
+                        .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                    let manifest = next.artifact.manifest();
+                    let current = source
+                        .state()
+                        .map_err(|_| DispatchFailure::OutcomeUnknown)?
+                        .revision;
+                    if next.artifact.context() != capture.artifact.context()
+                        || manifest["command_cause"]["private_request_id"].as_u64()
+                            != Some(request_id)
+                        || manifest["command_cause"]["source_generation"].as_u64()
+                            != Some(identities.generation())
+                        || manifest["command_cause"]["authority_gate"].as_str()
+                            != Some("core-ledger-admitted")
+                        || manifest["revision"]
+                            .as_u64()
+                            .is_none_or(|revision| revision <= current)
+                    {
+                        return Err(DispatchFailure::OutcomeUnknown);
+                    }
+                    next.artifact
+                        .apply_trusted_fixture(source)
+                        .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                    verify_capture(&next, source).map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                    *capture = next;
+                    publish(
+                        capture,
+                        source,
+                        pipe,
+                        sessions,
+                        views,
+                        Projection {
+                            identities: &mut *identities,
+                            offset: source_offset,
+                            revision: &mut *public_revision,
+                        },
+                    )
                     .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                if reply.status == "rejected" {
-                    return Err(DispatchFailure::Failed);
-                }
-                if reply.status != "applied" {
-                    return Err(DispatchFailure::OutcomeUnknown);
-                }
-                let next = pipe
-                    .capture_reserved(reply, pending_memory)
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                let manifest = next.artifact.manifest();
-                let current = source
-                    .state()
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?
-                    .revision;
-                if next.artifact.context() != capture.artifact.context()
-                    || manifest["command_cause"]["private_request_id"].as_u64()
-                        != Some(request.request_id)
-                    || manifest["command_cause"]["source_generation"].as_u64()
-                        != Some(identities.generation())
-                    || manifest["command_cause"]["authority_gate"].as_str()
-                        != Some("core-ledger-admitted")
-                    || manifest["revision"]
-                        .as_u64()
-                        .is_none_or(|revision| revision <= current)
-                {
-                    return Err(DispatchFailure::OutcomeUnknown);
-                }
-                next.artifact
-                    .apply_trusted_fixture(source)
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                verify_capture(&next, source).map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                *capture = next;
-                publish(
-                    capture,
-                    source,
-                    pipe,
-                    sessions,
-                    views,
-                    Projection {
-                        identities: &mut *identities,
-                        offset: source_offset,
-                        revision: &mut *public_revision,
-                    },
-                )
-                .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                pipe.acknowledge_capture(capture)
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                let revision = *public_revision;
-                let token = capture.artifact.manifest()["capture_token"]
-                    .as_str()
-                    .ok_or(DispatchFailure::OutcomeUnknown)?
-                    .to_owned();
-                let published = views
-                    .get(&client.client_instance_id)
-                    .filter(|view| view.published_revision == revision)
-                    .map(|_| revision);
-                let evidence = SourceEvidence::new(token, published)
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                Ok(DispatchOutcome::Applied(evidence))
-            },
-        )?;
+                    pipe.acknowledge_capture(capture)
+                        .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                    let revision = *public_revision;
+                    let token = if let Command::TextComposition(command) = command {
+                        // The whole-view cause/nonce/source-generation audit
+                        // above established this fresh capture. Name the
+                        // actual editing surface's witness so a client can
+                        // bind completion to its installed causal surface.
+                        let state = source
+                            .state()
+                            .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                        let target = identities
+                            .private_id(command.target_id)
+                            .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                        let surface_id = semantic_surface(state, target)
+                            .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                        let Some(Record::Surface(surface)) = state.records.get(&surface_id) else {
+                            return Err(DispatchFailure::OutcomeUnknown);
+                        };
+                        let [token] = surface.source_capture_tokens.as_slice() else {
+                            return Err(DispatchFailure::OutcomeUnknown);
+                        };
+                        String::from_utf8(token.clone())
+                            .map_err(|_| DispatchFailure::OutcomeUnknown)?
+                    } else {
+                        capture.artifact.manifest()["capture_token"]
+                            .as_str()
+                            .ok_or(DispatchFailure::OutcomeUnknown)?
+                            .to_owned()
+                    };
+                    let published = views
+                        .get(&client.client_instance_id)
+                        .filter(|view| view.published_revision == revision)
+                        .map(|_| revision);
+                    let evidence = SourceEvidence::new(token, published)
+                        .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                    Ok(DispatchOutcome::Applied(evidence))
+                },
+            )?
+        };
+        if self.source_alive {
+            self.synchronize_composition(now)?;
+        }
         if attempted_native_dispatch
             && result.status == rui_protocol_core::commands::CommandStatus::OutcomeUnknown
         {
@@ -1317,6 +1484,10 @@ pub enum FixtureMutation {
     RaceFocusCycle,
     DelayForFence,
     SelectionCycle,
+    CompositionState,
+    CompositionFocusCycle,
+    CompositionRemove,
+    CompositionEmpty,
     InterruptWholeCapture,
     DisableButton,
     EnableButton,
@@ -1339,6 +1510,10 @@ impl FixtureMutation {
             Self::RaceFocusCycle => "race-focus-cycle",
             Self::DelayForFence => "delay-for-fence",
             Self::SelectionCycle => "selection-cycle",
+            Self::CompositionState => "composition-state",
+            Self::CompositionFocusCycle => "composition-focus-cycle",
+            Self::CompositionRemove => "composition-remove",
+            Self::CompositionEmpty => "composition-empty",
             Self::InterruptWholeCapture => "interrupt-whole-capture",
             Self::DisableButton => "disable-button",
             Self::EnableButton => "enable-button",
@@ -1631,6 +1806,9 @@ fn native_command<'a>(
             .collect(),
         control_generation: command.control_generation,
         deadline_ns,
+        text_record_id: None,
+        text_record_version: None,
+        selection: None,
     };
     let arguments = match &command.arguments {
         Arguments::None => NativeArguments::None {},
@@ -1652,6 +1830,59 @@ fn native_command<'a>(
         guard,
         action: &command.action_id,
         arguments,
+    })
+}
+
+fn native_composition<'a>(
+    artifact: &CaptureArtifact,
+    context: &composition::Context,
+    command: &'a TextCompositionCommand,
+    request_id: u64,
+    deadline_ns: u64,
+) -> Result<NativeComposition<'a>, GtkHostError> {
+    let (stage, range, text, selection) = match &command.operation {
+        CompositionOperation::Begin(range) => ("begin", Some((range.start, range.end)), None, None),
+        CompositionOperation::UpdatePreedit { text, selection } => (
+            "update",
+            None,
+            Some(text.as_str()),
+            Some((selection.start, selection.end)),
+        ),
+        CompositionOperation::CommitText { text } => ("commit", None, Some(text.as_str()), None),
+        CompositionOperation::Cancel => ("cancel", None, None, None),
+    };
+    let hex = |id: Id| {
+        id.iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
+    Ok(NativeComposition {
+        request_id,
+        kind: "composition",
+        stage,
+        range,
+        text,
+        selection,
+        text_session_id: hex(command.text_session_id),
+        guard: SourceGuard {
+            source_generation: context.source_generation,
+            incarnation: artifact.manifest()["binding"]["epoch"]
+                .as_str()
+                .ok_or(GtkHostError::Unsupported)?
+                .to_owned(),
+            surface_id: context.surface,
+            target_id: context.private_target,
+            target_version: context.target_version,
+            text_version: Some(context.text_version),
+            model_version: None,
+            focus_generation: Some(context.native_focus_generation),
+            lease_id: hex(command.header.control_lease_id),
+            control_generation: command.header.control_generation,
+            deadline_ns,
+            text_record_id: Some(context.text_id),
+            text_record_version: Some(context.text_record_version),
+            selection: context.selection,
+        },
     })
 }
 
@@ -2045,12 +2276,14 @@ mod tests {
                 "content.no-raster.v1",
                 "glyph.outline-single.v1",
                 "semantics.only.v1",
+                "text.clock.gtk-editable4224.v1",
             ]
             .into_iter()
             .map(str::to_owned)
             .collect(),
             ..Default::default()
         };
+        let composition = composition::Composition::new(&budget).unwrap();
         let mut host = GtkCommandHost {
             pipe,
             capture,
@@ -2063,6 +2296,7 @@ mod tests {
             )
             .unwrap(),
             ledger: CommandLedger::new(context.scope.epoch, LedgerLimits::default()).unwrap(),
+            composition,
             views: BTreeMap::new(),
             native_lease: None,
             broker_epoch: context.scope.epoch,

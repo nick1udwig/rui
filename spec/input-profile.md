@@ -43,3 +43,57 @@ the ordinary policy; exact bytes require explicit trusted diagnostic policy.
 Credential handshakes must never enter the recorder. Retained entries, spare
 container capacity and diagnostic bodies are charged to its shared memory budget.
 Revocation purges retained entries and permanently closes that recorder.
+
+## Cooperating GTK client-text composition
+
+The cooperating GTK producer advertises `text.client.v1` to a full visual
+controller explicitly granted `TextComposition`. Admission requires its actual
+current Presented view, the shared command sequence/byte ledger and the current
+lease. The focused editable target, focus generation, text content version,
+complete text-record version, scalar selection, native surface, source
+incarnation and lease owner are checked again on the serialized GTK thread.
+
+Begin, UpdatePreedit and Cancel acknowledge actual private source transient state
+as `Dispatched`. They produce no document edit, source-commit token, publication
+or observer preedit. Commit consumes the original Begin scalar range once,
+applies the native GtkEditable value and caret, then waits for the existing fresh
+whole-view capture barrier. `Applied.source_commit` names the newly captured
+editing Surface's token in `source_capture_tokens`; the whole-view request cause,
+source generation and capture nonce must already have passed the source audit.
+Exact retries return the common ledger's retained result.
+
+`text.clock.gtk-editable4224.v1` is an optional GTK 4.22.4 clock contract. This
+producer offers it when its native capture declares that exact toolkit version;
+the client must explicitly support it. It is absent from core session defaults
+and the required profile set. Source replacement cannot change the pinned
+toolkit version beneath an existing broker epoch that offered this contract.
+
+GTK's observed internal clear/insert steps can advance clocks several times
+within one authorized value replacement. The measured profile preserves every
+native observation. For the source's serialized GtkEntry value/caret operation,
+the content-clock delta equals `before_nonempty + after_nonempty`, where each
+boolean contributes zero or one. The full text-record delta equals that content
+delta plus one when the final scalar caret is greater than zero. Thus nonempty
+replacement or insertion with a positive final caret advances content by two
+and the full record by three; a prefix deletion with caret zero advances both
+by two; deletion to empty advances both by one; insertion into empty advances
+content by one and the record by two; an empty-to-empty operation advances
+neither. A same-content nonempty replacement still records the native clear and
+reinsert transitions.
+
+A receiver uses these precise deltas only after negotiating this profile, with
+the exact expected final text and scalar caret, unchanged editing identity/focus,
+and an authenticated matching Applied token in the coherent installed editing
+Surface. Extra transitions invalidate the pending editing context. Receivers
+without this optional contract retain their ordinary conservative clock checks.
+Independent focus, content and selection away/back observations remain intact.
+
+Composition identities are retained up to 128 per source incarnation; preedit,
+commit and resulting document text each have a 16 KiB UTF-8 ceiling. The private
+composition allocation is reserved from the source owner's shared memory budget.
+Focus/text/selection changes, removal and failed native observations clear
+transient state before a fresh context. Revocation/disconnect retire the native
+atomic lifecycle fence immediately; source-thread polling clears preedit, and
+every late commit checks that fence and execution-time expiry before effects.
+Private transient diagnostics belong only to explicitly enabled controlled
+fixture hooks.

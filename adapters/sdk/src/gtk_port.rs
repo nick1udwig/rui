@@ -874,7 +874,18 @@ fn description(host: &GtkCommandHost, scope: &Scope) -> Result<ViewDescription, 
         height: canvas.height,
         coverage: coverage.into(),
         input_modes: if view.negotiated.permissions.can_control {
-            vec!["semantic.v1".into()]
+            let mut modes = vec!["semantic.v1".into()];
+            if !semantic
+                && host.supports_text_composition()
+                && view
+                    .negotiated
+                    .permissions
+                    .actions
+                    .contains("TextComposition")
+            {
+                modes.push("text.client.v1".into());
+            }
+            modes
         } else {
             Vec::new()
         },
@@ -1117,6 +1128,154 @@ mod tests {
         })
         .await
         .unwrap();
+    }
+    #[test]
+    fn composition_capability_requires_full_visual_controller_and_exact_permission() {
+        runtime().block_on(async {
+            for (semantic, controller, permitted, expected) in [
+                (false, false, true, false),
+                (false, true, false, false),
+                (true, true, true, false),
+                (false, true, true, true),
+            ] {
+                let port = fixture();
+                let mut request = connect_request(9, AuthorizationLifetime::new());
+                let Request::Connect {
+                    authorization,
+                    hello,
+                    ..
+                } = &mut request
+                else {
+                    unreachable!()
+                };
+                authorization.permissions.can_control = controller;
+                authorization.permissions.actions = if permitted {
+                    ["TextComposition".into()].into_iter().collect()
+                } else {
+                    BTreeSet::new()
+                };
+                if semantic {
+                    hello.supported_profiles.insert("semantics.only.v1".into());
+                    hello.required_profiles = ["semantics.only.v1".into()].into_iter().collect();
+                }
+                let received = port.transact(request).await.unwrap();
+                let PortReply::Connected(connection) = received.value() else {
+                    panic!("connection")
+                };
+                let connection = connection.clone();
+                drop(received);
+                let opened = operation(
+                    &port,
+                    &connection,
+                    Operation::Open {
+                        selection: "fixture".into(),
+                        mirror_canvas_policy: if semantic {
+                            "semantic-only"
+                        } else {
+                            "host-canvas"
+                        }
+                        .into(),
+                    },
+                )
+                .await
+                .unwrap();
+                let PortReply::Opened { description, .. } = opened.value() else {
+                    panic!("description")
+                };
+                assert_eq!(
+                    description
+                        .input_modes
+                        .iter()
+                        .any(|mode| mode == "text.client.v1"),
+                    expected
+                );
+                assert!(description.input_devices.is_empty());
+                drop(opened);
+                let session = connection.session();
+                let bytes = pb::TextComposition {
+                    header: Some(pb::CommandHeader {
+                        epoch: session.epoch.to_vec(),
+                        view_id: session.view_id.to_vec(),
+                        client_instance_id: session.client.client_instance_id.to_vec(),
+                        command_seq: 1,
+                        control_lease_id: [7; 16].to_vec(),
+                        control_generation: 1,
+                        observed_view_revision: 1,
+                    }),
+                    target_id: 9,
+                    text_session_id: [8; 16].to_vec(),
+                    focus_generation: 1,
+                    base_text_version: 1,
+                    operation: Some(pb::text_composition::Operation::Begin(pb::ScalarRange {
+                        start: 0,
+                        end: 0,
+                    })),
+                }
+                .encode_to_vec();
+                let denied = operation(
+                    &port,
+                    &connection,
+                    Operation::Command {
+                        family: CommandFamily::TextComposition,
+                        bytes: bytes.into(),
+                    },
+                )
+                .await
+                .unwrap();
+                let PortReply::Command(result) = denied.value() else {
+                    panic!("result")
+                };
+                assert_eq!(
+                    result.status,
+                    rui_protocol_core::commands::CommandStatus::Rejected
+                );
+                assert_eq!(port.0.priority.fence.lock().unwrap().current(), 0);
+                drop(denied);
+                port.disconnect(&connection);
+                port.flush_lifecycle(1).await.unwrap();
+                drop(connection);
+                port.shutdown();
+                port.flush_lifecycle(1).await.unwrap();
+            }
+        });
+    }
+    #[test]
+    fn gtk_text_clock_profile_is_selected_only_when_client_supports_it() {
+        runtime().block_on(async {
+            for supported in [false, true] {
+                let port = fixture();
+                let mut request = connect_request(9, AuthorizationLifetime::new());
+                let Request::Connect { hello, .. } = &mut request else {
+                    unreachable!()
+                };
+                if supported {
+                    hello
+                        .supported_profiles
+                        .insert("text.clock.gtk-editable4224.v1".into());
+                }
+                assert!(!hello
+                    .required_profiles
+                    .contains("text.clock.gtk-editable4224.v1"));
+                let received = port.transact(request).await.unwrap();
+                let PortReply::Connected(connection) = received.value() else {
+                    panic!("connection")
+                };
+                assert_eq!(
+                    connection
+                        .session()
+                        .profiles
+                        .contains("text.clock.gtk-editable4224.v1"),
+                    supported
+                );
+                let connection = connection.clone();
+                drop(received);
+                port.disconnect(&connection);
+                port.flush_lifecycle(1).await.unwrap();
+                drop(connection);
+                port.shutdown();
+                port.flush_lifecycle(1).await.unwrap();
+            }
+        });
     }
     #[test]
     fn canceled_connect_and_shutdown_wait_for_unsent_capability_cleanup() {

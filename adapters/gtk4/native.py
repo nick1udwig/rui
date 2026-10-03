@@ -14,6 +14,7 @@ from gi.repository import GLib, Gtk
 
 from adapters.gtk4.state import NativeAction, SourceRejected, editable_text
 from adapters.gtk4.native_fence import NativeFence
+from adapters.gtk4.composition import NativeComposition
 
 
 MAX_REQUEST = 128 << 10
@@ -85,6 +86,8 @@ class NativeDispatcher:
         self.current_artifact = None
         self.promised_artifact = None
         self.artifacts = {}
+        self.composition = NativeComposition(self.composition_context, self.fence, whole.budget if whole is not None else None)
+        GLib.timeout_add(10, self.poll_composition)
         self.original_capture = corpus.capture.on_capture
         if whole is None:
             corpus.capture.on_capture = self.captured
@@ -108,6 +111,13 @@ class NativeDispatcher:
 
     def observed_callback(self, *_):
         self.native_callbacks += 1
+        self.composition.poll()
+
+    def poll_composition(self):
+        if self.closed:
+            return False
+        self.composition.poll()
+        return True
 
     def watchdog(self):
         self.close()
@@ -116,6 +126,7 @@ class NativeDispatcher:
 
     def close(self):
         self.closed = True
+        self.composition.close()
         self.fence.close()
         if self.fence_memory:
             self.fence_memory.close()
@@ -242,7 +253,11 @@ class NativeDispatcher:
         if self.promised_artifact is not None:
             raise ValueError('private-unconsumed-capture')
         if kind == 'control':
+            if self.control is not None and self.control[:2] != (request['lease_id'], request['generation']):
+                self.composition.cancel('retired-native-control-generation')
             self.control = (request['lease_id'], request['generation'], request['deadline_ns'])
+            if self.composition.active is not None:
+                self.composition.active['guard']['deadline_ns'] = request['deadline_ns']
             self.reply(request_id, 'control')
             return
         if kind == 'capture':
@@ -269,6 +284,26 @@ class NativeDispatcher:
                 delegate = widget.get_delegate() or widget
                 delegate.select_region(0, 1)
                 delegate.select_region(*before)
+                self.composition.poll()
+            elif operation == 'composition-state':
+                self.composition.poll()
+                state = self.composition.diagnostic()
+                state.update(source_generation=self.source_generation, fence_generation=self.fence.current(), native_dispatches=self.native_dispatches, native_callbacks=self.native_callbacks)
+                self.corpus.source.write_artifact(self.corpus.output, 'composition-state.json', json.dumps(state).encode())
+            elif operation == 'composition-focus-cycle' and self.whole is not None:
+                previous = self.whole.modal.get_focus()
+                self.corpus.registry.widgets['modal-close'][0].grab_focus()
+                self.whole.observe_focus()
+                previous.grab_focus()
+                self.whole.observe_focus()
+                self.composition.poll()
+            elif operation == 'composition-remove' and self.whole is not None:
+                self.whole.modal_entry.set_visible(False)
+                self.corpus.registry.retire('modal-entry')
+                self.composition.poll()
+            elif operation == 'composition-empty' and self.whole is not None:
+                self.whole.modal_entry.set_text('')
+                self.composition.poll()
             elif operation == 'interrupt-whole-capture' and self.whole is not None:
                 self.whole.interrupt = True
             elif operation in ('lose-after-dispatch', 'stall-after-dispatch', 'uncorrelated-capture', 'crash-after-dispatch'):
@@ -293,7 +328,7 @@ class NativeDispatcher:
                 raise ValueError('unsupported-fixture-operation')
             self.reply(request_id, 'fixture')
             return
-        if kind != 'semantic':
+        if kind not in ('semantic', 'composition'):
             raise ValueError('unsupported-private-operation')
         guard = request['guard']
         if self.race_next == 'source-generation':
@@ -348,6 +383,7 @@ class NativeDispatcher:
             self.corpus.unmaterialize_row()
             self.race_next = None
         try:
+            self.composition.poll()
             if guard['source_generation'] != self.source_generation:
                 raise SourceRejected('retired-private-source-generation')
             if self.control != (guard['lease_id'], guard['control_generation'], guard['deadline_ns']):
@@ -392,15 +428,23 @@ class NativeDispatcher:
                     current_focus = self.whole.focus_generation
                 if current_focus != guard['focus_generation']:
                     raise SourceRejected('stale-focus-clock')
-            action, arguments = request['action'], request['arguments']
-            if action not in semantic['actions']:
-                raise SourceRejected('unsupported-native-action')
-            self.validate_arguments(key, widget, action, arguments)
+            if kind == 'composition':
+                context = self.composition_context(guard)
+                action, arguments = 'ReplaceText', None
+                if 'ReplaceText' not in semantic['actions']:
+                    raise SourceRejected('native-composition-not-editable')
+            else:
+                action, arguments = request['action'], request['arguments']
+                if action not in semantic['actions']:
+                    raise SourceRejected('unsupported-native-action')
+                self.validate_arguments(key, widget, action, arguments)
             if time.monotonic_ns() >= guard['deadline_ns']:
                 raise SourceRejected('lease-expired-at-native-dispatch')
             if self.fence.current() != guard['control_generation']:
                 raise SourceRejected('retired-native-lifecycle-fence')
         except (SourceRejected, StopIteration) as error:
+            if kind == 'composition':
+                self.composition.cancel(str(error))
             if self.fixture_hooks and str(error) == 'retired-native-lifecycle-fence':
                 self.corpus.source.write_artifact(self.corpus.output, 'native-fence-receipt.json', json.dumps({
                     'private_request_id': request_id, 'source_generation': self.source_generation,
@@ -409,9 +453,31 @@ class NativeDispatcher:
                     'observed_monotonic_ns': time.monotonic_ns()}).encode())
             self.reply(request_id, 'rejected', reason=str(error) or 'retired-source-object')
             return
+        except Exception:
+            # A failed final native read/allocation cannot preserve an IME
+            # context. Retire this disposable source before another command.
+            self.composition.cancel('native-context-observation-unavailable')
+            self.close()
+            self.corpus.app.quit()
+            return
         # Every prior check and the native calls share this GTK main-loop turn.
         # No peer callback/crawl can replace the source object between them.
         self.native_dispatches += 1
+        if kind == 'composition':
+            try:
+                arguments = self.composition.stage(request, context)
+            except SourceRejected as error:
+                self.composition.cancel(str(error))
+                self.reply(request_id, 'rejected', reason=str(error))
+                return
+            except Exception:
+                self.composition.cancel('native-composition-allocation-failed')
+                self.close()
+                self.corpus.app.quit()
+                return
+            if arguments is None:
+                self.reply(request_id, 'dispatched')
+                return
         capture.command_cause = {'private_request_id': request_id, 'source_generation': self.source_generation, 'authority_gate': 'core-ledger-admitted'}
         if self.whole is not None:
             self.whole.command_cause = capture.command_cause
@@ -471,6 +537,35 @@ class NativeDispatcher:
         elif action not in ('Activate', 'Focus', 'ScrollTo'):
             raise SourceRejected('unsupported-native-action')
 
+    def composition_context(self, guard):
+        if self.whole is None:
+            raise SourceRejected('native-composition-requires-whole-visual-context')
+        if guard['source_generation'] != self.source_generation or self.control is None or self.control[:2] != (guard['lease_id'], guard['control_generation']):
+            raise SourceRejected('retired-native-control-generation')
+        key, widget = self.corpus.registry.resolve_semantic(guard['incarnation'], guard['surface_id'], guard['target_id'])
+        owner = self.corpus.registry.widgets[key][1]
+        capture = self.corpus.registry.surfaces[owner]
+        self.whole.observe_focus()
+        if self.whole.previous_focus != (owner, guard['target_id']) or self.whole.focus_generation != guard['focus_generation']:
+            raise SourceRejected('stale-native-composition-focus')
+        if not isinstance(widget, Gtk.Entry) or not widget.get_editable():
+            raise SourceRejected('native-text-not-editable')
+        scratch = self.whole.budget.reserve(16 << 20)
+        try:
+            semantic = next(node for node in self.corpus.source.semantics(capture.semantic_root, capture.frames) if node['id'] == guard['target_id'])
+            text = semantic.get('text', {})
+            if semantic['version'] != guard['target_version'] or text.get('id') != guard['text_record_id'] or text.get('version') != guard['text_record_version'] or text.get('text_version') != guard['text_version'] or text.get('selection') != guard['selection']:
+                raise SourceRejected('stale-native-composition-text-record')
+            content = widget.get_text()
+            NativeComposition.valid_text(content)
+            return {'source_generation': self.source_generation, 'incarnation': guard['incarnation'],
+                    'surface': guard['surface_id'], 'target': guard['target_id'], 'target_version': semantic['version'],
+                    'focus_generation': self.whole.focus_generation, 'text_id': text['id'],
+                    'text_record_version': text['version'], 'text_version': text['text_version'],
+                    'content': content, 'selection': tuple(text['selection']) if text.get('selection') is not None else None}
+        finally:
+            scratch.close()
+
     def apply_native(self, key, widget, action, arguments):
         if action == 'Activate':
             if isinstance(widget, NativeAction):
@@ -490,10 +585,14 @@ class NativeDispatcher:
         elif action == 'ReplaceText':
             content = widget.get_text()
             result = content[:arguments['start']] + arguments['text'] + content[arguments['end']:]
+            delegate = widget.get_delegate() or widget
+            # Preserve every actual GTK content/selection observation, including
+            # the engine's internal clear/insert transitions. The resulting
+            # coherent capture and target surface witness confirm completion.
             widget.set_text(result)
             # Programmatic set_text resets GTK's cursor. Interactive insertion
             # has an explicit scalar caret at the end of the inserted string.
-            (widget.get_delegate() or widget).set_position(arguments['start'] + len(arguments['text']))
+            delegate.set_position(arguments['start'] + len(arguments['text']))
             if widget.get_text() != result:
                 raise RuntimeError('native text differs after dispatch')
         elif action == 'SetSelection':

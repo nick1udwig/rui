@@ -29,3 +29,8 @@ required-features = ["gtk-fixture-hooks"]
 name = "gtk_transport_check"
 path = "src/bin/gtk_transport_check.rs"
 required-features = ["transport", "gtk-fixture-hooks"]
+
+[[bin]]
+name = "gtk_composition_check"
+path = "src/bin/gtk_composition_check.rs"
+required-features = ["transport", "gtk-fixture-hooks"]
