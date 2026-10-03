@@ -17,7 +17,7 @@ reading after its initial checkpoint and closes at its bounded queue limit.
 | Measured interval, milliseconds (p50 / p95 / p99) | One record | Twenty records |
 |---|---|---|
 | Capture/publication across connected views | 17.672 / 21.146 / 25.046 | 11.867 / 14.103 / 16.121 |
-| Source change through two Applied acknowledgments | 33.351 / 42.102 / 48.723 | 27.201 / 32.894 / 38.079 |
+| Source change through two clients applying and emitting ACKs | 33.351 / 42.102 / 48.723 | 27.201 / 32.894 / 38.079 |
 | Two CPU renders and pixel comparison | 1536.423 / 1741.703 / 1862.728 | 1491.566 / 1584.989 / 1779.112 |
 | Transaction encoding | 0.002 / 0.003 / 0.004 | 0.007 / 0.009 / 0.010 |
 | Separate replica application | 7.958 / 9.701 / 12.249 | 7.827 / 9.633 / 10.184 |
@@ -26,6 +26,9 @@ The stalled observer closes during the first phase, so the phases have different
 publication fanout. Their timings do not isolate the cost of changing more records.
 The separate replica uses the Rust reducer on the exact recorded transaction
 payload; independent-language interoperability is checked elsewhere.
+The encoding interval re-encodes the decoded recorded transaction; original
+publication encoding is included in capture/publication. ACK timing ends after
+client socket flush, without a claim that the host has processed those ACKs.
 
 The initial checkpoint is 992,674 bytes. Updates are 237 bytes for one record and
 4,323–4,326 bytes for twenty. The cold resource body is delivered once; warm updates
