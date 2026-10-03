@@ -79,3 +79,27 @@ untrusted-input validation. The replay harness accepts optional fixture resource
 digests only after this independent body audit; that input grants no network
 authority. `conformance.test_full_reference` checks atomic failure, retirement,
 unknown variants, typed bindings and malformed/raster resource rejection.
+
+## Recorded native network interactions
+
+`network_audit.py` consumes explicitly authorized, post-authentication JSONL
+diagnostic exports. It independently checks scoped packet bindings, exact byte
+lengths and hashes, sequence continuity, retained-prefix boundaries, chunk
+assembly, resource descriptors and vector bodies. Every complete publication
+is then compared field for field through the handwritten and Rust reducers.
+Applied, semantic readiness and Presented require a previously audited complete
+publication and verified live resource closure. Exact command retries must retain
+their family, bytes and Applied source evidence.
+
+```sh
+python3 -m conformance.network_audit /tmp/native.controller.trace.jsonl \
+  --replay target/debug/examples/replay --output /tmp/controller-audit.json
+```
+
+The bounded positive-trace oracle reports interrupted transfers separately and
+claims only the exported prefixes, including explicit reconnect boundaries.
+It does not infer physical dispatch or native paint from packet acknowledgements;
+the native scenario supplies those source and callback assertions separately.
+The auditor excludes credentials and never accepts handshake packets. Inputs
+are capped at 128 MiB, 32 segments, 32,768 records, 1 MiB packets, 4 MiB
+publications/resources and 512 verified resource identities per scope.

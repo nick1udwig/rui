@@ -30,4 +30,5 @@ jobs:
       - run: python3 -m unittest conformance.test_semantic_client
       - run: python3 -m conformance.typed_interop
       - run: python3 -m unittest conformance.test_full_reference
+      - run: python3 -m unittest conformance.test_network_audit
       - run: python3 -m conformance.full_interop
