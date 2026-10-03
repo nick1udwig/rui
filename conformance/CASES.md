@@ -2,8 +2,10 @@
 
 This audit tracks every case from the unchanged historical `conformance.yaml`.
 It distinguishes accepted component evidence from required integration evidence.
-A row is not a completion claim: the final milestone decision requires checking
-the stated fixture and every expected outcome, including the remaining gate.
+The 46 model-layer cases are accepted for M1 after root review and the frozen
+workspace, property and independent replay checks recorded in [STATUS.md](STATUS.md).
+Integration rows still require their stated native gates; every accepted case
+remains part of the final regression suite.
 Evidence includes the accepted isolated native input foundation and coherent
 whole-view GTK capture. Their broader transport integration remains open. The native command bridge
 is a bounded private semantic fixture; it does not establish TLS/IME integration.

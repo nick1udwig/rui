@@ -64,8 +64,16 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   identifies the actual same-node snapshot boundary, cooperating stable semantics,
   seventeen mapped frames per style, 104 default-style gaps and zero constrained-style gaps.
   Window decorations and compositor output are outside that capture scope.
-- **M1 remains open.** Controlled host/TLS dispatch for all four families passes. Complete the full
-  native recorded interaction audit, independent result interoperability and core-case audit.
+- **M1 accepted for the declared model corpus.** All 46 model-layer cases have
+  executable negotiation, graph/publication/resource, recovery, command and
+  security evidence in the case audit. Root's frozen accepted workspace run
+  passed 364 Rust tests and strict Clippy, with three native-only tests omitted
+  by the default configuration; 40 Python tests also passed. Independent checks
+  passed 1,275 semantic prefixes, 144 scene fixtures, six typed prefixes,
+  122 native capture prefixes and 54 retained network prefixes. Five additional
+  producer-parent lifetime regressions pass, including destruction order and
+  escaped allocations after broker shutdown. These core results do not depend
+  on a GUI; actual GTK network composition and session input remain M3/M4 gates.
 - **M2 accepted for the declared controlled corpus.** Resource-bearing full-canvas
   source/two-native-mirror records and RGBA converge after checkbox/list/scroll,
   popup/modal/tooltip, ordered canvas and explicit source resize actions. Native
