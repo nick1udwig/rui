@@ -53,6 +53,8 @@ pub enum ReceiverError {
     UnsupportedFont,
     #[error("resource descriptor does not match its scene use")]
     ResourceKind,
+    #[error("authenticated producer declared a resource outside the validated graph")]
+    ResourceDeclaration,
     #[error("revision is not the current usable scene")]
     NotPresentable,
     #[error(transparent)]
@@ -351,6 +353,42 @@ impl ViewReceiver {
         id: PublicationId,
         commit: PublicationCommit,
     ) -> Result<ReceiveOutcome, ReceiverError> {
+        self.commit_publication_inner(context, id, commit, false)
+    }
+    /// Trusted transport policy for a pinned, authenticated producer authorized
+    /// to declare this view's resource closure. This capability is selected by
+    /// trusted adapter code, never by a wire flag. Exact publication bytes and
+    /// the complete model/feature/font graph are validated before any grant.
+    /// Only graph references are inferred grants; extra explicit required
+    /// dependencies are rejected. Prefetch requires separate trusted policy.
+    /// Grants still do not imply availability or permit unsolicited bodies.
+    pub fn commit_authenticated_publication(
+        &mut self,
+        context: ResourceContext,
+        id: PublicationId,
+        commit: PublicationCommit,
+    ) -> Result<ReceiveOutcome, ReceiverError> {
+        let outcome = self.commit_publication_inner(context, id, commit, true);
+        if outcome.is_err()
+            && self.check(context).is_ok()
+            && self.inner.as_ref().is_some_and(|inner| {
+                inner
+                    .active
+                    .as_ref()
+                    .is_some_and(|active| active.begin.publication_id == id)
+            })
+        {
+            let _ = self.abort_publication(context, id);
+        }
+        outcome
+    }
+    fn commit_publication_inner(
+        &mut self,
+        context: ResourceContext,
+        id: PublicationId,
+        commit: PublicationCommit,
+        authorize_declared: bool,
+    ) -> Result<ReceiveOutcome, ReceiverError> {
         self.check(context)?;
         let inner = self.inner.as_mut().unwrap();
         if let Some(active) = &inner.active {
@@ -412,6 +450,17 @@ impl ViewReceiver {
                     inner.single_glyph_outlines,
                 )
                 .and_then(|()| {
+                    if authorize_declared {
+                        if inner.replica.pending_declares_only_graph_resources() != Some(true) {
+                            return Err(ReceiverError::ResourceDeclaration);
+                        }
+                        for digest in pins {
+                            if *digest == [0; 32] {
+                                return Err(ReceiverError::InvalidId);
+                            }
+                            inner.cache.authorize_resource(context.view_id, *digest)?;
+                        }
+                    }
                     inner
                         .cache
                         .replace_pins(context, staged, pins)

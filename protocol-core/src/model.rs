@@ -613,6 +613,7 @@ pub enum ApplyOutcome {
 }
 
 struct PendingState {
+    declared_only_graph_resources: bool,
     state: State,
     resources: BTreeSet<ResourceId>,
     digest: ResourceId,
@@ -657,6 +658,14 @@ impl Replica {
     }
     pub fn resource_refs(&self) -> &BTreeSet<ResourceId> {
         &self.live_resources
+    }
+    /// True when every explicit staging dependency is referenced by the parsed
+    /// graph. Trusted producer adapters may require this stricter grant policy;
+    /// the reducer itself continues accepting separate explicit dependencies.
+    pub fn pending_declares_only_graph_resources(&self) -> Option<bool> {
+        self.pending
+            .as_ref()
+            .map(|p| p.declared_only_graph_resources)
     }
     pub fn pending_resources(&self) -> Option<&BTreeSet<ResourceId>> {
         self.pending.as_ref().map(|v| &v.resources)
@@ -942,8 +951,11 @@ impl Replica {
         }
         validate_graph(&candidate, &self.limits)?;
         let mut resources = candidate.resource_refs();
+        let mut declared_only_graph_resources = true;
         for resource in required {
-            resources.insert(resource_id(resource)?);
+            let resource = resource_id(resource)?;
+            declared_only_graph_resources &= resources.contains(&resource);
+            resources.insert(resource);
         }
         let has_missing = resources.difference(available).next().is_some();
         memory.resize(
@@ -952,6 +964,7 @@ impl Replica {
                 .saturating_add(set_memory(resources.len())),
         )?;
         let pending = PendingState {
+            declared_only_graph_resources,
             state: candidate,
             resources,
             digest,

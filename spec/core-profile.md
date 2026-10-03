@@ -28,6 +28,17 @@ Resource availability is a trusted input to the low-level reducer. Supply only s
 
 `ViewReceiver` pins the full candidate closure before requesting resources, preserves the old live closure during staging, and promotes staged pins without allocation after successful atomic application. Resource grants remain trusted policy inputs; a peer offer cannot authorize itself. Offers must belong to the live or pending closure and match the resource kind used by that scene. Rejected and abandoned candidates release their staged ownership. Direct users of the lower-level APIs must implement this lifecycle themselves; `protocol-core/tests/pipeline.rs` demonstrates it.
 
+The optional `commit_authenticated_publication` entry point lets a trusted
+transport adapter treat a pinned, authenticated producer's validated graph
+references as grants for that bound view. The adapter must establish this
+authority; no wire flag enables the policy. Exact bytes, graph, features and
+font use are validated before granting anything. This entry point rejects extra
+`required_resources` dependencies outside the graph; prefetch needs separate
+explicit authorization. Failure aborts the candidate and prunes unused grants
+while preserving live state and pins. Ordinary `commit_publication` continues
+to require prior explicit grants, and neither entry point accepts unsolicited
+resource bodies or treats a grant as verified availability.
+
 Pending-resource replies retain allocation reservations until dropped, including after receiver closure. `ViewReceiver` additionally bounds their aggregate bookkeeping by the negotiated outbound queue allowance. A memory-pressure failure while resuming a validated pending publication preserves that publication for a later retry. Transport buffers and network work remain the caller's responsibility.
 
 Presentation acknowledgement must follow actual renderer presentation. `ViewReceiver::mark_presented` accepts only the current committed revision with an available resource closure; the callback remains trusted renderer evidence. Disconnect aborts partial work and clears presentation while retaining verified live state for authorized same-view reconnection. Cache loss clears presentation and requires resource recovery. Close/revoke irreversibly disposes of the view. A network implementation must connect those lifecycle events to authenticated session policy and gate input on presentation and a current control lease.

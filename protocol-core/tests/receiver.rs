@@ -928,3 +928,290 @@ fn negotiated_single_outline_glyphs_require_verified_resources_and_zero_ids() {
     assert_eq!(bad.state().unwrap().revision, 0);
     assert!(!bad.has_pending_publication());
 }
+
+fn trusted_submit(
+    receiver: &mut ViewReceiver,
+    id: u8,
+    bytes: &[u8],
+    kind: PublicationKind,
+    count: u32,
+) -> Result<ReceiveOutcome, ReceiverError> {
+    let declaration = begin(bytes, id, kind, count);
+    receiver.begin_publication(context(), declaration.clone())?;
+    receiver.publication_chunk(context(), [id; 16], 0, bytes)?;
+    receiver.commit_authenticated_publication(
+        context(),
+        [id; 16],
+        PublicationCommit::from(&declaration),
+    )
+}
+#[test]
+fn trusted_authenticated_producer_grants_validated_graph_while_default_stays_strict() {
+    let mut receiver = receiver();
+    let (offer, bytes) = path();
+    let baseline = receiver.memory_used();
+    assert_eq!(
+        submit(&mut receiver, 5, 1, Some(offer.digest)).unwrap_err(),
+        ReceiverError::Resource(ResourceError::NotAuthorized)
+    );
+    assert_eq!(receiver.memory_used(), baseline);
+    let outcome = trusted_submit(
+        &mut receiver,
+        6,
+        &snapshot(1, Some(offer.digest)),
+        PublicationKind::Snapshot { revision: 1 },
+        1,
+    )
+    .unwrap();
+    assert!(
+        matches!(&outcome,ReceiveOutcome::NeedResources {missing,..} if missing.contains(&offer.digest))
+    );
+    assert_eq!(receiver.state().unwrap().revision, 0);
+    drop(outcome);
+    assert!(matches!(
+        deliver(&mut receiver, &offer, &bytes).unwrap(),
+        Some(ReceiveOutcome::Applied { revision: 1 })
+    ));
+    assert_eq!(receiver.read_resource(offer.digest).unwrap(), bytes);
+}
+#[test]
+fn trusted_extra_dependency_rejects_before_grants_and_preserves_live_resources() {
+    let mut receiver = receiver();
+    let (offer, bytes) = path();
+    drop(
+        trusted_submit(
+            &mut receiver,
+            5,
+            &snapshot(1, Some(offer.digest)),
+            PublicationKind::Snapshot { revision: 1 },
+            1,
+        )
+        .unwrap(),
+    );
+    deliver(&mut receiver, &offer, &bytes).unwrap();
+    let live_memory = receiver.memory_used();
+    let extra = [9; 32];
+    let malformed = pb::Snapshot {
+        revision: 2,
+        records: vec![scene(2, Some(offer.digest))],
+        required_resources: vec![extra.to_vec()],
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert_eq!(
+        trusted_submit(
+            &mut receiver,
+            6,
+            &malformed,
+            PublicationKind::Snapshot { revision: 2 },
+            1
+        )
+        .unwrap_err(),
+        ReceiverError::ResourceDeclaration
+    );
+    assert_eq!(receiver.state().unwrap().revision, 1);
+    assert!(receiver.resources_ready().unwrap());
+    assert_eq!(receiver.read_resource(offer.digest).unwrap(), bytes);
+    assert_eq!(receiver.memory_used(), live_memory);
+    assert_eq!(
+        submit(&mut receiver, 7, 2, Some(extra)).unwrap_err(),
+        ReceiverError::Resource(ResourceError::NotAuthorized)
+    );
+    assert_eq!(receiver.memory_used(), live_memory);
+}
+#[test]
+fn trusted_graph_font_and_feature_failures_create_no_resource_grants() {
+    let (offer, _) = path();
+    let mut receiver = receiver();
+    let baseline = receiver.memory_used();
+    let invalid = pb::Snapshot {
+        revision: 1,
+        records: vec![scene(1, Some(offer.digest)), scene(1, None)],
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert!(trusted_submit(
+        &mut receiver,
+        5,
+        &invalid,
+        PublicationKind::Snapshot { revision: 1 },
+        2
+    )
+    .is_err());
+    let invalid = pb::Snapshot {
+        revision: 1,
+        records: vec![scene(1, Some(offer.digest))],
+        required_features: vec!["unsupported.required.profile".into()],
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert!(trusted_submit(
+        &mut receiver,
+        6,
+        &invalid,
+        PublicationKind::Snapshot { revision: 1 },
+        1
+    )
+    .is_err());
+    let glyph = pb::Record {
+        record: Some(pb::record::Record::Scene(pb::SceneNode {
+            id: 1,
+            version: 1,
+            opacity: 1.0,
+            transform: Some(pb::Affine {
+                xx: 1.0,
+                yy: 1.0,
+                ..Default::default()
+            }),
+            primitive: Some(pb::scene_node::Primitive::GlyphRun(pb::GlyphRun {
+                font: Some(pb::glyph_run::Font::OutlineResource(offer.digest.to_vec())),
+                size: 14.0,
+                glyph_ids: vec![0],
+                positions: vec![pb::Point { x: 0.0, y: 0.0 }],
+                color: Some(pb::Color {
+                    alpha: 1.0,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })),
+            ..Default::default()
+        })),
+    };
+    let invalid = pb::Snapshot {
+        revision: 1,
+        records: vec![glyph],
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert_eq!(
+        trusted_submit(
+            &mut receiver,
+            7,
+            &invalid,
+            PublicationKind::Snapshot { revision: 1 },
+            1
+        )
+        .unwrap_err(),
+        ReceiverError::UnsupportedFont
+    );
+    assert_eq!(receiver.memory_used(), baseline);
+    assert_eq!(
+        submit(&mut receiver, 8, 1, Some(offer.digest)).unwrap_err(),
+        ReceiverError::Resource(ResourceError::NotAuthorized)
+    );
+}
+#[test]
+fn trusted_wrong_context_revoked_scope_and_memory_failure_cannot_widen_authority() {
+    let mut receiver = receiver();
+    let (offer, _) = path();
+    let bytes = snapshot(1, Some(offer.digest));
+    let declaration = begin(&bytes, 5, PublicationKind::Snapshot { revision: 1 }, 1);
+    receiver
+        .begin_publication(context(), declaration.clone())
+        .unwrap();
+    receiver
+        .publication_chunk(context(), [5; 16], 0, &bytes)
+        .unwrap();
+    let staged_memory = receiver.memory_used();
+    let mut wrong = context();
+    wrong.view_id = [8; 16];
+    assert_eq!(
+        receiver
+            .commit_authenticated_publication(wrong, [5; 16], PublicationCommit::from(&declaration))
+            .unwrap_err(),
+        ReceiverError::Unauthorized
+    );
+    assert_eq!(receiver.memory_used(), staged_memory);
+    let budget = receiver.memory_budget();
+    let hold = budget.reserve(budget.limit() - budget.used()).unwrap();
+    assert!(receiver
+        .commit_authenticated_publication(context(), [5; 16], PublicationCommit::from(&declaration))
+        .is_err());
+    drop(hold);
+    assert!(!receiver.has_pending_publication());
+    assert_eq!(receiver.state().unwrap().revision, 0);
+    assert_eq!(
+        submit(&mut receiver, 6, 1, Some(offer.digest)).unwrap_err(),
+        ReceiverError::Resource(ResourceError::NotAuthorized)
+    );
+    receiver.revoke();
+    assert_eq!(
+        receiver
+            .commit_authenticated_publication(
+                context(),
+                [5; 16],
+                PublicationCommit::from(&declaration)
+            )
+            .unwrap_err(),
+        ReceiverError::Closed
+    );
+    assert_eq!(receiver.memory_used(), 0);
+}
+#[test]
+fn trusted_partial_grant_limit_failure_prunes_new_grants_without_changing_live_owners() {
+    let mut config = ReceiverConfig::default();
+    config.resources.max_authorizations = 2;
+    let mut receiver = ViewReceiver::new(context(), ReceiverLimits::default(), config).unwrap();
+    let (offer, bytes) = path();
+    drop(
+        trusted_submit(
+            &mut receiver,
+            5,
+            &snapshot(1, Some(offer.digest)),
+            PublicationKind::Snapshot { revision: 1 },
+            1,
+        )
+        .unwrap(),
+    );
+    deliver(&mut receiver, &offer, &bytes).unwrap();
+    let baseline = receiver.memory_used();
+    let b = [8; 32];
+    let c = [9; 32];
+    let invalid = pb::Snapshot {
+        revision: 2,
+        records: vec![
+            scene(2, Some(offer.digest)),
+            {
+                let mut r = scene(1, Some(b));
+                let Some(pb::record::Record::Scene(s)) = &mut r.record else {
+                    panic!()
+                };
+                s.id = 2;
+                r
+            },
+            {
+                let mut r = scene(1, Some(c));
+                let Some(pb::record::Record::Scene(s)) = &mut r.record else {
+                    panic!()
+                };
+                s.id = 3;
+                r
+            },
+        ],
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert_eq!(
+        trusted_submit(
+            &mut receiver,
+            6,
+            &invalid,
+            PublicationKind::Snapshot { revision: 2 },
+            3
+        )
+        .unwrap_err(),
+        ReceiverError::Resource(ResourceError::Limit)
+    );
+    assert_eq!(receiver.state().unwrap().revision, 1);
+    assert!(receiver.resources_ready().unwrap());
+    assert_eq!(receiver.read_resource(offer.digest).unwrap(), bytes);
+    assert_eq!(receiver.memory_used(), baseline);
+    assert_eq!(
+        submit(&mut receiver, 7, 2, Some(b)).unwrap_err(),
+        ReceiverError::Resource(ResourceError::NotAuthorized)
+    );
+    assert_eq!(
+        submit(&mut receiver, 8, 2, Some(c)).unwrap_err(),
+        ReceiverError::Resource(ResourceError::NotAuthorized)
+    );
+}
