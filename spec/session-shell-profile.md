@@ -315,3 +315,16 @@ See `fixtures/session-shell/native-session.json`; negative routing, held-input
 cleanup and the remaining authorization matrix are still M4 work. Host IME and remote source resize are unsupported by this
 `raw.host.v1` port and are not advertised. Controlled-host resize and broader
 M2 controls are assessed separately from this isolated native backend.
+
+The isolated vector source applies one shared button-press operation from native
+EIS input and local GDK input. Ordinary releases and authority cleanup release
+frames neutralize held input without activating the application again. Root's
+43 actual native-feature tests, strict all-target Clippy and formatting pass,
+including equal local/native press effects, a real cleanup release and explicit
+old-generation Protobuf rejection with no new native frame. The full graphical
+fractional-scale direct-versus-remote comparison remains separately assessed.
+
+Trusted owner diagnostics retain only the latest completed cleanup reason,
+lease generation and completion time, plus the current lease generation/deadline
+and native work generation. These fixed-size observations contain no lease
+capability or text and allow probes to distinguish expiry from disconnect.

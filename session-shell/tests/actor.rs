@@ -548,3 +548,169 @@ fn producer_source_edits_validate_before_mutation_and_preserve_published_identit
     drop(owner);
     assert_eq!(budget.used(), 0);
 }
+
+#[test]
+#[ignore = "explicit pinned native/local shared click-effect gate"]
+fn native_and_local_button_press_share_one_effect_while_release_and_cleanup_add_none() {
+    fn indicator(port: &HostPort, connection: &Connection) -> f64 {
+        let received = port
+            .source_capture(connection)
+            .unwrap()
+            .wait(Duration::from_secs(2))
+            .unwrap();
+        let Response::Source(source) = received.value() else {
+            panic!()
+        };
+        source
+            .state()
+            .records
+            .values()
+            .find_map(|record| match record {
+                Record::Scene(scene) => match &scene.primitive {
+                    rui_protocol_core::model::Primitive::SolidRect { color: fill, .. }
+                        if fill.green == 0.25 =>
+                    {
+                        Some(fill.red)
+                    }
+                    _ => None,
+                },
+                _ => None,
+            })
+            .unwrap()
+    }
+    fn wait_indicator(port: &HostPort, connection: &Connection, expected: f64) {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while indicator(port, connection) != expected {
+            assert!(
+                Instant::now() < deadline,
+                "missing actual source click effect"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    let budget = MemoryBudget::new(128 << 20);
+    let owner = owner(budget.clone());
+    let port = owner.port();
+    let local = owner.local_device();
+    let connection = connect(&port, 6, true);
+    assert_eq!(indicator(&port, &connection), 0.0);
+    local
+        .native_event(LocalEvent::Pointer {
+            desktop: rui_protocol_core::model::Point { x: 20.0, y: 30.0 },
+            press: true,
+        })
+        .unwrap();
+    wait_indicator(&port, &connection, 1.0 / 16.0);
+    let revision = ready(&port, &connection);
+    let grant = lease(&port, &connection, [19; 16]);
+    let button = |pressed| {
+        pb::raw_event::Event::Button(pb::ButtonEvent {
+            code: 1,
+            pressed,
+            position: Some(pb::Point { x: 10.0, y: 20.0 }),
+        })
+    };
+    let press = raw(&port, &connection, &grant, revision, 1, vec![button(true)]);
+    assert_eq!(
+        submit(&port, &connection, &press),
+        CommandStatus::Dispatched
+    );
+    wait_indicator(&port, &connection, 2.0 / 16.0);
+    let release = raw(&port, &connection, &grant, revision, 2, vec![button(false)]);
+    assert_eq!(
+        submit(&port, &connection, &release),
+        CommandStatus::Dispatched
+    );
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let received = port
+            .diagnostics()
+            .unwrap()
+            .wait(Duration::from_secs(2))
+            .unwrap();
+        let Response::Diagnostics(d) = received.value() else {
+            panic!()
+        };
+        if d.held_buttons == 0 {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+    }
+    assert_eq!(
+        indicator(&port, &connection),
+        2.0 / 16.0,
+        "ordinary native release added a source activation"
+    );
+    let press = raw(&port, &connection, &grant, revision, 3, vec![button(true)]);
+    assert_eq!(
+        submit(&port, &connection, &press),
+        CommandStatus::Dispatched
+    );
+    wait_indicator(&port, &connection, 3.0 / 16.0);
+    local.cancel_input().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let received = port.status().unwrap().wait(Duration::from_secs(2)).unwrap();
+        if matches!(
+            received.value(),
+            Response::Status(rui_session_shell::actor::OwnerStatus::Ready)
+        ) {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+    }
+    assert_eq!(
+        indicator(&port, &connection),
+        3.0 / 16.0,
+        "cleanup release added a source activation"
+    );
+    let received = port
+        .diagnostics()
+        .unwrap()
+        .wait(Duration::from_secs(2))
+        .unwrap();
+    let Response::Diagnostics(d) = received.value() else {
+        panic!()
+    };
+    assert_eq!(d.held_buttons, 0);
+    assert_eq!(
+        d.native_frames_cancelled, 1,
+        "actual native cleanup release was required"
+    );
+    let native_frames = d.native_frames_applied;
+    drop(received);
+    let old_generation = raw(&port, &connection, &grant, revision, 4, vec![button(true)]);
+    let rejected = port
+        .submit_raw(&connection, &old_generation)
+        .unwrap()
+        .wait(Duration::from_secs(2))
+        .unwrap();
+    let Response::Command(result) = rejected.value() else {
+        panic!()
+    };
+    assert_eq!(result.status, CommandStatus::Rejected);
+    assert_eq!(
+        result.rejection,
+        Some(rui_protocol_core::commands::Rejection::StaleControl)
+    );
+    drop(rejected);
+    assert_eq!(indicator(&port, &connection), 3.0 / 16.0);
+    let received = port
+        .diagnostics()
+        .unwrap()
+        .wait(Duration::from_secs(2))
+        .unwrap();
+    let Response::Diagnostics(d) = received.value() else {
+        panic!()
+    };
+    assert_eq!(
+        d.native_frames_applied, native_frames,
+        "old-generation exact wire bytes reached native EIS"
+    );
+    drop(received);
+    drop(local);
+    drop(connection);
+    drop(port);
+    drop(owner);
+    assert_eq!(budget.used(), 0);
+}

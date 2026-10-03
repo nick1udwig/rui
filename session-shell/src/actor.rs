@@ -117,6 +117,21 @@ pub struct OwnerDiagnostics {
     pub held_buttons: usize,
     pub held_touches: usize,
     pub local_held_keys: usize,
+    pub now_ms: u64,
+    pub lease: Option<LeaseDiagnostic>,
+    pub last_cleanup: Option<CleanupDiagnostic>,
+    pub native_work_generation: u64,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct LeaseDiagnostic {
+    pub generation: u64,
+    pub deadline_ms: u64,
+}
+#[derive(Clone, Debug)]
+pub struct CleanupDiagnostic {
+    pub generation: u64,
+    pub reason: rui_protocol_core::session::CleanupReason,
+    pub at_ms: u64,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OwnerStatus {
@@ -742,6 +757,7 @@ impl Owner {
                 let _ = ready.send(Ok(()));
                 let mut poisoned = false;
                 let mut local_keys = BTreeSet::new();
+                let mut last_cleanup = None;
                 let mut slots = BTreeMap::<Id, usize>::new();
                 let mut identities: [Option<AuthenticatedClient>; 8] =
                     std::array::from_fn(|_| None);
@@ -789,6 +805,11 @@ impl Owner {
                         // this native backend is neutral. This source has no IME
                         // composition family; such a record is fail-closed.
                         while let Some(cleanup) = broker.take_cleanup() {
+                            last_cleanup = Some(CleanupDiagnostic {
+                                generation: cleanup.lease.generation,
+                                reason: cleanup.reason.clone(),
+                                at_ms: now,
+                            });
                             #[cfg(feature = "transport")]
                             transport.revoked(&cleanup);
                             if cleanup.composition.is_some() {
@@ -828,7 +849,9 @@ impl Owner {
                                     if result.is_ok() && press {
                                         if let Some(surface) = backend.topology().hit_test(desktop)
                                         {
-                                            backend.topology_mut().focus(surface)
+                                            backend.topology_mut().focus(surface).and_then(|()| {
+                                                backend.topology_mut().source_button(surface, true)
+                                            })
                                         } else {
                                             Ok(())
                                         }
@@ -1159,6 +1182,17 @@ impl Owner {
                                             held_buttons: backend.held().buttons.len(),
                                             held_touches: backend.held().touches.len(),
                                             local_held_keys: local_keys.len(),
+                                            now_ms: now,
+                                            lease: broker.current_lease(now).map(|lease| {
+                                                LeaseDiagnostic {
+                                                    generation: lease.generation,
+                                                    deadline_ms: lease.expires_at_ms,
+                                                }
+                                            }),
+                                            last_cleanup: last_cleanup.clone(),
+                                            native_work_generation: owner_priority
+                                                .generation
+                                                .load(Ordering::Acquire),
                                         })
                                     }
                                     Operation::Acquire { connection, id } => {

@@ -758,7 +758,8 @@ impl Backend {
                     self.source_held.buttons.remove(&code);
                 }
                 if allowed {
-                    self.topology.source_activity(job.surface, "")?;
+                    self.topology
+                        .source_button(job.surface, event.pressed != 0)?;
                 }
             }
             DOWN => {

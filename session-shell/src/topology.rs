@@ -407,6 +407,18 @@ impl Topology {
         self.advance()?;
         Ok(())
     }
+    /// The vector laboratory applies one click effect on a real button press.
+    /// Releases neutralize held input and never activate the application again.
+    /// Both native EIS and source-local GDK callbacks use this source operation.
+    pub fn source_button(&mut self, surface: u64, pressed: bool) -> Result<(), ShellError> {
+        if !self.windows.contains_key(&surface) {
+            return Err(ShellError::Geometry);
+        }
+        if pressed {
+            self.source_activity(surface, "")?;
+        }
+        Ok(())
+    }
     pub fn text(&self, surface: u64) -> Option<&str> {
         self.windows.get(&surface).map(|w| w.text.as_str())
     }
