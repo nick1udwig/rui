@@ -21,7 +21,8 @@ remaining integration gates.
 | Receiver recovery matrix | `protocol-core/tests/recovery_matrix.rs` | Every publication/resource chunk cut, duplicate chunks, cache loss, fresh-state equivalence and 256-resource churn; synthetic command and presentation callbacks, not network/visual evidence |
 | Independent decoder/reducer | `python3 conformance/check.py` | 1,275 semantic replay prefixes and 144 scene fixtures across exact bytes and 16 seeds |
 | Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | Pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation; cancelled receives and polled flushes retain budgeted replies without duplicate frames |
-| Authorized network resources | `transport/tests/resources.rs`, `protocol-core/tests/session.rs` | Two TLS clients, paged cold closure, warm reuse, live cache loss, premature acknowledgments, invalid eviction and revocation; exact retained transaction acknowledgment survives history eviction; historical unpinned eviction and retained reconnect remain |
+| Authorized network resources | `transport/tests/resources.rs`, `protocol-core/tests/session.rs` | Two TLS clients, paged cold closure, warm reuse, live cache loss, premature acknowledgments, invalid eviction and revocation; exact retained transaction acknowledgment survives history eviction; historical unpinned eviction remains |
+| Retained authenticated reconnect | `transport/tests/reconnect.rs`, `host-broker/tests/controlled.rs`, `protocol-core/tests/receiver.rs` | Eight real TLS cases cover warm/offline replay, higher checkpoint preserving retirement/clocks, interrupted chunks/exact retry, cache loss, fresh scope on changed limits/reapproval, immediate reconnect/cancellation and allocation failure; immutable approval lifetime denies offline reads and prunes history; GUI recovery remains |
 | Independent semantic client | `conformance/semantic_client.py`, `test_semantic_client.py`, `typed_interop.py`; `transport/tests/independent.rs` | Standard-library Python decoder, reducer and TLS client; six typed replay prefixes agree with Rust; real source activation, Unicode replacement, stable-item selection and exact retry without scenes or Presented; combined graphical-observer integration remains |
 | CPU reference renderer | `client-desktop/tests/pixels.rs`, `cli.rs` | Nine primitives, analytic pixels, linear composition, transforms, clipping, surfaces, paths, glyphs, bounds and explicit failure |
 | Guarded GTK mirror | `client-desktop/src/desktop.rs`, `tests/interaction.rs`; `fixtures/render/native_smoke.py` | Actual GTK frame callbacks and two-mirror TLS smoke; generic advertised actions, scalar text context guards, bounded frame ownership and local observer transforms; bounded causal FIFO, visible native preedit and sticky input failure feedback; full-canvas two-window source/record/pixel convergence and independent Python item effects pass; broader interaction/recovery remain |
@@ -53,7 +54,8 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
 - **M2 remains open.** Resource-bearing full-canvas source/two-native-mirror
   comparison, rapid typing/preedit, independent Python item selection and local
   observer transforms have passed. Complete broader controls/transients, custom
-  canvas effects, source resize, retained reconnect and native cache recovery.
+  canvas effects, source resize and native GUI reconnect/cache recovery. Retained
+  TLS reconnect/cache recovery has passed separately.
 - **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
   semantic dispatch, causal action evidence and observed unsupported-source/vector
   audits have passed review. Wire IME, persistent source restart, full network
