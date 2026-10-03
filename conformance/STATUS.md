@@ -138,3 +138,21 @@ pixels. The source viewport is 600×528; EIS and Surface geometry remain explici
 The hash-bound report is `fixtures/session-shell/native-mapping.json`; host
 ownership returns to zero. Strict native-example Clippy passes. INP-001 is
 accepted; stale routing, app-only network denial and desktop wire IME remain.
+
+
+### Composition-era combined regression
+
+The accepted `c105485` source passed 412 default-workspace Rust tests (three
+native-only tests omitted), 48 optional producer SDK tests, 84 Python tests,
+workspace/SDK strict Clippy and formatting. Independent replay passed 1,275
+semantic prefixes, 144 scene fixtures, six typed prefixes and 124 retained native
+prefixes. All six retained network audits passed, including controlled mirrors,
+GTK full transport, GTK mirrors and the new composition commit trace.
+
+Root also rebuilt the native source driver and reran Unicode, broker-preserving
+SIGKILL/restart and unsupported texture/Cairo/effect probes against the accepted
+composition producer. Fresh traces passed four Rust replay tests and independent
+full-field replay of 23 prefixes across five scopes. Implementation and artifact
+hashes, native callback counts, exporter traps and disposal evidence are retained
+in `fixtures/gtk/final-native-root-verification.json`. Actual desktop wire IME
+and the two remaining session authority negatives are still separate gates.

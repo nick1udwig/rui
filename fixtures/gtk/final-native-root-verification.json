@@ -1,0 +1,260 @@
+{
+  "fresh_trace_replay_tests": 4,
+  "independent_fresh_trace_replay": {
+    "passed": true,
+    "prefixes": 23,
+    "primitives": [
+      "Border",
+      "FillPath",
+      "GlyphRun",
+      "Group",
+      "SolidRect",
+      "StrokePath"
+    ],
+    "record_kinds": [
+      "Binding",
+      "Scene",
+      "Semantic",
+      "Session",
+      "Surface",
+      "Text"
+    ],
+    "scopes": 5
+  },
+  "producer_feature_commit": "75d12f7",
+  "scenarios": {
+    "restart": {
+      "failed_start_attempts": 3,
+      "host_budget_after_drop": 0,
+      "implementation_sha256": {
+        "Cargo.lock": "b79c951bb18c3f7880880eb4e1373b800c3c169c626282ae7eaba42ca7f37f33",
+        "adapters/gtk4/capture.py": "02b8692c787c855983c71a89ea27d3bf3c46bcdc2f9e0c354467bea88e25dcd8",
+        "adapters/gtk4/composition.py": "43e9629423a3da810167dcb7253126315628332aa264239608d531151dbbe2e1",
+        "adapters/gtk4/native.py": "4a931d03410326824b15504c3308eb7e96c49f75fd72b2728373cd1d89565b49",
+        "adapters/gtk4/state.py": "54d5d3aaaf380b655ad6118a03c48885524bd5c6442058f329d3b926fee15339",
+        "adapters/sdk/producer.py": "9228c57181cc8ffd0d7e19b6bbd3d366005c9f326d161500192f1c39127741a5",
+        "adapters/sdk/src/bin/gtk_command_check.rs": "16c7b73d157f23bbcc2444c6f956610b4ff18641674b2900afd10d63264b3a03",
+        "adapters/sdk/src/gtk_composition.rs": "9e45d94dfc70ad0107d087f89c6c5d09f443f27b916aa7d82e2edd320fa6d4f2",
+        "adapters/sdk/src/gtk_host.rs": "7082e29cf6685c0f9d36c0e34d3f828c8a91686c6ec226103590f4cbb21a2078",
+        "fixtures/gtk/fallback_probe.py": "c76d2111ab39fd0210e7cf5b04e3e6fb3f9a9ae2e0a15b5373b58c9214e40859",
+        "fixtures/gtk/mirror_check.py": "8ab510ac513346918ad4fc9423b38f78d5f142562a1d51c719c2a234fb9428a3",
+        "fixtures/gtk/native_source.py": "8275a14f99de73c06666f2f78cc330f2b3d0c33b71656d8ed80ee1df5c1fb395",
+        "fixtures/gtk/negative_source.py": "e57d9b3ff60d240d61036f052e6d03da06d97ee63cb8dbfe9a88c6255fbb52f3"
+      },
+      "isolated_environment": "two owned authenticated Xvfb displays; private EXTERNAL bus with no service search directories",
+      "native_exit_signal": 9,
+      "post_dispatch_receipt": {
+        "fault": "crash-after-dispatch",
+        "native_callbacks": 1,
+        "native_dispatches": 1,
+        "scope": "local-negative-control-never-applied-evidence"
+      },
+      "probe_binary_sha256": "dc579c22c796bb71768bde29b9236e511aa6bbaf757f2f15fe87062a9fe93c1a",
+      "report_sha256": "b9911baf3f4f3d4f4f32bfea37c3bea27bd6596d9fe60f32d7c4c387eeeaef2e",
+      "source_generation": 2,
+      "trace_sha256": {
+        "interaction.json": "b9911baf3f4f3d4f4f32bfea37c3bea27bd6596d9fe60f32d7c4c387eeeaef2e",
+        "trace/restart/0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24.rvp": "65bbf23d7747f2036a50972c7eadc643054ca8d356a7dd2127fc667ee15f5afc",
+        "trace/restart/02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c.rvp": "4d403f0d9e970475d7b2b57c10b5776bc2214fb4b32384c961406787f6d8d7e4",
+        "trace/restart/04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d.rvp": "58a265c32645b23932b1aeeda0720e264a55bda09f365ec5ae91166d69ac2df7",
+        "trace/restart/0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1.rvp": "2d3c588512169ae64ce5e660b91ca094c121b0f459502a6d7307f006424a071e",
+        "trace/restart/116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc.rvp": "ad53028bdf4cb935db25a714662419cc82def4132111535047eeaf5114919942",
+        "trace/restart/1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7.rvp": "ba33f3ce4925bf563524f0eb6258daf652871487d0243b949f11bcd2efae6bc3",
+        "trace/restart/465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762.rvp": "46ee48394624a5c74c47cd7dde5bdea8b65afca2d17c315f9065eb76a0f805a3",
+        "trace/restart/46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153.rvp": "aae7f325cd9bc1fea398b6bc33c4e09d3afabfe9448b3b684d757ad6e96754f1",
+        "trace/restart/499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5.rvp": "42a56ac68686b11f5fc8be936a7f3e89ad656d9f6c064f9b0fe738171f4cf900",
+        "trace/restart/4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2.rvp": "a37fb5fd6796a5100d82205d8d1ea90b9c999d0922433914216d901999ad04d8",
+        "trace/restart/5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f.rvp": "fd820ffa2791d4d52db028cc7779b0ccf49bd6b98ef0a78c45731f258338be72",
+        "trace/restart/67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9.rvp": "66c967d019ed1052fb99cc05e61a34ec0d66823240b08cd09ed56eca3a829d90",
+        "trace/restart/725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746.rvp": "9287c14fbd950d2c6b9ded72fd4684de3d219e1f1b3f8593d7b81b584e48293e",
+        "trace/restart/7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197.rvp": "84c3ae1f4e8a0553fbacbdb1fef2251d39c30aef93302805bed473225fa0b017",
+        "trace/restart/8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce.rvp": "5a41d083c2ad08a9185d5e60e4ac9876f155e11f50d2fa31b15892b9d8886abb",
+        "trace/restart/926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9.rvp": "95e15d72289ca011cd6d5f6289182768a797fb85ab225bc88670813d5fed2baa",
+        "trace/restart/a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372.rvp": "ad67386ca3253c3a7c0f8d599f62ba8f4882edf84569d56215969cfc66663dbd",
+        "trace/restart/aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a.rvp": "b3a7700bddd8b2b609ba58d74583776b38104c3fb2c26b63eb8ba24252404101",
+        "trace/restart/af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea.rvp": "9655f4729e35ec92e417ea8771b1b3a7665aefae9feb471bea0cd51e1847d9ac",
+        "trace/restart/b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e.rvp": "0e881223f09c50614867c5d65b4a2127534df6553a1be131c997ec6bd418f3ae",
+        "trace/restart/b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed.rvp": "39b71ae754474e852cd7e123ad9b0a268713556351a522341e6416c581ac31fd",
+        "trace/restart/b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381.rvp": "3bb119a73c86329ce75330905b478407a9520968630ab4d32070b338618578f4",
+        "trace/restart/b8643cd2e00b0ec1205734f3b2740b3f2a376c7eaf60d5c5ed9dc18e27e89432.rvp": "7836a70aab98f1667ba42b7e9f9f1d0b9ea66e26985565d4e64b12763f058ce6",
+        "trace/restart/cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e.rvp": "0963b958dcb5b4bb6762ebd3325cb96a02773bb2a906b29419588942d4126254",
+        "trace/restart/e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21.rvp": "1e3c3138caf503e3932c618bdd48bda44b20d43eb61e92df44e0323d55956cb3",
+        "trace/restart/e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19.rvp": "2caff6f4127db7e1a6e97f033584df04ac8891b740af2a8a85f0f24a8e9b3444",
+        "trace/restart/e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52.rvp": "a5d4bd6e2b53c07fd8c16d82ac7d1d1b6da4a07a1739580ec24c6ae684cbc7f0",
+        "trace/restart/eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d.rvp": "1bd531144e37f0af48f423a3bd900396d79c6a9bb5dfceabb4d25e9cecdf85a5",
+        "trace/restart/ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c.rvp": "70150843fc2c3f589b5e065f243d661cb5467bc4de45bc6e15bdcc91ac37d8b7",
+        "trace/restart/ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53.rvp": "83e4cd8063c4dfa9e6753d08e4d39b0bca8be20cf36dd36f22af2892f16e17bd",
+        "trace/restart/public-000001.bin": "696533e1a648bc91c62cb269602c12b04abc0c8d4ea0016bf0b7af7c491ed3c2",
+        "trace/restart/public-000002.bin": "68b3cd530a8d35b56816281735f2acf1be450f7efbdf947dcbc65918bb83c9b6",
+        "trace/restart/public-000003.bin": "5276aed236003bfb89aa33cbd1033d4e32fb70629c50ff9331e62d33f86d250b",
+        "trace/restart/public-000004.bin": "878f271502c3c0e3a39490e3980ad45c766217da0766e0d558292bf635a6166f",
+        "trace/restart/public-000005.bin": "a5991c80c6fa7701e666333708c90ac1f0e39eeda12e22227917ff84db73ce4b",
+        "trace/restart/snapshot-01-000001.bin": "8b85ef5b1f2295f00969ba15d7b88d0ba44a2bae98e9370d9cd4d6328d2eb777",
+        "trace/restart/snapshot-01-000001.json": "c1f9e769970b41b6292775c2b7c45928a53afe315773fa0e4c2c86fad96dcf0c",
+        "trace/restart/snapshot-02-000001.bin": "bff4d8a7da0b5c69ce4e15740a222fbf9b6b548448b6194523324173889d8b7b",
+        "trace/restart/snapshot-02-000001.json": "dfb9e0763e1e3db4b95e368d2bfdb28cfb39825a3e08f14991bee4bcbcb056be",
+        "trace/restart/snapshot-02-000002.bin": "073b0ebac64f10ecee4fabfe5ac085b682a288e8ebcb9797c7c343aff662b0b9",
+        "trace/restart/snapshot-02-000002.json": "11ace8e0fbcd31c1a9da13087d645e5561d022f21e746ad00e8188240d81fa1a"
+      }
+    },
+    "unicode": {
+      "commands": 10,
+      "host_disposal_zero_asserted": true,
+      "implementation_sha256": {
+        "Cargo.lock": "b79c951bb18c3f7880880eb4e1373b800c3c169c626282ae7eaba42ca7f37f33",
+        "adapters/gtk4/capture.py": "02b8692c787c855983c71a89ea27d3bf3c46bcdc2f9e0c354467bea88e25dcd8",
+        "adapters/gtk4/composition.py": "43e9629423a3da810167dcb7253126315628332aa264239608d531151dbbe2e1",
+        "adapters/gtk4/native.py": "4a931d03410326824b15504c3308eb7e96c49f75fd72b2728373cd1d89565b49",
+        "adapters/gtk4/state.py": "54d5d3aaaf380b655ad6118a03c48885524bd5c6442058f329d3b926fee15339",
+        "adapters/sdk/producer.py": "9228c57181cc8ffd0d7e19b6bbd3d366005c9f326d161500192f1c39127741a5",
+        "adapters/sdk/src/bin/gtk_command_check.rs": "16c7b73d157f23bbcc2444c6f956610b4ff18641674b2900afd10d63264b3a03",
+        "adapters/sdk/src/gtk_composition.rs": "9e45d94dfc70ad0107d087f89c6c5d09f443f27b916aa7d82e2edd320fa6d4f2",
+        "adapters/sdk/src/gtk_host.rs": "7082e29cf6685c0f9d36c0e34d3f828c8a91686c6ec226103590f4cbb21a2078",
+        "fixtures/gtk/fallback_probe.py": "c76d2111ab39fd0210e7cf5b04e3e6fb3f9a9ae2e0a15b5373b58c9214e40859",
+        "fixtures/gtk/mirror_check.py": "8ab510ac513346918ad4fc9423b38f78d5f142562a1d51c719c2a234fb9428a3",
+        "fixtures/gtk/native_source.py": "8275a14f99de73c06666f2f78cc330f2b3d0c33b71656d8ed80ee1df5c1fb395",
+        "fixtures/gtk/negative_source.py": "e57d9b3ff60d240d61036f052e6d03da06d97ee63cb8dbfe9a88c6255fbb52f3"
+      },
+      "isolated_environment": "two owned authenticated Xvfb displays; private EXTERNAL bus with no service search directories",
+      "native_callbacks": 8,
+      "native_dispatches": 8,
+      "probe_binary_sha256": "dc579c22c796bb71768bde29b9236e511aa6bbaf757f2f15fe87062a9fe93c1a",
+      "report_sha256": "7fd67e3d9550dfa65ea4b0b3aaf79105f1923944c03e46da6de49b446e743ecb",
+      "trace_sha256": {
+        "interaction.json": "7fd67e3d9550dfa65ea4b0b3aaf79105f1923944c03e46da6de49b446e743ecb",
+        "trace/unicode/0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24.rvp": "65bbf23d7747f2036a50972c7eadc643054ca8d356a7dd2127fc667ee15f5afc",
+        "trace/unicode/02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c.rvp": "4d403f0d9e970475d7b2b57c10b5776bc2214fb4b32384c961406787f6d8d7e4",
+        "trace/unicode/04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d.rvp": "58a265c32645b23932b1aeeda0720e264a55bda09f365ec5ae91166d69ac2df7",
+        "trace/unicode/0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1.rvp": "2d3c588512169ae64ce5e660b91ca094c121b0f459502a6d7307f006424a071e",
+        "trace/unicode/116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc.rvp": "ad53028bdf4cb935db25a714662419cc82def4132111535047eeaf5114919942",
+        "trace/unicode/1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7.rvp": "ba33f3ce4925bf563524f0eb6258daf652871487d0243b949f11bcd2efae6bc3",
+        "trace/unicode/42d0c15f2762b0131a50b789ff76a91dc2c17040a66b1333ac0b5a597c48766b.rvp": "cde5395a2aaaa196d2ea64362aabd0c6078790ad44474beee4e6d08d2154a0af",
+        "trace/unicode/465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762.rvp": "46ee48394624a5c74c47cd7dde5bdea8b65afca2d17c315f9065eb76a0f805a3",
+        "trace/unicode/46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153.rvp": "aae7f325cd9bc1fea398b6bc33c4e09d3afabfe9448b3b684d757ad6e96754f1",
+        "trace/unicode/499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5.rvp": "42a56ac68686b11f5fc8be936a7f3e89ad656d9f6c064f9b0fe738171f4cf900",
+        "trace/unicode/4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2.rvp": "a37fb5fd6796a5100d82205d8d1ea90b9c999d0922433914216d901999ad04d8",
+        "trace/unicode/4ad6e327dc85be1cfa4b296daa6ef1d5585f416e5d788e8b4de3d5ef3a177eb3.rvp": "030827f4eb62b1cd587f1a50f4009dc2951fb2518b5849716845cf2651c7d8a9",
+        "trace/unicode/4dc94686108b58403705ee37502e06bb55db3d074328e594fcc3f630fb3031e7.rvp": "741a914b2b464a82d3a7e2f9bec1ef34951e2e3596fe79153dec53dad7028942",
+        "trace/unicode/5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f.rvp": "fd820ffa2791d4d52db028cc7779b0ccf49bd6b98ef0a78c45731f258338be72",
+        "trace/unicode/67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9.rvp": "66c967d019ed1052fb99cc05e61a34ec0d66823240b08cd09ed56eca3a829d90",
+        "trace/unicode/725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746.rvp": "9287c14fbd950d2c6b9ded72fd4684de3d219e1f1b3f8593d7b81b584e48293e",
+        "trace/unicode/7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197.rvp": "84c3ae1f4e8a0553fbacbdb1fef2251d39c30aef93302805bed473225fa0b017",
+        "trace/unicode/83b06465bc1dbe3e493c10ecfd8acd29f67a204c17b32696d3c005598306afb5.rvp": "d75b3a0bcebd835979f9bb3e42f8660978d9103ef29e0e4c3c777f36b1e279ec",
+        "trace/unicode/8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce.rvp": "5a41d083c2ad08a9185d5e60e4ac9876f155e11f50d2fa31b15892b9d8886abb",
+        "trace/unicode/8e512df673be0cbc86214262607787432ecd7ab37ce2809bf803171664182526.rvp": "4bbe44309bf189b3af903df190a27822fdb63c82adb2eb46efdaa7ce714fa68b",
+        "trace/unicode/926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9.rvp": "95e15d72289ca011cd6d5f6289182768a797fb85ab225bc88670813d5fed2baa",
+        "trace/unicode/979c428f2acce57b5338b66901e5bdf6aff72d5e5c884ecd4cb7910d57fd6ca0.rvp": "1dc482a83fb75b3ccfc60e74443cd966bc24cf164021d5d5f67c8b926aa626e2",
+        "trace/unicode/a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372.rvp": "ad67386ca3253c3a7c0f8d599f62ba8f4882edf84569d56215969cfc66663dbd",
+        "trace/unicode/aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a.rvp": "b3a7700bddd8b2b609ba58d74583776b38104c3fb2c26b63eb8ba24252404101",
+        "trace/unicode/af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea.rvp": "9655f4729e35ec92e417ea8771b1b3a7665aefae9feb471bea0cd51e1847d9ac",
+        "trace/unicode/b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e.rvp": "0e881223f09c50614867c5d65b4a2127534df6553a1be131c997ec6bd418f3ae",
+        "trace/unicode/b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed.rvp": "39b71ae754474e852cd7e123ad9b0a268713556351a522341e6416c581ac31fd",
+        "trace/unicode/b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381.rvp": "3bb119a73c86329ce75330905b478407a9520968630ab4d32070b338618578f4",
+        "trace/unicode/bee9d8dde2eb462ebb972d6b6d92a12367486c4c7b30343c84b8110c54c308ea.rvp": "fed6d8ccc0f77a2689321df0819bd439e8e3c315939028bf5866498438a6dca5",
+        "trace/unicode/c1a826299181daf00a4cab735f8d74642948927296be8e7b4fb654d5405993c1.rvp": "19dd23e6fef1c7043320cfb39a8d502133f3d20d48bbf9182cbec9a57c0cf5c3",
+        "trace/unicode/cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e.rvp": "0963b958dcb5b4bb6762ebd3325cb96a02773bb2a906b29419588942d4126254",
+        "trace/unicode/d550bf563826442b3fc467beb9b03576160235f3e8b2a825cdd5aaae304b4814.rvp": "ede89e8d6549f7a3e23fffa3a3f1d33b9281123e85f1ea61b44f7c81f4956858",
+        "trace/unicode/e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21.rvp": "1e3c3138caf503e3932c618bdd48bda44b20d43eb61e92df44e0323d55956cb3",
+        "trace/unicode/e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19.rvp": "2caff6f4127db7e1a6e97f033584df04ac8891b740af2a8a85f0f24a8e9b3444",
+        "trace/unicode/e3b1a2f3fba416eb6d973c692ae6da8e5955e22ed9dea5039b6e07d54ac68942.rvp": "6abd051602c93bbef0046b3ae25c6e0ead9134ea7ffe7fe5c835baed6dd46691",
+        "trace/unicode/e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52.rvp": "a5d4bd6e2b53c07fd8c16d82ac7d1d1b6da4a07a1739580ec24c6ae684cbc7f0",
+        "trace/unicode/eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d.rvp": "1bd531144e37f0af48f423a3bd900396d79c6a9bb5dfceabb4d25e9cecdf85a5",
+        "trace/unicode/ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c.rvp": "70150843fc2c3f589b5e065f243d661cb5467bc4de45bc6e15bdcc91ac37d8b7",
+        "trace/unicode/f2bb5dd8b21ed43a967c424a4461ea21ceea47773dafc113d294f8e8f7ff0232.rvp": "9696d724d87f7594734db90d81243127428441363cd7a2497472beebc700e6e2",
+        "trace/unicode/ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53.rvp": "83e4cd8063c4dfa9e6753d08e4d39b0bca8be20cf36dd36f22af2892f16e17bd",
+        "trace/unicode/snapshot-01-000001.bin": "0a3a79c7f46ae303809923deaf27226f3a795a95367c117bd5334a20daedaf74",
+        "trace/unicode/snapshot-01-000001.json": "0c9e08cbc63b6bbf4009f15aeb2e45906f012f0be74bd187a8bcb0486ff7a2ad",
+        "trace/unicode/snapshot-01-000002.bin": "fd339831f4facfa252b8b8a9f0c4a515892c93c02817fa3d9151b2612be8885a",
+        "trace/unicode/snapshot-01-000002.json": "e39d4101b74203f2995ebdc8bc5c4cd30da030ab55cd234cfa8dfeee98e5996f",
+        "trace/unicode/snapshot-01-000003.bin": "b23903be2579d30c1da39ebe0c7acbc412943a5671652322f9df35814b567f1c",
+        "trace/unicode/snapshot-01-000003.json": "1fc06cd9dc1beedf904d77e3ecc4f5e50bdcb55d441966fd9656b761575f79fc",
+        "trace/unicode/snapshot-01-000004.bin": "0d21193f17df961bd9b3bf3c70438e3567d3b33080972eaef60eab36d9f70f32",
+        "trace/unicode/snapshot-01-000004.json": "a235a558d1269712c2cc843abeeb2889e316a39214a30a8f9c2c380df103c9ec",
+        "trace/unicode/snapshot-01-000005.bin": "98b0706edf1d79b5e204952ee352fb81d8992fc924eb8d744bc22bbaf205ab42",
+        "trace/unicode/snapshot-01-000005.json": "3753e956abe6c3bbbdadff24f7d9d9d9b13a78021d1ddfe13bbc0fc4de09101a",
+        "trace/unicode/snapshot-01-000006.bin": "cd722dcff0c4d785b3f68fd0bd64b4dfdad277f1699e16f3eca40d5a4f164647",
+        "trace/unicode/snapshot-01-000006.json": "63126192a7f9a7046d66a7244453aeef88f104c0422db06d35fab6eb32703ec2",
+        "trace/unicode/snapshot-01-000007.bin": "f7577b2ffc787c433ebfb68da04f59fb82e027a118ccae25266a60aa45bd994a",
+        "trace/unicode/snapshot-01-000007.json": "555a7af98547a513d0e8f7313099837969191b07a71f67d684351fe5a7f4a67b",
+        "trace/unicode/snapshot-01-000008.bin": "5f4a3bc337e88f3016345ea8f73c5353c068f808b4a077208ba2181a770cc309",
+        "trace/unicode/snapshot-01-000008.json": "ac2ae98547e523a106bac2b13b4b88212d3946e01636811a8fe69cc2a268fbea",
+        "trace/unicode/snapshot-01-000009.bin": "abed3075ceebf0f1c652db4e9f3a58c781afde46fc78c9840c08646da191469c",
+        "trace/unicode/snapshot-01-000009.json": "140230a1118725adaccb51787bbdfc00375dcb7e2ecc7afcc63b21c42d94c98e"
+      }
+    },
+    "unsupported": {
+      "cases": [
+        {
+          "case": "original-photo",
+          "gap_count": 1
+        },
+        {
+          "case": "memory-texture",
+          "gap_count": 1
+        },
+        {
+          "case": "cairo-region",
+          "gap_count": 1
+        },
+        {
+          "case": "blur-effect",
+          "gap_count": 1
+        },
+        {
+          "case": "shader-node",
+          "gap_count": 1
+        },
+        {
+          "case": "native-vector-control",
+          "gap_count": 0
+        }
+      ],
+      "fallback_probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 6
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      },
+      "implementation_sha256": {
+        "Cargo.lock": "b79c951bb18c3f7880880eb4e1373b800c3c169c626282ae7eaba42ca7f37f33",
+        "adapters/gtk4/capture.py": "02b8692c787c855983c71a89ea27d3bf3c46bcdc2f9e0c354467bea88e25dcd8",
+        "adapters/gtk4/composition.py": "43e9629423a3da810167dcb7253126315628332aa264239608d531151dbbe2e1",
+        "adapters/gtk4/native.py": "4a931d03410326824b15504c3308eb7e96c49f75fd72b2728373cd1d89565b49",
+        "adapters/gtk4/state.py": "54d5d3aaaf380b655ad6118a03c48885524bd5c6442058f329d3b926fee15339",
+        "adapters/sdk/producer.py": "9228c57181cc8ffd0d7e19b6bbd3d366005c9f326d161500192f1c39127741a5",
+        "adapters/sdk/src/bin/gtk_command_check.rs": "16c7b73d157f23bbcc2444c6f956610b4ff18641674b2900afd10d63264b3a03",
+        "adapters/sdk/src/gtk_composition.rs": "9e45d94dfc70ad0107d087f89c6c5d09f443f27b916aa7d82e2edd320fa6d4f2",
+        "adapters/sdk/src/gtk_host.rs": "7082e29cf6685c0f9d36c0e34d3f828c8a91686c6ec226103590f4cbb21a2078",
+        "fixtures/gtk/fallback_probe.py": "c76d2111ab39fd0210e7cf5b04e3e6fb3f9a9ae2e0a15b5373b58c9214e40859",
+        "fixtures/gtk/mirror_check.py": "8ab510ac513346918ad4fc9423b38f78d5f142562a1d51c719c2a234fb9428a3",
+        "fixtures/gtk/native_source.py": "8275a14f99de73c06666f2f78cc330f2b3d0c33b71656d8ed80ee1df5c1fb395",
+        "fixtures/gtk/negative_source.py": "e57d9b3ff60d240d61036f052e6d03da06d97ee63cb8dbfe9a88c6255fbb52f3"
+      },
+      "isolated_environment": "two owned authenticated Xvfb displays; private EXTERNAL bus with no service search directories",
+      "probe_binary_sha256": "dc579c22c796bb71768bde29b9236e511aa6bbaf757f2f15fe87062a9fe93c1a",
+      "report_sha256": "34f75b62219c02af5b9f902dce663ec4e74f69c01a46e19d926999578c4b7650",
+      "trace_sha256": {
+        "b0940f931f04b8fd4bc3b8b8c834da76b33dc9fefa836a0a264e38a211c29f97.rvp": "4dae09f1b8059520ddfa620441370bd4dc4b6eaffd61aecf5b31f0d429d13826",
+        "negative-content-0001.bin": "f88b59ead1eb4a14276b9ca319d9b9271d77708df25d5eec9a75666589957357",
+        "negative-content-0001.json": "8484df8b35d2b0b38833d140b141c8c0afdd26d6dfa58526484afcc9a000fb54",
+        "negative-content-0002.bin": "6535c05df419d7b0ea87a1bd92ad10567ae776dd2518a3f0225c95cd0f9d86ae",
+        "negative-content-0002.json": "c32e5b1ea8d88755a67b388fdca6efe932924277ac397cc9818cd307ad92aa5e",
+        "negative-content-0003.bin": "f82f2866a9bafca40074a9bd9c87c3ef9c12a28e5960ad429eda9122acd65084",
+        "negative-content-0003.json": "f1599da6950ef64930dd0c908e8f66f76e5c00df86e95920b781164c0ca25cd8",
+        "negative-content-0004.bin": "6764080a48cb57ddbdaccfd0a862ed48d9408d38fa7dc75321f9363f971bdc0f",
+        "negative-content-0004.json": "dd7c7528f2b72b58bfeb398752a09f1ce37e74f10f2473de12ce28156f88a631",
+        "negative-content-0005.bin": "9940e0eeccf6ed78c310290925c6baef3eb1ea8238cb17b34fb507dcc9241108",
+        "negative-content-0005.json": "ddbb0fb00b3b919bacd1f4aa36a47d111070b7093b8069b7461c1a122d4f748f",
+        "negative-content-0006.bin": "793f08dcb3ef9c9f5a622861b0859310984d70474b7d45ac299aea86dcdfa7ee",
+        "negative-content-0006.json": "df4646ff4d2a5118fe4f60b18631461061a3e2569048b588a148dbfe1bff6434",
+        "negative-report.json": "34f75b62219c02af5b9f902dce663ec4e74f69c01a46e19d926999578c4b7650"
+      }
+    }
+  },
+  "scope": "Root independent native-source regressions after producer wire composition; actual private GTK callbacks, no desktop IME inference"
+}
