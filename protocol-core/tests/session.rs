@@ -95,6 +95,54 @@ fn usable(broker: &mut SessionBroker, session: &NegotiatedSession, revision: u64
         .acknowledge_presented(&session.client, session.view_id, revision)
         .unwrap();
 }
+#[test]
+fn actual_presentation_marker_is_bound_and_cleared_without_fabrication() {
+    let mut broker = broker();
+    let session = connect(&mut broker, 3, "alice", true);
+    broker
+        .install_snapshot(&session.client, session.view_id, 1, 1)
+        .unwrap();
+    broker
+        .acknowledge_applied(&session.client, session.view_id, 1, true)
+        .unwrap();
+    broker
+        .authorize_presented(&session.client, session.view_id, 1)
+        .unwrap();
+    assert_eq!(
+        broker.presented_revision(&session.client, session.view_id),
+        Ok(None)
+    );
+    broker
+        .acknowledge_presented(&session.client, session.view_id, 1)
+        .unwrap();
+    assert_eq!(
+        broker.presented_revision(&session.client, session.view_id),
+        Ok(Some(1))
+    );
+    let wrong = AuthenticatedClient {
+        principal: "other".into(),
+        ..session.client.clone()
+    };
+    assert_eq!(
+        broker.presented_revision(&wrong, session.view_id),
+        Err(SessionError::WrongPrincipal)
+    );
+    assert_eq!(
+        broker.presented_revision(&session.client, [99; 16]),
+        Err(SessionError::WrongView)
+    );
+    broker
+        .mark_resources_missing(&session.client, session.view_id)
+        .unwrap();
+    assert_eq!(
+        broker.presented_revision(&session.client, session.view_id),
+        Ok(None)
+    );
+    broker.disconnect(&session.client, 1).unwrap();
+    assert!(broker
+        .presented_revision(&session.client, session.view_id)
+        .is_err());
+}
 fn command(session: &NegotiatedSession, lease: &ControlLease) -> SemanticCommand {
     SemanticCommand {
         epoch: session.epoch,

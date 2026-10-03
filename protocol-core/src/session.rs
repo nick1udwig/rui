@@ -1233,6 +1233,15 @@ impl SessionBroker {
         conn.presented_revision = Some(revision);
         Ok(())
     }
+    /// Actual renderer acknowledgement under the current connected identity and
+    /// view. Presentability alone never creates this authority marker.
+    pub fn presented_revision(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<Option<u64>, SessionError> {
+        Ok(self.connection(client, view)?.presented_revision)
+    }
     pub fn authorize_presented(
         &self,
         client: &AuthenticatedClient,
