@@ -36,6 +36,7 @@ remaining integration gates.
 | Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; paged real TLS delivery and actual native font/two-mirror gate accepted |
 | Isolated native session foundation | `session-shell/tests/native.rs`, `tests/topology.rs`; `fixtures/session-shell/native-source.json` | Nine actual fd-only EIS tests and five topology/reducer tests: explicit unequal regions, actual XKB layout/repeat, topmost hit/modal guards, source effects and verified releases/cancels/STOP; resource readiness loss neutralizes repeats; no native local-device, TLS or actual mirror Presented claim |
 | Native authority owner and local source window | `session-shell/tests/actor.rs`, native/unit tests; `fixtures/session-shell/native-window.json` | Thirty source-window feature tests and actual private GDK physical key/pointer callbacks: bounded single-owner authority, cancellation-safe connections, exact resume keeper, local takeover ordering, focus-loss release and native clone memory ownership; shared TLS/mirror integration remains |
+| Native session producer port | `session-shell/tests/native_port.rs`, `src/actor/transport.rs`; [scope](../spec/session-shell-profile.md#optional-authenticated-producer-port) | Root38 native-feature tests and strict Clippy pass, followed by five corrected port regressions. The existing native owner serves bounded compound transactions with persistent priority cleanup, exact release identities, shared parent allocation ownership, atomic prepared checkpoints and explicit whole-session selection. Spoofed fresh reconnects preserve the legitimate offline view; changed negotiated limits mint a fresh view before any resume keeper. Actual TLS/two-mirror physical integration remains separate. |
 | Observed accessibility reconciliation | `adapters/sdk/tests/atspi_trace.rs`, `adapters/atspi/test_observer.py`, `test_trace.py`; [scope](../adapters/atspi/README.md) | Six actual two-application captures: dropped events, traversal mutation, bounded retry, stopped-source isolation, restart retirement and explicit process identity; identical overlapping titles never resolve native surfaces/input; Rust and independent Python accept exact OBSERVED/Partial publications |
 | Pinned vector cursor | `client-desktop/tests/cursor.rs`, `spec/cursor-profile.md` | Explicit optional profile, bundled vector shapes, authorized custom paths, hotspot and canvas clipping; native session integration remains |
 | Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact result plus source text/version/selection confirmation and actual Presented gate; six rapid native characters, repeated focus, Unicode preedit and sticky full-channel rejection pass |
@@ -91,8 +92,10 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   visual comparison has passed.
 - **M4 remains open.** Actual EIS, source geometry/hit testing, host XKB/repeat,
   serialized native authority, private GDK local-device capture/focus cleanup and
-  observed accessibility reconciliation have passed review. Complete shared
-  transport authority, actual mirror presentation and the final scope/integration audit.
+  observed accessibility reconciliation have passed review. The native owner now
+  implements the shared producer port with reviewed scope, reconnect, allocation
+  and priority-cleanup tests. Actual TLS physical input, mirror presentation and
+  the final topology/cursor/cleanup integration audit remain.
 - **M5 remains open for the final case-by-case audit.** Python button exact retry,
   Unicode public-text replacement and stable-item selection now converge with both
   actual GTK mirrors, with exactly three source effects and no Python Presented. Native debug/release callback-to-after-paint
