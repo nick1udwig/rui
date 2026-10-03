@@ -23,4 +23,5 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 prost-build = "0.13"
 
 [dev-dependencies]
+serde_json = "1"
 rui-client-desktop = { path = "../client-desktop" }

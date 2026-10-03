@@ -31,6 +31,7 @@ pub(crate) struct ControlledApplication {
     last_now: u64,
     pub corpus: Option<Corpus>,
     pub fonts: Option<crate::source_fonts::SourceFonts>,
+    pub performance: Option<crate::performance::PerformanceSource>,
 }
 impl ControlledApplication {
     pub fn new(secret: String, max_text_bytes: usize) -> Result<Self, HostError> {
@@ -48,6 +49,7 @@ impl ControlledApplication {
             last_now: 0,
             corpus: None,
             fonts: None,
+            performance: None,
         })
     }
     pub fn captions(&self) -> Vec<crate::source_fonts::Caption> {
@@ -76,6 +78,9 @@ impl ControlledApplication {
                 .contains(crate::source_fonts::GLYPH_PROFILE)
         {
             return &[];
+        }
+        if let Some(performance) = &self.performance {
+            return performance.resources();
         }
         self.fonts.as_ref().map_or(&[], |f| f.resources())
     }
@@ -195,6 +200,14 @@ impl ControlledApplication {
             .contains(READ_SECRET_PERMISSION)
     }
     pub fn authority(&self, projection: &Projection) -> SemanticAuthority {
+        if self.performance.is_some() {
+            return SemanticAuthority {
+                view_id: projection.view_id,
+                current_view_revision: projection.revision.unwrap_or(0),
+                allowed_actions: Default::default(),
+                targets: Default::default(),
+            };
+        }
         let target = |version,
                       enabled,
                       actions: BTreeMap<String, u32>,
@@ -377,6 +390,9 @@ impl ControlledApplication {
         Ok(true)
     }
     pub fn records(&self, projection: &Projection) -> Vec<p::Record> {
+        if let Some(performance) = &self.performance {
+            return performance.records(self.commit);
+        }
         let secret_visible = Self::can_read_secret(projection);
         let editable = projection.permissions.can_control
             && (projection.permissions.actions.contains("ReplaceText")
@@ -574,6 +590,11 @@ impl ControlledApplication {
         records
     }
     pub fn decoded_projection_bytes(&self, projection: &Projection) -> usize {
+        if self.performance.is_some() {
+            // Proto records, nested fields, capture stamps, graph-validation
+            // scratch and allocation overhead for the fixed 10,000 records.
+            return 24 * 1024 * 1024;
+        }
         // Conservative allowance for this fixed eleven-record fixture. The core
         // receiver independently accounts its actual decoded state and staging.
         32 * 1024

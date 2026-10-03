@@ -1,0 +1,126 @@
+{
+  "clients": "two healthy plus one stalled observer",
+  "elapsed_seconds": 347.756913207,
+  "hardware": "model name\t: 12th Gen Intel(R) Core(TM) i7-1280P",
+  "idle_publication_bytes_250ms": 0,
+  "one_client_total_plaintext_wire_bytes": 1587035,
+  "peak_host_view_bytes": 119301824,
+  "peak_receiver_bytes": 62318600,
+  "peak_renderer_bytes": 268124192,
+  "presentation": "CPU frames only; no native Presented or action-to-present latency claim; native GUI gate supplies that separately",
+  "profile": "release CPU/TLS, pinned native Pango/Cairo glyph outline",
+  "records": 10000,
+  "released_replay_and_renderer_bytes": 0,
+  "resource_bodies_cold": 1,
+  "resource_bodies_warm": 0,
+  "sampled_outbound_queue_bytes": 63978,
+  "slow_view_closed": "Some(SlowConsumer)",
+  "snapshot_bytes": 992674,
+  "updates": [
+    {
+      "changed_records": 1,
+      "independent_apply": {
+        "p50": 7958,
+        "p95": 9701,
+        "p99": 12249,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "publication_all_views": {
+        "p50": 17672,
+        "p95": 21146,
+        "p99": 25046,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "publication_bytes_max": 237,
+      "publication_bytes_min": 237,
+      "source_change_to_two_applied": {
+        "p50": 33351,
+        "p95": 42102,
+        "p99": 48723,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "transaction_encode": {
+        "p50": 2,
+        "p95": 3,
+        "p99": 4,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "two_cpu_renders": {
+        "p50": 1536423,
+        "p95": 1741703,
+        "p99": 1862728,
+        "samples": 100,
+        "unit": "microseconds"
+      }
+    },
+    {
+      "changed_records": 20,
+      "independent_apply": {
+        "p50": 7827,
+        "p95": 9633,
+        "p99": 10184,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "publication_all_views": {
+        "p50": 11867,
+        "p95": 14103,
+        "p99": 16121,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "publication_bytes_max": 4326,
+      "publication_bytes_min": 4323,
+      "source_change_to_two_applied": {
+        "p50": 27201,
+        "p95": 32894,
+        "p99": 38079,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "transaction_encode": {
+        "p50": 7,
+        "p95": 9,
+        "p99": 10,
+        "samples": 100,
+        "unit": "microseconds"
+      },
+      "two_cpu_renders": {
+        "p50": 1491566,
+        "p95": 1584989,
+        "p99": 1779112,
+        "samples": 100,
+        "unit": "microseconds"
+      }
+    }
+  ],
+  "visible_glyph_cells": 2500,
+  "warm_resource_cache_hit_rate": 1.0,
+  "whole_process_peak_rss": "VmHWM:\t  129132 kB",
+  "measured_utc": "2026-10-03T03:01:32.843217+00:00",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "kernel": "Linux 7.1.9-arch1-2",
+  "native_versions": {
+    "cairo": "1.18.4",
+    "pangocairo": "1.58.2",
+    "gtk4": "4.22.4"
+  },
+  "source_sha256": {
+    "host-broker/src/performance.rs": "8aca7eda7cd4a3bc2d2eaab6abb889ca3b529a46ee0b547e2dbc984a0d19a6e2",
+    "transport/examples/measure_integrated.rs": "d65a7bd1edbed106fc8ea5bd36d4af4253338b85e078428db0dc3cecc03250dd",
+    "fixtures/render/native_font.py": "c4e17d79335feada83294ee0d17fe9fda88f43116040cd239aea977f179be31d",
+    "fixtures/render/fonts/LiberationSans-Regular.ttf": "baccc64becc3eb7d104b7c84d99f5314a0a1f896e2b3ea6c2f22fc08d2003bee"
+  },
+  "ceilings": {
+    "host_view_bytes": 134217728,
+    "receiver_bytes": 134217728,
+    "renderer_bytes": 268435456,
+    "outbound_queue_bytes": 65536,
+    "recorder_subarena_bytes_per_connection": 16781312
+  },
+  "measurement_conditions": "Local development machine; other compiler/native test work ran concurrently. Allocator high-water counters cover conservative reservations, not RSS. Renderer frames are CPU completions, not native presentation."
+}

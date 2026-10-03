@@ -21,6 +21,7 @@ remaining integration gates.
 | Replay minimization | `conformance/shrink.py`, `test_shrink.py` | Independent replay failures produce a bounded, minimized exact-byte transcript preserving the mismatch class |
 | Actual TLS recovery matrix | `transport/tests/fault_matrix.rs`, `common/fault_proxy.rs` | Every actual cold snapshot/resource and warm command/delta packet boundary: 34+4 cuts, lost command-result exact retry, old-lease rejection, unchanged prior records, full-canvas CPU source/recovered pixel equality and delayed delivery; native GUI recovery remains |
 | Sustained TLS ownership churn | `transport/tests/sustained.rs` | 128 surface incarnations, 384 effects, 32 reconnects, 430 evictions and 512 retired IDs; source equality/live cache/staging/queue checks each cycle, lease renewal, four-client fail-closed retention and exact retry after churn; receiver budgets return to zero |
+| Integrated load measurements | `transport/examples/measure_integrated.rs`, `client-desktop/tests/performance_source.rs`; [report](../docs/performance.md) | 10,000 records and 2,500 visible native glyph cells; exact one/twenty-record deltas, two TLS receivers, stalled-observer isolation, p50/p95/p99 encode/apply/render, warm cache reuse and bounded lifetime allocation peaks; CPU rendering misses 60 Hz, native presentation remains separate |
 | Receiver recovery matrix | `protocol-core/tests/recovery_matrix.rs` | Every publication/resource chunk cut, duplicate chunks, cache loss, fresh-state equivalence and 256-resource churn; synthetic command and presentation callbacks, not network/visual evidence |
 | Independent decoder/reducer | `python3 conformance/check.py` | 1,275 semantic replay prefixes and 144 scene fixtures across exact bytes and 16 seeds |
 | Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | Pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation; cancelled receives and polled flushes retain budgeted replies without duplicate frames |
@@ -71,9 +72,10 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   source geometry/hit testing, host XKB/repeat and verified cleanup gates. Complete
   native local-device capture, shared transport authority, actual mirror presentation,
   observed accessibility reconciliation and the final scope/integration audit.
-- **M5 remains open.** Extend accepted Python item/two-mirror convergence to button/text; complete network fault and
-  recovery traces, sustained resource churn, case-by-case acceptance audit and
-  integrated named-hardware CPU/latency/bandwidth/memory measurements.
+- **M5 remains open.** Extend accepted Python item/two-mirror convergence to button/text;
+  complete native action-to-Presented measurements and the case-by-case acceptance
+  audit. Actual TLS fault/recovery traces, sustained resource churn and integrated
+  named-hardware CPU/network/bandwidth/memory measurements have passed.
 
 Current transport foundation limits and trusted boundaries are in its
 [README](../transport/README.md). The CPU renderer's native allocation policy,

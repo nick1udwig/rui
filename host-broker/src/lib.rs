@@ -3,6 +3,7 @@
 //! input injection are not implemented here.
 mod corpus;
 mod fixture;
+mod performance;
 mod source_fonts;
 mod source_input;
 pub use corpus::{
@@ -13,6 +14,9 @@ pub use corpus::{
 use fixture::ControlledApplication;
 pub use fixture::{
     COUNTER_ID, COUNTER_SCENE_ID, SECRET_ID, SECRET_SCENE_ID, SECRET_TEXT_ID, SURFACE_ID,
+};
+pub use performance::{
+    PERFORMANCE_GLYPHS, PERFORMANCE_HEIGHT, PERFORMANCE_RECORDS, PERFORMANCE_WIDTH,
 };
 use prost::Message;
 use rui_protocol_core::commands::{
@@ -282,6 +286,54 @@ impl std::fmt::Debug for AuthorizedResource {
     }
 }
 impl ControlledHost {
+    /// Explicit large-fixture source. The trusted provider supplies one actual
+    /// outline; every visible cell shares its immutable verified resource.
+    pub fn new_performance(
+        mut config: HostConfig,
+        provider: &dyn SourceFontProvider,
+    ) -> Result<Self, HostError> {
+        config
+            .session
+            .supported_profiles
+            .insert(source_fonts::GLYPH_PROFILE.into());
+        config
+            .session
+            .required_profiles
+            .insert(source_fonts::GLYPH_PROFILE.into());
+        let performance = performance::PerformanceSource::new(provider)?;
+        let mut host = Self::new(config, String::new())?;
+        host.source.performance = Some(performance);
+        Ok(host)
+    }
+    /// Trusted source mutation for load measurement, followed by the ordinary
+    /// per-view capture, resource ownership and publication path. One change
+    /// updates the Surface opacity/token; twenty also change nineteen glyphs.
+    pub fn advance_performance(
+        &mut self,
+        changed_records: usize,
+        now: u64,
+    ) -> Result<(), HostError> {
+        let next = self
+            .source
+            .commit
+            .checked_add(1)
+            .ok_or(HostError::FixtureLimit)?;
+        self.source
+            .performance
+            .as_mut()
+            .ok_or(HostError::FixtureLimit)?
+            .advance(changed_records)?;
+        self.source.commit = next;
+        publish_projections(
+            &mut self.sessions,
+            &self.source,
+            &mut self.projections,
+            self.session_id,
+            self.epoch,
+            now,
+        );
+        Ok(())
+    }
     pub fn new(mut config: HostConfig, initial_secret: String) -> Result<Self, HostError> {
         config
             .session
@@ -718,6 +770,9 @@ impl ControlledHost {
         })
     }
     pub fn canvas_size(&self) -> (f64, f64) {
+        if self.source.performance.is_some() {
+            return (PERFORMANCE_WIDTH, PERFORMANCE_HEIGHT);
+        }
         self.source
             .corpus
             .as_ref()
@@ -1250,6 +1305,14 @@ impl ControlledHost {
     pub fn queued_bytes(&self, client: &AuthenticatedClient, view: Id) -> Result<usize, HostError> {
         self.projection(client, view)?;
         Ok(self.sessions.queued_bytes(client, view)?)
+    }
+    pub fn peak_memory_bytes(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<usize, HostError> {
+        self.projection(client, view)?;
+        Ok(self.sessions.peak_memory_bytes(client, view)?)
     }
     pub fn diagnostics(&self) -> HostDiagnostics {
         HostDiagnostics {

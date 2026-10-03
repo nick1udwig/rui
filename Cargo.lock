@@ -981,6 +981,7 @@ dependencies = [
  "rui-host-broker",
  "rui-protocol-core",
  "rustls",
+ "serde_json",
  "sha2",
  "thiserror",
  "tokio",
