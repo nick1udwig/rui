@@ -39,6 +39,7 @@ remaining integration gates.
 | Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Twenty strict publications: seventeen mapped snapshots and three lifecycle signals; typed scalar text/selection, collection and focus clocks, unmap/remap pin release, fresh identities after destruction, reentrant lifecycle ordering and bounded artifact decoding |
 | Guarded native GTK commands | `adapters/sdk/tests/native_trace.rs`, `fixtures/gtk/native_check.py` | Common-ledger admission, live native identity/clocks/modality/lease guards, causal capture, exact retries and unknown-outcome retention; 32 dispatches/37 callbacks, 47 source publications and 273 hash-bound vector artifacts; bounded semantic fixture, no TLS/IME claim |
 | Native Unicode scalar editing | `adapters/sdk/tests/unicode_trace.rs`, `fixtures/gtk/unicode-interaction.json` | Nine source captures verify supplementary/combining/RTL text, backward and intra-cluster selection, carets, unchanged selection-only content clocks and exact retry; one native scalar-range call fixes grapheme-based selection loss; no wire IME claim |
+| Native source restart | `adapters/sdk/tests/restart_trace.rs`, `fixtures/gtk/restart-interaction.json` | Actual post-callback SIGKILL preserves the broker epoch/common ledger; exact ambiguous retries perform no new effects, old app IDs retire, replacement identities/clocks are fresh, delayed generation dispatch fails, three failed starts preserve unavailable state and final ownership returns to zero; bounded private semantic fixture |
 | GTK unsupported sources and vector audit | `adapters/sdk/tests/negative_trace.rs`, `fixtures/gtk/negative-report.json`; refreshed native trace | Actual photograph, texture, Cairo, blur and shader nodes decline with named Partial regions; native path control succeeds; observed Python exporter traps, exact decoded geometry/resources and gap census checks; full network recorder remains open |
 | Coherent native whole-view capture | `adapters/sdk/tests/whole_trace.rs`, `fixtures/gtk/whole-interaction.json`, `test_transaction.py` | Five real four-surface/lifecycle transactions, fresh per-surface snapshot barrier, interrupted-union abort, typed focus/modal topology, exact vector closure and five direct native/replay pixel comparisons; bounded quota returns to zero; remote whole-view command path remains |
 | GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Seventeen strict frames pass declared native/replay tolerance; zero interior mismatches, 1,577 outline bounds checked; actual decoded glyph omission/shift/size rejected; reports bind exact golden envelope bytes |
@@ -64,8 +65,9 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   TLS reconnect/cache recovery has passed separately.
 - **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
   semantic dispatch, causal action evidence and observed unsupported-source/vector
-  audits have passed review. Wire IME, persistent source restart, full native interaction
-  recording and remote whole-view command integration remain. Coherent whole-view
+  audits and actual broker-preserving native source restart have passed review.
+  Wire IME, full native interaction recording and remote whole-view command integration
+  remain. Coherent whole-view
   native capture and all five direct/replay pixel comparisons have passed. The declared seventeen-frame local
   visual comparison has passed.
 - **M4 remains open.** The isolated fd-only native shell foundation passes actual EIS,
