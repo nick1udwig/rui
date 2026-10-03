@@ -568,3 +568,113 @@ async fn cancelled_receive_retains_staging_and_applied_ack_without_losing_event(
     .expect("Pong must arrive before deadline");
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn live_control_retries_preserve_grants_and_old_release_cannot_revoke_new_lease() {
+    async fn grant(client: &mut NetworkClient) -> p::ControlGranted {
+        for _ in 0..8 {
+            match client.receive().await.unwrap() {
+                ClientEvent::ControlGranted(grant) => return grant,
+                ClientEvent::ControlRevoked(_) => {}
+                event => panic!("unexpected lease event: {event:?}"),
+            }
+        }
+        panic!("bounded lease event count exceeded")
+    }
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let (server, _, token, _) = setup().await;
+        let mut client = connect(&server, &token, 3).await;
+        open(&mut client).await;
+        // Discard a real TLS reply at the application boundary, preserving it only
+        // as an oracle. The live connection retries the identical request ID.
+        client.acquire_control([31; 16]).await.unwrap();
+        let lost_acquire = grant(&mut client).await;
+        client.acquire_control([31; 16]).await.unwrap();
+        assert_eq!(grant(&mut client).await, lost_acquire);
+        let renew = p::RenewControl {
+            request_id: vec![32; 16],
+            lease_id: lost_acquire.lease_id.clone(),
+            generation: lost_acquire.generation,
+        };
+        client.send(p::Kind::RenewControl, &renew).await.unwrap();
+        let lost_renew = grant(&mut client).await;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        client.send(p::Kind::RenewControl, &renew).await.unwrap();
+        assert_eq!(grant(&mut client).await, lost_renew);
+        assert_eq!(lost_renew.lease_id, lost_acquire.lease_id);
+        assert_eq!(lost_renew.generation, lost_acquire.generation);
+        let newer_renew = p::RenewControl {
+            request_id: vec![33; 16],
+            ..renew.clone()
+        };
+        client
+            .send(p::Kind::RenewControl, &newer_renew)
+            .await
+            .unwrap();
+        let extended = grant(&mut client).await;
+        assert!(extended.expires_at_ms > lost_renew.expires_at_ms);
+        client.send(p::Kind::RenewControl, &renew).await.unwrap();
+        assert_eq!(grant(&mut client).await, lost_renew);
+        client.acquire_control([31; 16]).await.unwrap();
+        let current = grant(&mut client).await;
+        assert_eq!(current.lease_id, extended.lease_id);
+        assert_eq!(current.generation, extended.generation);
+        assert_eq!(current.expires_at_ms, extended.expires_at_ms);
+
+        let release = p::ReleaseControl {
+            request_id: vec![34; 16],
+            lease_id: current.lease_id.clone(),
+            generation: current.generation,
+        };
+        // Release has no successful reply in this binding. Both identical sends
+        // precede a fresh acquisition on the same ordered connection.
+        client
+            .send(p::Kind::ReleaseControl, &release)
+            .await
+            .unwrap();
+        client
+            .send(p::Kind::ReleaseControl, &release)
+            .await
+            .unwrap();
+        client.acquire_control([35; 16]).await.unwrap();
+        let fresh = grant(&mut client).await;
+        assert!(fresh.generation > current.generation);
+        assert_ne!(fresh.lease_id, current.lease_id);
+        client
+            .send(p::Kind::ReleaseControl, &release)
+            .await
+            .unwrap();
+        client
+            .send(
+                p::Kind::ReleaseControl,
+                &p::ReleaseControl {
+                    request_id: vec![36; 16],
+                    ..release
+                },
+            )
+            .await
+            .unwrap();
+        client.acquire_control([35; 16]).await.unwrap();
+        assert_eq!(grant(&mut client).await, fresh);
+
+        let old_command = activate(&client, 3, &current, 1, 1).encode_to_vec();
+        client.submit(&old_command).await.unwrap();
+        match client.receive().await.unwrap() {
+            ClientEvent::CommandResult(result) => {
+                assert_eq!(result.status, "Rejected");
+                assert_eq!(result.rejection, "StaleControl");
+                assert!(result.source_commit.is_empty());
+            }
+            event => panic!("unexpected old-generation result: {event:?}"),
+        }
+        assert_eq!(server.host.lock().await.diagnostics().counter, 0);
+        let fresh_command = activate(&client, 3, &fresh, 2, 1).encode_to_vec();
+        client.submit(&fresh_command).await.unwrap();
+        let result = result_and_revision(&mut client, 2).await;
+        assert_eq!(result.status, "Applied");
+        assert_eq!(server.host.lock().await.diagnostics().counter, 1);
+        server.shutdown().await;
+    })
+    .await
+    .expect("live TLS lease retry scenario deadline");
+}

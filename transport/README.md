@@ -135,3 +135,11 @@ It injects application-level connection cuts, not datagram loss. Its vector font
 is deliberately synthetic and resource-bearing; native glyph fidelity and real
 GTK Presented callbacks are separate gates. This suite supplies transport/core
 and CPU render recovery evidence, not native GUI recovery or P1 measurements.
+
+The live-control case in `tests/loopback.rs` discards an actual TLS grant at the
+application boundary, then retries the same Acquire and Renew identifiers.
+Acquisition returns the same live grant; an old renewal returns its exact cached
+reply without regressing a later active deadline. Release has no success reply;
+repeating it before and after a fresh grant cannot revoke the new generation.
+An old-generation command produces no effect, while a fresh command applies once.
+This bounded scenario establishes MUL-005 independently of socket-cut recovery.

@@ -73,10 +73,12 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
 - **M1 accepted for the declared model corpus.** All 46 model-layer cases have
   executable negotiation, graph/publication/resource, recovery, command and
   security evidence in the case audit. Root's frozen accepted workspace run
-  passed 364 Rust tests and strict Clippy, with three native-only tests omitted
-  by the default configuration; 40 Python tests also passed. Independent checks
+  at `6b9f80b` passed 390 Rust tests, strict Clippy and formatting, with three
+  native-only tests omitted by the default configuration; 75 Python tests also
+  passed. The subsequently reviewed TLS lease-retry case passed separately. Independent checks
   passed 1,275 semantic prefixes, 144 scene fixtures, six typed prefixes,
-  122 native capture prefixes and 54 retained network prefixes. Five additional
+  124 native capture prefixes, 54 controlled network prefixes and four GTK
+  producer network prefixes. Five additional
   producer-parent lifetime regressions pass, including destruction order and
   escaped allocations after broker shutdown. These core results do not depend
   on a GUI; actual GTK network composition and session input remain M3/M4 gates.
@@ -103,8 +105,8 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   and priority-cleanup tests. Actual TLS/two-mirror physical input, native host
   layout/repeat, unequal coordinate mapping, topology/cursor and local takeover
   now pass the root-reviewed baseline. Direct-versus-local click equivalence,
-  stale-route negatives, held-input cleanup, app-only denial and lease retry
-  matrix remain.
+  stale-route negatives, held-input cleanup and app-only denial remain. The
+  separate MUL-005 live-control TLS retry case is accepted.
 - **M5 remains open for the final case-by-case audit.** Python button exact retry,
   Unicode public-text replacement and stable-item selection now converge with both
   actual GTK mirrors, with exactly three source effects and no Python Presented. Native debug/release callback-to-after-paint
