@@ -58,5 +58,24 @@ actions, states, collection order/count/materialization/selection and retirement
 at every prefix. The actual TLS test invokes the Python CLI against a locally
 approved isolated Rust host, confirms one counter effect despite retry and a
 Unicode text edit, and verifies zero presentation acknowledgements. Stable-item
-selection and convergence with a graphical observer remain integration work
-until the expanded host fixture is connected.
+selection and convergence with two graphical observers also pass in the accepted
+native corpus; combined button/text graphical scenarios remain separately gated.
+
+## Full native record comparison
+
+`python3 -m conformance.full_interop` verifies descriptor-bound vector body hashes,
+flat RVP1 geometry and exact envelope hashes before comparing every retained
+record field against the Rust reducer. The handwritten decoder covers all six
+record kinds and all nine scene primitives. The accepted native corpus currently
+exercises 101 publication prefixes across 15 scopes, with five record kinds and
+six scene primitives; the existing generated scene fixtures cover all nine.
+It includes semantic, Unicode, restart, unsupported-source, whole-view and
+observed AT-SPI captures. Each prefix compares retirement and stable object clocks
+as well as full values, geometry, glyph positions, resource references, focus,
+collections, source tokens and coverage declarations.
+
+This is a bounded positive-trace oracle. It does not replace the core's complete
+untrusted-input validation. The replay harness accepts optional fixture resource
+digests only after this independent body audit; that input grants no network
+authority. `conformance.test_full_reference` checks atomic failure, retirement,
+unknown variants, typed bindings and malformed/raster resource rejection.

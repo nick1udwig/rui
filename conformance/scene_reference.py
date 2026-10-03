@@ -11,7 +11,10 @@ import random
 import struct
 import subprocess
 
-from reference import fields, one, many, number, double, packed_uints
+try:
+    from .reference import fields, one, many, number, double, packed_uints
+except ImportError:
+    from reference import fields, one, many, number, double, packed_uints
 
 ROOT = Path(__file__).resolve().parent.parent
 

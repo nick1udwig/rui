@@ -47,9 +47,23 @@ fn normalized(replica: &Replica) -> Value {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let full_state = std::env::args().any(|argument| argument == "--full-state");
     let mut replica = Replica::new(Limits::default());
-    let available = BTreeSet::new();
     for line in io::stdin().lock().lines() {
         let request: Value = serde_json::from_str(&line?)?;
+        // Fixture-only availability supplied by an independent resource audit.
+        // This harness neither fetches nor authorizes network resources.
+        let mut available = BTreeSet::new();
+        if let Some(resources) = request.get("available") {
+            let resources = resources.as_array().ok_or("invalid fixture resources")?;
+            if resources.len() > 4096 {
+                return Err("fixture resource ceiling".into());
+            }
+            for resource in resources {
+                let digest: [u8; 32] = unhex(resource.as_str().ok_or("invalid fixture digest")?)?
+                    .try_into()
+                    .map_err(|_| "invalid fixture digest length")?;
+                available.insert(digest);
+            }
+        }
         let bytes = unhex(request["hex"].as_str().ok_or("missing payload")?)?;
         let outcome = match request["kind"].as_str() {
             Some("snapshot") => replica.apply_snapshot(&bytes, &available),
