@@ -177,8 +177,13 @@ impl RecordingSession {
 }
 impl Drop for RecordingSession {
     fn drop(&mut self) {
-        if let Ok(mut state) = self.owner.state.lock() {
-            state.entries.remove(&self.id);
-        }
+        // A panicking local inspection callback must not strand private bytes
+        // or their view charge. Other operations still fail closed on poison.
+        let mut state = self
+            .owner
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        state.entries.remove(&self.id);
     }
 }
