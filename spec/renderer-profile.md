@@ -291,7 +291,9 @@ to the issued frame's actual GTK after-paint callback. Observer pan/zoom/resize
 then changes only its local viewport. Actual native keys test six rapid accepted
 characters in order, repeat click on an already focused field, and Ctrl+Shift+U
 Unicode preedit/commit. A third independent standard-library Python semantic
-client selects a stable collection item. Direct broker local-activity notification
+client activates a button with exact retry, replaces Unicode text and selects a
+stable collection item; all three effects converge with both mirrors in
+[the accepted Python report](../fixtures/render/native-python.json). Direct broker local-activity notification
 cancels pending GUI typing with feedback checked after paint; this proves GUI
 cancellation, not native M4 local-input takeover. Ctrl+Escape releases control;
 Ctrl+F2 requests a fresh grant. Optional bounded proof JSON records final matching
@@ -306,8 +308,12 @@ records and verified resources, independently of encoded publication replay.
 It writes a local transparent PAM diagnostic; GUI comparison uses white-matted
 RGBA. The source checkpoint may encode a publication before this capture, so the
 independence is structural, not a claim about capture preceding encoding.
-These native checks do not close the remaining M2 button/checkbox/reorder/scroll,
-transient-surface, authorized source resize or reconnect/cache-loss gates.
+The subsequent [broad native run](../fixtures/render/native-broad.json) closes
+the controlled M2 checkbox/list/scroll, transient-surface, ordered canvas, source
+resize and reconnect/cache-loss gates. It compares complete source/two-mirror
+records and RGBA after actual paint callbacks, with a 32 KiB/s controller relay.
+[Desktop controls](../docs/desktop-controls.md) describes those scenarios and
+the independent audit of their exact retained network traces.
 
 `tests/corpus_reference.rs` is a provisional Partial-scope integration check.
 Two real TLS read-view receivers compare retained records and selected vector
