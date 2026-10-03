@@ -11,7 +11,7 @@ mod server;
 mod source_delivery;
 mod tls;
 mod websocket;
-pub use client::{ClientEvent, NetworkClient, RetainedClientView};
+pub use client::{ClientEvent, NetworkClient, OpenedView, RetainedClientView};
 pub use server::{ServerConfig, ServerHandle};
 use thiserror::Error;
 pub use tls::HostIdentity;

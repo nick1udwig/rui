@@ -31,7 +31,18 @@ message ClientHello {
 message Permissions { bool can_view=1; bool can_control=2; repeated string actions=3; }
 message ServerHello { uint32 selected_version=1; repeated string selected_profiles=2; Limits negotiated_limits=3; Permissions permissions=4; bytes principal_id=5; }
 message OpenView { string selection=1; string mirror_canvas_policy=2; }
-message ViewOpened { bytes view_id=1; double canvas_width=2; double canvas_height=3; string coverage=4; repeated string granted_input_modes=5; }
+message ViewOpened {
+  bytes view_id=1; double canvas_width=2; double canvas_height=3; string coverage=4;
+  repeated string granted_input_modes=5;
+  // Optional extension: legacy mirrors omit raw input when this is absent.
+  repeated InputDeviceGrant input_devices=128;
+}
+// This authenticated view description identifies approved source devices. It
+// does not replace the current lease/action/source checks on every command.
+message InputDeviceGrant {
+  string seat_id=1; string device_id=2; string key_namespace=3;
+  string input_mode=4; string text_owner=5;
+}
 message RevisionAck { uint64 revision=1; }
 message ResumeRequest { bytes epoch=1; bytes view_id=2; uint64 acknowledged_revision=3; }
 message ResumeAccepted { uint64 from_revision=1; uint64 through_revision=2; bool requires_resources=3; }

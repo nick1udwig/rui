@@ -429,7 +429,7 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                     if view.selection!="fixture" || view.mirror_canvas_policy!=if semantic_only {"semantic-only"}else {"host-canvas"} {return Err(TransportError::Protocol);}opened=true;
                     let description={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?};
                     record_incoming(recording.as_ref(),kind,&raw)?;
-                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage,granted_input_modes:description.input_modes};
+                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage,granted_input_modes:description.input_modes,input_devices:description.input_devices.into_iter().map(|d|p::InputDeviceGrant{seat_id:d.seat_id,device_id:d.device_id,key_namespace:d.key_namespace,input_mode:d.input_mode,text_owner:d.text_owner}).collect()};
                     send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ViewOpened,&opened,binding),ceiling,timeout).await?;
                     match &session.resume {
                         ResumeDisposition::Accepted {from_revision,through_revision,transactions,requires_resources}=>{

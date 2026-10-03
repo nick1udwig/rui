@@ -21,7 +21,7 @@ use zeroize::Zeroize;
 
 #[derive(Debug)]
 pub enum ClientEvent {
-    ViewOpened(p::ViewOpened),
+    ViewOpened(OpenedView),
     Applied { revision: u64 },
     ResourcesNeeded { revision: u64 },
     ResourceAvailable,
@@ -32,6 +32,28 @@ pub enum ClientEvent {
     ResetRequired(p::ResetRequired),
     Pong(u64),
     Error(String),
+}
+/// Immutable authenticated view metadata. Its conservative decoded allocation
+/// reservation survives every escaped handle and is released when it drops.
+pub struct OpenedView {
+    wire: p::ViewOpened,
+    _memory: MemoryReservation,
+}
+impl std::ops::Deref for OpenedView {
+    type Target = p::ViewOpened;
+    fn deref(&self) -> &Self::Target {
+        &self.wire
+    }
+}
+impl std::fmt::Debug for OpenedView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenedView")
+            .field("canvas_width", &self.wire.canvas_width)
+            .field("canvas_height", &self.wire.canvas_height)
+            .field("coverage", &self.wire.coverage)
+            .field("input_device_count", &self.wire.input_devices.len())
+            .finish()
+    }
 }
 
 type ClientSocket =
@@ -846,10 +868,26 @@ impl NetworkClient {
             let context = self.context;
             match kind {
                 p::Kind::ViewOpened => {
-                    return Ok(ClientEvent::ViewOpened(codec::decode(
-                        &packet.payload,
-                        ceiling,
-                    )?))
+                    let memory = self
+                        .receiver
+                        .memory_budget()
+                        .reserve(
+                            packet
+                                .payload
+                                .len()
+                                .checked_mul(4)
+                                .and_then(|n| n.checked_add(8192))
+                                .ok_or(TransportError::Limit)?,
+                        )
+                        .map_err(|_| TransportError::Limit)?;
+                    let wire = codec::view_opened(&packet.payload, ceiling)?;
+                    if codec::id(&wire.view_id)? != self.view_id {
+                        return Err(TransportError::Binding);
+                    }
+                    return Ok(ClientEvent::ViewOpened(OpenedView {
+                        wire,
+                        _memory: memory,
+                    }));
                 }
                 p::Kind::SnapshotBegin | p::Kind::TransactionBegin => {
                     let wire: p::PublicationBegin = codec::decode(&packet.payload, ceiling)?;

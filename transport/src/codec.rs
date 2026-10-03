@@ -69,7 +69,9 @@ pub enum Schema {
     ResourceComplete,
     Error,
     Ping,
+    InputDeviceGrant,
 }
+const SCHEMA_COUNT: usize = Schema::InputDeviceGrant as usize + 1;
 macro_rules! schemas {($($name:ident),+)=>{$(impl sealed::Schema for p::$name { const SCHEMA: Schema=Schema::$name; } impl WireMessage for p::$name {})+};}
 schemas!(
     Packet,
@@ -99,7 +101,8 @@ schemas!(
     ResourceChunk,
     ResourceComplete,
     Error,
-    Ping
+    Ping,
+    InputDeviceGrant
 );
 #[derive(Clone, Copy)]
 enum Field {
@@ -111,6 +114,7 @@ enum Field {
     Digests,
     Versions,
     Nested(Schema),
+    RepeatedNested(Schema, u16),
 }
 impl Schema {
     fn field(self, n: usize) -> Option<Field> {
@@ -143,6 +147,8 @@ impl Schema {
             (S::ViewOpened, 2..=3) => Some(Fixed64),
             (S::ViewOpened, 4) => Some(String(256)),
             (S::ViewOpened, 5) => Some(Strings),
+            (S::ViewOpened, 128) => Some(RepeatedNested(S::InputDeviceGrant, 16)),
+            (S::InputDeviceGrant, 1..=5) => Some(String(64)),
             (S::RevisionAck, 1) | (S::GetCommandResult, 1) | (S::Ping, 1) => Some(Scalar),
             (S::ResumeRequest, 1..=2) => Some(id),
             (S::ResumeRequest, 3) | (S::ResumeAccepted, 1..=3) => Some(Scalar),
@@ -182,7 +188,7 @@ impl Schema {
     }
 }
 struct Scan {
-    counts: [[u16; 16]; 28],
+    counts: [[u16; 16]; SCHEMA_COUNT],
     fields: usize,
     allocation: usize,
     budget: usize,
@@ -197,7 +203,10 @@ impl Scan {
         Ok(())
     }
     fn count(&mut self, schema: Schema, field: usize, maximum: u16) -> Result<(), TransportError> {
-        let count = &mut self.counts[schema as usize][field];
+        let slot = if field == 128 { 15 } else { field };
+        let count = self.counts[schema as usize]
+            .get_mut(slot)
+            .ok_or(TransportError::Protocol)?;
         *count = count
             .checked_add(1)
             .filter(|n| *n <= maximum)
@@ -209,6 +218,7 @@ impl Scan {
             return Err(TransportError::Limit);
         }
         let mut cursor = 0;
+        let mut grant_fields = 0u16;
         while cursor < raw.len() {
             self.fields += 1;
             if self.fields > 4096 {
@@ -221,6 +231,15 @@ impl Scan {
                 return Err(TransportError::Protocol);
             }
             let rule = schema.field(field);
+            // Device grants are immutable, unambiguous declarations. Repeated
+            // singular fields cannot overwrite an earlier advertised scope.
+            if matches!(schema, Schema::InputDeviceGrant) && rule.is_some() {
+                let bit = 1u16 << field;
+                if grant_fields & bit != 0 {
+                    return Err(TransportError::Protocol);
+                }
+                grant_fields |= bit;
+            }
             if rule.is_none() && field < 128 {
                 return Err(TransportError::Protocol);
             }
@@ -286,6 +305,11 @@ impl Scan {
                     self.charge(256)?;
                     self.message(body, child, depth + 1)?;
                 }
+                Some(Field::RepeatedNested(child, maximum)) if wire == 2 => {
+                    self.count(schema, field, maximum)?;
+                    self.charge(256)?;
+                    self.message(body, child, depth + 1)?;
+                }
                 _ => return Err(TransportError::Protocol),
             }
         }
@@ -297,13 +321,46 @@ pub fn decode<T: WireMessage>(raw: &[u8], ceiling: usize) -> Result<T, Transport
         return Err(TransportError::Limit);
     }
     let mut scan = Scan {
-        counts: [[0; 16]; 28],
+        counts: [[0; 16]; SCHEMA_COUNT],
         fields: 0,
         allocation: std::mem::size_of::<T>(),
         budget: ceiling.saturating_mul(4).saturating_add(4096),
     };
     scan.message(raw, T::SCHEMA, 0)?;
     T::decode(raw).map_err(|_| TransportError::Protocol)
+}
+/// Strict optional raw-device declarations. An absent list supports legacy
+/// semantic mirrors; unknown modes or ambiguous device scopes fail closed.
+pub fn view_opened(raw: &[u8], ceiling: usize) -> Result<p::ViewOpened, TransportError> {
+    let opened: p::ViewOpened = decode(raw, ceiling)?;
+    if !opened.canvas_width.is_finite()
+        || !opened.canvas_height.is_finite()
+        || opened.canvas_width <= 0.0
+        || opened.canvas_height <= 0.0
+        || !matches!(
+            opened.coverage.as_str(),
+            "complete" | "partial" | "semantic-only"
+        )
+    {
+        return Err(TransportError::Protocol);
+    }
+    for (index, grant) in opened.input_devices.iter().enumerate() {
+        if grant.seat_id.is_empty()
+            || grant.device_id.is_empty()
+            || grant.key_namespace != "linux.evdev"
+            || !matches!(
+                (grant.input_mode.as_str(), grant.text_owner.as_str()),
+                ("raw.pointer.v1", "CLIENT_TEXT") | ("raw.host.v1", "HOST_PHYSICAL")
+            )
+            || !opened.granted_input_modes.contains(&grant.input_mode)
+            || opened.input_devices[..index]
+                .iter()
+                .any(|old| old.seat_id == grant.seat_id && old.device_id == grant.device_id)
+        {
+            return Err(TransportError::Protocol);
+        }
+    }
+    Ok(opened)
 }
 pub fn packet(
     raw: &[u8],
@@ -491,6 +548,109 @@ pub fn wire_resource_offer(offer: &ResourceOffer, chunk_count: u32) -> p::Resour
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn opened() -> p::ViewOpened {
+        p::ViewOpened {
+            view_id: vec![1; 16],
+            canvas_width: 920.0,
+            canvas_height: 480.0,
+            coverage: "complete".into(),
+            granted_input_modes: vec!["raw.pointer.v1".into()],
+            input_devices: vec![p::InputDeviceGrant {
+                seat_id: "source-seat".into(),
+                device_id: "source-device".into(),
+                key_namespace: "linux.evdev".into(),
+                input_mode: "raw.pointer.v1".into(),
+                text_owner: "CLIENT_TEXT".into(),
+            }],
+        }
+    }
+    #[test]
+    fn input_device_grants_are_bounded_unambiguous_and_optional_to_legacy_peers() {
+        let valid = opened();
+        let raw = valid.encode_to_vec();
+        assert_eq!(view_opened(&raw, 4096).unwrap(), valid);
+        // Handwritten legacy ViewOpened decoder skips the unknown optional
+        // extension without discovering or inventing a raw device scope.
+        let mut cursor = 0;
+        let mut known = 0;
+        while cursor < raw.len() {
+            let key = varint(&raw, &mut cursor).unwrap();
+            let field = key >> 3;
+            let wire = key & 7;
+            if field < 128 {
+                known += 1;
+                assert!((1..=5).contains(&field));
+            }
+            let length = match wire {
+                1 => 8,
+                2 => varint(&raw, &mut cursor).unwrap() as usize,
+                _ => panic!("unexpected legacy field wire type"),
+            };
+            cursor = cursor
+                .checked_add(length)
+                .filter(|n| *n <= raw.len())
+                .unwrap();
+        }
+        assert_eq!(known, 5);
+        let mut invalid = valid.clone();
+        invalid.input_devices.push(valid.input_devices[0].clone());
+        assert_eq!(
+            view_opened(&invalid.encode_to_vec(), 4096),
+            Err(TransportError::Protocol)
+        );
+        for (mode, owner, namespace) in [
+            ("unknown.v1", "CLIENT_TEXT", "linux.evdev"),
+            ("raw.pointer.v1", "HOST_PHYSICAL", "linux.evdev"),
+            ("raw.pointer.v1", "CLIENT_TEXT", "unknown.namespace"),
+        ] {
+            let mut invalid = valid.clone();
+            let grant = &mut invalid.input_devices[0];
+            grant.input_mode = mode.into();
+            grant.text_owner = owner.into();
+            grant.key_namespace = namespace.into();
+            assert_eq!(
+                view_opened(&invalid.encode_to_vec(), 4096),
+                Err(TransportError::Protocol)
+            );
+        }
+        let mut oversized = valid.clone();
+        oversized.input_devices = vec![valid.input_devices[0].clone(); 17];
+        assert_eq!(
+            decode::<p::ViewOpened>(&oversized.encode_to_vec(), 4096),
+            Err(TransportError::Limit)
+        );
+        oversized = valid.clone();
+        oversized.input_devices[0].seat_id = "x".repeat(65);
+        assert_eq!(
+            decode::<p::ViewOpened>(&oversized.encode_to_vec(), 4096),
+            Err(TransportError::Limit)
+        );
+        // Singular grant fields cannot be merged/overwritten before decoding.
+        let mut grant = valid.input_devices[0].encode_to_vec();
+        grant.extend([10, 0]);
+        assert_eq!(
+            decode::<p::InputDeviceGrant>(&grant, 4096),
+            Err(TransportError::Protocol)
+        );
+        let mut required = valid.input_devices[0].encode_to_vec();
+        required.extend([50, 0]);
+        assert_eq!(
+            decode::<p::InputDeviceGrant>(&required, 4096),
+            Err(TransportError::Protocol)
+        );
+        let mut optional = valid.input_devices[0].encode_to_vec();
+        optional.extend([0xb8, 0x3e, 1]);
+        assert_eq!(
+            decode::<p::InputDeviceGrant>(&optional, 4096).unwrap(),
+            valid.input_devices[0]
+        );
+        let mut legacy = valid;
+        legacy.input_devices.clear();
+        assert!(view_opened(&legacy.encode_to_vec(), 4096)
+            .unwrap()
+            .input_devices
+            .is_empty());
+    }
     #[test]
     fn recursively_counts_merged_permissions_before_allocating() {
         // Each singular Permissions occurrence merges into the same prost value.

@@ -142,6 +142,15 @@ pub struct ViewDescription {
     pub height: f64,
     pub coverage: String,
     pub input_modes: Vec<String>,
+    pub input_devices: Vec<InputDeviceDescription>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InputDeviceDescription {
+    pub seat_id: String,
+    pub device_id: String,
+    pub key_namespace: String,
+    pub input_mode: String,
+    pub text_owner: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostDiagnostics {
@@ -831,6 +840,21 @@ impl ControlledHost {
                     }
                 }
                 modes
+            } else {
+                vec![]
+            },
+            input_devices: if self.source.corpus.is_some()
+                && !projection.semantic_only
+                && projection.permissions.can_control
+                && projection.permissions.actions.contains("RawInputBatch")
+            {
+                vec![InputDeviceDescription {
+                    seat_id: source_input::FIXTURE_SEAT.into(),
+                    device_id: source_input::FIXTURE_DEVICE.into(),
+                    key_namespace: "linux.evdev".into(),
+                    input_mode: "raw.pointer.v1".into(),
+                    text_owner: "CLIENT_TEXT".into(),
+                }]
             } else {
                 vec![]
             },

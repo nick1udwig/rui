@@ -25,6 +25,18 @@ source rejects unsupported families. OS input and native presentation are separa
 adapter/client integrations. Private-field filtering is guaranteed only for this
 controlled cooperating fixture, not arbitrary applications.
 
+`ViewOpened.input_devices` is an optional tag-128 extension identifying the
+approved view's source seat, device, key namespace, input mode and text ownership.
+Absence disables raw device discovery. The receiver allows at most 16 unique
+seat/device scopes and 64 bytes per string; it rejects overwritten fields,
+duplicates and unsupported mode/ownership/namespace combinations before raw use.
+The current modes are `raw.pointer.v1` with `CLIENT_TEXT`, and `raw.host.v1` with
+`HOST_PHYSICAL`, using `linux.evdev`. Observer and semantic-only projections
+advertise no devices. Every command still needs the current lease, permission and
+source route checks. `ClientEvent::ViewOpened` owns an immutable `OpenedView`
+reservation against the receiver budget, including when retained outside the
+client; callers must account for any explicit clones of protobuf fields.
+
 The runnable pairing example uses `HostConfig::fresh()` before creating its
 in-memory dispatch ledger. A broker restart or lost ledger must mint a new epoch;
 retained client state then receives a fresh checkpoint. `tests/epoch.rs` preserves
