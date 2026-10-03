@@ -614,8 +614,56 @@ attachment. Focused tests cover foreign attachment/digest rejection, exact old
 ACKs after source advances, resource recovery, independent stalled views,
 mapped Partial rejection, and per-view cleanup when replacement installation
 fails after graph verification. Readiness calls in these unit tests are simulated
-callback inputs, not native presentation evidence. The transport owner lane,
-native lifecycle fence and real mirror/wire-composition probes remain pending.
+callback inputs, not native presentation evidence. The transport owner lane and
+real mirror/wire-composition probes remain pending.
+
+## Native lifecycle fence
+
+The private source inherits a read-only descriptor for one sealed 4096-byte
+memfd. ABI v1 places an aligned native-endian atomic u64 control generation at
+offset0, an immutable source generation at offset8, and `RUIFENC1` at offset16.
+Zero denies native execution. The host retains the existing writable mapping;
+grow, shrink and future-write seals prevent the source from making a writable
+mapping. The source checks the descriptor, seals, header and lock-free atomic
+ABI, and loads the word with acquire ordering through `libatomic`. No externally
+supplied path is opened. Absent or invalid inherited descriptors fail closed.
+
+The final GTK guard reads this fence again immediately before its native call,
+after command and deadline validation, without yielding to the main loop.
+Release, revocation, disconnect, source exit and pipe disposal invalidate the
+matching generation. The host serializes generation issuance with invalidation;
+a retired generation can never be granted again. The mapping and inherited
+descriptor retain an 8192-byte host charge until their last owner drops; the
+source reserves its own mapping allowance. Priority transport lifecycle wiring
+is still a separate integration gate.
+
+`native-fence-interaction.json` records an actual core-admitted command deferred
+in the GTK queue. A bounded source receipt identifies the exact private request,
+source generation1 and still-valid atomic control generation1 at queue entry.
+The trusted host invalidator waits for that exact receipt, then clears the word.
+The deferred callback waits for zero with a two-second deadline, before returning
+to the final native guard. Its later receipt identifies the same request, atomic
+fence value0 and zero native dispatches; source monotonic timestamps establish
+receipt ordering. No timer alone establishes this sequencing.
+The command fails and its exact retry returns the retained failure without a
+native call. After releasing the retired lease, fresh generation2 reaches the
+real native modal close action: one dispatch and four callbacks. The two exact
+source snapshots show the modal mapped then unmapped with unchanged text.
+
+The report binds all 42 retained vector `.bin`, `.json` and `.rvp` files by
+SHA-256. Rust replay verifies both full source captures, decoded geometry and
+resource closure, the actual action's causal token, and disposal to zero. This
+is trusted lifecycle-fence fault evidence on a private display and bus, using
+semantic readiness. It does not establish stalled transport disconnect or
+revocation, wire TextComposition, or actual client Presented readiness.
+
+```sh
+cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-native-fence-empty --scenario native-fence
+python3 fixtures/gtk/retain_native.py /tmp/rui-native-fence-empty --name native-fence
+cargo test -p rui-producer-sdk --test native_fence_trace
+```
 
 ## Native editing context between frames
 

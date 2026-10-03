@@ -15,7 +15,8 @@ from .reference import fields, one, many, number
 ROOT = Path(__file__).resolve().parent.parent
 CORPORA = ('gtk/golden', 'gtk/native-golden', 'gtk/unicode-golden',
            'gtk/restart-golden', 'gtk/negative-golden', 'gtk/whole-golden',
-           'gtk/whole-native-golden', 'gtk/native-context-golden', 'atspi/golden')
+           'gtk/whole-native-golden', 'gtk/native-context-golden',
+           'gtk/native-fence-golden', 'atspi/golden')
 
 
 def verify_resource(body, kind, version, provenance, digest):

@@ -1,9 +1,15 @@
 """Bounded private IPC/retention checks; actual native effects use native_check."""
 import json
+import ctypes
+import fcntl
+import mmap
+import os
+import struct
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -12,9 +18,49 @@ from adapters.gtk4.state import NativeRegistry, SourceRejected
 from adapters.gtk4.transaction import CaptureBudget
 from adapters.sdk.producer import CoherentSource
 from fixtures.gtk.whole_view import WholeView
+from adapters.gtk4.native_fence import NativeFence
 
 
 class NativeBoundsTests(unittest.TestCase):
+    def test_inherited_native_fence_has_no_absent_or_bad_descriptor_fallback(self):
+        for value in (None, 'not-a-fd', '9' * 100):
+            environment = {} if value is None else {'RUI_PRIVATE_CONTROL_FD': value}
+            with patch.dict(os.environ, environment, clear=True):
+                with self.assertRaisesRegex(ValueError, 'inherited-native-fence'):
+                    NativeFence.inherited(1)
+        with self.assertRaises(OSError):
+            NativeFence(-1, 1)
+
+    def test_readonly_sealed_fence_validates_identity_and_atomic_reader_lifetime(self):
+        writer = os.memfd_create('rui-fence-unit', os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+        os.ftruncate(writer, 4096)
+        mapping = mmap.mmap(writer, 4096, flags=mmap.MAP_SHARED, prot=mmap.PROT_READ | mmap.PROT_WRITE)
+        mapping[8:24] = struct.pack('=Q', 3) + b'RUIFENC1'
+        reader = os.open('/proc/self/fd/' + str(writer), os.O_RDONLY | os.O_CLOEXEC)
+        try:
+            with self.assertRaisesRegex(ValueError, 'size-or-access'):
+                NativeFence(writer, 3)
+            with self.assertRaisesRegex(ValueError, 'seals'):
+                NativeFence(reader, 3)
+            fcntl.fcntl(writer, fcntl.F_ADD_SEALS, fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_FUTURE_WRITE | fcntl.F_SEAL_SEAL)
+            with self.assertRaisesRegex(ValueError, 'incarnation'):
+                NativeFence(reader, 2)
+            fence = NativeFence(reader, 3)
+            self.assertEqual(fence.current(), 0)
+            ctypes.c_uint64.from_buffer(mapping).value = 7
+            self.assertEqual(fence.current(), 7)
+            with self.assertRaises(TypeError):
+                fence.mapping[0:8] = struct.pack('=Q', 99)
+            ctypes.c_uint64.from_buffer(mapping).value = 0
+            self.assertEqual(fence.current(), 0)
+            fence.close()
+            self.assertEqual(fence.current(), 0)
+            fence.close()
+        finally:
+            mapping.close()
+            os.close(reader)
+            os.close(writer)
+
     def test_failed_text_event_observation_permanently_denies_incarnation(self):
         for failure in ('reservation', 'read'):
             source = CoherentSource()

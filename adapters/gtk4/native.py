@@ -13,6 +13,7 @@ import time
 from gi.repository import GLib, Gtk
 
 from adapters.gtk4.state import NativeAction, SourceRejected, editable_text
+from adapters.gtk4.native_fence import NativeFence
 
 
 MAX_REQUEST = 128 << 10
@@ -61,6 +62,14 @@ class NativeDispatcher:
         if not 1 <= self.source_generation <= 5:
             raise ValueError("private-source-generation-ceiling")
         corpus.source.private_generation = self.source_generation
+        self.fence_memory = None
+        try:
+            self.fence_memory = whole.budget.reserve(8192) if whole is not None else None
+            self.fence = NativeFence.inherited(self.source_generation)
+        except Exception:
+            if self.fence_memory:
+                self.fence_memory.close()
+            raise
         self.fixture_hooks = fixture_hooks
         self.buffer = bytearray(MAX_REQUEST + 4)
         self.used = 0
@@ -71,6 +80,7 @@ class NativeDispatcher:
         self.fail_after_dispatch = None
         self.control = None
         self.delay_until_expired = False
+        self.delay_for_fence = False
         self.closed = False
         self.current_artifact = None
         self.promised_artifact = None
@@ -106,6 +116,9 @@ class NativeDispatcher:
 
     def close(self):
         self.closed = True
+        self.fence.close()
+        if self.fence_memory:
+            self.fence_memory.close()
         if self.whole is not None:
             self.whole.barrier.close()
             self.capture_memory.close()
@@ -262,6 +275,8 @@ class NativeDispatcher:
                 self.fail_after_dispatch = operation
             elif operation == 'delay-until-expired':
                 self.delay_until_expired = True
+            elif operation == 'delay-for-fence':
+                self.delay_for_fence = True
             elif operation == 'disable-button':
                 self.corpus.button.set_sensitive(False)
             elif operation == 'enable-button':
@@ -291,6 +306,25 @@ class NativeDispatcher:
             delay = max(1, (guard['deadline_ns'] - time.monotonic_ns()) // 1_000_000 + 50)
             GLib.timeout_add(delay, lambda: (self.handle(request), False)[1])
             return
+        if self.delay_for_fence:
+            self.delay_for_fence = False
+            self.corpus.source.write_artifact(self.corpus.output, 'native-fence-queued.json', json.dumps({
+                'private_request_id': request_id, 'source_generation': self.source_generation,
+                'control_generation': guard['control_generation'], 'fence_generation': self.fence.current(),
+                'native_dispatches': self.native_dispatches, 'observed_monotonic_ns': time.monotonic_ns()}).encode())
+            deadline = time.monotonic_ns() + 2_000_000_000
+
+            def after_invalidation():
+                if self.fence.current() == 0:
+                    self.handle(request)
+                    return False
+                if time.monotonic_ns() >= deadline:
+                    self.reply(request_id, 'rejected', reason='fixture-fence-invalidation-timeout')
+                    return False
+                return True
+
+            GLib.timeout_add(5, after_invalidation)
+            return
         if self.race_next == 'edit':
             self.corpus.entry.set_text('local intervening source edit')
             self.race_next = None
@@ -318,6 +352,8 @@ class NativeDispatcher:
                 raise SourceRejected('retired-private-source-generation')
             if self.control != (guard['lease_id'], guard['control_generation'], guard['deadline_ns']):
                 raise SourceRejected('retired-native-control-generation')
+            if self.fence.current() != guard['control_generation']:
+                raise SourceRejected('retired-native-lifecycle-fence')
             if time.monotonic_ns() >= guard['deadline_ns']:
                 if self.fixture_hooks:
                     (self.corpus.output / 'native-expiry-receipt.json').write_text(json.dumps({'native_dispatches': self.native_dispatches, 'reason': 'lease-expired-at-native-dispatch'}))
@@ -362,7 +398,15 @@ class NativeDispatcher:
             self.validate_arguments(key, widget, action, arguments)
             if time.monotonic_ns() >= guard['deadline_ns']:
                 raise SourceRejected('lease-expired-at-native-dispatch')
+            if self.fence.current() != guard['control_generation']:
+                raise SourceRejected('retired-native-lifecycle-fence')
         except (SourceRejected, StopIteration) as error:
+            if self.fixture_hooks and str(error) == 'retired-native-lifecycle-fence':
+                self.corpus.source.write_artifact(self.corpus.output, 'native-fence-receipt.json', json.dumps({
+                    'private_request_id': request_id, 'source_generation': self.source_generation,
+                    'control_generation': guard['control_generation'], 'fence_generation': self.fence.current(),
+                    'native_dispatches': self.native_dispatches, 'reason': str(error),
+                    'observed_monotonic_ns': time.monotonic_ns()}).encode())
             self.reply(request_id, 'rejected', reason=str(error) or 'retired-source-object')
             return
         # Every prior check and the native calls share this GTK main-loop turn.

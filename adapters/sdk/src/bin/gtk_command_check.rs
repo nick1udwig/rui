@@ -184,13 +184,13 @@ impl Fixture {
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut command = Command::new("python3");
         command
-            .arg(
-                repository.join(if matches!(name, "whole-native" | "native-context") {
+            .arg(repository.join(
+                if matches!(name, "whole-native" | "native-context" | "native-fence") {
                     "fixtures/gtk/whole_native_source.py"
                 } else {
                     "fixtures/gtk/native_source.py"
-                }),
-            )
+                },
+            ))
             .arg("--output")
             .arg(&directory)
             .arg("--fixture-hooks");
@@ -1324,6 +1324,78 @@ fn native_context(root: &Path) -> Result<Value> {
     result["focus_generation_after_native_cycle"] = json!(current);
     Ok(result)
 }
+fn native_fence(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "native-fence")?;
+    let close = named(f.state(), "Close native modal");
+    f.host.trusted_fixture_mutation(Mutation::DelayForFence)?;
+    let invalidation = f.host.invalidate_native_fence_when_queued()?;
+    let delayed = f.command(close, "Activate", none());
+    let failed = f.submit(
+        "shared-fence-invalidated-while-native-final-guard-stalled",
+        &delayed,
+        Status::Failed,
+    )?;
+    let queued = invalidation.join().unwrap()?;
+    let receipt_path = f.directory.join("native-fence-receipt.json");
+    assert!(receipt_path.metadata()?.len() <= 1024);
+    let receipt: Value = serde_json::from_slice(&fs::read(receipt_path)?)?;
+    assert_eq!(receipt["reason"], "retired-native-lifecycle-fence");
+    assert_eq!(receipt["fence_generation"], 0);
+    assert_eq!(receipt["native_dispatches"], 0);
+    assert_eq!(receipt["control_generation"], f.lease.generation);
+    assert_eq!(queued["private_request_id"], receipt["private_request_id"]);
+    assert!(
+        queued["observed_monotonic_ns"].as_u64().unwrap()
+            < receipt["observed_monotonic_ns"].as_u64().unwrap()
+    );
+    assert_eq!(f.host.diagnostics().native_dispatches, 0);
+    assert!(f.host.source_capture_for_diagnostics()["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["surface_key"] == "modal" && s["mapped"] == true));
+    f.retry("exact-fence-failure-zero-redispatch", &delayed, &failed)?;
+    assert!(
+        f.host
+            .acquire_control(&f.session.client, [8; 16], f.now())
+            .is_err(),
+        "a retired generation cannot be revived by its exact grant retry"
+    );
+    f.host.release_control(
+        &f.session.client,
+        [9; 16],
+        f.lease.lease_id,
+        f.lease.generation,
+        f.now(),
+    )?;
+    let old = f.lease.generation;
+    f.lease = f
+        .host
+        .acquire_control(&f.session.client, [10; 16], f.now())?;
+    assert!(f.lease.generation > old);
+    let fresh = f.lease.generation;
+    let current = f.command(close, "Activate", none());
+    f.submit(
+        "fresh-generation-native-action-after-fence-retirement",
+        &current,
+        Status::Applied,
+    )?;
+    assert_eq!(f.host.diagnostics().native_dispatches, 1);
+    assert!(f.host.source_capture_for_diagnostics()["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["surface_key"] == "modal" && s["mapped"] == false));
+    let mut report = f.finish()?;
+    report["retired_generation"] = json!(old);
+    report["fresh_generation"] = json!(fresh);
+    report["native_fence_receipt"] = receipt;
+    report["native_fence_queued"] = queued;
+    report["fault_scope"] = json!(
+        "trusted lifecycle-fence invalidation during a deliberately delayed admitted native command; not transport disconnect evidence"
+    );
+    Ok(report)
+}
 fn main() -> Result<()> {
     let root = PathBuf::from(
         std::env::args()
@@ -1331,7 +1403,9 @@ fn main() -> Result<()> {
             .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
     );
     fs::create_dir_all(&root)?;
-    let report = if std::env::args().nth(2).as_deref() == Some("native-context") {
+    let report = if std::env::args().nth(2).as_deref() == Some("native-fence") {
+        json!({"scope":"sealed inherited atomic native lifecycle fence with actual core-admitted GTK final guard; trusted invalidation fault; no TLS, wire IME or Presented claim", "native_fence":native_fence(&root)?})
+    } else if std::env::args().nth(2).as_deref() == Some("native-context") {
         json!({"scope":"actual core semantic admission and native focus/selection context guards; no TextComposition or Presented claim", "native_context":native_context(&root)?})
     } else if std::env::args().nth(2).as_deref() == Some("whole-native") {
         json!({"scope":"one core ledger to actual native GTK callbacks and coherent cooperating whole-view capture; semantic-only observers; no TLS, wire IME or Presented claim", "whole_native":whole_native(&root)?})

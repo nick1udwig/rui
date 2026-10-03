@@ -1,6 +1,7 @@
 //! Bounded capture artifact consumer. This is a local fixture bridge, not a
 //! network or authenticated broker. Trust policy is supplied by the caller.
 pub mod gtk_host;
+mod native_fence;
 mod source_identity;
 pub mod vector_audit;
 use rui_protocol_core::model::{GlyphFont, Primitive, Record};

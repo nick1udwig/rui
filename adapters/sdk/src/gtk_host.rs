@@ -2,6 +2,7 @@
 //! The caller authenticates principals. The inherited native socket is private
 //! to this host and its source; it accepts only commands this ledger admitted.
 //! Public projections have independent bounded delivery and resource ownership.
+use crate::native_fence::NativeFence;
 use crate::source_identity::SourceIdentities;
 use crate::{
     bounded_read, manifest_preflight, CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES,
@@ -88,6 +89,7 @@ struct NativeCapture {
     _memory: MemoryReservation,
 }
 struct NativePipe {
+    fence: NativeFence,
     child: Child,
     socket: UnixStream,
     directory: PathBuf,
@@ -100,6 +102,7 @@ struct NativePipe {
 }
 impl Drop for NativePipe {
     fn drop(&mut self) {
+        self.fence.invalidate();
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         let _ = self.child.kill();
         let _ = self.child.wait();
@@ -161,6 +164,8 @@ impl NativePipe {
         // Covers encoded request, read buffer, decoded bounded reply and spare
         // serde containers throughout the one permitted round trip.
         let working = budget.reserve(1 << 20)?;
+        let fence = NativeFence::new(&budget, source_generation)?;
+        fence.inherit(&mut command);
         let (socket, child_socket) = UnixStream::pair()?;
         command
             .env(
@@ -171,6 +176,7 @@ impl NativePipe {
             .stdout(Stdio::null());
         let child = command.spawn()?;
         let mut pipe = Self {
+            fence,
             child,
             socket,
             directory,
@@ -560,6 +566,7 @@ impl GtkCommandHost {
             return Ok(());
         }
         self.source_alive = false;
+        self.pipe.fence.invalidate();
         self.pipe.failed = true;
         self.sessions.revoke_control(now);
         self.native_lease = None;
@@ -829,6 +836,9 @@ impl GtkCommandHost {
             native.lease_id == lease.lease_id && native.generation == lease.generation
         }) {
             // An exact grant retry never extends the native deadline.
+            if self.pipe.fence.current() != lease.generation {
+                return Err(SessionError::StaleControl.into());
+            }
             return Ok(lease);
         }
         let deadline_ns = monotonic_ns()?
@@ -840,6 +850,7 @@ impl GtkCommandHost {
                     .ok_or(GtkHostError::Unsupported)?,
             )
             .ok_or(GtkHostError::Unsupported)?;
+        self.pipe.fence.grant(lease.generation)?;
         #[derive(Serialize)]
         struct Control {
             request_id: u64,
@@ -866,12 +877,113 @@ impl GtkCommandHost {
         self.native_lease = Some((lease.clone(), deadline_ns));
         Ok(lease)
     }
+    pub fn release_control(
+        &mut self,
+        client: &AuthenticatedClient,
+        request: Id,
+        lease: Id,
+        generation: u64,
+        now: u64,
+    ) -> Result<(), GtkHostError> {
+        self.view(client)?;
+        self.sessions
+            .release_control(client, request, lease, generation, now)?;
+        if self.native_lease.as_ref().is_some_and(|(native, _)| {
+            native.client == *client && native.lease_id == lease && native.generation == generation
+        }) {
+            self.pipe.fence.invalidate();
+            self.native_lease = None;
+        }
+        self.drain_native_cleanup();
+        Ok(())
+    }
+    fn drain_native_cleanup(&mut self) {
+        // Raw input and wire composition are unsupported in this slice, so the
+        // only native obligation is to retire the admitted lifecycle fence.
+        // Complete that obligation before acknowledging core cleanup/remapping.
+        while let Some(cleanup) = self.sessions.take_cleanup() {
+            if self.native_lease.as_ref().is_some_and(|(native, _)| {
+                native.lease_id == cleanup.lease.lease_id
+                    && native.generation == cleanup.lease.generation
+            }) {
+                self.pipe.fence.invalidate();
+                self.native_lease = None;
+            }
+        }
+    }
+    #[cfg(feature = "gtk-fixture-hooks")]
+    pub fn invalidate_native_fence_when_queued(
+        &self,
+    ) -> Result<std::thread::JoinHandle<Result<serde_json::Value, GtkHostError>>, GtkHostError>
+    {
+        let memory = self.pipe.budget.reserve(256 << 10)?;
+        let fence = self.pipe.fence.clone();
+        let receipt_path = self.pipe.directory.join("native-fence-queued.json");
+        let request_id = self.pipe.next_request;
+        let source_generation = self.pipe.source_generation;
+        let generation = self
+            .native_lease
+            .as_ref()
+            .ok_or(GtkHostError::NativePipe)?
+            .0
+            .generation;
+        Ok(std::thread::Builder::new()
+            .stack_size(128 << 10)
+            .spawn(move || {
+                let _memory = memory;
+                let deadline = Instant::now() + Duration::from_secs(2);
+                loop {
+                    match bounded_read(&receipt_path, 1024) {
+                        Ok(bytes) => {
+                            let receipt: serde_json::Value = match serde_json::from_slice(&bytes) {
+                                Ok(receipt) => receipt,
+                                // The bounded source file can be observed while
+                                // its single write is still completing.
+                                Err(error) if error.is_eof() && Instant::now() < deadline => {
+                                    std::thread::sleep(Duration::from_millis(1));
+                                    continue;
+                                }
+                                Err(_) => return Err(GtkHostError::NativePipe),
+                            };
+                            if receipt["private_request_id"] != request_id
+                                || receipt["source_generation"] != source_generation
+                                || receipt["control_generation"] != generation
+                                || receipt["fence_generation"] != generation
+                                || receipt["native_dispatches"] != 0
+                                || receipt["observed_monotonic_ns"].as_u64().is_none()
+                                || fence.current() != generation
+                            {
+                                return Err(GtkHostError::NativePipe);
+                            }
+                            fence.invalidate();
+                            return Ok(receipt);
+                        }
+                        Err(CaptureError::Io(error))
+                            if error.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(_) => return Err(GtkHostError::NativePipe),
+                    }
+                    if Instant::now() >= deadline {
+                        return Err(GtkHostError::NativePipe);
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            })?)
+    }
     pub fn revoke_authorization(
         &mut self,
         client: &AuthenticatedClient,
         now: u64,
     ) -> Result<(), GtkHostError> {
+        if self
+            .native_lease
+            .as_ref()
+            .is_some_and(|(lease, _)| lease.client == *client)
+        {
+            self.pipe.fence.invalidate();
+            self.native_lease = None;
+        }
         self.sessions.invalidate_authorization(client, now)?;
+        self.drain_native_cleanup();
         if let Some(view) = self.views.remove(&client.client_instance_id) {
             drop(view);
         }
@@ -882,7 +994,16 @@ impl GtkCommandHost {
         client: &AuthenticatedClient,
         now: u64,
     ) -> Result<(), GtkHostError> {
+        if self
+            .native_lease
+            .as_ref()
+            .is_some_and(|(lease, _)| lease.client == *client)
+        {
+            self.pipe.fence.invalidate();
+            self.native_lease = None;
+        }
         self.sessions.disconnect(client, now)?;
+        self.drain_native_cleanup();
         if let Some(view) = self.views.remove(&client.client_instance_id) {
             drop(view);
         }
@@ -1117,6 +1238,7 @@ pub enum FixtureMutation {
     RaceModel,
     RaceSourceGeneration,
     RaceFocusCycle,
+    DelayForFence,
     SelectionCycle,
     InterruptWholeCapture,
     DisableButton,
@@ -1138,6 +1260,7 @@ impl FixtureMutation {
             Self::RaceModel => "race-model",
             Self::RaceSourceGeneration => "race-source-generation",
             Self::RaceFocusCycle => "race-focus-cycle",
+            Self::DelayForFence => "delay-for-fence",
             Self::SelectionCycle => "selection-cycle",
             Self::InterruptWholeCapture => "interrupt-whole-capture",
             Self::DisableButton => "disable-button",
@@ -1826,6 +1949,7 @@ mod tests {
         std::fs::create_dir_all(&directory).unwrap();
         let (socket, _peer) = UnixStream::pair().unwrap();
         let pipe = NativePipe {
+            fence: NativeFence::new(&budget, 1).unwrap(),
             child: ProcessCommand::new("true").spawn().unwrap(),
             socket,
             directory,
@@ -2172,7 +2296,7 @@ mod tests {
     #[test]
     fn private_reply_rejects_delayed_source_generation_before_accepting_diagnostics() {
         for (generation, accepted) in [(1, false), (2, true)] {
-            let budget = MemoryBudget::new(1 << 20);
+            let budget = MemoryBudget::new((1 << 20) + 8192);
             let directory = std::env::temp_dir().join(format!(
                 "rui-private-reply-{}-{generation}",
                 std::process::id()
@@ -2181,6 +2305,7 @@ mod tests {
             let (socket, mut peer) = UnixStream::pair().unwrap();
             let child = ProcessCommand::new("true").spawn().unwrap();
             let mut pipe = NativePipe {
+                fence: NativeFence::new(&budget, 2).unwrap(),
                 child,
                 socket,
                 directory: directory.clone(),

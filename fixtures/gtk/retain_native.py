@@ -14,7 +14,7 @@ import shutil
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('run', type=Path)
-    parser.add_argument('--name',choices=['native','unicode','restart','whole-native','native-context'],default='native')
+    parser.add_argument('--name',choices=['native','unicode','restart','whole-native','native-context','native-fence'],default='native')
     args = parser.parse_args()
     target = Path(__file__).parent
     trace = args.run / 'trace'
@@ -38,7 +38,7 @@ def main():
     hashes = {str(path.relative_to(staging)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(staging.rglob('*')) if path.is_file()}
     report.update(pinned_gtk=[4, 22, 4], retained_exact_trace='fixtures/gtk/' + args.name + '-golden',
                   retained_trace_sha256=hashes,
-                  observer_scope='Independent consumer instances of the same Rust reducer; independent Python implementation interop is separate evidence.',
+                  observer_scope=('One semantic consumer in this fence fault probe; no observer or independent decoder evidence.' if args.name == 'native-fence' else 'Separate consumer instances of the same Rust reducer; independent Python implementation interop is separate evidence.'),
                   exporter_audit_scope='Exact source geometry, closure/descriptors and named coverage gaps audited against decoded Rust state. Schema2 observations and source extraction origins retained for every publication; exporter Python pixel/draw/serialize traps active throughout native fixture. Native GTK local drawing is outside the probe boundary.')
     destination = target / (args.name + '-golden')
     if destination.exists():
