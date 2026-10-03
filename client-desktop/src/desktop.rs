@@ -687,7 +687,9 @@ pub async fn worker_with_priority(
     let mut dirty = false;
     let mut serial = 0u64;
     let mut issued = None;
+    let mut issued_routing = None;
     let mut presented: Option<Stamp> = None;
+    let mut presented_routing = None;
     let mut lease: Option<Lease> = None;
     let mut sequence = 1u64;
     let mut selected = None;
@@ -955,10 +957,10 @@ pub async fn worker_with_priority(
                         let v=*viewport.borrow();
                         match client.receiver().state().map_err(|_|crate::RenderError::Invalid).and_then(|state|renderer.render_view(state,v,client.receiver())) {
                             Ok(frame)=>match frame.into_rgba8_over(Color{red:1.0,green:1.0,blue:1.0,alpha:1.0}) {
-                                Ok(pixels)=>{ui_state.render_notice=None;if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);let routing=client.receiver().state().ok().and_then(|state|physical_dispatch::PresentedRouting::capture(state,&budget).ok());pending=Some(UiEvent::Frame{stamp,pixels,routing});dirty=false;},
-                                Err(_)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some("display-memory"));}pending=None;ui_state.clear(Lifecycle::Suspended);ui_state.render_notice=Some("Display allocation limit reached. Reduce the local viewport size.");ui.send_replace(ui_state);status(&events,"Display allocation limit reached.");dirty=false;},
+                                Ok(pixels)=>{ui_state.render_notice=None;if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);let routing=client.receiver().state().ok().and_then(|state|physical_dispatch::PresentedRouting::capture(state,&budget).ok());issued_routing=routing.clone();pending=Some(UiEvent::Frame{stamp,pixels,routing});dirty=false;},
+                                Err(_)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some("display-memory"));}pending=None;issued=None;issued_routing=None;presented=None;presented_routing=None;ui_state.clear(Lifecycle::Suspended);ui_state.render_notice=Some("Display allocation limit reached. Reduce the local viewport size.");ui.send_replace(ui_state);status(&events,"Display allocation limit reached.");dirty=false;},
                             },
-                            Err(error)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(match error {crate::RenderError::Memory(_)=>"render-memory",crate::RenderError::Limit(_)=>"render-limit",crate::RenderError::IncompleteSurface(_)=>"render-coverage",crate::RenderError::UnsupportedCursor=>"render-cursor",_=>"render"}));}pending=None;ui_state.clear(Lifecycle::Suspended);ui_state.render_notice=Some("Scene cannot be rendered within this profile and its limits.");ui.send_replace(ui_state);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
+                            Err(error)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(match error {crate::RenderError::Memory(_)=>"render-memory",crate::RenderError::Limit(_)=>"render-limit",crate::RenderError::IncompleteSurface(_)=>"render-coverage",crate::RenderError::UnsupportedCursor=>"render-cursor",_=>"render"}));}pending=None;issued=None;issued_routing=None;presented=None;presented_routing=None;ui_state.clear(Lifecycle::Suspended);ui_state.render_notice=Some("Scene cannot be rendered within this profile and its limits.");ui.send_replace(ui_state);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
                         }
                         let elapsed=work_start.elapsed();render_timing.rendered_frames=render_timing.rendered_frames.saturating_add(1);
                         render_timing.max_work_us=render_timing.max_work_us.max(elapsed.as_micros().min(u128::from(u64::MAX)) as u64);
@@ -977,7 +979,7 @@ pub async fn worker_with_priority(
                 event=client.receive()=>match event {
                     Ok(ClientEvent::ViewOpened(metadata))=>{if opened.is_some() {break;}opened=Some(metadata);},
                     Ok(ClientEvent::Applied{..})=>{awaiting_resources=false;dirty=true;status(&events,"View applied; waiting for display.");},
-                    Ok(ClientEvent::ResourcesNeeded{..})=>{awaiting_resources=true;status(&events,"Waiting for verified resources; typing remains queued.");},
+                    Ok(ClientEvent::ResourcesNeeded{..})=>{presented=None;presented_routing=None;issued=None;issued_routing=None;awaiting_resources=true;status(&events,"Waiting for verified resources; typing remains queued.");},
                     Ok(ClientEvent::ControlGranted(granted))=>{
                         if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=false);}
                         let charge=2048+granted.allowed_actions.capacity()*std::mem::size_of::<String>()+granted.allowed_actions.iter().map(String::capacity).sum::<usize>()+granted.lease_id.capacity()+granted.request_id.capacity();
@@ -1001,7 +1003,7 @@ pub async fn worker_with_priority(
                         } else {status(&events,if result.status=="Applied" || result.status=="APPLIED" {"Remote action applied."} else {"Remote action completed or rejected."});}
                     },
                 Ok(ClientEvent::ResetRequired(_))=>{
-                    pending=None;issued=None;presented=None;lease=None;selected=None;typing.cancel();
+                    pending=None;issued=None;issued_routing=None;presented=None;presented_routing=None;lease=None;selected=None;typing.cancel();
                     ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
                     dirty=false;awaiting_resources=false;
                     status(&events,"Retained history expired; waiting for the coherent checkpoint.");
@@ -1018,7 +1020,7 @@ pub async fn worker_with_priority(
                         UiCommand::LoseResources=>{
                             if awaiting_resources {status(&events,"Wait for the current publication before dropping its cache.");continue;}
                             let old_physical=ui_state.physical_control;
-                            typing.cancel();selected=None;presented=None;issued=None;pending=None;
+                            typing.cancel();selected=None;presented=None;presented_routing=None;issued=None;issued_routing=None;pending=None;
                             ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
                             if let Err(error)=physical_io::guarded(client.resource_cache_lost(),old_physical,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             awaiting_resources= !client.receiver().resources_ready().unwrap_or(false);dirty= !awaiting_resources;
@@ -1037,7 +1039,7 @@ pub async fn worker_with_priority(
                             if !awaiting_resources && ui_state.accepts(stamp) && issued.is_some_and(|s:Stamp|s.serial==stamp.serial && s.revision==stamp.revision)
                                 && client.receiver().state().is_ok_and(|s|s.revision==stamp.revision) {
                                 if let Err(error)=physical_io::guarded(client.presented(stamp.revision),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
-                                presented=Some(stamp);presented_frames+=1;status(&events,"Displayed.");
+                                presented=Some(stamp);presented_routing=issued_routing.clone();presented_frames+=1;status(&events,"Displayed.");
                                 if automatic_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}}
                                 if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!automatic_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
                             } else if !awaiting_resources {dirty=true;}
@@ -1045,8 +1047,8 @@ pub async fn worker_with_priority(
                         UiCommand::Physical(captured)=>{
                             if Some(captured.control)!=ui_state.physical_control {continue;}
                             let prepared=if ui_state.physical_ready {
-                                match (binding,presented,device,client.receiver().state()) {
-                                    (Some(binding),Some(stamp),Some(d),Ok(state))=>captured.prepare(state,binding,stamp.revision,ui_state.physical_control.unwrap(),physical.pointer_owner(),DeviceScope{seat:&d.seat_id,device:&d.device_id,key_namespace:&d.key_namespace,input_mode:&d.input_mode,text_owner:&d.text_owner}).ok(),
+                                match (binding,presented,presented_routing.as_deref(),device,client.receiver().state()) {
+                                    (Some(binding),Some(stamp),Some(routing),Some(d),Ok(state)) if routing.revision()==stamp.revision =>captured.prepare_against_presented(state,binding,routing,ui_state.physical_control.unwrap(),physical.pointer_owner(),DeviceScope{seat:&d.seat_id,device:&d.device_id,key_namespace:&d.key_namespace,input_mode:&d.input_mode,text_owner:&d.text_owner}).ok(),
                                     _=>None,
                                 }
                             } else {None};
@@ -1135,7 +1137,9 @@ pub async fn worker_with_priority(
         }
         pending = None;
         issued = None;
+        issued_routing = None;
         presented = None;
+        presented_routing = None;
         lease = None;
         selected = None;
         typing.cancel();

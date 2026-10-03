@@ -167,6 +167,234 @@ fn physical_keys_bind_painted_focus_but_allow_current_actual_marker_across_visua
     assert_eq!(budget.used(), 0);
 }
 #[test]
+fn later_actual_paint_uses_only_the_retained_real_marker_across_identical_whole_routing() {
+    let mut state = fixture();
+    let budget = MemoryBudget::new(128 * 1024);
+    let acknowledged = PresentedRouting::capture(&state, &budget).unwrap();
+    state.revision = 2;
+    if let Record::Surface(s) = state.records.get_mut(&10).unwrap() {
+        s.opacity = 0.75;
+        s.source_capture_tokens = vec![vec![8]];
+        s.version = 2;
+    }
+    let painted = PresentedRouting::capture(&state, &budget).unwrap();
+    let key = || {
+        CapturedPhysicalInput::key(
+            painted.clone(),
+            current(),
+            Viewport::new(100, 100),
+            123,
+            PhysicalKey {
+                code: 21,
+                pressed: true,
+            },
+            &budget,
+        )
+        .unwrap()
+    };
+    let pointer = || {
+        CapturedPhysicalInput::pointer(
+            painted.clone(),
+            current(),
+            Viewport::new(100, 100),
+            TimedEvent {
+                timestamp_us: 124,
+                event: Event::Button {
+                    code: 1,
+                    pressed: true,
+                    position: Point { x: 6.0, y: 8.0 },
+                },
+            },
+            &budget,
+            None,
+        )
+        .unwrap()
+    };
+    state.revision = 3;
+    if let Record::Surface(s) = state.records.get_mut(&10).unwrap() {
+        s.opacity = 0.5;
+        s.source_capture_tokens = vec![vec![9]];
+        s.version = 3;
+    }
+    assert!(
+        key()
+            .prepare(&state, binding(), 1, current(), None, device())
+            .is_err(),
+        "the revision-only API cannot authorize a later paint"
+    );
+    for captured in [key(), pointer()] {
+        let prepared = captured
+            .prepare_against_presented(&state, binding(), &acknowledged, current(), None, device())
+            .unwrap();
+        assert_eq!(prepared.wire.presented_revision, 1);
+        assert_eq!(
+            prepared
+                .wire
+                .header
+                .as_ref()
+                .unwrap()
+                .observed_view_revision,
+            1,
+            "no newer presentation acknowledgement is invented"
+        );
+    }
+    let mut stale = current();
+    stale.connection_generation += 1;
+    assert!(key()
+        .prepare_against_presented(&state, binding(), &acknowledged, stale, None, device())
+        .is_err());
+    let mut future = state.clone();
+    future.revision = 4;
+    let future_routing = PresentedRouting::capture(&future, &budget).unwrap();
+    let future_key = CapturedPhysicalInput::key(
+        future_routing,
+        current(),
+        Viewport::new(100, 100),
+        125,
+        PhysicalKey {
+            code: 21,
+            pressed: true,
+        },
+        &budget,
+    )
+    .unwrap();
+    assert!(
+        future_key
+            .prepare_against_presented(&state, binding(), &acknowledged, current(), None, device())
+            .is_err(),
+        "a paint ahead of committed state is rejected"
+    );
+    drop(painted);
+    drop(acknowledged);
+    assert_eq!(budget.used(), 0);
+}
+#[test]
+fn paint_ahead_exception_rejects_any_changed_route_even_outside_the_pointer_target() {
+    let mut original = fixture();
+    let budget = MemoryBudget::new(256 * 1024);
+    let acknowledged = PresentedRouting::capture(&original, &budget).unwrap();
+    original.revision = 2;
+    let painted = PresentedRouting::capture(&original, &budget).unwrap();
+    let pointer = || {
+        CapturedPhysicalInput::pointer(
+            painted.clone(),
+            current(),
+            Viewport::new(100, 100),
+            TimedEvent {
+                timestamp_us: 123,
+                event: Event::Button {
+                    code: 1,
+                    pressed: true,
+                    position: Point { x: 6.0, y: 8.0 },
+                },
+            },
+            &budget,
+            None,
+        )
+        .unwrap()
+    };
+    for case in 0..9 {
+        let mut changed = original.clone();
+        changed.revision = 3;
+        match case {
+            0 => {
+                if let Record::Surface(s) = changed.records.get_mut(&10).unwrap() {
+                    s.desktop_rect.x += 1.0;
+                }
+            }
+            1 => {
+                if let Record::Surface(s) = changed.records.get_mut(&10).unwrap() {
+                    s.clip = Some(rect(0.0, 0.0, 10.0, 10.0));
+                }
+            }
+            2 => {
+                if let Record::Surface(s) = changed.records.get_mut(&10).unwrap() {
+                    s.transform.xx = 2.0;
+                }
+            }
+            3 => {
+                if let Record::Session(s) = changed.records.get_mut(&40).unwrap() {
+                    s.focus_generation += 1;
+                }
+            }
+            4 => {
+                if let Record::Session(s) = changed.records.get_mut(&40).unwrap() {
+                    s.focus_surface = None;
+                }
+            }
+            5 => {
+                if let Record::Session(s) = changed.records.get_mut(&40).unwrap() {
+                    s.canvas.width += 1.0;
+                }
+            }
+            6 => {
+                if let Record::Surface(s) = changed.records.get_mut(&10).unwrap() {
+                    s.input_region.clear();
+                }
+            }
+            7 | 8 => {
+                let mut other = surface(11, 1, 2.0, 3.0, 20.0, 20.0);
+                other.stacking_order = 10;
+                other.routing_token = vec![8; 16];
+                other.input_region = vec![rect(0.0, 0.0, 20.0, 20.0)];
+                if case == 8 {
+                    other.modal_for = Some(ObjectRef {
+                        kind: ObjectKind::Surface,
+                        id: 10,
+                    });
+                }
+                changed.records.insert(11, Record::Surface(other));
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            pointer()
+                .prepare_against_presented(
+                    &changed,
+                    binding(),
+                    &acknowledged,
+                    current(),
+                    None,
+                    device()
+                )
+                .is_err(),
+            "changed route case {case}"
+        );
+        // Also reject when the new topology itself was painted: the actual
+        // acknowledged frame still belongs to the previous routing context.
+        let changed_paint = PresentedRouting::capture(&changed, &budget).unwrap();
+        let key = CapturedPhysicalInput::pointer(
+            changed_paint,
+            current(),
+            Viewport::new(100, 100),
+            TimedEvent {
+                timestamp_us: 124,
+                event: Event::Motion(Point { x: 6.0, y: 8.0 }),
+            },
+            &budget,
+            None,
+        );
+        if let Ok(captured) = key {
+            assert!(
+                captured
+                    .prepare_against_presented(
+                        &changed,
+                        binding(),
+                        &acknowledged,
+                        current(),
+                        None,
+                        device()
+                    )
+                    .is_err(),
+                "unacknowledged new routing case {case}"
+            );
+        }
+    }
+    drop(painted);
+    drop(acknowledged);
+    assert_eq!(budget.used(), 0);
+}
+#[test]
 fn inverse_pointer_mapping_and_original_held_surface_survive_other_window_stacking() {
     let mut state = fixture();
     let budget = MemoryBudget::new(64 * 1024);

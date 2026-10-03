@@ -22,6 +22,7 @@ pub struct PhysicalControl {
 }
 const MAX_SURFACES: usize = 128;
 const MAX_INPUT_REGIONS: usize = 64;
+#[derive(PartialEq)]
 struct PaintedSurface {
     id: u64,
     token: [u8; 16],
@@ -33,7 +34,7 @@ struct PaintedSurface {
     clip: Option<Rect>,
     stacking_order: i64,
     mapped: bool,
-    complete: bool,
+    coverage: VisualCoverage,
     focused: bool,
     modal_for: Option<ObjectRef>,
     input_region: Vec<Rect>,
@@ -46,7 +47,7 @@ impl PaintedSurface {
             surface: self.id,
             routing_token: self.token,
         };
-        (owner.valid() && self.mapped && self.complete).then_some(owner)
+        (owner.valid() && self.mapped && self.coverage == VisualCoverage::Complete).then_some(owner)
     }
     fn unchanged(&self, s: &Surface) -> bool {
         self.id == s.id
@@ -59,7 +60,7 @@ impl PaintedSurface {
             && self.clip == s.clip
             && self.stacking_order == s.stacking_order
             && self.mapped == s.mapped
-            && self.complete == (s.visual_coverage == VisualCoverage::Complete)
+            && self.coverage == s.visual_coverage
             && self.focused == s.focused
             && self.modal_for == s.modal_for
             && self.input_region == s.input_region
@@ -90,6 +91,7 @@ pub struct PresentedRouting {
     revision: u64,
     canvas: Rect,
     focus_surface: Option<ObjectRef>,
+    focus: Option<ObjectRef>,
     focus_generation: u64,
     surfaces: Vec<PaintedSurface>,
     _memory: MemoryReservation,
@@ -150,7 +152,7 @@ impl PresentedRouting {
                     clip: s.clip,
                     stacking_order: s.stacking_order,
                     mapped: s.mapped,
-                    complete: s.visual_coverage == VisualCoverage::Complete,
+                    coverage: s.visual_coverage,
                     focused: s.focused,
                     modal_for: s.modal_for,
                     input_region,
@@ -161,6 +163,7 @@ impl PresentedRouting {
             revision: state.revision,
             canvas: session.canvas,
             focus_surface: session.focus_surface,
+            focus: session.focus,
             focus_generation: session.focus_generation,
             surfaces,
             _memory: memory,
@@ -216,6 +219,25 @@ impl PresentedRouting {
         matches!((self.surface(captured.surface),state.records.get(&captured.surface)),(Some(old),Some(Record::Surface(s))) if old.unchanged(s))
             && pointer_owner_is_current(state, captured)
     }
+    fn equivalent(&self, other: &Self) -> bool {
+        self.canvas == other.canvas
+            && self.focus_surface == other.focus_surface
+            && self.focus == other.focus
+            && self.focus_generation == other.focus_generation
+            && self.surfaces == other.surfaces
+    }
+    fn all_routes_unchanged(&self, state: &State) -> bool {
+        self.focus_unchanged(state)
+            && state.records.values().find_map(|r| match r {
+                Record::Session(s) => Some(s.canvas),
+                _ => None,
+            }) == Some(self.canvas)
+            && state.records.values().filter(|r| matches!(r, Record::Surface(_))).count()
+                == self.surfaces.len()
+            && self.surfaces.iter().all(|old| {
+                matches!(state.records.get(&old.id), Some(Record::Surface(s)) if old.unchanged(s))
+            })
+    }
     fn focus_unchanged(&self, state: &State) -> bool {
         state
             .records
@@ -225,14 +247,16 @@ impl PresentedRouting {
                 _ => None,
             })
             .is_some_and(|s| {
-                s.focus_surface == self.focus_surface && s.focus_generation == self.focus_generation
+                s.focus_surface == self.focus_surface
+                    && s.focus == self.focus
+                    && s.focus_generation == self.focus_generation
             })
     }
 }
 
 pub struct CapturedPhysicalInput {
     pub control: PhysicalControl,
-    pub observed_revision: u64,
+    observed_revision: u64,
     viewport: Viewport,
     owner: PhysicalKeyOwner,
     keyboard: bool,
@@ -406,10 +430,60 @@ impl CapturedPhysicalInput {
         pointer_capture: Option<PhysicalKeyOwner>,
         device: DeviceScope<'_>,
     ) -> Result<PreparedPhysicalInput, PhysicalInputError> {
+        if self.observed_revision > presented_revision {
+            return Err(PhysicalInputError::OwnerChanged);
+        }
+        self.prepare_checked(
+            state,
+            binding,
+            presented_revision,
+            current,
+            pointer_capture,
+            device,
+        )
+    }
+    /// Use the routing summary retained with the frame whose real presentation
+    /// acknowledgement was sent. A newer painted revision can use that marker
+    /// only across visual changes: every surface route, focus, canvas, geometry,
+    /// clip, modality and stacking field must match both frames and current state.
+    /// This does not acknowledge the newer revision; the wire retains the exact
+    /// earlier presentation marker. The caller must clear it on binding/readiness loss.
+    pub fn prepare_against_presented(
+        self,
+        state: &State,
+        binding: CommandBinding,
+        presented: &PresentedRouting,
+        current: PhysicalControl,
+        pointer_capture: Option<PhysicalKeyOwner>,
+        device: DeviceScope<'_>,
+    ) -> Result<PreparedPhysicalInput, PhysicalInputError> {
+        if self.observed_revision > presented.revision
+            && (!self.routing.equivalent(presented) || !self.routing.all_routes_unchanged(state))
+        {
+            return Err(PhysicalInputError::OwnerChanged);
+        }
+        self.prepare_checked(
+            state,
+            binding,
+            presented.revision,
+            current,
+            pointer_capture,
+            device,
+        )
+    }
+    fn prepare_checked(
+        self,
+        state: &State,
+        binding: CommandBinding,
+        presented_revision: u64,
+        current: PhysicalControl,
+        pointer_capture: Option<PhysicalKeyOwner>,
+        device: DeviceScope<'_>,
+    ) -> Result<PreparedPhysicalInput, PhysicalInputError> {
         if current != self.control
             || presented_revision == 0
             || state.revision < presented_revision
-            || self.observed_revision > presented_revision
+            || self.observed_revision > state.revision
             || binding.lease == [0; 16]
             || binding.generation == 0
             || binding.sequence == 0

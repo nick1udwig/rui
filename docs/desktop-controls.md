@@ -76,7 +76,15 @@ backpressured socket write without discarding the exact command queue. Recovery
 returns to observation with a persistent request-for-fresh-control notice;
 physical safety stops do not automatically reacquire a lease.
 
-Root's frozen review passed nine desktop unit tests, six physical preparation
-tests, four actual TLS recovery tests and strict all-target Clippy. These verify
-the bounded client pipeline and its failure behavior. The same-native-source,
+A newer actual paint can arrive before the broker acknowledges its Presented
+marker. Input can still use the older acknowledged marker only when the complete
+routing summaries agree across that marker, the captured paint and current state.
+This includes focus clocks, coverage, canvas, every surface's geometry, clips,
+transforms, input regions, modality and stacking. The wire retains the actual
+acknowledged revision; a changed route requires a fresh presentation.
+
+Root's frozen review passed eight physical preparation tests, five actual TLS
+recovery tests, strict all-target Clippy and formatting. The new tests cover
+visual-only progression and reject changed routing at either comparison boundary,
+wrong connection identity and future paint revisions. The same-native-source,
 two-mirror physical session gate is assessed separately.
