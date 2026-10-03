@@ -481,14 +481,18 @@ impl CompositionMachine {
     pub fn active_id(&self) -> Option<Id> {
         self.active.as_ref().map(|v| v.id)
     }
+    pub fn active_range(&self) -> Option<ScalarRange> {
+        self.active.as_ref().map(|v| v.range)
+    }
     pub fn preedit(&self) -> Option<&str> {
         self.active.as_ref().map(|v| v.preedit.as_str())
     }
     pub fn preedit_selection(&self) -> Option<ScalarRange> {
         self.active.as_ref().map(|v| v.selection)
     }
-    pub fn begin(
-        &mut self,
+    /// Pure preflight; does not retire an identity or mutate transient text.
+    pub fn validate_begin(
+        &self,
         id: Id,
         focus: u64,
         version: u64,
@@ -515,6 +519,17 @@ impl CompositionMachine {
         if self.used.len() >= self.max_sessions {
             return Err(InputError::Retention);
         }
+        Ok(())
+    }
+    pub fn begin(
+        &mut self,
+        id: Id,
+        focus: u64,
+        version: u64,
+        range: ScalarRange,
+    ) -> Result<(), InputError> {
+        self.validate_begin(id, focus, version, range)?;
+        let context = self.context.as_ref().unwrap();
         self.used.insert(id);
         self.active = Some(Composition {
             id,
@@ -525,29 +540,38 @@ impl CompositionMachine {
         });
         Ok(())
     }
-    pub fn update(&mut self, id: Id, text: &str, selection: ScalarRange) -> Result<(), InputError> {
+    pub fn validate_update(
+        &self,
+        id: Id,
+        text: &str,
+        selection: ScalarRange,
+    ) -> Result<(), InputError> {
         if text.len() > self.max_bytes {
             return Err(InputError::Limit);
         }
         if !range_valid(selection, text.chars().count() as u64) {
             return Err(InputError::Outside);
         }
-        let active = self
-            .active
-            .as_mut()
+        self.active
+            .as_ref()
             .filter(|v| v.id == id)
             .ok_or(InputError::StaleComposition)?;
+        Ok(())
+    }
+    pub fn update(&mut self, id: Id, text: &str, selection: ScalarRange) -> Result<(), InputError> {
+        self.validate_update(id, text, selection)?;
+        let active = self.active.as_mut().unwrap();
         active.preedit = text.to_owned();
         active.selection = selection;
         Ok(())
     }
-    pub fn commit(
-        &mut self,
+    pub fn validate_commit(
+        &self,
         id: Id,
         focus: u64,
         version: u64,
         text: &str,
-    ) -> Result<TextEdit, InputError> {
+    ) -> Result<(), InputError> {
         if text.len() > self.max_bytes {
             return Err(InputError::Limit);
         }
@@ -563,6 +587,17 @@ impl CompositionMachine {
         if self.context.as_ref() != Some(&active.context) {
             return Err(InputError::StaleComposition);
         }
+        Ok(())
+    }
+    pub fn commit(
+        &mut self,
+        id: Id,
+        focus: u64,
+        version: u64,
+        text: &str,
+    ) -> Result<TextEdit, InputError> {
+        self.validate_commit(id, focus, version, text)?;
+        let active = self.active.as_ref().unwrap();
         let edit = TextEdit {
             target: active.context.target,
             focus_generation: focus,

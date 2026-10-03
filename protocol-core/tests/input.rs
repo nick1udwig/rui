@@ -407,6 +407,45 @@ fn context() -> EditingContext {
     }
 }
 #[test]
+fn composition_preflight_never_consumes_identity_preedit_or_commit() {
+    let mut machine = CompositionMachine::new(1, 16).unwrap();
+    machine.set_context(Some(context()));
+    let range = ScalarRange { start: 1, end: 2 };
+    machine.validate_begin([1; 16], 3, 7, range).unwrap();
+    machine.validate_begin([1; 16], 3, 7, range).unwrap();
+    assert_eq!(machine.active_id(), None);
+    machine.begin([1; 16], 3, 7, range).unwrap();
+    assert_eq!(machine.active_range(), Some(range));
+    let selection = ScalarRange { start: 0, end: 1 };
+    machine.validate_update([1; 16], "Ω", selection).unwrap();
+    assert_eq!(machine.preedit(), Some(""));
+    machine.update([1; 16], "Ω", selection).unwrap();
+    assert_eq!(
+        machine.validate_update([1; 16], "Ω", ScalarRange { start: 0, end: 2 }),
+        Err(InputError::Outside)
+    );
+    assert_eq!(
+        machine.validate_commit([1; 16], 4, 7, "😀"),
+        Err(InputError::StaleComposition)
+    );
+    assert_eq!(machine.preedit(), Some("Ω"));
+    machine.validate_commit([1; 16], 3, 7, "😀").unwrap();
+    assert_eq!(machine.preedit(), Some("Ω"));
+    assert_eq!(machine.active_id(), Some([1; 16]));
+    let edit = machine.commit([1; 16], 3, 7, "😀").unwrap();
+    assert_eq!(edit.range, range);
+    assert_eq!(edit.text, "😀");
+    assert_eq!(machine.active_id(), None);
+    assert_eq!(
+        machine.validate_begin([1; 16], 3, 7, range),
+        Err(InputError::StaleComposition)
+    );
+    assert_eq!(
+        machine.validate_begin([2; 16], 3, 7, range),
+        Err(InputError::Retention)
+    );
+}
+#[test]
 fn txt_002_preedit_is_transient_and_commit_produces_one_scalar_edit() {
     let mut machine = CompositionMachine::new(8, 64).unwrap();
     machine.set_context(Some(context()));
