@@ -967,8 +967,10 @@ dependencies = [
  "prost",
  "rui-client-desktop",
  "rui-protocol-core",
+ "rui-transport",
  "sha2",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

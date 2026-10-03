@@ -26,6 +26,8 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
+#[cfg(feature = "transport")]
+pub mod transport;
 const QUEUE: usize = 32;
 const LOCAL_QUEUE: usize = 64;
 /// Opaque transaction binding issued by the owner after trusted negotiation.
@@ -88,6 +90,10 @@ impl Received {
     }
 }
 pub enum Response {
+    #[cfg(feature = "transport")]
+    Transport(Result<rui_transport::producer::Received, rui_transport::TransportError>),
+    #[cfg(feature = "transport")]
+    Projected(transport::ProjectedCapture),
     Connected {
         connection: Connection,
         negotiated: NegotiatedSession,
@@ -148,6 +154,12 @@ struct Priority {
     owner_failed: AtomicBool,
     local_cancel: AtomicBool,
     local_generation: AtomicU64,
+    #[cfg(feature = "transport")]
+    stopped: AtomicBool,
+    #[cfg(feature = "transport")]
+    settled: AtomicBool,
+    #[cfg(feature = "transport")]
+    pending_requests: AtomicUsize,
     _memory: MemoryReservation,
     #[cfg(test)]
     before_requests: Mutex<Option<Box<dyn FnOnce() + Send>>>,
@@ -216,9 +228,6 @@ impl Priority {
                 .is_ok_and(|pending| pending.iter().all(Option::is_none))
     }
 }
-struct PublicationCharge {
-    _global: MemoryReservation,
-}
 struct CheckpointKeeper {
     view: Id,
     revision: u64,
@@ -229,8 +238,24 @@ struct Request {
     generation: u64,
     reply: SyncSender<Result<Received, ShellError>>,
     _memory: MemoryReservation,
+    #[cfg(feature = "transport")]
+    _obligation: RequestObligation,
+}
+#[cfg(feature = "transport")]
+struct RequestObligation(Arc<Priority>);
+#[cfg(feature = "transport")]
+impl Drop for RequestObligation {
+    fn drop(&mut self) {
+        self.0.pending_requests.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 enum Operation {
+    #[cfg(feature = "transport")]
+    Transport(Box<rui_transport::producer::Request>),
+    #[cfg(feature = "transport")]
+    Projected {
+        connection: Connection,
+    },
     Negotiate {
         auth: VerifiedAuthorization,
         hello: Box<ClientHello>,
@@ -267,6 +292,8 @@ impl Operation {
     fn connection(&self) -> Option<&Connection> {
         match self {
             Self::Capture { connection } => connection.as_ref(),
+            #[cfg(feature = "transport")]
+            Self::Projected { connection } => Some(connection),
             Self::Checkpoint { connection }
             | Self::Ack { connection, .. }
             | Self::Release { connection, .. }
@@ -420,12 +447,23 @@ impl HostPort {
             return Err(ShellError::Native("owner stopped"));
         }
         let memory = self.budget.reserve(bytes)?;
+        #[cfg(feature = "transport")]
+        let obligation = {
+            self.priority
+                .pending_requests
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+                .map_err(|_| ShellError::Limit)?;
+            self.priority.settled.store(false, Ordering::Release);
+            RequestObligation(self.priority.clone())
+        };
         let (reply, response) = mpsc::sync_channel(1);
         let request = Request {
             operation: make(),
             generation: self.priority.generation.load(Ordering::Acquire),
             reply,
             _memory: memory,
+            #[cfg(feature = "transport")]
+            _obligation: obligation,
         };
         self.requests
             .try_send(request)
@@ -563,7 +601,9 @@ impl Owner {
         }
         // Trusted opaque authority/ledger allowances are reserved before their
         // bounded maps and retained exact command bodies can be allocated.
-        let actor_memory = budget.reserve((64 + 24) * 1024 * 1024)?;
+        // Broker view/publication/IO allocations retain their own parent
+        // reservations; this covers only bounded authority metadata/ledger.
+        let actor_memory = budget.reserve((8 + 24) * 1024 * 1024)?;
         let priority_memory = budget.reserve(1 << 20)?;
         let (tx, requests) = mpsc::sync_channel(QUEUE);
         let (local_tx, local_events) = mpsc::sync_channel(LOCAL_QUEUE);
@@ -581,6 +621,12 @@ impl Owner {
             owner_failed: AtomicBool::new(false),
             local_cancel: AtomicBool::new(false),
             local_generation: AtomicU64::new(1),
+            #[cfg(feature = "transport")]
+            stopped: AtomicBool::new(false),
+            #[cfg(feature = "transport")]
+            settled: AtomicBool::new(true),
+            #[cfg(feature = "transport")]
+            pending_requests: AtomicUsize::new(0),
             _memory: priority_memory,
             #[cfg(test)]
             before_requests: Mutex::new(None),
@@ -603,6 +649,9 @@ impl Owner {
         let thread = thread::Builder::new()
             .name("rui-native-owner".into())
             .spawn(move || {
+                // Locals drop in reverse declaration order: retain metadata
+                // and ledger allowance through every covered object's Drop.
+                let _actor_memory = actor_memory;
                 let start = Instant::now();
                 let initialized = (|| {
                     let mut backend = Backend::new(grant, &layout, &owner_budget)?;
@@ -627,9 +676,21 @@ impl Owner {
                     config.receiver_limits.envelope_bytes = 1 << 20;
                     config.receiver_limits.outbound_queue_bytes = 512 << 10;
                     config.receiver_limits.view_memory_bytes = 16 << 20;
+                    #[cfg(feature = "transport")]
+                    {
+                        // View allocations independently retain the shared
+                        // parent charge; keep socket work locally bounded too.
+                        config.max_clients = 4;
+                        config.receiver_limits.view_memory_bytes = 16 << 20;
+                    }
                     config.supported_profiles.insert("cursor.vector.v1".into());
                     config.required_profiles.insert("cursor.vector.v1".into());
-                    let broker = SessionBroker::new(authority.session, authority.epoch, config)?;
+                    let broker = SessionBroker::with_memory_budget(
+                        authority.session,
+                        authority.epoch,
+                        config,
+                        owner_budget.clone(),
+                    )?;
                     let limits = LedgerLimits {
                         max_clients: 8,
                         max_commands: 4096,
@@ -646,18 +707,22 @@ impl Owner {
                     return;
                 };
                 let _ = ready.send(Ok(()));
-                let _actor_memory = actor_memory;
                 let mut poisoned = false;
                 let mut local_keys = BTreeSet::new();
                 let mut slots = BTreeMap::<Id, usize>::new();
-                let mut identities: [Option<AuthenticatedClient>; 8] = std::array::from_fn(|_| None);
-                let mut keepers: [Option<CheckpointKeeper>;8] = std::array::from_fn(|_|None);
+                let mut identities: [Option<AuthenticatedClient>; 8] =
+                    std::array::from_fn(|_| None);
+                let mut keepers: [Option<CheckpointKeeper>; 8] = std::array::from_fn(|_| None);
                 let mut connection_serial = 0u64;
+                #[cfg(feature = "transport")]
+                let mut transport = transport::NativeViews::default();
                 while !owner_priority.quit.load(Ordering::Acquire) {
                     let processed_generation = owner_priority.generation.load(Ordering::Acquire);
                     let now = start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
                     let local_activity =
                         owner_priority.local_activity.swap(false, Ordering::AcqRel);
+                    #[cfg(feature = "transport")]
+                    transport.synchronize(&mut broker, &owner_priority, now);
                     if local_activity && backend.invalidate_local_input(&mut broker, now).is_err() {
                         poisoned = true;
                     }
@@ -682,13 +747,17 @@ impl Owner {
                     }
                     if !backend.cleanup_pending() && !poisoned {
                         if owner_priority.local_cancel.swap(false, Ordering::AcqRel) {
-                            if backend.clear_local_keys().is_err() { poisoned = true; }
+                            if backend.clear_local_keys().is_err() {
+                                poisoned = true;
+                            }
                             local_keys.clear();
                         }
                         // The central owner acknowledges common cleanup only after
                         // this native backend is neutral. This source has no IME
                         // composition family; such a record is fail-closed.
                         while let Some(cleanup) = broker.take_cleanup() {
+                            #[cfg(feature = "transport")]
+                            transport.revoked(&cleanup);
                             if cleanup.composition.is_some() {
                                 poisoned = true;
                                 break;
@@ -698,7 +767,9 @@ impl Owner {
                             let Ok(queued) = local_events.try_recv() else {
                                 break;
                             };
-                            if queued.generation != owner_priority.local_generation.load(Ordering::Acquire) {
+                            if queued.generation
+                                != owner_priority.local_generation.load(Ordering::Acquire)
+                            {
                                 owner_priority.pending_local.fetch_sub(1, Ordering::AcqRel);
                                 continue;
                             }
@@ -741,14 +812,25 @@ impl Owner {
                         }
                     }
                     if owner_priority.pending_local.load(Ordering::Acquire) == 0
-                        && owner_priority.local_failure.load(Ordering::Acquire) {
+                        && owner_priority.local_failure.load(Ordering::Acquire)
+                    {
                         poisoned = true;
                     }
-                    if poisoned { owner_priority.owner_failed.store(true, Ordering::Release); }
-                    if !poisoned && !backend.cleanup_pending()
+                    if poisoned {
+                        owner_priority.owner_failed.store(true, Ordering::Release);
+                    }
+                    if !poisoned
+                        && !backend.cleanup_pending()
                         && owner_priority.pending_local.load(Ordering::Acquire) == 0
-                        && !owner_priority.local_activity.load(Ordering::Acquire) {
-                        owner_priority.acknowledged_generation.store(processed_generation, Ordering::Release);
+                        && !owner_priority.local_activity.load(Ordering::Acquire)
+                    {
+                        owner_priority
+                            .acknowledged_generation
+                            .store(processed_generation, Ordering::Release);
+                        #[cfg(feature = "transport")]
+                        if owner_priority.pending_requests.load(Ordering::Acquire) == 0 {
+                            owner_priority.settled.store(true, Ordering::Release);
+                        }
                     }
                     *owner_priority.controller.lock().unwrap() = broker
                         .current_lease(now)
@@ -759,41 +841,101 @@ impl Owner {
                     }
                     match requests.recv_timeout(Duration::from_millis(1)) {
                         Ok(request) => {
+                            #[cfg(feature = "transport")]
+                            owner_priority.settled.store(false, Ordering::Release);
+                            let now = start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
                             let reply_memory =
                                 owner_budget.reserve(64 << 10).map_err(ShellError::from);
                             let result = reply_memory.and_then(|memory| {
-                                if let Some(connection) = request.operation.connection() { owner_priority.validate(connection)?; }
+                                if let Some(connection) = request.operation.connection() {
+                                    owner_priority.validate(connection)?;
+                                }
                                 let value = match request.operation {
+                                    #[cfg(feature = "transport")]
+                                    Operation::Transport(request_body) => {
+                                        Response::Transport(transport.execute(
+                                            *request_body,
+                                            transport::Context {
+                                                backend: &mut backend,
+                                                broker: &mut broker,
+                                                ledger: &mut ledger,
+                                                priority: &owner_priority,
+                                                budget: &owner_budget,
+                                                slots: &mut slots,
+                                                identities: &mut identities,
+                                                serial: &mut connection_serial,
+                                                poisoned,
+                                                local_held: !local_keys.is_empty(),
+                                                generation: request.generation,
+                                                now,
+                                            },
+                                        ))
+                                    }
+                                    #[cfg(feature = "transport")]
+                                    Operation::Projected { connection } => Response::Projected(
+                                        transport.capture(&connection, &owner_budget, &broker)?,
+                                    ),
                                     Operation::Negotiate { mut auth, hello } => {
                                         auth.permissions.actions.retain(|a| a == "RawInputBatch");
                                         let next_slot = slots.len();
-                                        if next_slot >= 8 && !slots.contains_key(&hello.client_instance_id) { return Err(ShellError::Limit); }
+                                        if next_slot >= 8
+                                            && !slots.contains_key(&hello.client_instance_id)
+                                        {
+                                            return Err(ShellError::Limit);
+                                        }
                                         let held = owner_budget.reserve(8 << 10)?;
-                                        let serial = connection_serial.checked_add(1).ok_or(ShellError::Limit)?;
+                                        let serial = connection_serial
+                                            .checked_add(1)
+                                            .ok_or(ShellError::Limit)?;
                                         let negotiated =
                                             broker.negotiate(Some(auth), *hello, now)?;
                                         connection_serial = serial;
-                                        if owner_priority.controller.lock().unwrap().is_some_and(|owner| owner.0 == negotiated.client.client_instance_id) { owner_priority.invalidate()?; }
+                                        if owner_priority.controller.lock().unwrap().is_some_and(
+                                            |owner| owner.0 == negotiated.client.client_instance_id,
+                                        ) {
+                                            owner_priority.invalidate()?;
+                                        }
                                         let slot = *slots
                                             .entry(negotiated.client.client_instance_id)
                                             .or_insert(next_slot);
                                         let resume_keeper = match &negotiated.resume {
-                                            ResumeDisposition::Accepted { from_revision, through_revision, .. } if from_revision==through_revision => {
-                                                let keeper=keepers[slot].as_ref().filter(|keeper|keeper.view==negotiated.view_id && keeper.revision==*through_revision);
-                                                if let Some(keeper)=keeper {Some(keeper.bytes.clone())} else {
-                                                    let _=broker.disconnect(&negotiated.client,now);
-                                                    owner_priority.current.lock().unwrap()[slot]=None;
-                                                    return Err(ShellError::Native("missing exact resume keeper"));
+                                            ResumeDisposition::Accepted {
+                                                from_revision,
+                                                through_revision,
+                                                ..
+                                            } if from_revision == through_revision => {
+                                                let keeper =
+                                                    keepers[slot].as_ref().filter(|keeper| {
+                                                        keeper.view == negotiated.view_id
+                                                            && keeper.revision == *through_revision
+                                                    });
+                                                if let Some(keeper) = keeper {
+                                                    Some(keeper.bytes.clone())
+                                                } else {
+                                                    let _ =
+                                                        broker.disconnect(&negotiated.client, now);
+                                                    owner_priority.current.lock().unwrap()[slot] =
+                                                        None;
+                                                    return Err(ShellError::Native(
+                                                        "missing exact resume keeper",
+                                                    ));
                                                 }
                                             }
                                             ResumeDisposition::Accepted { .. } => {
-                                                let _=broker.disconnect(&negotiated.client,now);
-                                                owner_priority.current.lock().unwrap()[slot]=None;
-                                                return Err(ShellError::Native("actor has no delta history"));
+                                                let _ = broker.disconnect(&negotiated.client, now);
+                                                owner_priority.current.lock().unwrap()[slot] = None;
+                                                return Err(ShellError::Native(
+                                                    "actor has no delta history",
+                                                ));
                                             }
-                                            _=>None,
+                                            _ => None,
                                         };
-                                        if keepers[slot].as_ref().is_some_and(|keeper|keeper.view!=negotiated.view_id) {keepers[slot]=None;}
+                                        if keepers[slot]
+                                            .as_ref()
+                                            .is_some_and(|keeper| keeper.view != negotiated.view_id)
+                                        {
+                                            keepers[slot] = None;
+                                        }
                                         let connection = Connection(Arc::new(ConnectionData {
                                             client: negotiated.client.clone(),
                                             view: negotiated.view_id,
@@ -805,7 +947,8 @@ impl Owner {
                                             lifecycle: Arc::downgrade(&owner_priority),
                                             _memory: held,
                                         }));
-                                        owner_priority.current.lock().unwrap()[slot] = Some(connection.stamp());
+                                        owner_priority.current.lock().unwrap()[slot] =
+                                            Some(connection.stamp());
                                         identities[slot] = Some(connection.client().clone());
                                         Response::Connected {
                                             connection,
@@ -850,42 +993,28 @@ impl Owner {
                                         if bytes.len() > 1 << 20 {
                                             return Err(ShellError::Limit);
                                         }
-                                        let global_charge =
-                                            owner_budget.reserve(bytes.capacity() + 512)?;
-                                        let attachment = broker
-                                            .reserve_producer_view_memory(
-                                                connection.client(),
-                                                connection.view(),
-                                                128,
-                                            )?
-                                            .attach(PublicationCharge {
-                                                _global: global_charge,
-                                            });
-                                        // Reserve both fallible view allocations before
-                                        // changing its checkpoint. Only this thread can
-                                        // increase this view's budget; escaped clones
-                                        // can only retain or release existing charges.
-                                        let future = source.state().estimated_bytes()
-                                            .checked_add(bytes.len())
-                                            .and_then(|n| n.checked_add(rui_protocol_core::session::PUBLICATION_OVERHEAD_BYTES))
-                                            .ok_or(ShellError::Limit)?;
-                                        let preflight = broker.reserve_view_memory(
-                                            connection.client(), connection.view(), future,
+                                        // The body retains both view and aggregate
+                                        // charge before the checkpoint changes. A
+                                        // concurrent escaped parent allocation can
+                                        // only make install fail atomically.
+                                        let payload = broker.snapshot_publication_payload(
+                                            connection.client(),
+                                            connection.view(),
+                                            bytes,
+                                            None,
                                         )?;
-                                        drop(preflight);
                                         broker.install_snapshot(
                                             connection.client(),
                                             connection.view(),
                                             revision,
                                             source.state().estimated_bytes(),
                                         )?;
-                                        let payload=broker.snapshot_publication_payload(
-                                            connection.client(),
-                                            connection.view(),
-                                            bytes,
-                                            Some(attachment),
-                                        )?;
-                                        keepers[connection.0.priority_slot]=Some(CheckpointKeeper { view:connection.view(),revision,bytes:payload.clone() });
+                                        keepers[connection.0.priority_slot] =
+                                            Some(CheckpointKeeper {
+                                                view: connection.view(),
+                                                revision,
+                                                bytes: payload.clone(),
+                                            });
                                         Response::Publication(payload)
                                     }
                                     Operation::Ack {
@@ -926,7 +1055,11 @@ impl Owner {
 
                                     Operation::Status => Response::Status(if poisoned {
                                         OwnerStatus::Poisoned
-                                    } else if backend.cleanup_pending() || !owner_priority.dispatch_ready(owner_priority.generation.load(Ordering::Acquire)) {
+                                    } else if backend.cleanup_pending()
+                                        || !owner_priority.dispatch_ready(
+                                            owner_priority.generation.load(Ordering::Acquire),
+                                        )
+                                    {
                                         OwnerStatus::Cleaning
                                     } else {
                                         OwnerStatus::Ready
@@ -935,8 +1068,14 @@ impl Owner {
                                         use crate::backend::Receipt;
                                         Response::Diagnostics(OwnerDiagnostics {
                                             profile: backend.profile().clone(),
-                                            native_frames_applied: backend.traces().filter(|t| t.receipt == Receipt::AppliedToSource).count(),
-                                            native_frames_cancelled: backend.traces().filter(|t| t.receipt == Receipt::Cancelled).count(),
+                                            native_frames_applied: backend
+                                                .traces()
+                                                .filter(|t| t.receipt == Receipt::AppliedToSource)
+                                                .count(),
+                                            native_frames_cancelled: backend
+                                                .traces()
+                                                .filter(|t| t.receipt == Receipt::Cancelled)
+                                                .count(),
                                             held_keys: backend.held().keys.len(),
                                             held_buttons: backend.held().buttons.len(),
                                             held_touches: backend.held().touches.len(),
@@ -986,10 +1125,12 @@ impl Owner {
                             });
                             if let Err(failed) = request.reply.send(result) {
                                 if let Ok(received) = failed.0 {
-                                    if let Response::Connected { connection, .. } = received.value() {
+                                    if let Response::Connected { connection, .. } = received.value()
+                                    {
                                         if owner_priority.validate(connection).is_ok() {
                                             let _ = broker.disconnect(connection.client(), now);
-                                            owner_priority.current.lock().unwrap()[connection.0.priority_slot] = None;
+                                            owner_priority.current.lock().unwrap()
+                                                [connection.0.priority_slot] = None;
                                         }
                                     }
                                 }
@@ -1009,6 +1150,8 @@ impl Owner {
                     thread::sleep(Duration::from_millis(1));
                 }
                 owner_priority.quit.store(true, Ordering::Release);
+                #[cfg(feature = "transport")]
+                owner_priority.stopped.store(true, Ordering::Release);
                 // Remaining requests cannot revive the terminal owner; response
                 // channel disconnection informs waiters. Native objects drop here.
             })

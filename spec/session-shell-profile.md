@@ -153,7 +153,7 @@ one SessionBroker and one CommandLedger on its named owning thread. Callers get
 an opaque connection and a Send port, never a native context. Normal requests
 have a 32-entry bounded queue and one-entry charged reply channels. Captures are
 borrowed direct-source projections; checkpoints encode those same records.
-Checkpoint budget preflight precedes changing the broker view. Escaped projection
+Retained checkpoint bodies are prepared before changing the broker view. Escaped projection
 and immutable publication handles retain their global charges after owner
 shutdown, including cloned publication handles.
 
@@ -193,15 +193,21 @@ acknowledge after this backend is neutral; an unexpected composition cleanup is
 fail-closed. A multi-family integration must replace that narrow fanout with all
 participating owners.
 
-The actor reserves a conservative 64 MiB broker allowance, 24 MiB ledger allowance
-and 1 MiB request/priority allowance before creating bounded maps or queues.
-The broker profile has at most eight clients, 1 MiB decoded checkpoints/history
-per view, 64 history entries, 512 KiB outbound queues, 128 held inputs, and 1024
-control request identities. The ledger has at most 4096 identities, 8 MiB retained
-exact command bodies, and 512 retained outcomes. Native/backend/topology charges
-remain those above; exported bytes and replies charge the shared budget in
-addition. These allowances describe this narrow actor profile, not arbitrary
-future source or resource allocations.
+The actor reserves an 8 MiB allowance for bounded broker metadata, a 24 MiB ledger
+allowance, and a 1 MiB request/priority allowance before creating maps or queues.
+The metadata allowance covers at most eight client slots, their bounded policy
+and negotiation strings, 1024 control request identities and 128 held inputs;
+it excludes publication bodies and view allocations. Both native-only and
+transport builds use `SessionBroker::with_memory_budget`: each decoded
+checkpoint, retained publication, history/outbound entry, attachment and escaped
+socket reservation owns a charge against its view and the same aggregate parent.
+Those charges outlive owner shutdown until the last allocation handle drops.
+The owner retains its metadata/ledger allowance until covered maps are destroyed.
+Views have a 16 MiB local ceiling, 1 MiB publication/history ceilings, 64 history
+entries and 512 KiB outbound queues. The ledger has at most 4096 identities,
+8 MiB retained exact command bodies and 512 retained outcomes. Native/backend/
+topology charges remain those above. This is a conservative explicit allocation
+profile, not an allocator-level RSS proof.
 
 `source-window` adds a private GTK frontend. It currently requires explicit
 authenticated isolated X11 with the verified hardware-keycode = evdev + 8
@@ -255,6 +261,49 @@ The retained hash-only report is `fixtures/session-shell/native-window.json`.
 Trusted test acknowledgements admit the initial raw command; this probe does
 not claim a remote mirror, network transport or actual physical keyboard device.
 
-Shared transport adaptation, view-delta publication, actual mirror presentation,
-host IME and authorized source resize remain M4 integration work. Full M2
-control/transient/recovery gates remain separate from these probes.
+## Optional authenticated producer port
+
+`transport` adds `actor::transport::NativeProducerPort`, an implementation of the
+common compound `rui_transport::producer::ProducerPort`. It queues requests on
+the existing native owner; that owner retains the same topology, broker, ledger
+and native contexts. Negotiation and exact resume keeper construction are one
+operation. Scope/connection incarnation and immutable pairing approval are
+rechecked when work executes. Time is sampled on the owner after queue waiting.
+There are at most four connected protocol clients. Only the explicit
+`selection="session", mirror_canvas_policy="host-canvas"` export is supported;
+fixture and application-only selections are denied. Raw-capable views advertise
+the exact seat/device and `raw.host.v1`/`HOST_PHYSICAL` metadata. Other command
+families receive stable unsupported rejection through the common ledger.
+
+Publication clocks belong to each view. Multiple native changes before a pump
+become one legal replacement increment per changed record; unchanged final
+fields do not invent mutations. Focus reference changes advance the view focus
+clock exactly once. Private native focus/route clocks and capture tokens remain
+authoritative for dispatch, including focus ABA. `projected_capture` returns
+direct normalized source records at the last published view revision under
+retained allocation charges; it does not reconstruct the source from wire
+bytes. Graph count/depth, publication bytes and decoded memory must fit the
+negotiated receiver ceilings before checkpoint installation or delta publication.
+The immutable checkpoint body is prepared before installation, so allocation
+pressure cannot leave a new broker checkpoint paired with an old source capture.
+
+Asynchronous calls use the fixed normal FIFO and bounded single-response
+channels; saturation returns an explicit limit error. No task is spawned per
+request. Disconnect, local takeover and shutdown remain independent priority
+obligations continuously serviced by the native owner. A lifecycle flush waits
+for queued reply ownership to settle, priority generation acknowledgement and
+verified native cleanup; a saturated normal queue cannot erase cleanup. Cancelled
+authentication replies disconnect the exact issued registration. Actual remote
+Presented acknowledgements enter the same broker and remain required for grants.
+
+```
+cargo test -p rui-session-shell --features transport --offline --locked
+cargo test -p rui-session-shell --features transport --offline --locked -- --ignored
+cargo clippy -p rui-session-shell --features source-window,transport --all-targets --offline --locked -- -D warnings
+```
+
+The port unit/native tests use explicit trusted receipt fixtures. Actual TLS
+two-mirror presentation, native mirror physical callbacks and the final native
+scope/cleanup scenario remain M4 integration work. This raw-input laboratory
+does not advertise host IME or source ResizeRequest support. The controlled M2
+source-resize and recovery results have separate accepted evidence.
