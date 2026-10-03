@@ -121,6 +121,7 @@ def main():
     parser.add_argument('--target-dir', type=Path, default=Path('target/debug'))
     parser.add_argument('--report', type=Path, default=Path('/tmp/rui-native-session.json'))
     parser.add_argument('--matrix', choices=('disconnect', 'expiry', 'revoke', 'local-takeover'))
+    parser.add_argument('--routing', choices=('mapping',))
     parser.add_argument('--arrange', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.arrange:
@@ -149,6 +150,12 @@ def main():
             env['RUI_NATIVE_MATRIX'] = args.matrix
         else:
             env.pop('RUI_NATIVE_MATRIX', None)
+        if args.routing:
+            env['RUI_NATIVE_ROUTING'] = args.routing
+        else:
+            env.pop('RUI_NATIVE_ROUTING', None)
+        if args.matrix and args.routing:
+            parser.error('one finite native scenario per process required')
         server = subprocess.Popen([args.xvfb, display, '-screen', '0', '1800x1200x24', '-nolisten', 'tcp', '-auth', authority, '-noreset'], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
         display_log = BoundedLog(server.stdout)
         try:
@@ -180,6 +187,9 @@ def main():
                 if args.matrix:
                     if report['matrix'] != args.matrix or report['held_before'] != [1, 1, 0] or report['held_after'] != [0, 0, 0] or report['actual_cleanup_release_frames'] < 2:
                         raise RuntimeError('actual held cleanup report mismatch')
+                elif args.routing:
+                    if report['routing'] != args.routing or not report['same_source_coordinates'] or report['remote_effect_delta'] != 1 or report['direct_effect_delta'] != 1 or any(margin <= 0 for margin in report['letterbox_margins']):
+                        raise RuntimeError('actual direct/remote mapping mismatch')
                 elif report['native_press_release_frames'] != 2 or report['host_layout'] != 'de' or report['client_layout'] != 'us':
                     raise RuntimeError('native key ownership report mismatch')
                 print(output.strip())

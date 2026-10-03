@@ -35,6 +35,8 @@ use std::{
 use tokio::sync::watch;
 #[path = "native_session_smoke/matrix.rs"]
 mod matrix;
+#[path = "native_session_smoke/routing.rs"]
+mod routing;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 const CONTROLLER: &str = "RUI native session controller";
 const OBSERVER: &str = "RUI native session observer";
@@ -71,6 +73,8 @@ fn source_hashes(root: &Path) -> Result<String, Error> {
         "fixtures/session-shell/native_session.py",
         "session-shell/examples/native_session_smoke/matrix.rs",
         "fixtures/session-shell/native_held.py",
+        "session-shell/examples/native_session_smoke/routing.rs",
+        "fixtures/session-shell/native_mapping.py",
         "fixtures/session-shell/native_focus.py",
         "fixtures/render/native_events.py",
         "session-shell/src/actor.rs",
@@ -432,8 +436,9 @@ async fn drive(
     observations: &[watch::Receiver<DesktopObservation>],
     local: &watch::Receiver<LocalObservation>,
     report: Option<&Path>,
-    matrix: Option<&matrix::Context>,
+    scenario: (Option<&matrix::Context>, Option<&str>),
 ) -> Result<(), Error> {
+    let (matrix, routing_mode) = scenario;
     eprintln!("native session: actual initial source/two-mirror presentation");
     let arranged = Command::new("/usr/bin/python3")
         .arg(root.join("fixtures/session-shell/native_session.py"))
@@ -449,7 +454,12 @@ async fn drive(
     for o in observations {
         wait(o, |o| o.displayed.is_some()).await?;
     }
-    let initial = pair(port, observations).await?;
+    let mut initial = pair(port, observations).await?;
+    if routing_mode == Some("mapping") {
+        routing::letterbox(root, &observations[0]).await?;
+        routing::source_grid(root, local).await?;
+        initial = pair(port, observations).await?;
+    }
     let main = initial[0]
         .capture
         .state()
@@ -478,6 +488,9 @@ async fn drive(
     wait(&observations[0], |o| o.has_control && o.physical_ready).await?;
     let before = compare(port, &observations[0]).await?;
     assert_eq!(text(before.capture.state(), main)?, "");
+    if routing_mode == Some("mapping") {
+        return routing::mapping(port, host, root, observations, local, &before, report).await;
+    }
     if let Some(context) = matrix {
         return matrix::run(matrix::Run {
             port,
@@ -762,6 +775,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| matrix::Mode::parse(&value))
         .transpose()
         .map_err(|e| e.to_string())?;
+    let routing_mode = std::env::var("RUI_NATIVE_ROUTING").ok();
+    if routing_mode
+        .as_deref()
+        .is_some_and(|mode| mode != "mapping")
+    {
+        return Err("unknown finite native routing case".into());
+    }
     let budget = MemoryBudget::new(128 << 20);
     let disposal_budget = budget.clone();
     let owner = Owner::spawn(
@@ -968,7 +988,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &observations,
                 &local_rx,
                 driver_report.as_deref(),
-                matrix_context.as_ref(),
+                (matrix_context.as_ref(), routing_mode.as_deref()),
             )
             .await;
             stop.send_replace(true);

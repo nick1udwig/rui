@@ -126,3 +126,15 @@ local image artifacts and pinned sampling are specified in
 [its profile](../spec/renderer-profile.md). Native GTK antialiasing differences
 are covered by an explicit calibrated tolerance and independent glyph checks;
 this does not extend acceptance beyond the measured constrained corpus.
+
+### Accepted native mapping follow-up
+
+Root independently built and ran the frozen mapping probe on an authenticated
+private Xvfb display. A real middle-button pan creates four positive letterbox
+margins at mirror scale 1.5. The remote TLS/EIS click and direct GDK source click
+reach the same source-local (14,30) position within 1e-4, each produces one
+source effect, and both actual mirrors match their source records and rendered
+pixels. The source viewport is 600×528; EIS and Surface geometry remain explicit.
+The hash-bound report is `fixtures/session-shell/native-mapping.json`; host
+ownership returns to zero. Strict native-example Clippy passes. INP-001 is
+accepted; stale routing, app-only network denial and desktop wire IME remain.
