@@ -30,6 +30,7 @@ remaining integration gates.
 | Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact command result plus source text/version/selection confirmation; native integration remains |
 | Trusted resource admission | `protocol-core/tests/receiver.rs` | Authenticated producer helper validates the complete graph before granting its declared closure; invalid graphs and allocation failures roll back grants; strict default receiver unchanged |
 | Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Twenty strict publications: seventeen mapped snapshots and three lifecycle signals; typed scalar text/selection, collection and focus clocks, unmap/remap pin release, fresh identities after destruction, reentrant lifecycle ordering and bounded artifact decoding |
+| Guarded native GTK commands | `adapters/sdk/tests/native_trace.rs`, `fixtures/gtk/native_check.py` | Common-ledger admission, live native identity/clocks/modality/lease guards, causal capture, exact retries and unknown-outcome retention; 32 dispatches/37 callbacks, 41 source snapshots and 261 hash-bound vector artifacts; bounded semantic fixture, no TLS/IME claim |
 | GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Seventeen strict frames pass declared native/replay tolerance; zero interior mismatches, 1,577 outline bounds checked; actual decoded glyph omission/shift/size rejected; reports bind exact golden envelope bytes |
 
 Root review required corrections to authorization revocation races, cleanup
@@ -50,10 +51,11 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   accepted separately. Bounded source glyph closures are accepted. Complete network resource delivery, rapid native typing,
   authorized resize, retained reconnect and complete source/reference/two-mirror
   comparisons must work together across the full interaction corpus.
-- **M3 remains open.** Typed text/collection/focus capture and explicit popup lifecycle
-  have passed review. Broker-authorized native interaction, focus/IME and causal
-  action evidence remain. The declared seventeen-frame local visual comparison
-  has passed; whole-view composition with coherent transients remains.
+- **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
+  semantic dispatch and causal action evidence have passed review. Wire IME,
+  persistent source restart, complete unsupported-rendering/fallback evidence
+  and coherent whole-view transients remain. The declared seventeen-frame local
+  visual comparison has passed.
 - **M4 remains open.** Implement and test the explicitly supported isolated session
   shell, permissioned libei input, geometry/modality/focus/scaling, takeover,
   observed accessibility reconciliation and enforceable scope.
