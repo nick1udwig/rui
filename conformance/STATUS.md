@@ -24,11 +24,11 @@ remaining integration gates.
 | Authorized network resources | `transport/tests/resources.rs`, `protocol-core/tests/session.rs` | Two TLS clients, paged cold closure, warm reuse, live cache loss, premature acknowledgments, invalid eviction and revocation; exact retained transaction acknowledgment survives history eviction; historical unpinned eviction and retained reconnect remain |
 | Independent semantic client | `conformance/semantic_client.py`, `test_semantic_client.py`, `typed_interop.py`; `transport/tests/independent.rs` | Standard-library Python decoder, reducer and TLS client; six typed replay prefixes agree with Rust; real source activation, Unicode replacement, stable-item selection and exact retry without scenes or Presented; combined graphical-observer integration remains |
 | CPU reference renderer | `client-desktop/tests/pixels.rs`, `cli.rs` | Nine primitives, analytic pixels, linear composition, transforms, clipping, surfaces, paths, glyphs, bounds and explicit failure |
-| Guarded GTK mirror | `client-desktop/src/desktop.rs`, `tests/interaction.rs`; `fixtures/render/native_smoke.py` | Actual GTK frame callbacks and two-mirror TLS smoke; generic advertised actions, scalar text context guards, bounded frame ownership and local observer transforms; pure bounded causal typing queue accepted; native FIFO and visible preedit integration remain |
+| Guarded GTK mirror | `client-desktop/src/desktop.rs`, `tests/interaction.rs`; `fixtures/render/native_smoke.py` | Actual GTK frame callbacks and two-mirror TLS smoke; generic advertised actions, scalar text context guards, bounded frame ownership and local observer transforms; bounded causal FIFO, visible native preedit and sticky input failure feedback; full-canvas two-window source/record/pixel convergence and independent Python item effects pass; broader interaction/recovery remain |
 | Expanded controlled source | `host-broker/tests/corpus.rs`; `client-desktop/tests/corpus_reference.rs` | Unicode edits, checkbox, stable collections, clipped scrolling and fresh transient identities; two TLS replicas equal direct source records and selected vector renders; absent font provider stays explicitly Partial and no Presented is claimed |
-| Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; paged real TLS delivery accepted, combined native mirror gate remains |
+| Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; paged real TLS delivery and actual native font/two-mirror gate accepted |
 | Pinned vector cursor | `client-desktop/tests/cursor.rs`, `spec/cursor-profile.md` | Explicit optional profile, bundled vector shapes, authorized custom paths, hotspot and canvas clipping; native session integration remains |
-| Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact command result plus source text/version/selection confirmation; native integration remains |
+| Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact result plus source text/version/selection confirmation and actual Presented gate; six rapid native characters, repeated focus, Unicode preedit and sticky full-channel rejection pass |
 | Trusted resource admission | `protocol-core/tests/receiver.rs` | Authenticated producer helper validates the complete graph before granting its declared closure; invalid graphs and allocation failures roll back grants; strict default receiver unchanged |
 | Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Twenty strict publications: seventeen mapped snapshots and three lifecycle signals; typed scalar text/selection, collection and focus clocks, unmap/remap pin release, fresh identities after destruction, reentrant lifecycle ordering and bounded artifact decoding |
 | Guarded native GTK commands | `adapters/sdk/tests/native_trace.rs`, `fixtures/gtk/native_check.py` | Common-ledger admission, live native identity/clocks/modality/lease guards, causal capture, exact retries and unknown-outcome retention; 32 dispatches/37 callbacks, 41 source snapshots and 261 hash-bound vector artifacts; bounded semantic fixture, no TLS/IME claim |
@@ -48,11 +48,10 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   Window decorations and compositor output are outside that capture scope.
 - **M1 remains open.** Complete all controlled command families, post-auth transcript
   integration, independent result interoperability and the full core-case audit.
-- **M2 remains open.** The expanded source corpus and guarded desktop mirror are
-  accepted separately. Bounded source glyph closures and network delivery are
-  accepted. Complete rapid native typing,
-  authorized resize, retained reconnect and complete source/reference/two-mirror
-  comparisons must work together across the full interaction corpus.
+- **M2 remains open.** Resource-bearing full-canvas source/two-native-mirror
+  comparison, rapid typing/preedit, independent Python item selection and local
+  observer transforms have passed. Complete broader controls/transients, custom
+  canvas effects, source resize, retained reconnect and native cache recovery.
 - **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
   semantic dispatch and causal action evidence have passed review. Wire IME,
   persistent source restart, complete unsupported-rendering/fallback evidence

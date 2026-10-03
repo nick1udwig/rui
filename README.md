@@ -9,10 +9,12 @@ defines the intended full system. [Implementation acceptance](conformance/STATUS
 tracks evidence and the remaining milestone gates.
 
 Implemented foundations include a bounded Rust protocol core, controlled host,
-pinned TLS/WebSocket transport with local pairing, a CPU vector renderer, and a
-real cooperating GTK snapshot producer. The GTK corpus has measured supported
-and unsupported capture coverage. Desktop client interaction, expanded producer
-integration and the remaining M2–M5 gates are active implementation work.
+pinned TLS/WebSocket transport with local pairing and resource delivery, a CPU
+vector renderer, a GTK desktop mirror with causal typing and visible preedit, and
+a cooperating GTK snapshot producer with guarded native semantic commands.
+Two native mirrors have passed direct-source record/pixel comparisons. Expanded
+interaction, recovery, whole-view producer and M4–M5 integration remain active
+work; the acceptance record states the scope of each result.
 
 ## Development
 
@@ -45,11 +47,12 @@ lockfile pins Rust dependencies; toolkit handles do not belong in the wire schem
 - [host-broker](host-broker/README.md): cooperating headless fixture, source evidence,
   independent observer projections and private-field redaction.
 - [transport](transport/README.md): pinned TLS, explicit local pairing, bounded
-  WebSocket messages, chunk scheduling and client reception.
+  WebSocket messages, authorized glyph delivery and live-cache recovery.
 - [client-desktop](spec/renderer-profile.md): pinned CPU reference rendering and
-  local PAM/PPM diagnostic artifacts.
+  guarded native GTK mirrors, local viewports, typing/preedit and PAM/PPM diagnostics.
 - [producer SDK](adapters/sdk/README.md) and [GTK capture](docs/gtk-coverage.md):
-  actual submitted content trees, stable source identities and exact wire replay.
+  actual submitted content trees, stable source identities, guarded native actions
+  and exact wire replay.
 - [input and transcripts](spec/input-profile.md): bounded input interpretation,
   transient IME state and authorized diagnostic recording.
 
@@ -60,6 +63,11 @@ cargo run -p rui-client-desktop --example reference -- /tmp/rui-reference
 cargo run --release -p rui-client-desktop --example render_capture -- \
   fixtures/gtk/golden/main-content-0001.json /tmp/rui-gtk.pam
 ```
+
+Optional native mirror checks require the pinned GTK environment and an isolated
+Xvfb executable; [the renderer profile](spec/renderer-profile.md)
+lists the build and probe commands. The retained [two-mirror report](fixtures/render/native-corpus.json)
+contains source/mirror hashes and scenario results without document text or credentials.
 
 Unsupported required variants fail explicitly. The measured GTK scope is
 cooperating content under declared styles; it does not establish arbitrary
