@@ -48,7 +48,8 @@ identity; the old capture cannot publish again. Capture bookkeeping is committed
 before observer callbacks, including synchronous unmap/destruction callbacks.
 Source guards reject old incarnations, routes, clocks and destroyed objects.
 These are source checks, not command authentication. Combining current main and
-popup projections and publishing main-window teardown remain required.
+popup projections remains required. The private command fixture also publishes
+actual main-content destruction and rejects later events to those identities.
 
 ## Pinned measured environment
 
@@ -227,9 +228,13 @@ Deep supported trees become an explicit `source-depth-ceiling` gap and the
 census truncates at its bound. A native 180-layer ClipNode regression verifies
 128 bounded scene records and census entries without Python recursion failure.
 The source clears bodies after the artifact
-handoff and retains only a bounded 64-entry capture summary history. Artifact
-files are deliberately retained on disk by the test harness; this is not an
-unbounded in-memory source cache or a negotiated resource retention policy.
+handoff and retains only a bounded 64-entry capture summary history. The fixed
+visual measurement harness deliberately retains artifact files on disk. The
+private native command source retains only its current capture and one promised
+capture until the Rust consumer acknowledges ownership. It then prunes obsolete
+JSON/bin, local image diagnostics and unowned RVP bodies, preserving shared bodies
+still owned by either capture. A 128 MiB quota covers retained and transient files;
+it is not a negotiated network resource retention policy.
 
 The consumer bounds JSON manifests to 1 MiB and depth 64. Before serde allocates
 maps and arrays, an allocation-free lexical preflight applies a conservative
@@ -299,10 +304,71 @@ font backends, scales or omitted effects.
 
 The current semantic encoder exposes roles, labels, typed values, action names,
 TextModel clocks/scalar ranges, CollectionModel membership/materialization and
-selected state, Session focus clocks, and explicit popup lifecycle. Guarded
-broker-dispatched source commands with causal revision evidence, composition/IME
-ownership, and combined surface projection remain required for M3 interaction
-completion. AT-SPI was not used to infer coherence.
+selected state, Session focus clocks, and explicit popup lifecycle. SemanticNode
+versions describe their actual payload; TextModel record versions describe
+content/status, content clock, selection and editability. An unrelated visual
+frame preserves both text clocks and the semantic version. Selection-only changes
+advance the text record version while preserving its content clock. Retirement
+releases all corresponding bounded cache entries.
+
+The SDK private native fixture submits exact semantic peer bytes through the
+real core session authorization and shared command ledger before dispatching
+native GTK callbacks. The final main-loop guard checks registered incarnation,
+surface/object liveness, native sensitivity/modality and fresh relevant text,
+collection and focus state. Collection item actions resolve the unique published
+items-owner clock. Global scene/route changes do not invalidate otherwise valid
+semantic actions. Native lease generation and the absolute CLOCK_MONOTONIC
+deadline are checked immediately before execution, so a stalled GTK queue cannot
+execute an expired admission. The private pipe is trusted host IPC; the Python
+process owns no command ledger.
+
+The run recorded in `fixtures/gtk/native-interaction.json` exercised 32 actual
+semantic native dispatches and 37 observed native callbacks in its main scenario,
+including Unicode ReplaceText, two insertions at the returned native scalar caret,
+backward selection and stable-item activation. Independent instances of the same
+Rust semantic reducer
+applied equal state after each change; neither reported Presented. Independent
+Python implementation interoperability is separate evidence. The run also
+covered an observer without control, forged principal/view, stale control,
+target/focus/text/model clocks, missing item-owner clock, native edit,
+materialization and retirement before snapshot, an unrelated visual refresh,
+24 consumed-capture churn commands and main-source destruction. A 16 KiB control
+text request expands to about 96 KiB private JSON and is accepted under the
+128 KiB pipe ceiling. Its glyph-count/opacity gaps publish partial visual coverage
+while preserving truthful semantic text. Embedded NUL is rejected before native
+execution because GTK's string API cannot represent it.
+
+Applied evidence requires an actual newer captured commit with the exact admitted
+private request cause, source token and a revision actually published to that
+client. Exact retries produce no second native call. Three independent fault
+scenarios execute a native callback then lose the pipe, stall the reply, or return
+an uncorrelated fresh capture. Each produces UNKNOWN with no Applied evidence,
+no retry dispatch and no fresh command dispatch. A request delayed past its native
+lease deadline produces a known zero-effect failure. These are controlled GTK
+process runs on a private authenticated Xvfb display and private session bus.
+They do not establish TLS or a persistent source host: the native process has a
+30-second watchdog, and this slice supports public main-content semantics only.
+
+Host reservations have a 256 MiB aggregate ceiling: a 96 MiB independently bounded
+source receiver, 4 MiB ledger allowance, 1 MiB private IPC scratch, 16 MiB per
+current or pending artifact, 17 MiB transient body/descriptor scratch, 19 MiB
+projection/command scratch, and two 8 MiB pools per client, at most four clients.
+Pending metadata/body scratch is reserved before native execution; projection
+scratch can coexist with command scratch. The maximum conservative reservation
+is 252 MiB. Sparse node costs and retained String/Vec spare capacity are included
+by artifact/core preflights or these allowances. Native GTK application memory is
+outside this protocol budget. The driver verifies host reservations release on
+drop, including after UNKNOWN outcomes.
+
+Each run writes exact full-source Protobuf publications and native manifests
+alongside a decoded interaction report. Exporter visited/resource/gap counts and
+local-reference draws describe actual paths. Currently zero raster,
+raster-to-vector and remote-reshape fields are policy assertions about available
+exporter paths; they do not establish complete fallback instrumentation or PIX
+acceptance. Actual source photo/texture and effect/Cairo/shader/blur negative
+captures, a full decoded interaction trace audit, supplementary/combining/RTL
+text, wire composition/IME ownership and combined transient-surface projection
+remain required for M3. AT-SPI was not used to infer coherence.
 
 The alternate GTK 4.22.4 Broadway harness repeatedly aborted while repainting a
 native popup at `gdk/broadway/broadway-output.c:456`,

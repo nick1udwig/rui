@@ -933,9 +933,12 @@ dependencies = [
 name = "rui-producer-sdk"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "prost",
  "rui-protocol-core",
+ "serde",
  "serde_json",
+ "sha2",
  "thiserror",
 ]
 

@@ -58,12 +58,17 @@ class ProducerTests(unittest.TestCase):
         self.assertEqual(first['entry']['text']['selection'], [1, 3])
         value['selection'] = [3, 1]
         second = {node['identity']: node for node in source.semantics('root', 2)}
+        self.assertEqual(second['entry']['version'], first['entry']['version'])
+        self.assertEqual(second['list']['version'], first['list']['version'])
         self.assertEqual(second['entry']['text']['text_version'], 1)
+        self.assertEqual(second['entry']['text']['version'], first['entry']['text']['version'] + 1)
         self.assertEqual(second['list']['collection_model']['version'], 1)
         value['content'] = 'AΩZ'
         value['selection'] = [1, 2]
         selected.append('row')
         third = {node['identity']: node for node in source.semantics('root', 3)}
+        self.assertEqual(third['entry']['version'], first['entry']['version'])
+        self.assertGreater(third['list']['version'], second['list']['version'])
         self.assertEqual(third['entry']['text']['text_version'], 2)
         self.assertEqual(third['list']['collection_model']['version'], 2)
         self.assertEqual(third['list']['collection_model']['selected_items'], [third['row']['id']])
@@ -75,6 +80,15 @@ class ProducerTests(unittest.TestCase):
         source.unregister('entry')
         self.assertIsNone(source.session('view', 3, [10, 10], set())['focus'])
         self.assertNotIn(('text', third['entry']['text_model']), source._models)
+        self.assertNotIn(('text-record', third['entry']['text_model']), source._models)
+
+    def test_visual_refresh_preserves_both_text_clocks_and_semantic_clock(self):
+        source = CoherentSource()
+        source.register('entry', 5, lambda: {'text': {'content': 'Aé🦀Z', 'selection': [3, 1], 'editable': True, 'selectable': True}})
+        before = source.semantics('entry', 1)[0]
+        for revision in range(2, 20):
+            source.changed()
+            self.assertEqual(source.semantics('entry', revision)[0], before)
 
     def test_model_cache_quota_precedes_mutation_and_destroy_releases_charge(self):
         source = CoherentSource()

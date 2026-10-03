@@ -1,0 +1,713 @@
+//! Run only under native_check.py's isolated display/session bus.
+use prost::Message;
+use rui_producer_sdk::gtk_host::{FixtureMutation as Mutation, GtkCommandHost};
+use rui_protocol_core::commands::{
+    AuthenticatedClient, CommandFamily, CommandStatus as Status, Rejection,
+};
+use rui_protocol_core::model::{Record, SemanticNode, State, TextModel, TextRange};
+use rui_protocol_core::session::{
+    ClientHello, ControlLease, NegotiatedSession, Permissions, ReceiverLimits,
+    VerifiedAuthorization,
+};
+use rui_protocol_core::wire::proto as p;
+use serde_json::{json, Value};
+use std::collections::BTreeMap;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    time::{Duration, Instant},
+};
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+fn semantic(state: &State, id: u64) -> &SemanticNode {
+    let Record::Semantic(s) = &state.records[&id] else {
+        panic!("semantic")
+    };
+    s
+}
+fn text(state: &State, id: u64) -> &TextModel {
+    let Record::Text(t) = &state.records[&semantic(state, id).text.unwrap().id] else {
+        panic!("text")
+    };
+    t
+}
+fn named(state: &State, label: &str) -> u64 {
+    state
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Semantic(s) if s.label.as_deref() == Some(label) => Some(s.id),
+            _ => None,
+        })
+        .unwrap()
+}
+fn hello(id: u8, limits: ReceiverLimits) -> ClientHello {
+    ClientHello {
+        client_instance_id: [id; 16],
+        supported_versions: [1].into_iter().collect(),
+        supported_profiles: [
+            "mirror2d.core.v1",
+            "semantics.core.v1",
+            "content.no-raster.v1",
+            "semantics.only.v1",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect(),
+        required_profiles: ["semantics.only.v1".into()].into_iter().collect(),
+        receiver_limits: limits,
+        resume: None,
+    }
+}
+fn authorization(principal: &str, control: bool) -> VerifiedAuthorization {
+    VerifiedAuthorization {
+        principal: principal.into(),
+        policy_version: 1,
+        permissions: Permissions {
+            can_view: true,
+            can_control: control,
+            actions: [
+                "Activate",
+                "ReplaceText",
+                "SetSelection",
+                "Focus",
+                "ScrollTo",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        },
+    }
+}
+fn retain_capture(host: &GtkCommandHost, directory: &Path) -> Result<()> {
+    let source = host.source_artifact_for_diagnostics();
+    let manifest = host.source_capture_for_diagnostics();
+    let name = format!("snapshot-{:06}", manifest["revision"].as_u64().unwrap());
+    let bytes = fs::read(source.with_extension("bin"))?;
+    assert!(bytes.len() <= 1 << 20);
+    fs::write(directory.join(format!("{name}.bin")), bytes)?;
+    fs::write(
+        directory.join(format!("{name}.json")),
+        serde_json::to_vec(manifest)?,
+    )?;
+    for offer in manifest["resource_offers"].as_array().unwrap() {
+        let resource = format!("{}.rvp", offer["digest"].as_str().unwrap());
+        let destination = directory.join(&resource);
+        if !destination.exists() {
+            fs::copy(source.parent().unwrap().join(resource), destination)?;
+        }
+    }
+    // Finite diagnostic trace ownership is separate from native cache retention.
+    let bytes: u64 = fs::read_dir(directory)?
+        .map(|e| e.unwrap().metadata().unwrap().len())
+        .sum();
+    assert!(bytes <= 64 << 20, "fixed interaction trace quota");
+    Ok(())
+}
+struct Fixture {
+    host: GtkCommandHost,
+    session: NegotiatedSession,
+    observers: Vec<AuthenticatedClient>,
+    lease: ControlLease,
+    clock: Instant,
+    sequence: u64,
+    trace: Vec<Value>,
+    directory: PathBuf,
+    trace_directory: PathBuf,
+}
+impl Fixture {
+    fn new(root: &Path, name: &str) -> Result<Self> {
+        let directory = root.join(name);
+        let trace_directory = root.join("trace").join(name);
+        fs::create_dir_all(&trace_directory)?;
+        let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut command = Command::new("python3");
+        command
+            .arg(repository.join("fixtures/gtk/native_source.py"))
+            .arg("--output")
+            .arg(&directory)
+            .arg("--fixture-hooks");
+        let clock = Instant::now();
+        let mut host = GtkCommandHost::spawn(command, &directory)?;
+        retain_capture(&host, &trace_directory)?;
+        let session = host.negotiate(
+            authorization("controlled-alice", true),
+            hello(4, ReceiverLimits::default()),
+            clock.elapsed().as_millis() as u64,
+        )?;
+        host.consume_semantics(&session.client)?;
+        let lease =
+            host.acquire_control(&session.client, [8; 16], clock.elapsed().as_millis() as u64)?;
+        assert!(host.presented_revision(&session.client)?.is_none());
+        let state = host.state(&session.client)?;
+        assert!(state.resource_refs().is_empty());
+        assert!(state
+            .records
+            .values()
+            .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_))));
+        Ok(Self {
+            host,
+            session,
+            observers: Vec::new(),
+            lease,
+            clock,
+            sequence: 0,
+            trace: Vec::new(),
+            directory,
+            trace_directory,
+        })
+    }
+    fn now(&self) -> u64 {
+        self.clock.elapsed().as_millis() as u64
+    }
+    fn state(&self) -> &State {
+        self.host.state(&self.session.client).unwrap()
+    }
+    fn command(
+        &mut self,
+        id: u64,
+        action: &str,
+        args: p::semantic_command::Arguments,
+    ) -> p::SemanticCommand {
+        self.sequence += 1;
+        let state = self.state();
+        let node = semantic(state, id);
+        let model = node.collection.as_ref().map(|m| m.version).or_else(|| {
+            state.records.values().find_map(|r| match r {
+                Record::Semantic(s) => s
+                    .collection
+                    .as_ref()
+                    .filter(|m| m.items.iter().any(|i| i.id == id))
+                    .map(|m| m.version),
+                _ => None,
+            })
+        });
+        p::SemanticCommand {
+            epoch: self.session.epoch.to_vec(),
+            view_id: self.session.view_id.to_vec(),
+            client_instance_id: self.session.client.client_instance_id.to_vec(),
+            command_seq: self.sequence,
+            control_lease_id: self.lease.lease_id.to_vec(),
+            control_generation: self.lease.generation,
+            target_id: id,
+            action_id: action.into(),
+            action_schema_version: 1,
+            observed_view_revision: state.revision,
+            preconditions: Some(p::Preconditions {
+                target_version: Some(node.version),
+                text_version: if matches!(action, "ReplaceText" | "SetSelection") {
+                    Some(text(state, id).text_version)
+                } else {
+                    None
+                },
+                model_version: if matches!(action, "Activate" | "ScrollTo") {
+                    model
+                } else {
+                    None
+                },
+                focus_generation: None,
+            }),
+            arguments: Some(args),
+        }
+    }
+    fn consume(&mut self) -> Result<()> {
+        let mut clients = self.observers.clone();
+        clients.push(self.session.client.clone());
+        for client in clients {
+            if self.host.pending_publication(&client)?.is_some() {
+                self.host.consume_semantics(&client)?;
+            }
+        }
+        for observer in &self.observers {
+            let state = self.host.state(observer)?;
+            assert_eq!(state.revision, self.state().revision);
+            assert_eq!(
+                state.records,
+                self.state().records,
+                "independent semantic observer sees native effects"
+            );
+            assert!(self.host.presented_revision(observer)?.is_none());
+        }
+        assert!(self
+            .host
+            .presented_revision(&self.session.client)?
+            .is_none());
+        Ok(())
+    }
+    fn refresh(&mut self) -> Result<()> {
+        self.host.refresh_source()?;
+        self.consume()
+    }
+    fn submit(
+        &mut self,
+        label: &str,
+        c: &p::SemanticCommand,
+        want: Status,
+    ) -> Result<rui_protocol_core::commands::CommandResult> {
+        let bytes = c.encode_to_vec();
+        let before = self.host.diagnostics();
+        let result = self.host.submit(
+            &self.session.client,
+            CommandFamily::Semantic,
+            &bytes,
+            self.now(),
+        )?;
+        assert_eq!(result.status, want, "{label}: {result:?}");
+        let after = self.host.diagnostics();
+        let manifest = self.host.source_capture_for_diagnostics();
+        let mut decoded_source = Value::Null;
+        if want == Status::Applied {
+            assert_eq!(
+                after.native_dispatches,
+                before.native_dispatches + 1,
+                "{label}"
+            );
+            let evidence = result.evidence.as_ref().unwrap();
+            assert_eq!(
+                evidence.source_commit(),
+                manifest["capture_token"].as_str().unwrap()
+            );
+            assert_eq!(
+                evidence.resulting_view_revision(),
+                manifest["revision"].as_u64()
+            );
+            assert_eq!(
+                manifest["command_cause"]["authority_gate"],
+                "core-ledger-admitted"
+            );
+            assert!(manifest["command_cause"]["private_request_id"]
+                .as_u64()
+                .is_some());
+            let native_bytes = fs::read(
+                self.host
+                    .source_artifact_for_diagnostics()
+                    .with_extension("bin"),
+            )?;
+            assert!(native_bytes.len() <= 1 << 20);
+            let envelope = p::Envelope::decode(native_bytes.as_slice())?;
+            let snapshot = p::Snapshot::decode(envelope.payload.as_slice())?;
+            assert_eq!(snapshot.revision, manifest["revision"].as_u64().unwrap());
+            assert!(snapshot
+                .records
+                .iter()
+                .any(|r| matches!(r.record, Some(p::record::Record::Scene(_)))));
+            let mut primitives = BTreeMap::<&str, usize>::new();
+            let mut surface_coverage = Vec::new();
+            for record in &snapshot.records {
+                match record.record.as_ref().unwrap() {
+                    p::record::Record::Scene(scene) => {
+                        use p::scene_node::Primitive;
+                        let kind = match scene.primitive.as_ref().unwrap() {
+                            Primitive::Group(_) => "Group", Primitive::SolidRect(_) => "SolidRect",
+                            Primitive::FillPath(_) => "FillPath", Primitive::GlyphRun(_) => "GlyphRun",
+                            Primitive::RoundedRect(_) => "RoundedRect", Primitive::Border(_) => "Border",
+                            Primitive::LinearGradient(_) => "LinearGradient", Primitive::RadialGradient(_) => "RadialGradient",
+                            Primitive::StrokePath(_) => "StrokePath",
+                        };
+                        *primitives.entry(kind).or_default() += 1;
+                    }
+                    p::record::Record::Surface(surface) => surface_coverage.push(json!({"id":surface.id,"mapped":surface.mapped,"visual_coverage":surface.visual_coverage,"unsupported_features":surface.unsupported_features})),
+                    _ => {}
+                }
+            }
+            decoded_source = json!({"exact_envelope_sha256":manifest["envelope_sha256"],"primitive_counts":primitives,"surfaces":surface_coverage,"resource_offers":manifest["resource_offers"],"native_capture_gaps":manifest["gaps"]});
+            retain_capture(&self.host, &self.trace_directory)?;
+        } else if matches!(want, Status::Rejected | Status::Failed) {
+            assert_eq!(after.native_dispatches, before.native_dispatches, "{label}");
+            assert!(result.evidence.is_none());
+        }
+        self.trace.push(json!({"case":label,"exact_semantic_wire_hex":hex(&bytes),"command_seq":c.command_seq,"target_id":c.target_id,"action":c.action_id,"observed_view_revision":c.observed_view_revision,"preconditions":{"target":c.preconditions.as_ref().unwrap().target_version,"text":c.preconditions.as_ref().unwrap().text_version,"model":c.preconditions.as_ref().unwrap().model_version},"status":format!("{:?}",result.status),"rejection":result.rejection.as_ref().map(|r|format!("{r:?}")),"source_commit":result.evidence.as_ref().map(|e|e.source_commit()),"published_revision":result.evidence.as_ref().and_then(|e|e.resulting_view_revision()),"native_dispatches":after.native_dispatches,"native_callbacks":after.native_callbacks,"exporter_counters":manifest["exporter_counters"],"decoded_full_source":decoded_source}));
+        if want == Status::Applied {
+            self.consume()?;
+        }
+        self.trace.last_mut().unwrap()["decoded_client_state"] =
+            serde_json::to_value(self.state())?;
+        Ok(result)
+    }
+    fn finish(self) -> Result<Value> {
+        let budget = self.host.memory_budget();
+        let retained: u64 = fs::read_dir(&self.directory)?
+            .map(|e| e.unwrap().metadata().unwrap().len())
+            .sum();
+        assert!(retained < 128 << 20);
+        let captures = fs::read_dir(&self.directory)?
+            .filter(|e| {
+                let path = e.as_ref().unwrap().path();
+                path.extension().is_some_and(|ext| ext == "json")
+                    && path
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .starts_with("main-content-")
+            })
+            .count();
+        assert_eq!(captures, 1, "only current consumed native capture retained");
+        let result = json!({"commands":self.trace,"native_dispatches":self.host.diagnostics().native_dispatches,"native_callbacks":self.host.diagnostics().native_callbacks,"retained_native_artifact_bytes":retained,"host_reserved_bytes_before_drop":budget.used()});
+        drop(self.host);
+        assert_eq!(budget.used(), 0);
+        Ok(result)
+    }
+    fn retry(
+        &mut self,
+        label: &str,
+        command: &p::SemanticCommand,
+        expected: &rui_protocol_core::commands::CommandResult,
+    ) -> Result<()> {
+        let before = self.host.diagnostics();
+        let bytes = command.encode_to_vec();
+        assert_eq!(
+            &self.host.submit(
+                &self.session.client,
+                CommandFamily::Semantic,
+                &bytes,
+                self.now()
+            )?,
+            expected
+        );
+        assert_eq!(self.host.diagnostics(), before);
+        self.trace.push(json!({"case":label,"exact_semantic_wire_hex":hex(&bytes),"command_seq":command.command_seq,"status":format!("{:?}",expected.status),"retained_result_equal":true,"received_native_counters_unchanged":true,"native_dispatches":before.native_dispatches,"native_callbacks":before.native_callbacks}));
+        Ok(())
+    }
+}
+fn none() -> p::semantic_command::Arguments {
+    p::semantic_command::Arguments::NoArguments(p::EmptyArguments {})
+}
+fn replace(start: u64, end: u64, text: &str) -> p::semantic_command::Arguments {
+    p::semantic_command::Arguments::ReplaceText(p::TextArguments {
+        start,
+        end,
+        text: text.into(),
+    })
+}
+fn positive_and_races(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "semantic")?;
+    let button = named(f.state(), "Activate source action");
+    let entry = named(f.state(), "Editable text");
+    let beta = named(f.state(), "Beta");
+    let list = named(f.state(), "Stable-ID list");
+    let c = f.command(button, "Activate", none());
+    let applied = f.submit("real-clicked-causal-capture", &c, Status::Applied)?;
+    assert!(f.state().records.values().any(
+        |r| matches!(r,Record::Semantic(s) if s.label.as_deref()==Some("Source action applied"))
+    ));
+    let counters = f.host.diagnostics();
+    f.retry("exact-applied-retry", &c, &applied)?;
+    assert_eq!(f.host.diagnostics(), counters);
+    let mut changed = c.clone();
+    changed.action_id = "Focus".into();
+    assert!(f
+        .host
+        .submit(
+            &f.session.client,
+            CommandFamily::Semantic,
+            &changed.encode_to_vec(),
+            f.now()
+        )
+        .is_err());
+    assert_eq!(f.host.diagnostics(), counters);
+    let observer = f.host.negotiate(
+        authorization("controlled-observer", false),
+        hello(5, ReceiverLimits::default()),
+        f.now(),
+    )?;
+    assert!(f.host.pending_publication(&f.session.client)?.is_none());
+    assert_eq!(
+        f.host
+            .acquire_control(&f.session.client, [8; 16], f.now())?,
+        f.lease
+    );
+    f.host.consume_semantics(&observer.client)?;
+    f.observers.push(observer.client.clone());
+    assert!(f
+        .host
+        .negotiate(
+            authorization("undersized-observer", false),
+            hello(
+                6,
+                ReceiverLimits {
+                    view_memory_bytes: 256,
+                    ..ReceiverLimits::default()
+                }
+            ),
+            f.now()
+        )
+        .is_err());
+    let mut unauthorized = c.clone();
+    unauthorized.client_instance_id = observer.client.client_instance_id.to_vec();
+    unauthorized.view_id = observer.view_id.to_vec();
+    unauthorized.command_seq = 1;
+    assert_eq!(
+        f.host
+            .submit(
+                &observer.client,
+                CommandFamily::Semantic,
+                &unauthorized.encode_to_vec(),
+                f.now()
+            )?
+            .status,
+        Status::Rejected
+    );
+    assert_eq!(f.host.diagnostics(), counters);
+    let impostor = AuthenticatedClient {
+        principal: "other-principal".into(),
+        client_instance_id: f.session.client.client_instance_id,
+    };
+    assert!(f
+        .host
+        .submit(
+            &impostor,
+            CommandFamily::Semantic,
+            &c.encode_to_vec(),
+            f.now()
+        )
+        .is_err());
+    for (label, modify, want) in [
+        ("wrong-view", 0, Rejection::WrongView),
+        ("stale-control-generation", 1, Rejection::StaleControl),
+        ("future-view", 2, Rejection::FutureRevision),
+        ("stale-target", 3, Rejection::StaleTarget),
+        ("stale-focus", 4, Rejection::StaleFocus),
+    ] {
+        let mut c = f.command(button, "Activate", none());
+        match modify {
+            0 => c.view_id = vec![99; 16],
+            1 => c.control_generation += 1,
+            2 => c.observed_view_revision += 1000,
+            3 => c.preconditions.as_mut().unwrap().target_version = Some(999),
+            _ => c.preconditions.as_mut().unwrap().focus_generation = Some(999),
+        }
+        let r = f.submit(label, &c, Status::Rejected)?;
+        assert_eq!(r.rejection, Some(want));
+    }
+    let count = text(f.state(), entry)
+        .content
+        .as_ref()
+        .unwrap()
+        .chars()
+        .count() as u64;
+    let c = f.command(entry, "ReplaceText", replace(0, count, "AéΩZ"));
+    f.submit("unicode-replace", &c, Status::Applied)?;
+    assert_eq!(
+        text(f.state(), entry).selection,
+        Some(TextRange {
+            anchor: 4,
+            focus: 4
+        })
+    );
+    for (insert, want, caret) in [("一", "AéΩZ一", 5), ("二", "AéΩZ一二", 6)] {
+        let position = text(f.state(), entry).selection.unwrap().focus;
+        let c = f.command(entry, "ReplaceText", replace(position, position, insert));
+        f.submit("insert-at-returned-native-caret", &c, Status::Applied)?;
+        assert_eq!(text(f.state(), entry).content.as_deref(), Some(want));
+        assert_eq!(
+            text(f.state(), entry).selection,
+            Some(TextRange {
+                anchor: caret,
+                focus: caret
+            })
+        );
+    }
+    let version = text(f.state(), entry).text_version;
+    let record_version = text(f.state(), entry).version;
+    let c = f.command(
+        entry,
+        "SetSelection",
+        p::semantic_command::Arguments::SetSelection(p::SelectionArguments {
+            anchor: 3,
+            focus: 1,
+        }),
+    );
+    f.submit("backward-scalar-selection", &c, Status::Applied)?;
+    assert_eq!(
+        text(f.state(), entry).selection,
+        Some(TextRange {
+            anchor: 3,
+            focus: 1
+        })
+    );
+    assert_eq!(text(f.state(), entry).text_version, version);
+    assert_eq!(text(f.state(), entry).version, record_version + 1);
+    let c = f.command(beta, "Activate", none());
+    f.submit("stable-item-activate-owner-model", &c, Status::Applied)?;
+    assert_eq!(
+        semantic(f.state(), list)
+            .collection
+            .as_ref()
+            .unwrap()
+            .selected_items[0]
+            .id,
+        beta
+    );
+    let old_model = semantic(f.state(), list)
+        .collection
+        .as_ref()
+        .unwrap()
+        .version;
+    f.host.trusted_fixture_mutation(Mutation::RaceModel)?;
+    let c = f.command(beta, "Activate", none());
+    f.submit("native-materialization-before-dispatch", &c, Status::Failed)?;
+    f.refresh()?;
+    let mut c = f.command(beta, "Activate", none());
+    c.preconditions.as_mut().unwrap().model_version = Some(old_model);
+    let r = f.submit("published-stale-owner-clock", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::StaleModel));
+    let mut c = f.command(beta, "Activate", none());
+    c.preconditions.as_mut().unwrap().model_version = None;
+    let r = f.submit("missing-item-owner-clock", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::InvalidArguments));
+    let old_text = text(f.state(), entry).text_version;
+    f.host.trusted_fixture_mutation(Mutation::RaceEdit)?;
+    let c = f.command(entry, "ReplaceText", replace(0, 1, "x"));
+    f.submit("actual-native-edit-before-snapshot", &c, Status::Failed)?;
+    f.refresh()?;
+    let mut c = f.command(entry, "ReplaceText", replace(0, 1, "x"));
+    c.preconditions.as_mut().unwrap().text_version = Some(old_text);
+    let r = f.submit("published-stale-text-clock", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::StaleText));
+    f.host.trusted_fixture_mutation(Mutation::RaceEdit)?;
+    let c = f.command(entry, "Focus", none());
+    f.submit("focus-does-not-add-hidden-text-clock", &c, Status::Applied)?;
+    let old_revision = f.state().revision;
+    let target_version = semantic(f.state(), button).version;
+    let text_before_refresh = text(f.state(), entry).clone();
+    f.refresh()?;
+    assert!(f.state().revision > old_revision);
+    assert_eq!(semantic(f.state(), button).version, target_version);
+    assert_eq!(text(f.state(), entry), &text_before_refresh);
+    let mut c = f.command(button, "Activate", none());
+    c.observed_view_revision = old_revision;
+    f.host.trusted_fixture_mutation(Mutation::RaceVisual)?;
+    f.submit(
+        "unrelated-frame-before-native-dispatch",
+        &c,
+        Status::Applied,
+    )?;
+    for _ in 0..24 {
+        let c = f.command(button, "Activate", none());
+        f.submit("bounded-consumed-artifact-churn", &c, Status::Applied)?;
+    }
+    f.host.trusted_fixture_mutation(Mutation::DisableButton)?;
+    f.refresh()?;
+    let c = f.command(button, "Activate", none());
+    let r = f.submit("disabled-native-button", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::DisabledTarget));
+    f.host.trusted_fixture_mutation(Mutation::EnableButton)?;
+    f.refresh()?;
+    f.host.trusted_fixture_mutation(Mutation::RaceDestroy)?;
+    let c = f.command(button, "Activate", none());
+    f.submit("native-target-retired-before-dispatch", &c, Status::Failed)?;
+    f.refresh()?;
+    let mut c = c;
+    f.sequence += 1;
+    c.command_seq = f.sequence;
+    let r = f.submit("retired-published-target", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::MissingTarget));
+    let c = f.command(entry, "Focus", none());
+    f.host.trusted_fixture_mutation(Mutation::DestroySurface)?;
+    f.consume()?;
+    assert!(f
+        .state()
+        .records
+        .values()
+        .filter_map(|r| match r {
+            Record::Surface(s) => Some(s),
+            _ => None,
+        })
+        .all(|s| !s.mapped));
+    let r = f.submit("late-event-after-source-destroy", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::MissingTarget));
+    f.finish()
+}
+fn escaped_text(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "escaped-text")?;
+    let entry = named(f.state(), "Editable text");
+    let count = text(f.state(), entry)
+        .content
+        .as_ref()
+        .unwrap()
+        .chars()
+        .count() as u64;
+    let c = f.command(
+        entry,
+        "ReplaceText",
+        replace(0, count, &"\u{1}".repeat(16 << 10)),
+    );
+    f.submit("16k-text-96k-private-json", &c, Status::Applied)?;
+    assert_eq!(
+        text(f.state(), entry).content.as_ref().unwrap().len(),
+        16 << 10
+    );
+    let c = f.command(
+        entry,
+        "ReplaceText",
+        replace(0, 16 << 10, "restored native text"),
+    );
+    f.submit("restore-after-boundary-text", &c, Status::Applied)?;
+    let c = f.command(entry, "ReplaceText", replace(0, 0, "\0"));
+    let r = f.submit("native-nul-declined-before-dispatch", &c, Status::Rejected)?;
+    assert_eq!(r.rejection, Some(Rejection::InvalidArguments));
+    f.finish()
+}
+fn fault(root: &Path, name: &str, operation: Mutation) -> Result<Value> {
+    let mut f = Fixture::new(root, name)?;
+    let button = named(f.state(), "Activate source action");
+    f.host.trusted_fixture_mutation(operation)?;
+    let c = f.command(button, "Activate", none());
+    let r = f.submit(name, &c, Status::OutcomeUnknown)?;
+    assert!(r.evidence.is_none());
+    let receipt: Value =
+        serde_json::from_slice(&fs::read(f.directory.join("native-fault-receipt.json"))?)?;
+    assert_eq!(receipt["native_dispatches"], 1);
+    assert!(receipt["native_callbacks"].as_u64().unwrap() > 0);
+    let count = f.host.diagnostics();
+    f.retry("exact-unknown-retry", &c, &r)?;
+    assert_eq!(count, f.host.diagnostics());
+    assert!(f
+        .host
+        .acquire_control(&f.session.client, [9; 16], f.now())
+        .is_err());
+    let fresh = f.command(button, "Activate", none());
+    let rejected = f.submit("fresh-command-after-unknown", &fresh, Status::Rejected)?;
+    assert!(matches!(
+        rejected.rejection,
+        Some(Rejection::NoControl | Rejection::StaleControl)
+    ));
+    let budget = f.host.memory_budget();
+    let trace = json!({"commands":f.trace,"local_negative_control_receipt":receipt});
+    drop(f.host);
+    assert_eq!(budget.used(), 0);
+    Ok(trace)
+}
+fn expiry(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "delayed-expiry")?;
+    let button = named(f.state(), "Activate source action");
+    f.host
+        .trusted_fixture_mutation(Mutation::DelayUntilExpired)?;
+    std::thread::sleep(Duration::from_millis(100));
+    let c = f.command(button, "Activate", none());
+    let rejected = f.submit("queued-past-native-lease-expiry", &c, Status::Failed)?;
+    f.retry("exact-expired-native-retry", &c, &rejected)?;
+    let receipt: Value =
+        serde_json::from_slice(&fs::read(f.directory.join("native-expiry-receipt.json"))?)?;
+    assert_eq!(receipt["native_dispatches"], 0);
+    assert_eq!(receipt["reason"], "lease-expired-at-native-dispatch");
+    f.finish()
+}
+fn main() -> Result<()> {
+    let root = PathBuf::from(
+        std::env::args()
+            .nth(1)
+            .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
+    );
+    fs::create_dir_all(&root)?;
+    let report = json!({"scope":"bounded30s private cooperating GTK fixture; one real core ledger; semantic-only clients; no TLS, raw/IME or Presented claim","semantic":positive_and_races(&root)?,"escaped_text":escaped_text(&root)?,"pipe_loss":fault(&root,"pipe-loss",Mutation::LoseAfterDispatch)?,"pipe_stall":fault(&root,"pipe-stall",Mutation::StallAfterDispatch)?,"uncorrelated_capture":fault(&root,"uncorrelated-capture",Mutation::UncorrelatedCapture)?,"delayed_expiry":expiry(&root)?});
+    fs::write(
+        root.join("interaction.json"),
+        serde_json::to_vec_pretty(&report)?,
+    )?;
+    println!("PASS: actual core admission → native GTK callbacks → causal capture; race/expiry/retry/unknown/retention checks; {}",root.join("interaction.json").display());
+    Ok(())
+}

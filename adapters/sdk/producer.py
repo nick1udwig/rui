@@ -16,6 +16,7 @@ import uuid
 MAX_RECORDS = 20_000
 MAX_RESOURCE_BYTES = 16 << 20
 MAX_ENVELOPE_BYTES = 1 << 20
+MAX_MANIFEST_BYTES = 1 << 20
 MAX_TEXT_BYTES = 16 << 10
 MAX_COLLECTION_ITEMS = 4096
 MAX_MODEL_CACHE_BYTES = 4 << 20
@@ -271,10 +272,12 @@ class CoherentSource:
             if identifier is not None:
                 self.retired_semantic_ids.add(identifier)
                 self.remove_model("collection", identifier)
+                self.remove_model("semantic", identifier)
             text_id = self._ids.pop("text:" + name, None)
             if text_id is not None:
                 self.retired_semantic_ids.add(text_id)
                 self.remove_model("text", text_id)
+                self.remove_model("text-record", text_id)
         for surface, (focus, _) in list(self._focus.items()):
             if focus in removed:
                 self.focus_changed(surface, None)
@@ -376,7 +379,13 @@ class CoherentSource:
                         raise ValueError("scalar selection outside source text")
                     if status not in (1, 2, 3) or (selection is not None and not model.get("selectable")) or (status != 1 and (selection is not None or model.get("editable"))):
                         raise ValueError("text availability/editability mismatch")
-                    model.update(id=text_id, version=revision, text_version=self.model_clock("text", text_id, (status, content)), status=status)
+                    content_version = self.model_clock("text", text_id, (status, content))
+                    # Text record clocks describe the complete actual payload;
+                    # content clocks stay independent of selection/editability.
+                    record_state = (status, content, content_version,
+                                    tuple(selection) if selection is not None else None,
+                                    bool(model.get('editable')), bool(model.get('selectable')))
+                    model.update(id=text_id, version=self.model_clock("text-record", text_id, record_state), text_version=content_version, status=status)
                     fields["text"], fields["text_model"] = model, text_id
                 if fields.get("collection"):
                     model = dict(fields.pop("collection"))
@@ -390,7 +399,13 @@ class CoherentSource:
                         raise ValueError("collection materialization/count mismatch")
                     model.update(items=items, selected_items=chosen, version=self.model_clock("collection", identifier, (tuple(items), total, materialization, tuple(chosen))))
                     fields["collection_model"] = model
-                result.append({"id": identifier, "identity": key, "version": revision, "role": role, "children": children, "actions": list(actions), **fields})
+                node = {"id": identifier, "identity": key, "role": role, "children": children, "actions": list(actions), **fields}
+                # This is the actual SemanticNode payload, not the overall
+                # visual frame. Text content/selection have their own record
+                # and clocks, so only the TextModel reference participates.
+                stamp = json.dumps({name: value for name, value in node.items() if name not in ('identity', 'text')}, sort_keys=True, separators=(',', ':'))
+                node['version'] = self.model_clock('semantic', identifier, stamp)
+                result.append(node)
         return result
 
     def write(self, output: Path, frame: dict):
@@ -407,8 +422,11 @@ class CoherentSource:
         frame["binding"] = binding
         frame["envelope_sha256"] = hashlib.sha256(envelope).hexdigest()
         summary = {**frame, "resource_offers": resources}
+        metadata = json.dumps(summary, indent=2, sort_keys=True) + "\n"
+        if len(metadata.encode()) > MAX_MANIFEST_BYTES:
+            raise ValueError('capture manifest ceiling')
         (output / (label + ".bin")).write_bytes(envelope)
-        (output / (label + ".json")).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+        (output / (label + ".json")).write_text(metadata)
         # The artifact is the consumer handoff. No source memory cache or hidden
         # in-flight history retains old bodies after the exact files are written.
         self.resources.clear()

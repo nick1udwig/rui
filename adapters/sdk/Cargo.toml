@@ -5,8 +5,19 @@ edition.workspace = true
 
 [dependencies]
 rui-protocol-core = { path = "../../protocol-core" }
+prost = "0.13"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 
 [dev-dependencies]
-prost = "0.13"
+sha2 = "0.10"
+
+[features]
+gtk-fixture-hooks = []
+
+[[bin]]
+name = "gtk_command_check"
+path = "src/bin/gtk_command_check.rs"
+required-features = ["gtk-fixture-hooks"]

@@ -70,6 +70,22 @@ class NativeRegistry:
                 raise SourceRejected('unmapped-or-retired-source-surface')
             if source_revision != self.source.source_revision or capture.last_frame['routing_token'] != routing_token:
                 raise SourceRejected('stale-source-context')
+            return self.resolve_semantic(incarnation, surface_id, target_id)
+        raise SourceRejected('unknown-source-surface')
+
+    def resolve_semantic(self, incarnation, surface_id, target_id):
+        """Semantic identity check; spatial frame freshness is irrelevant.
+
+        The dispatcher separately re-reads actual relevant native fields/clocks.
+        Raw input keeps the stricter route/frame check in resolve_event.
+        """
+        if incarnation != self.source.identity:
+            raise SourceRejected('retired-source-incarnation')
+        for surface, capture in self.surfaces.items():
+            if self.source._ids.get('surface:' + surface) != surface_id:
+                continue
+            if not capture.source_alive or not capture.source_mapped:
+                raise SourceRejected('unmapped-or-retired-source-surface')
             for key, (widget, owner) in self.widgets.items():
                 if owner == surface and key in self.source._semantics and self.source._ids.get('semantic:' + key) == target_id:
                     if not widget.get_mapped() or not widget.get_sensitive():

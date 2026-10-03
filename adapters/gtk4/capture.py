@@ -329,6 +329,12 @@ class CaptureMixin:
         counts, region_bounds = census(node)
         frame = {"revision": self.frames, "source_revision": source_revision, "surface_key": self.surface_key, "surface_id": self.source.identifier("surface:" + self.surface_key), "surface_role": self.role, "size": [self.get_width(), self.get_height()], "capture_token": token, "capture_boundary": "actual-snapshot-vfunc-same-node-append", "scene_root": scene_root, "semantic_root": self.source.identifier("semantic:" + self.semantic_root), "semantics": semantics, "scene": exporter.scene, "gaps": exporter.gaps, "resources": sorted(exporter.resources), "uses_glyph_outline": exporter.uses_glyph_outline, "gsk_node_counts": counts, "gsk_node_bounds": region_bounds, "capture_duration_ns": time.monotonic_ns() - started, "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font", "gtk_version": list(PINNED_GTK)}
         frame["source_glyph_evidence"] = exporter.glyph_evidence
+        if getattr(self, 'command_cause', None) is not None:
+            frame['command_cause'] = self.command_cause
+        frame["exporter_counters"] = {"source_nodes_visited": exporter.visited,
+            "vector_resource_bodies": len(exporter.resources), "unsupported_subtrees": len(exporter.gaps),
+            "wire_raster_bodies": 0, "raster_to_vector_conversions": 0,
+            "remote_font_reshaping": 0, "local_reference_draws": 1}
         frame["session"] = self.source.session(self.surface_key, self.frames, frame["size"], {record["id"] for record in semantics})
         frame["focused"] = frame["session"]["focus"] is not None
         frame["mapped"] = True
@@ -379,6 +385,9 @@ class CaptureMixin:
                  "semantic_root": None if destroyed else self.source.identifier("semantic:" + self.semantic_root),
                  "scene": exporter.scene, "semantics": semantics, "resources": [], "gaps": [],
                  "source_glyph_evidence": [], "uses_glyph_outline": False,
+                 "exporter_counters": {"source_nodes_visited": 0, "vector_resource_bodies": 0,
+                    "unsupported_subtrees": 0, "wire_raster_bodies": 0, "raster_to_vector_conversions": 0,
+                    "remote_font_reshaping": 0, "local_reference_draws": 0},
                  "gsk_node_counts": {}, "gsk_node_bounds": [], "capture_duration_ns": 0}
         frame.pop("local_reference", None)
         frame["session"] = self.source.session(self.surface_key, self.frames, frame["size"], set(), mapped=False)

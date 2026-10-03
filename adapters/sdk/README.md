@@ -37,3 +37,41 @@ transfer API.
 See [the measured GTK coverage report](../../docs/gtk-coverage.md) for the source
 scope, pinned environment, local image diagnostics, unsupported rendering and
 remaining interaction work.
+
+`gtk_host::GtkCommandHost` is a bounded cooperating-source command fixture.
+Trusted host code supplies the source process and already verified authorization,
+plus trusted elapsed monotonic milliseconds to the session methods. Every exact
+peer command enters the core's one `CommandLedger::submit_controlled_with_session`.
+Only its admitted callback can send a native command over the inherited private
+Unix socket. Source incarnation, surface/object liveness, native enablement,
+relevant clocks, popup modality and the admitted lease's absolute Linux monotonic
+deadline are rechecked on the GTK main-loop thread immediately before execution.
+The socket is not a peer endpoint and the Python process owns no command ledger.
+
+Only public semantic projections are supported. Scenes, bindings, visual links,
+cursor and resource closure are removed; each projection has an actual private
+semantic consumer. That consumer acknowledges Applied and semantic readiness,
+never Presented. Joining observers do not reset existing readiness; a client
+whose negotiated pool cannot hold a projection closes independently. Source
+authority always comes from the full private source receiver.
+
+Applied requires a newer valid same-source capture carrying the exact private
+request ID and authority marker. Its source token and actual published revision
+become the retained core result. Pipe loss/deadline after possible native
+execution, or a fresh capture without that cause, becomes UNKNOWN and revokes
+control. Exact retries return the retained result without another native call.
+The process has a 30-second watchdog: this is a bounded fixture, not a persistent
+network host. Raw input, wire composition/IME and resize are unsupported here.
+
+```sh
+cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check --locked
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb --output /tmp/rui-gtk-native-empty
+python3 -m unittest adapters.gtk4.test_native adapters.sdk.test_producer
+```
+
+The integration driver uses a private authenticated Xvfb display and a private
+`dbus-run-session`, with no connection to the personal compositor/session bus.
+`gtk-fixture-hooks` enables explicit trusted race/fault controls, never decoded
+from peer command bytes. The output contains exact full-source snapshots,
+manifests and a decoded interaction report. These finite test trace copies are
+separate from the native source's bounded current/pending artifact ownership.

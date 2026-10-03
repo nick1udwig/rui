@@ -1,0 +1,63 @@
+{
+  "binding": {
+    "epoch": "bbf9edf489ed4335aeff72e7fefa1a50",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "000000000000000000000000000000a4"
+  },
+  "capture_boundary": "source-lifecycle-signal",
+  "capture_duration_ns": 0,
+  "capture_token": "bbf9edf489ed4335aeff72e7fefa1a50:main-content:65:42",
+  "destroyed": true,
+  "envelope_sha256": "7768e77ddbc7c954d9b2503838c78cea3941a7a13a82e8508396f645e10980a6",
+  "exporter_counters": {
+    "local_reference_draws": 0,
+    "raster_to_vector_conversions": 0,
+    "remote_font_reshaping": 0,
+    "source_nodes_visited": 0,
+    "unsupported_subtrees": 0,
+    "vector_resource_bodies": 0,
+    "wire_raster_bodies": 0
+  },
+  "focused": false,
+  "gaps": [],
+  "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font",
+  "gsk_node_bounds": [],
+  "gsk_node_counts": {},
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "mapped": false,
+  "resource_offers": [],
+  "resources": [],
+  "revision": 42,
+  "routing_token": "e8664e4436f4ab8a6b4cf76997c7d3a6",
+  "scene": [],
+  "scene_root": null,
+  "semantic_root": null,
+  "semantics": [],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      520,
+      540
+    ],
+    "focus": null,
+    "focus_generation": 3,
+    "focus_surface": null,
+    "id": 165,
+    "version": 42
+  },
+  "size": [
+    520,
+    540
+  ],
+  "source_glyph_evidence": [],
+  "source_revision": 65,
+  "surface_id": 164,
+  "surface_key": "main-content",
+  "surface_role": 1,
+  "uses_glyph_outline": false
+}

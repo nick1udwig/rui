@@ -124,6 +124,10 @@ class CaptureBoundsTests(unittest.TestCase):
         registry.widgets = {'button': (widget, 'view')}
         registry.surfaces = {'view': capture}
         self.assertEqual(registry.resolve_event(source.identity, surface, target, source.source_revision, '01' * 16), ('button', widget))
+        source.changed()
+        self.assertEqual(registry.resolve_semantic(source.identity, surface, target), ('button', widget))
+        with self.assertRaisesRegex(SourceRejected, 'stale-source-context'):
+            registry.resolve_event(source.identity, surface, target, source.source_revision - 1, '01' * 16)
         with self.assertRaisesRegex(SourceRejected, 'retired-source-incarnation'):
             registry.resolve_event(CoherentSource().identity, surface, target, source.source_revision, '01' * 16)
         capture.source_mapped = False

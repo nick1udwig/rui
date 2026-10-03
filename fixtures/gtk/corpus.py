@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Ordinary GTK control corpus captured at its actual snapshot boundary."""
 from pathlib import Path
+from collections import deque
 import argparse
 import json
 import sys
@@ -60,11 +61,11 @@ class VectorCanvas(Gtk.Widget):
 
 
 class Corpus:
-    def __init__(self, app, output, theme):
+    def __init__(self, app, output, theme, *, timed_actions=True):
         self.app, self.output, self.theme = app, output, theme
         self.source = CoherentSource()
-        self.actions = []
-        self.captures = []
+        self.actions = deque(maxlen=64)
+        self.captures = deque(maxlen=64)
         self.window = Gtk.ApplicationWindow(application=app, title="RUI cooperating GTK corpus")
         self.window.set_default_size(520, 540)
         self.registry = NativeRegistry(self.source, self.window)
@@ -90,7 +91,7 @@ class Corpus:
         self.registry.bind("entry", self.entry, "main-content")
         self.button = Gtk.Button(label="Activate source action")
         box.append(self.button)
-        self.source.register("button", 3, lambda: {"label": self.button.get_label()}, parent="main", actions=["Activate"])
+        self.source.register("button", 3, lambda: {"label": self.button.get_label(), "states": {1: 1 if self.button.get_sensitive() else 2}}, parent="main", actions=["Activate"])
         self.button.connect("clicked", self.clicked)
         self.registry.bind("button", self.button, "main-content")
         self.list = Gtk.ListBox()
@@ -138,6 +139,8 @@ class Corpus:
         self.registry.surface("menu-popup", self.popup_capture)
         self.window.set_child(self.capture)
         self.window.present()
+        if not timed_actions:
+            return
         GLib.timeout_add(350, self.edit)
         GLib.timeout_add(550, self.selection_only)
         GLib.timeout_add(650, self.select)
@@ -240,7 +243,7 @@ class Corpus:
         return False
 
     def finish(self):
-        summary = {"theme": self.theme, "gtk_version": [Gtk.get_major_version(), Gtk.get_minor_version(), Gtk.get_micro_version()], "cairo_version": __import__("cairo").cairo_version_string(), "captures": self.captures, "actions": self.actions, "stable_semantic_ids": {key: self.source.identifier("semantic:" + key) for key in self.source._semantics}, "retired_scene_ids": sorted(self.source.retired_scene_ids), "retained_resource_bytes": sum(len(resource["body"]) for resource in self.source.resources.values()), "capture_scope": "cooperating main content and explicitly registered menu popup; excludes window decorations/compositor"}
+        summary = {"theme": self.theme, "gtk_version": [Gtk.get_major_version(), Gtk.get_minor_version(), Gtk.get_micro_version()], "cairo_version": __import__("cairo").cairo_version_string(), "captures": list(self.captures), "actions": list(self.actions), "stable_semantic_ids": {key: self.source.identifier("semantic:" + key) for key in self.source._semantics}, "retired_scene_ids": sorted(self.source.retired_scene_ids), "retained_resource_bytes": sum(len(resource["body"]) for resource in self.source.resources.values()), "capture_scope": "cooperating main content and explicitly registered menu popup; excludes window decorations/compositor"}
         (self.output / "corpus-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
         if not self.captures or not any(frame["surface"] == "menu-popup" for frame in self.captures):
             print("ERROR: missing actual main or popup snapshot", file=sys.stderr)
