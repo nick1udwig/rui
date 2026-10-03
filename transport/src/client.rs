@@ -1,7 +1,7 @@
 use crate::{codec, pairing::Credential, proto as p, tls, websocket, TransportError};
 use futures_util::SinkExt;
 use prost::Message;
-use rui_protocol_core::commands::Id;
+use rui_protocol_core::commands::{CommandFamily, Id};
 use rui_protocol_core::receiver::{NeededResources, ReceiveOutcome, ReceiverConfig, ViewReceiver};
 use rui_protocol_core::resources::{
     MemoryBudget, MemoryReservation, ResourceContext, ResourceScope,
@@ -624,11 +624,26 @@ impl NetworkClient {
         .await
     }
     pub async fn submit(&mut self, exact_command_bytes: &[u8]) -> Result<(), TransportError> {
+        self.submit_family(CommandFamily::Semantic, exact_command_bytes)
+            .await
+    }
+    /// Send exact command bytes in the common producer sequence space. The host
+    /// binds the family to its decoder and performs all authority checks.
+    pub async fn submit_family(
+        &mut self,
+        family: CommandFamily,
+        exact_command_bytes: &[u8],
+    ) -> Result<(), TransportError> {
         if exact_command_bytes.len() > self.limits.envelope_bytes.saturating_sub(128) {
             return Err(TransportError::Limit);
         }
         self.send_packet(codec::wrap_bytes(
-            p::Kind::SemanticCommand,
+            match family {
+                CommandFamily::Semantic => p::Kind::SemanticCommand,
+                CommandFamily::RawInput => p::Kind::RawInputBatch,
+                CommandFamily::TextComposition => p::Kind::TextComposition,
+                CommandFamily::Resize => p::Kind::ResizeRequest,
+            },
             exact_command_bytes.to_vec(),
             self.binding(),
         ))

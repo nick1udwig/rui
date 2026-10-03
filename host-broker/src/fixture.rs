@@ -82,6 +82,112 @@ impl ControlledApplication {
     pub fn counter(&self) -> i64 {
         self.counter
     }
+    pub fn max_text_bytes(&self) -> usize {
+        self.max_text_bytes
+    }
+    pub fn editing_context(
+        &self,
+        projection: &Projection,
+    ) -> Option<rui_protocol_core::input::EditingContext> {
+        let corpus = self.corpus.as_ref()?;
+        let (version, text) = if corpus.focus == crate::PUBLIC_TEXT_ID {
+            (corpus.text_clock, corpus.text())
+        } else if corpus.focus == SECRET_ID && Self::can_read_secret(projection) {
+            (self.text_clock, self.secret.as_str())
+        } else {
+            return None;
+        };
+        Some(rui_protocol_core::input::EditingContext {
+            target: corpus.focus,
+            focus_generation: corpus.focus_generation,
+            text_version: version,
+            scalar_count: text.chars().count() as u64,
+            owner: rui_protocol_core::input::TextOwner::ClientText,
+        })
+    }
+    pub fn validate_composed_edit(
+        &self,
+        projection: &Projection,
+        target: u64,
+        focus: u64,
+        version: u64,
+        range: rui_protocol_core::input::ScalarRange,
+        replacement: &str,
+    ) -> Result<(), Rejection> {
+        let context = self
+            .editing_context(projection)
+            .ok_or(Rejection::Unauthorized)?;
+        if context.target != target || context.focus_generation != focus {
+            return Err(Rejection::StaleFocus);
+        }
+        if context.text_version != version {
+            return Err(Rejection::StaleText);
+        }
+        let text = if target == SECRET_ID {
+            self.secret.as_str()
+        } else {
+            self.corpus.as_ref().unwrap().text()
+        };
+        let start = scalar_byte(text, range.start).ok_or(Rejection::InvalidArguments)?;
+        let end = scalar_byte(text, range.end).ok_or(Rejection::InvalidArguments)?;
+        if start > end
+            || start
+                .checked_add(replacement.len())
+                .and_then(|n| n.checked_add(text.len() - end))
+                .is_none_or(|n| n > self.max_text_bytes)
+        {
+            return Err(Rejection::InvalidArguments);
+        }
+        context
+            .text_version
+            .checked_add(1)
+            .ok_or(Rejection::InvalidArguments)?;
+        self.commit
+            .checked_add(1)
+            .ok_or(Rejection::InvalidArguments)?;
+        Ok(())
+    }
+    pub fn apply_composed_edit(
+        &mut self,
+        projection: &Projection,
+        edit: &rui_protocol_core::input::TextEdit,
+        now: u64,
+    ) -> Result<u64, Rejection> {
+        self.validate_composed_edit(
+            projection,
+            edit.target,
+            edit.focus_generation,
+            edit.text_version,
+            edit.range,
+            &edit.text,
+        )?;
+        let commit = self.commit + 1;
+        if edit.target == SECRET_ID {
+            let start = scalar_byte(&self.secret, edit.range.start).unwrap();
+            let end = scalar_byte(&self.secret, edit.range.end).unwrap();
+            let mut value =
+                String::with_capacity(start + edit.text.len() + self.secret.len() - end);
+            value.push_str(&self.secret[..start]);
+            value.push_str(&edit.text);
+            value.push_str(&self.secret[end..]);
+            if value != self.secret {
+                self.secret = value;
+                self.text_clock += 1;
+            }
+        } else {
+            self.corpus
+                .as_mut()
+                .unwrap()
+                .replace_text(edit, self.max_text_bytes)?;
+        }
+        self.finish_input_commit(commit, now);
+        Ok(commit)
+    }
+    pub fn finish_input_commit(&mut self, commit: u64, now: u64) {
+        self.commit = commit;
+        self.last_now = self.last_now.max(now);
+        self.refresh_fonts();
+    }
     fn can_read_secret(projection: &Projection) -> bool {
         projection
             .permissions
@@ -273,7 +379,9 @@ impl ControlledApplication {
     pub fn records(&self, projection: &Projection) -> Vec<p::Record> {
         let secret_visible = Self::can_read_secret(projection);
         let editable = projection.permissions.can_control
-            && projection.permissions.actions.contains("ReplaceText")
+            && (projection.permissions.actions.contains("ReplaceText")
+                || (self.corpus.is_some()
+                    && projection.permissions.actions.contains("TextComposition")))
             && secret_visible;
         let counter_active = projection.permissions.can_control
             && projection.permissions.actions.contains("Activate");

@@ -4,9 +4,11 @@
 mod corpus;
 mod fixture;
 mod source_fonts;
+mod source_input;
 pub use corpus::{
-    CANVAS_ID, CHECKBOX_ID, ITEM_IDS, LIST_ID, MODAL_TOGGLE_ID, POPUP_TOGGLE_ID, PUBLIC_TEXT_ID,
-    PUBLIC_TEXT_MODEL_ID, REORDER_ID, SECOND_SURFACE_ID, TOOLTIP_TOGGLE_ID,
+    CANVAS_ID, CANVAS_SHAPE_SCENE_ID, CHECKBOX_ID, ITEM_IDS, LIST_ID, MODAL_TOGGLE_ID,
+    POPUP_TOGGLE_ID, PUBLIC_TEXT_ID, PUBLIC_TEXT_MODEL_ID, REORDER_ID, SECOND_SURFACE_ID,
+    TOOLTIP_TOGGLE_ID,
 };
 use fixture::ControlledApplication;
 pub use fixture::{
@@ -29,6 +31,7 @@ pub use source_fonts::{
     NativeSourceFontProvider, SourceFontError, SourceFontProvider, SourceGlyph, SourceOutline,
     SourceShapedText,
 };
+pub use source_input::{RawSample, FIXTURE_DEVICE, FIXTURE_SEAT, MAX_RAW_SAMPLES};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{
@@ -252,6 +255,7 @@ pub struct ControlledHost {
     ledger: CommandLedger,
     source: ControlledApplication,
     projections: BTreeMap<Id, Projection>,
+    input: Option<source_input::SourceInput>,
 }
 struct ResourceClosure {
     outlines: Vec<SourceOutline>,
@@ -290,6 +294,7 @@ impl ControlledHost {
             ledger: CommandLedger::new(config.epoch, config.ledger)?,
             source: ControlledApplication::new(initial_secret, config.max_text_bytes)?,
             projections: BTreeMap::new(),
+            input: None,
         })
     }
     /// Opt-in cooperating corpus. Public text remains valid independently of
@@ -438,6 +443,10 @@ impl ControlledHost {
         view: Id,
     ) -> Result<(), HostError> {
         self.projection(client, view)?;
+        // Neutralize the affected owner while its current readiness still
+        // permits clearing common composition state. Observer loss must not
+        // cancel another client's input context.
+        self.neutralize_input(client, view, 0);
         self.sessions.mark_resources_missing(client, view)?;
         Ok(())
     }
@@ -472,6 +481,7 @@ impl ControlledHost {
             return Err(SessionError::Unauthenticated.into());
         }
         self.prune_revoked_authorizations(now);
+        self.synchronize_input(now);
         let old = self
             .projections
             .get(&hello.client_instance_id)
@@ -517,6 +527,7 @@ impl ControlledHost {
                     .insert(negotiated.client.client_instance_id, projection);
             }
         }
+        self.synchronize_input(now);
         Ok(negotiated)
     }
     /// Explicit authenticated fresh-view request. Only this registered principal
@@ -538,6 +549,7 @@ impl ControlledHost {
                 now,
             );
         }
+        self.synchronize_input(now);
         Ok(())
     }
     fn projection(&self, client: &AuthenticatedClient, view: Id) -> Result<&Projection, HostError> {
@@ -602,6 +614,7 @@ impl ControlledHost {
         let output =
             self.sessions
                 .snapshot_publication_payload(client, view, bytes, resources.clone())?;
+        self.neutralize_input(client, view, 0);
         self.sessions
             .install_snapshot(client, view, revision, decoded)?;
         let projection = self
@@ -732,7 +745,19 @@ impl ControlledHost {
             }
             .into(),
             input_modes: if projection.permissions.can_control {
-                vec!["semantic.v1".into()]
+                let mut modes = vec!["semantic.v1".into()];
+                if self.source.corpus.is_some() && !projection.semantic_only {
+                    for (permission, mode) in [
+                        ("RawInputBatch", "raw.pointer.v1"),
+                        ("TextComposition", "text.client.v1"),
+                        ("ResizeRequest", "resize.v1"),
+                    ] {
+                        if projection.permissions.actions.contains(permission) {
+                            modes.push(mode.into());
+                        }
+                    }
+                }
+                modes
             } else {
                 vec![]
             },
@@ -764,8 +789,15 @@ impl ControlledHost {
         if raw_command.len() > self.projection(client, view)?.limits.envelope_bytes {
             return Err(SessionError::Oversized.into());
         }
+        self.synchronize_input(now);
+        let presented = self
+            .sessions
+            .presented_revision(client, view)
+            .ok()
+            .flatten();
         let source = RefCell::new(&mut self.source);
         let projections = RefCell::new(&mut self.projections);
+        let input = RefCell::new(&mut self.input);
         let session_id = self.session_id;
         let epoch = self.epoch;
         let result = self.ledger.submit_controlled_with_session(
@@ -775,9 +807,6 @@ impl ControlledHost {
             raw_command,
             now,
             |command| {
-                let Command::Semantic(command) = command else {
-                    return Err(Rejection::UnsupportedAction);
-                };
                 let all = projections.borrow();
                 let projection = all
                     .get(&client.client_instance_id)
@@ -785,22 +814,153 @@ impl ControlledHost {
                 if projection.checkpoint_required {
                     return Err(Rejection::WrongView);
                 }
-                source.borrow().validate(projection, command)
+                let source = source.borrow();
+                if command.header().observed_view_revision > projection.revision.unwrap_or(0) {
+                    return Err(Rejection::FutureRevision);
+                }
+                match command {
+                    Command::Semantic(c) => source.validate(projection, c),
+                    Command::RawInput(c) => {
+                        let corpus = source.corpus.as_ref().ok_or(Rejection::UnsupportedAction)?;
+                        if c.batch.presented_revision != presented.unwrap_or(0)
+                            || c.batch.presented_revision != c.header.observed_view_revision
+                        {
+                            return Err(Rejection::StaleTarget);
+                        }
+                        source
+                            .commit
+                            .checked_add(1)
+                            .ok_or(Rejection::InvalidArguments)?;
+                        input
+                            .borrow()
+                            .as_ref()
+                            .ok_or(Rejection::Unauthorized)?
+                            .validate_raw(c, &corpus.raw_route(presented.unwrap_or(0)))
+                    }
+                    Command::TextComposition(c) => {
+                        let context = source
+                            .editing_context(projection)
+                            .ok_or(Rejection::Unauthorized)?;
+                        if context.target != c.target_id
+                            || context.focus_generation != c.focus_generation
+                        {
+                            return Err(Rejection::StaleFocus);
+                        }
+                        if context.text_version != c.base_text_version {
+                            return Err(Rejection::StaleText);
+                        }
+                        let owner = input.borrow();
+                        let owner = owner.as_ref().ok_or(Rejection::Unauthorized)?;
+                        owner.validate_composition(c)?;
+                        if let rui_protocol_core::commands::CompositionOperation::CommitText {
+                            text,
+                        } = &c.operation
+                        {
+                            source.validate_composed_edit(
+                                projection,
+                                c.target_id,
+                                c.focus_generation,
+                                c.base_text_version,
+                                owner.range().ok_or(Rejection::StaleText)?,
+                                text,
+                            )?;
+                        }
+                        Ok(())
+                    }
+                    Command::Resize(c) => {
+                        let corpus = source.corpus.as_ref().ok_or(Rejection::UnsupportedAction)?;
+                        if c.surface_id != SURFACE_ID {
+                            return Err(Rejection::MissingTarget);
+                        }
+                        if projection.records.get(&SURFACE_ID).map(|s| s.version)
+                            != Some(c.surface_version)
+                        {
+                            return Err(Rejection::StaleTarget);
+                        }
+                        source
+                            .commit
+                            .checked_add(1)
+                            .ok_or(Rejection::InvalidArguments)?;
+                        corpus.validate_resize(c.width, c.height)
+                    }
+                }
             },
             |command, sessions| {
-                let Command::Semantic(command) = command else {
-                    return Err(DispatchFailure::Failed);
-                };
                 let commit = {
                     let all = projections.borrow();
                     let projection = all
                         .get(&client.client_instance_id)
                         .ok_or(DispatchFailure::Failed)?;
-                    source
-                        .borrow_mut()
-                        .apply(projection, command, now)
-                        .map_err(|_| DispatchFailure::Failed)?
+                    let mut source = source.borrow_mut();
+                    match command {
+                        Command::Semantic(c) => source
+                            .apply(projection, c, now)
+                            .map_err(|_| DispatchFailure::Failed)?,
+                        Command::RawInput(c) => {
+                            let commit = source
+                                .commit
+                                .checked_add(1)
+                                .ok_or(DispatchFailure::Failed)?;
+                            let corpus = source.corpus.as_mut().ok_or(DispatchFailure::Failed)?;
+                            let route = corpus.raw_route(presented.unwrap_or(0));
+                            input
+                                .borrow_mut()
+                                .as_mut()
+                                .ok_or(DispatchFailure::Failed)?
+                                .dispatch_raw(c, &route, sessions, now, |event| {
+                                    corpus.apply_raw_event(event)
+                                })
+                                .map_err(|error| {
+                                    if error == rui_protocol_core::input::InputError::OutcomeUnknown
+                                    {
+                                        DispatchFailure::OutcomeUnknown
+                                    } else {
+                                        DispatchFailure::Failed
+                                    }
+                                })?;
+                            source.finish_input_commit(commit, now);
+                            commit
+                        }
+                        Command::TextComposition(c) => {
+                            let edit = input
+                                .borrow_mut()
+                                .as_mut()
+                                .ok_or(DispatchFailure::Failed)?
+                                .compose(c, sessions, now)
+                                .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                            let Some(edit) = edit else {
+                                return Ok(DispatchOutcome::Dispatched);
+                            };
+                            source
+                                .apply_composed_edit(projection, &edit, now)
+                                .map_err(|_| DispatchFailure::OutcomeUnknown)?
+                        }
+                        Command::Resize(c) => {
+                            let commit = source
+                                .commit
+                                .checked_add(1)
+                                .ok_or(DispatchFailure::Failed)?;
+                            source
+                                .corpus
+                                .as_mut()
+                                .ok_or(DispatchFailure::Failed)?
+                                .resize(c.width, c.height)
+                                .map_err(|_| DispatchFailure::Failed)?;
+                            source.finish_input_commit(commit, now);
+                            commit
+                        }
+                    }
                 };
+                {
+                    let all = projections.borrow();
+                    synchronize_source_input(
+                        &mut input.borrow_mut(),
+                        sessions,
+                        &mut source.borrow_mut(),
+                        all.get(&client.client_instance_id),
+                        now,
+                    );
+                }
                 publish_projections(
                     sessions,
                     &source.borrow(),
@@ -893,10 +1053,35 @@ impl ControlledHost {
         request: Id,
         now: u64,
     ) -> Result<ControlLease, HostError> {
+        self.synchronize_input(now);
         if self.projection(client, view)?.checkpoint_required {
             return Err(HostError::CheckpointRequired);
         }
-        Ok(self.sessions.acquire_control(client, view, request, now)?)
+        let projection = self.projection(client, view)?;
+        let needs_input = self.source.corpus.is_some()
+            && !projection.semantic_only
+            && ["RawInputBatch", "TextComposition"]
+                .iter()
+                .any(|action| projection.permissions.actions.contains(*action));
+        let memory = if needs_input && self.input.is_none() {
+            Some(self.sessions.reserve_view_memory(
+                client,
+                view,
+                source_input::SourceInput::memory_bytes(self.source.max_text_bytes()),
+            )?)
+        } else {
+            None
+        };
+        let lease = self.sessions.acquire_control(client, view, request, now)?;
+        if let Some(memory) = memory {
+            self.input = Some(source_input::SourceInput::new(
+                lease.clone(),
+                self.source.max_text_bytes(),
+                memory,
+            ));
+        }
+        self.synchronize_input(now);
+        Ok(lease)
     }
     pub fn renew_control(
         &mut self,
@@ -920,23 +1105,27 @@ impl ControlledHost {
         generation: u64,
         now: u64,
     ) -> Result<(), HostError> {
-        Ok(self
-            .sessions
-            .release_control(client, request, lease, generation, now)?)
+        self.sessions
+            .release_control(client, request, lease, generation, now)?;
+        self.synchronize_input(now);
+        Ok(())
     }
     pub fn disconnect(&mut self, client: &AuthenticatedClient, now: u64) -> Result<(), HostError> {
         self.sessions.disconnect(client, now)?;
         if let Some(projection) = self.projections.get_mut(&client.client_instance_id) {
             projection.connected = false;
         }
+        self.synchronize_input(now);
         Ok(())
     }
     pub fn local_activity(&mut self, now: u64) {
         self.sessions.local_activity(now);
+        self.synchronize_input(now);
     }
     pub fn tick(&mut self, now: u64) {
         self.prune_revoked_authorizations(now);
         self.sessions.tick(now);
+        self.synchronize_input(now);
         self.ledger.expire_outcomes(now);
     }
     fn prune_revoked_authorizations(&mut self, now: u64) {
@@ -958,6 +1147,61 @@ impl ControlledHost {
     }
     pub fn take_cleanup(&mut self) -> Option<InputCleanup> {
         self.sessions.take_cleanup()
+    }
+    fn synchronize_input(&mut self, now: u64) {
+        let projection = self
+            .input
+            .as_ref()
+            .and_then(|input| self.projections.get(&input.lease.client.client_instance_id));
+        synchronize_source_input(
+            &mut self.input,
+            &mut self.sessions,
+            &mut self.source,
+            projection,
+            now,
+        );
+    }
+    fn neutralize_input(&mut self, client: &AuthenticatedClient, view: Id, now: u64) {
+        if let Some(owner) = self
+            .input
+            .as_mut()
+            .filter(|owner| owner.lease.client == *client && owner.lease.view_id == view)
+        {
+            owner.cleanup(&mut self.sessions, now);
+            if let Some(corpus) = &mut self.source.corpus {
+                corpus.cancel_drag();
+            }
+        }
+    }
+    pub fn input_trace(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<&[RawSample], HostError> {
+        self.projection(client, view)?;
+        let Some(input) = &self.input else {
+            return Ok(&[]);
+        };
+        if input.lease.client != *client || input.lease.view_id != view {
+            return Err(SessionError::Unauthorized.into());
+        }
+        Ok(input.samples())
+    }
+    /// Trusted source inspection only. Preedit is never included in publications,
+    /// recovery history, observer diagnostics or command results.
+    pub fn input_preedit(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<Option<&str>, HostError> {
+        self.projection(client, view)?;
+        let Some(input) = &self.input else {
+            return Ok(None);
+        };
+        if input.lease.client != *client || input.lease.view_id != view {
+            return Err(SessionError::Unauthorized.into());
+        }
+        Ok(input.preedit())
     }
     /// Trusted source operation used to exercise dispatch-time disabled checks.
     pub fn set_counter_enabled(&mut self, enabled: bool, now: u64) -> Result<(), HostError> {
@@ -1253,6 +1497,69 @@ fn publish_projections(
                 close_projection(sessions, projection, reason, now);
             }
         }
+    }
+}
+fn synchronize_source_input(
+    input: &mut Option<source_input::SourceInput>,
+    sessions: &mut SessionBroker,
+    source: &mut ControlledApplication,
+    projection: Option<&Projection>,
+    now: u64,
+) {
+    let current = sessions.current_lease(now);
+    let valid = input.as_ref().is_some_and(|owner| {
+        current.as_ref().is_some_and(|lease| {
+            lease.lease_id == owner.lease.lease_id
+                && lease.generation == owner.lease.generation
+                && lease.client == owner.lease.client
+                && lease.view_id == owner.lease.view_id
+        }) && projection.is_some_and(|projection| {
+            projection.connected
+                && projection.closed.is_none()
+                && projection
+                    .authorization_lifetime
+                    .as_ref()
+                    .is_none_or(AuthorizationLifetime::is_authorized)
+        })
+    });
+    if !valid {
+        if let Some(mut owner) = input.take() {
+            owner.cleanup(sessions, now);
+            if let Some(corpus) = &mut source.corpus {
+                corpus.cancel_drag();
+            }
+        }
+        return;
+    }
+    let owner = input.as_mut().unwrap();
+    if sessions
+        .presented_revision(&owner.lease.client, owner.lease.view_id)
+        .ok()
+        .flatten()
+        .is_none()
+    {
+        owner.cleanup(sessions, now);
+        if let Some(corpus) = &mut source.corpus {
+            corpus.cancel_drag();
+        }
+        return;
+    }
+    let Some(corpus) = source.corpus.as_ref() else {
+        return;
+    };
+    let token = corpus.routing_token();
+    let changed = input
+        .as_ref()
+        .unwrap()
+        .source_token()
+        .is_some_and(|old| old != token);
+    let context = source.editing_context(projection.unwrap());
+    input
+        .as_mut()
+        .unwrap()
+        .synchronize(context, token, sessions, now);
+    if changed {
+        source.corpus.as_mut().unwrap().cancel_drag();
     }
 }
 fn close_projection(

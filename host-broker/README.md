@@ -2,8 +2,8 @@
 
 `ControlledHost` runs a cooperating application with an increment button and a
 private text field. The host owns all business logic and source clocks. Clients
-receive exact Protobuf envelopes and send exact Protobuf `SemanticCommand`
-payloads. No client code executes application logic.
+receive exact Protobuf envelopes and send exact Protobuf command payloads. No
+client code executes application logic.
 
 Run the two-client fixture:
 
@@ -23,6 +23,8 @@ subsequent calls to the `AuthenticatedClient` returned by negotiation. Never
 accept either value as a client-declared credential. `submit` always joins the
 command ledger, current lease/permissions, relevant semantic versions, and
 source validation; callers cannot access mutable source or core components.
+`submit_family` uses that same ledger for semantic, raw input, composition and
+resize commands, in one producer sequence space.
 `ReplaceText` uses Unicode scalar ranges and requires current text and focus
 versions. Actual application commits produce `SourceEvidence`; a result names a
 view revision only after that view's transaction was successfully published.
@@ -74,7 +76,37 @@ For a nonvisual consumer, explicitly require and advertise `semantics.only.v1`. 
 
 `ControlledHost::new_corpus(config, secret)` opts into the expanded cooperating source. It adds a public Unicode field with backward scalar selection and source focus, a desired Boolean checkbox, three stable materialized list items with total count ten, stable-ID selection/reordering, a clipped scroll viewport, a second toplevel, and fresh popup/modal/tooltip incarnations. List-item activation requires the current version of its published collection owner. The no-argument reorder button needs no undiscoverable collection precondition. Modal state disables main-window actions and moves source focus to its dismiss target, then restores focus. Incarnations are bounded and deleted IDs are never reused.
 
-The corpus without a font provider declares its main surface **Partial**, with `source-glyph-provider-pending`; valid Unicode text, including supplementary characters, remains available semantically. The vector canvas currently publishes its bounded scene region; raw event tracing, composition and authorized resize remain subsequent integration work. `view_description` reports the actual source canvas and selected scope instead of advertising baseline dimensions or complete coverage.
+The corpus without a font provider declares its main surface **Partial**, with `source-glyph-provider-pending`; valid Unicode text, including supplementary characters, remains available semantically. `view_description` reports the actual source canvas and selected scope instead of advertising baseline dimensions or complete coverage.
+
+The corpus implements cooperating-source input under explicit `RawInputBatch`,
+`TextComposition` and `ResizeRequest` permissions. A visual view advertises the
+corresponding `raw.pointer.v1`, `text.client.v1` and `resize.v1` modes. Raw batches
+require the broker's actual presentation marker, the current source-issued
+16-byte route token, and `FIXTURE_SEAT`/`FIXTURE_DEVICE`. The custom canvas owns
+one pointer contact or button at a time; button 1, motion, touch and wheel events
+move a retained clipped vector shape. The bounded source trace retains every
+accepted event in order, up to 1,024 samples per lease; further batches reject
+before dispatch. Its timestamps and held transitions are validated before any
+source effect. Physical keys reject because this source uses CLIENT_TEXT.
+
+Composition binds the current source target, text clock, focus and lease.
+Begin, preedit update and cancel are transient `Dispatched` outcomes, with no
+source commit or published document edit. Commit performs one Unicode scalar
+edit and publishes its actual causal source capture. Preedit is available only
+through a trusted owner inspection method and never enters projections, recovery
+history, command results or observer diagnostics. A failed range/capacity check
+does not consume the active composition. Resize validates the published main
+surface version and bounded positive dimensions, changes source layout and scene
+geometry, and rotates routing identity. Observer viewport changes remain local.
+
+An input owner's conservative memory reservation precedes lease acquisition.
+Focus, modality and layout changes unwind affected source input. Local takeover,
+lease expiry, disconnect or revocation cancel composition and neutralize held
+input before another owner can acquire control. A controller's resource loss or
+checkpoint also neutralizes its state; restoration does not resume a drag or
+old preedit identity. An observer's resource loss does not affect that controller.
+The source performs no native input injection. Trusted adapters owning additional
+input backends must finish the common cleanup before allowing a new grant.
 
 `source_capture(client, view)` reconstructs records directly from the authoritative cooperating source, independently of encoded publications or a client replica. It requires the current published capture context and exposes borrowed `records()`, validated `state()` and `source_commit()` under an opaque view-memory reservation. Direct source conversion checks graph, identities, geometry and model limits; it establishes neither source provenance nor resource availability. The capture's Debug omits content. Its current graph has no receiver retirement history. Consumers own and must budget any copies they create.
 

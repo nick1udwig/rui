@@ -24,6 +24,7 @@ const SCENE_SECOND: u64 = 74;
 const FIRST_SCENE: u64 = 100;
 const FIRST_BINDING: u64 = 200;
 const MAX_TRANSIENT_INCARNS: u64 = 1024;
+pub const CANVAS_SHAPE_SCENE_ID: u64 = 130;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TransientKind {
@@ -54,6 +55,9 @@ pub(crate) struct Corpus {
     incarnation: u64,
     pub width: f64,
     pub height: f64,
+    route_clock: u64,
+    shape: rui_protocol_core::model::Point,
+    dragging: bool,
 }
 impl Corpus {
     pub fn new(max_text_bytes: usize) -> Self {
@@ -79,6 +83,9 @@ impl Corpus {
             incarnation: 0,
             width: 640.0,
             height: 480.0,
+            route_clock: 1,
+            shape: rui_protocol_core::model::Point { x: 430.0, y: 200.0 },
+            dragging: false,
         }
     }
     pub fn captions(&self) -> Vec<crate::source_fonts::Caption> {
@@ -239,12 +246,136 @@ impl Corpus {
     }
     pub fn focus(&mut self, target: u64) -> Result<(), Rejection> {
         if self.focus != target {
+            let route_clock = self
+                .route_clock
+                .checked_add(1)
+                .ok_or(Rejection::InvalidArguments)?;
             self.focus_generation = self
                 .focus_generation
                 .checked_add(1)
                 .ok_or(Rejection::InvalidArguments)?;
             self.focus = target;
+            self.route_clock = route_clock;
         }
+        Ok(())
+    }
+    pub fn routing_token(&self) -> [u8; 16] {
+        let mut token = [0; 16];
+        token[..8].copy_from_slice(&SURFACE_ID.to_be_bytes());
+        token[8..].copy_from_slice(&self.route_clock.to_be_bytes());
+        token
+    }
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    pub fn replace_text(
+        &mut self,
+        edit: &rui_protocol_core::input::TextEdit,
+        max_text: usize,
+    ) -> Result<(), Rejection> {
+        let start = scalar_byte(&self.text, edit.range.start).ok_or(Rejection::InvalidArguments)?;
+        let end = scalar_byte(&self.text, edit.range.end).ok_or(Rejection::InvalidArguments)?;
+        if start > end || start + edit.text.len() + self.text.len() - end > max_text {
+            return Err(Rejection::InvalidArguments);
+        }
+        let mut value = String::with_capacity(start + edit.text.len() + self.text.len() - end);
+        value.push_str(&self.text[..start]);
+        value.push_str(&edit.text);
+        value.push_str(&self.text[end..]);
+        if value != self.text {
+            let clock = self
+                .text_clock
+                .checked_add(1)
+                .ok_or(Rejection::InvalidArguments)?;
+            self.text = value;
+            self.text_clock = clock;
+        }
+        let caret = edit.range.start + edit.text.chars().count() as u64;
+        self.selection = (caret, caret);
+        Ok(())
+    }
+    pub fn canvas_region(&self) -> rui_protocol_core::model::Rect {
+        rui_protocol_core::model::Rect {
+            x: 360.0,
+            y: 100.0,
+            width: self.width - 400.0,
+            height: self.height - 180.0,
+        }
+    }
+    pub fn raw_route(&self, presented_revision: u64) -> rui_protocol_core::input::Route {
+        rui_protocol_core::input::Route {
+            surface: SURFACE_ID,
+            token: self.routing_token(),
+            presented_revision,
+            bounds: self.canvas_region(),
+            mapped: true,
+            focused: self.modal.is_none(),
+            blocked_by_modal: self.modal.is_some(),
+            authorized: true,
+            text_owner: rui_protocol_core::input::TextOwner::ClientText,
+        }
+    }
+    pub fn cancel_drag(&mut self) {
+        self.dragging = false;
+    }
+    pub fn apply_raw_event(&mut self, event: &rui_protocol_core::input::TimedEvent) {
+        use rui_protocol_core::input::Event;
+        let point = match event.event {
+            Event::Button {
+                pressed, position, ..
+            } => {
+                self.dragging = pressed;
+                Some(position)
+            }
+            Event::TouchDown { position, .. } => {
+                self.dragging = true;
+                Some(position)
+            }
+            Event::Motion(position) | Event::TouchMove { position, .. } if self.dragging => {
+                Some(position)
+            }
+            Event::TouchUp { .. } | Event::TouchCancel { .. } => {
+                self.dragging = false;
+                None
+            }
+            Event::Wheel { x, y, .. } => Some(rui_protocol_core::model::Point {
+                x: self.shape.x + x,
+                y: self.shape.y + y,
+            }),
+            _ => None,
+        };
+        if let Some(point) = point {
+            let region = self.canvas_region();
+            self.shape.x = point.x.clamp(region.x, region.x + region.width - 16.0);
+            self.shape.y = point
+                .y
+                .clamp(region.y + 32.0, region.y + region.height - 16.0);
+        }
+    }
+    pub fn validate_resize(&self, width: f64, height: f64) -> Result<(), Rejection> {
+        if !(480.0..=1920.0).contains(&width) || !(300.0..=1200.0).contains(&height) {
+            return Err(Rejection::InvalidArguments);
+        }
+        if self.modal.is_some() {
+            return Err(Rejection::DisabledTarget);
+        }
+        self.route_clock
+            .checked_add(1)
+            .ok_or(Rejection::InvalidArguments)?;
+        Ok(())
+    }
+    pub fn resize(&mut self, width: f64, height: f64) -> Result<(), Rejection> {
+        self.validate_resize(width, height)?;
+        self.width = width;
+        self.height = height;
+        self.route_clock += 1;
+        self.cancel_drag();
+        let region = self.canvas_region();
+        self.shape.x = self.shape.x.clamp(region.x, region.x + region.width - 16.0);
+        self.shape.y = self
+            .shape
+            .y
+            .clamp(region.y + 32.0, region.y + region.height - 16.0);
         Ok(())
     }
     fn toggle(&mut self, kind: TransientKind) -> Result<(), Rejection> {
@@ -278,11 +409,16 @@ impl Corpus {
                 .focus_generation
                 .checked_add(1)
                 .ok_or(Rejection::InvalidArguments)?;
+            let route_clock = self
+                .route_clock
+                .checked_add(1)
+                .ok_or(Rejection::InvalidArguments)?;
             let prior = self.focus;
             self.toggle(TransientKind::Modal)?;
             self.modal_return_focus = Some(prior);
             self.focus = self.modal.unwrap().id + 2;
             self.focus_generation = generation;
+            self.route_clock = route_clock;
         }
         Ok(())
     }
@@ -372,6 +508,7 @@ impl Corpus {
                     s.input_region = vec![rect(0.0, 0.0, self.width, self.height)];
                     s.visual_coverage = p::VisualCoverage::Partial as i32;
                     s.unsupported_features = vec!["source-glyph-provider-pending".into()];
+                    s.routing_token = self.routing_token().to_vec();
                 }
                 p::record::Record::Session(s) => {
                     s.canvas = Some(rect(0.0, 0.0, self.width + 280.0, self.height.max(200.0)));
@@ -458,7 +595,10 @@ impl Corpus {
                 CANVAS_ID,
                 p::SemanticRole::CustomCanvas,
                 "Vector canvas",
-                rect(360.0, 100.0, 240.0, 300.0),
+                {
+                    let region = self.canvas_region();
+                    rect(region.x, region.y, region.width, region.height)
+                },
                 vec![],
             ),
         ];
@@ -528,7 +668,8 @@ impl Corpus {
                 focus: self.selection.1,
             }),
             editable: projection.permissions.can_control
-                && projection.permissions.actions.contains("ReplaceText"),
+                && (projection.permissions.actions.contains("ReplaceText")
+                    || projection.permissions.actions.contains("TextComposition")),
             selectable: true,
         })));
         for (index, id) in self.order.iter().enumerate() {
@@ -600,11 +741,25 @@ impl Corpus {
                 p::record::Record::Scene(n) if n.id == SCENE_ROOT_ID => n.ordered_children.extend(
                     (FIRST_SCENE..FIRST_SCENE + 8)
                         .chain(120..123)
+                        .chain([CANVAS_SHAPE_SCENE_ID])
                         .map(|id| reference(p::ObjectKind::Scene, id)),
                 ),
+                p::record::Record::Scene(n) if n.id == FIRST_SCENE + 7 => {
+                    let region = self.canvas_region();
+                    n.clip = Some(rect(region.x, region.y, region.width, region.height));
+                }
                 _ => {}
             }
         }
+        let mut shape = scene(
+            CANVAS_SHAPE_SCENE_ID,
+            1,
+            rect(self.shape.x, self.shape.y, 16.0, 16.0),
+            [0.2, 0.7, 0.9, 1.0],
+        );
+        let region = self.canvas_region();
+        shape.clip = Some(rect(region.x, region.y, region.width, region.height));
+        records.push(wrap(p::record::Record::Scene(shape)));
         records.push(wrap(p::record::Record::Surface(p::Surface {
             id: SECOND_SURFACE_ID,
             version: 1,

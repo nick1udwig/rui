@@ -644,15 +644,26 @@ async fn handle(
             .map_err(|_| TransportError::Authority)?;
             None
         }
-        p::Kind::SemanticCommand => {
-            let command = rui_protocol_core::commands::decode_command(raw)
+        p::Kind::SemanticCommand
+        | p::Kind::RawInputBatch
+        | p::Kind::TextComposition
+        | p::Kind::ResizeRequest => {
+            use rui_protocol_core::commands::CommandFamily;
+            let family = match kind {
+                p::Kind::SemanticCommand => CommandFamily::Semantic,
+                p::Kind::RawInputBatch => CommandFamily::RawInput,
+                p::Kind::TextComposition => CommandFamily::TextComposition,
+                p::Kind::ResizeRequest => CommandFamily::Resize,
+                _ => unreachable!(),
+            };
+            let command = rui_protocol_core::commands::decode_family(family, raw)
                 .map_err(|_| TransportError::Protocol)?;
             let result = host
-                .submit(client, raw, now)
+                .submit_family(client, family, raw, now)
                 .map_err(|_| TransportError::Protocol)?;
             Some((
                 p::Kind::CommandResult,
-                codec::command_result(command.command_seq, result).encode_to_vec(),
+                codec::command_result(command.header().command_seq, result).encode_to_vec(),
             ))
         }
         p::Kind::GetCommandResult => {

@@ -13,8 +13,9 @@ remaining integration gates.
 |---|---|---|
 | Schema and reducer | `protocol-core/tests/model.rs`, `scene.rs`; Python oracle | Nine retained primitives; atomic graph/version validation |
 | Publications and resources | `publication.rs`, `resources.rs`, `receiver.rs`, `pipeline.rs` | Exact-byte chunks, shared budgets, pins, delayed resources, cache loss and revocation |
-| Command and session authority | `commands.rs`, `session.rs`; `host-broker/tests/controlled.rs` | One exact-byte ledger for semantic/raw/composition/resize families; source evidence, leases, private observer projections; full host-family integration pending |
-| Input and composition primitives | `protocol-core/tests/input.rs` | Whole-batch validation, ordered capture, conservative cleanup, transient scalar-indexed composition; host integration pending |
+| Command and session authority | `commands.rs`, `session.rs`; `host-broker/tests/controlled.rs` | One exact-byte ledger for semantic/raw/composition/resize families; source evidence, leases, private observer projections; headless/TLS source dispatch for all four families accepted |
+| Input and composition primitives | `protocol-core/tests/input.rs` | Whole-batch validation, ordered capture, conservative cleanup, transient scalar-indexed composition; headless/TLS integration includes actual source canvas/resize, transient preedit and scalar commits; native adapters remain separately gated |
+| Controlled source input families | `host-broker/tests/input_families.rs`, `transport/tests/input_families.rs` | Eight headless and three real TLS cases: one exact-byte sequence ledger, permission-filtered modes, source canvas effects, scalar composition, source resize, private preedit, stale routes/leases, cleanup and cache-loss neutralization; graphical/native dispatch remains separate |
 | Scoped transcripts | `protocol-core/tests/transcript.rs`, `transport/tests/diagnostics.rs` | Opt-in post-auth TLS recording: metadata mode or explicitly authorized exact pre-encryption bytes; same-view reserved budget, bounded connections/records, credential exclusion, scoped inspection and revocation/close cleanup; actual private-entry observer publication/resource/history scans pass in both recording modes; full native trace audit remains |
 | Generated hardening | `protocol-core/tests/hardening.rs` | 2,048 replay prefixes and 10,000 bounded malformed-payload mutations |
 | Replay minimization | `conformance/shrink.py`, `test_shrink.py` | Independent replay failures produce a bounded, minimized exact-byte transcript preserving the mismatch class |
@@ -52,8 +53,8 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   identifies the actual same-node snapshot boundary, cooperating stable semantics,
   seventeen mapped frames per style, 104 default-style gaps and zero constrained-style gaps.
   Window decorations and compositor output are outside that capture scope.
-- **M1 remains open.** Complete all controlled command families, full recorded interaction
-  audit, independent result interoperability and the full core-case audit.
+- **M1 remains open.** Controlled host/TLS dispatch for all four families passes. Complete the full
+  native recorded interaction audit, independent result interoperability and core-case audit.
 - **M2 remains open.** Resource-bearing full-canvas source/two-native-mirror
   comparison, rapid typing/preedit, independent Python item selection and local
   observer transforms have passed. Complete broader controls/transients, custom
