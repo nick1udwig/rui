@@ -367,7 +367,7 @@ fn observers_disabled_targets_stale_text_and_old_leases_cannot_execute() {
     assert_eq!(host.diagnostics().counter, 1);
 }
 #[test]
-fn disconnected_source_changes_require_explicit_checkpoint_and_preserve_stable_ids() {
+fn disconnected_source_changes_resume_bounded_history_and_preserve_stable_ids() {
     let mut host = host(SENTINEL);
     let (a, mut ar) = open(&mut host, 3, true);
     let old = host
@@ -404,21 +404,17 @@ fn disconnected_source_changes_require_explicit_checkpoint_and_preserve_stable_i
     let resumed = host
         .negotiate(auth("controller", true), reconnect, 5)
         .unwrap();
-    assert!(matches!(
-        resumed.resume,
-        ResumeDisposition::ResetRequired(_)
-    ));
-    assert_eq!(
-        host.acquire_control(&a.client, a.view_id, [3; 16], 5),
-        Err(HostError::CheckpointRequired)
-    );
-    assert_eq!(
-        host.snapshot(&a.client, a.view_id),
-        Err(HostError::CheckpointRequired)
-    );
-    let snapshot = host.checkpoint(&a.client, a.view_id).unwrap();
+    let ResumeDisposition::Accepted { transactions, .. } = &resumed.resume else {
+        panic!()
+    };
+    assert_eq!(transactions.len(), 2);
+    assert!(host
+        .acquire_control(&a.client, a.view_id, [3; 16], 5)
+        .is_err());
     ar.reconnect(context(&resumed)).unwrap();
-    ar.receive_envelope([20; 16], &snapshot).unwrap();
+    for (index, delta) in transactions.iter().enumerate() {
+        ar.receive_envelope([20 + index as u8; 16], delta).unwrap();
+    }
     ack(&mut host, &resumed, &mut ar);
     match &ar.state().unwrap().records[&SECRET_TEXT_ID] {
         Record::Text(text) => {
@@ -606,7 +602,7 @@ fn snapshot_reads_preserve_history_and_the_last_handle_stays_memory_charged() {
     ));
 }
 #[test]
-fn lowered_envelope_ceiling_denies_oversized_retained_resume_envelopes() {
+fn changed_resume_limits_require_new_view_before_decoder_reconfiguration() {
     let mut host = host(SENTINEL);
     let (a, mut ar) = open(&mut host, 3, true);
     let (b, _) = open(&mut host, 4, false);
@@ -629,10 +625,11 @@ fn lowered_envelope_ceiling_denies_oversized_retained_resume_envelopes() {
         .unwrap();
     assert!(matches!(
         resumed.resume,
-        ResumeDisposition::ResetRequired(_)
+        ResumeDisposition::ResetRequired(ResetReason::ViewChanged)
     ));
+    assert_ne!(resumed.view_id, b.view_id);
     assert!(
-        host.view_status(&b.client, b.view_id)
+        host.view_status(&b.client, resumed.view_id)
             .unwrap()
             .checkpoint_required
     );
@@ -672,6 +669,8 @@ fn source_text_and_snapshot_outputs_have_hard_bounds_without_secret_errors() {
     let reduced = host
         .negotiate(auth("controller", true), smaller, 3)
         .unwrap();
+    assert_ne!(reduced.view_id, a.view_id);
+    drop(host.checkpoint(&reduced.client, reduced.view_id).unwrap());
     loop {
         match host.snapshot(&reduced.client, reduced.view_id) {
             Ok(snapshot) => held.push(snapshot),
@@ -744,4 +743,138 @@ fn current_text_still_requires_current_focus_and_control_does_not_grant_secret_r
     assert_no_secret(&delta);
     assert_private(&br);
     assert_eq!(counter(&br), 1);
+}
+
+#[test]
+fn revoked_immutable_lifetime_denies_new_reads_and_same_policy_reapproval_changes_view() {
+    let mut host = host(SENTINEL);
+    let old = AuthorizationLifetime::new();
+    let session = host
+        .negotiate_with_lifetime(auth("controller", true), hello(3), Some(old.clone()), 0)
+        .unwrap();
+    let snapshot = host.checkpoint(&session.client, session.view_id).unwrap();
+    assert!(snapshot
+        .windows(SENTINEL.len())
+        .any(|bytes| bytes == SENTINEL.as_bytes()));
+    host.disconnect(&session.client, 1).unwrap();
+    host.set_counter_enabled(false, 2).unwrap();
+    assert_eq!(
+        host.view_status(&session.client, session.view_id)
+            .unwrap()
+            .revision,
+        Some(2)
+    );
+    old.revoke();
+    assert!(matches!(
+        host.snapshot(&session.client, session.view_id),
+        Err(HostError::Session(SessionError::Unauthenticated))
+    ));
+    assert!(matches!(
+        host.source_capture(&session.client, session.view_id),
+        Err(HostError::Session(SessionError::Unauthenticated))
+    ));
+    host.tick(3);
+    assert_eq!(
+        host.view_status(&session.client, session.view_id)
+            .unwrap()
+            .closed,
+        Some(PublicationFailure::AuthorizationRevoked)
+    );
+    host.set_counter_enabled(true, 4).unwrap();
+    assert_eq!(
+        host.view_status(&session.client, session.view_id)
+            .unwrap()
+            .revision,
+        Some(2)
+    );
+    let mut h = hello(3);
+    h.resume = Some(ResumeRequest {
+        epoch: session.epoch,
+        view_id: session.view_id,
+        acknowledged_revision: 1,
+    });
+    assert!(matches!(
+        host.negotiate_with_lifetime(auth("controller", true), h.clone(), Some(old), 5,),
+        Err(HostError::Session(SessionError::Unauthenticated))
+    ));
+    let fresh = host
+        .negotiate_with_lifetime(
+            auth("controller", true),
+            h,
+            Some(AuthorizationLifetime::new()),
+            6,
+        )
+        .unwrap();
+    assert_ne!(fresh.view_id, session.view_id);
+    assert!(matches!(
+        fresh.resume,
+        ResumeDisposition::ResetRequired(ResetReason::ViewChanged)
+    ));
+    assert!(host
+        .source_capture(&session.client, session.view_id)
+        .is_err());
+    // Already-held local trusted content cannot be retroactively unread.
+    assert!(snapshot
+        .windows(SENTINEL.len())
+        .any(|bytes| bytes == SENTINEL.as_bytes()));
+}
+#[test]
+fn authenticated_fresh_view_request_cannot_retire_another_registered_principal() {
+    let mut host = host(SENTINEL);
+    let (session, mut receiver) = open(&mut host, 3, true);
+    let lease = host
+        .acquire_control(&session.client, session.view_id, [1; 16], 0)
+        .unwrap();
+    let wrong = rui_protocol_core::commands::AuthenticatedClient {
+        principal: "other".into(),
+        client_instance_id: [3; 16],
+    };
+    let snapshot = host.snapshot(&session.client, session.view_id).unwrap();
+    assert_eq!(
+        host.retire_registered_view(&wrong, 1),
+        Err(HostError::Session(SessionError::WrongPrincipal))
+    );
+    assert!(host
+        .view_status(&session.client, session.view_id)
+        .unwrap()
+        .closed
+        .is_none());
+    assert_eq!(
+        &*host.snapshot(&session.client, session.view_id).unwrap(),
+        &*snapshot
+    );
+    let result = host
+        .submit(
+            &session.client,
+            &activate(&session, &lease, 1, 1, 1).encode_to_vec(),
+            1,
+        )
+        .unwrap();
+    assert_eq!(result.status, CommandStatus::Applied);
+    assert_eq!(host.diagnostics().counter, 1);
+    receive_delta(&mut host, &session, &mut receiver, 2);
+    ack(&mut host, &session, &mut receiver);
+    host.disconnect(&session.client, 2).unwrap();
+    host.set_counter_enabled(false, 3).unwrap();
+    assert_eq!(
+        host.retire_registered_view(&wrong, 4),
+        Err(HostError::Session(SessionError::WrongPrincipal))
+    );
+    let mut h = hello(3);
+    h.resume = Some(ResumeRequest {
+        epoch: session.epoch,
+        view_id: session.view_id,
+        acknowledged_revision: 2,
+    });
+    let resumed = host.negotiate(auth("controller", true), h, 5).unwrap();
+    assert_eq!(resumed.view_id, session.view_id);
+    assert!(matches!(
+        resumed.resume,
+        ResumeDisposition::Accepted {
+            from_revision: 2,
+            through_revision: 3,
+            ref transactions,
+            ..
+        } if transactions.len() == 1
+    ));
 }

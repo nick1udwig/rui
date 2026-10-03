@@ -745,6 +745,28 @@ impl SessionBroker {
             requires_resources: !conn.resources_ready,
         }
     }
+    // Trusted producer retention may continue for a disconnected registered
+    // view. It conveys neither a readable projection nor any input authority.
+    fn producer_connection(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<&Connection, SessionError> {
+        let conn = self
+            .connections
+            .get(&client.client_instance_id)
+            .ok_or(SessionError::Unauthenticated)?;
+        if conn.identity != *client {
+            return Err(SessionError::WrongPrincipal);
+        }
+        if conn.closed || conn.view_id != view {
+            return Err(SessionError::WrongView);
+        }
+        if !conn.authorization.permissions.can_view {
+            return Err(SessionError::Unauthorized);
+        }
+        Ok(conn)
+    }
     fn connection(
         &self,
         client: &AuthenticatedClient,
@@ -907,10 +929,32 @@ impl SessionBroker {
         attachment: Option<PublicationAttachment>,
         now: u64,
     ) -> Result<(), SessionError> {
+        self.connection(client, view)?;
+        self.publish_retained_with_attachment(client, view, base, revision, bytes, attachment, now)
+    }
+    /// Trusted source publication for the current registered policy even while
+    /// disconnected. The authentication adapter must invalidate revoked grants;
+    /// this method never permits input or projection reads. Disconnected updates
+    /// retain bounded history only, without growing an outbound socket queue.
+    #[allow(clippy::too_many_arguments)]
+    pub fn publish_retained_with_attachment(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        base: u64,
+        revision: u64,
+        bytes: Vec<u8>,
+        attachment: Option<PublicationAttachment>,
+        now: u64,
+    ) -> Result<(), SessionError> {
         self.tick(now);
         let max_history_records = self.config.max_history_records;
         let max_history_bytes = self.config.max_history_bytes;
-        let conn = self.connection_mut(client, view)?;
+        self.producer_connection(client, view)?;
+        let conn = self
+            .connections
+            .get_mut(&client.client_instance_id)
+            .unwrap();
         if attachment.as_ref().is_some_and(|a| {
             a.0.memory.view_id != view
                 || !Arc::ptr_eq(&a.0.memory._reservation.budget, &conn.budget)
@@ -930,11 +974,12 @@ impl SessionBroker {
             .checked_add(PUBLICATION_OVERHEAD_BYTES)
             .ok_or(SessionError::Oversized)
             .and_then(|charge| Reservation::new(conn.budget.clone(), charge));
-        if conn
-            .queue_bytes
-            .checked_add(bytes.len())
-            .is_none_or(|n| n > conn.limits.outbound_queue_bytes)
-            || conn.queue.len() >= conn.limits.records
+        if (conn.connected
+            && (conn
+                .queue_bytes
+                .checked_add(bytes.len())
+                .is_none_or(|n| n > conn.limits.outbound_queue_bytes)
+                || conn.queue.len() >= conn.limits.records))
             || reservation.is_err()
         {
             conn.closed = true;
@@ -959,8 +1004,10 @@ impl SessionBroker {
             _reservation: reservation.unwrap(),
             _attachment: attachment,
         }));
-        conn.queue_bytes += bytes.len();
-        conn.queue.push_back(bytes.clone());
+        if conn.connected {
+            conn.queue_bytes += bytes.len();
+            conn.queue.push_back(bytes.clone());
+        }
         conn.history_bytes += bytes.len();
         conn.history.push_back(HistoryEntry {
             base,
@@ -1065,6 +1112,20 @@ impl SessionBroker {
         bytes: usize,
     ) -> Result<ViewMemoryReservation, SessionError> {
         let conn = self.connection(client, view)?;
+        Ok(ViewMemoryReservation {
+            view_id: view,
+            _reservation: Reservation::new(conn.budget.clone(), bytes)?,
+        })
+    }
+    /// Trusted source scratch/closure retention under the current registered
+    /// policy; unlike projection reads this permits a disconnected view.
+    pub fn reserve_producer_view_memory(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        bytes: usize,
+    ) -> Result<ViewMemoryReservation, SessionError> {
+        let conn = self.producer_connection(client, view)?;
         Ok(ViewMemoryReservation {
             view_id: view,
             _reservation: Reservation::new(conn.budget.clone(), bytes)?,

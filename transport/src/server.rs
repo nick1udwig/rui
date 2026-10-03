@@ -221,7 +221,7 @@ async fn connection(
     }
     let mut wire: p::ClientHello = codec::decode(&packet.payload, 64 * 1024)?;
     let client_id = codec::id(&wire.client_instance_id)?;
-    let (authorization, approval) = {
+    let (authorization, approval, lifetime) = {
         let pairing = shared
             .pairing
             .lock()
@@ -229,31 +229,47 @@ async fn connection(
         (
             pairing.authenticated(&wire.credential, client_id)?,
             pairing.approval_id(&wire.credential, client_id)?,
+            pairing.approval_lifetime(&wire.credential, client_id)?,
         )
     };
     wire.credential.zeroize();
     packet.payload.zeroize();
     raw.zeroize();
+    let fresh_view = wire.fresh_view;
     let mut hello = codec::hello(wire)?;
     // The upgrade selected the parser bound before reading an envelope body.
     if hello.receiver_limits.envelope_bytes < ceiling {
         return Err(TransportError::Limit);
     }
     hello.receiver_limits.envelope_bytes = ceiling;
-    {
+    let busy = {
         let mut active = shared
             .active
             .lock()
             .map_err(|_| TransportError::Authentication)?;
-        if !active.insert(client_id) {
-            return Err(TransportError::Authentication);
-        }
+        !active.insert(client_id)
+    };
+    if busy {
+        websocket::send(
+            &mut socket,
+            codec::wrap(
+                p::Kind::Error,
+                &p::Error {
+                    code: "PRODUCER_CONNECTION_BUSY".into(),
+                },
+                None,
+            ),
+            ceiling,
+            shared.config.send_timeout,
+        )
+        .await?;
+        return Err(TransportError::ProducerBusy);
     }
     let _active = ActiveGuard {
         shared: shared.clone(),
         id: client_id,
     };
-    let session = {
+    let (session, resume_keeper) = {
         let mut host = shared.host.lock().await;
         let pairing = shared
             .pairing
@@ -262,8 +278,36 @@ async fn connection(
         if !pairing.remains_authorized(approval, client_id, &authorization) {
             return Err(TransportError::Authentication);
         }
-        host.negotiate(authorization.clone(), hello, shared.now())
-            .map_err(|_| TransportError::Authority)?
+        if fresh_view {
+            host.retire_registered_view(
+                &rui_protocol_core::commands::AuthenticatedClient {
+                    principal: authorization.principal.clone(),
+                    client_instance_id: client_id,
+                },
+                shared.now(),
+            )
+            .map_err(|_| TransportError::Authority)?;
+        }
+        let session = host
+            .negotiate_with_lifetime(authorization.clone(), hello, Some(lifetime), shared.now())
+            .map_err(|_| TransportError::Authority)?;
+        // Capture the exact zero-delta keeper while negotiation and source
+        // state share the host lock; later source changes queue normal deltas.
+        let keeper = if matches!(&session.resume,ResumeDisposition::Accepted {from_revision,through_revision,..} if from_revision==through_revision)
+        {
+            match host.snapshot_publication(&session.client, session.view_id) {
+                Ok(frame) => Some(frame),
+                Err(_) => {
+                    let _ = host.disconnect(&session.client, shared.now());
+                    drop(pairing);
+                    drain_host_cleanup(&shared, &mut host);
+                    return Err(TransportError::Limit);
+                }
+            }
+        } else {
+            None
+        };
+        (session, keeper)
     };
     let client = session.client.clone();
     let result = run_authenticated(
@@ -273,6 +317,7 @@ async fn connection(
         ceiling,
         approval,
         authorization,
+        resume_keeper,
     )
     .await;
     let _ = shared.host.lock().await.disconnect(&client, shared.now());
@@ -286,6 +331,7 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     ceiling: usize,
     approval: [u8; 32],
     authorization: rui_protocol_core::session::VerifiedAuthorization,
+    mut resume_keeper: Option<SharedPayload>,
 ) -> Result<(), TransportError> {
     if session.limits.envelope_bytes != ceiling {
         return Err(TransportError::Limit);
@@ -357,6 +403,9 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                         ResumeDisposition::Accepted {from_revision,through_revision,transactions,requires_resources}=>{
                             let resumed=p::ResumeAccepted {from_revision:*from_revision,through_revision:*through_revision,requires_resources:*requires_resources};
                             websocket::send(socket,codec::wrap(p::Kind::ResumeAccepted,&resumed,binding),ceiling,timeout).await?;
+                            if from_revision==through_revision {
+                                delivery.seed_resumed(*from_revision,resume_keeper.take().ok_or(TransportError::Protocol)?);
+                            }
                             queued.extend(transactions.iter().cloned());
                         }
                         _=>{

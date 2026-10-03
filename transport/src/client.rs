@@ -6,7 +6,7 @@ use rui_protocol_core::receiver::{NeededResources, ReceiveOutcome, ReceiverConfi
 use rui_protocol_core::resources::{
     MemoryBudget, MemoryReservation, ResourceContext, ResourceScope,
 };
-use rui_protocol_core::session::{ClientHello, ReceiverLimits};
+use rui_protocol_core::session::{ClientHello, ReceiverLimits, ResumeRequest};
 use std::{collections::VecDeque, net::SocketAddr, time::Duration};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -34,8 +34,85 @@ pub enum ClientEvent {
     Error(String),
 }
 
+type ClientSocket =
+    WebSocketStream<websocket::ResponseGuard<tokio_rustls::client::TlsStream<TcpStream>>>;
+/// Committed graph/cache owned locally after socket loss. Staging, queued replies
+/// and presentation are discarded; reauthentication alone cannot restore input.
+pub struct RetainedClientView {
+    context: ResourceContext,
+    client_instance: Id,
+    limits: ReceiverLimits,
+    profiles: Vec<String>,
+    receiver: Option<ViewReceiver>,
+}
+impl RetainedClientView {
+    pub fn receiver(&self) -> Option<&ViewReceiver> {
+        self.receiver.as_ref()
+    }
+    pub fn lose_resource_cache(&mut self) -> Result<(), TransportError> {
+        let receiver = self.receiver.as_mut().ok_or(TransportError::Receiver)?;
+        receiver
+            .reconnect(self.context)
+            .map_err(|_| TransportError::Receiver)?;
+        let result = receiver
+            .resource_cache_lost()
+            .map_err(|_| TransportError::Receiver);
+        receiver.disconnect();
+        result
+    }
+    /// Reauthenticate this retained producer; call `open_view` on success to
+    /// receive the resume/checkpoint. Failed or cancelled attempts retain this
+    /// owner. Only an authenticated producer-busy response retries (up to 2s).
+    pub async fn reconnect(
+        &mut self,
+        address: SocketAddr,
+        server_name: String,
+        pinned_certificate: Vec<u8>,
+        credential: &Credential,
+        mut hello: ClientHello,
+    ) -> Result<NetworkClient, TransportError> {
+        let receiver = self.receiver.as_ref().ok_or(TransportError::Receiver)?;
+        if hello.resume.is_some() || hello.client_instance_id != self.client_instance {
+            return Err(TransportError::Protocol);
+        }
+        let fresh = hello
+            .receiver_limits
+            .negotiate(&self.limits)
+            .map_err(|_| TransportError::Limit)?
+            != self.limits
+            || self
+                .profiles
+                .iter()
+                .any(|profile| !hello.supported_profiles.contains(profile))
+            || hello
+                .required_profiles
+                .iter()
+                .any(|profile| !self.profiles.contains(profile));
+        if !fresh {
+            hello.resume = Some(ResumeRequest {
+                epoch: self.context.scope.epoch,
+                view_id: self.context.view_id,
+                acknowledged_revision: receiver
+                    .state()
+                    .map_err(|_| TransportError::Receiver)?
+                    .revision,
+            });
+        }
+        NetworkClient::connect_retained(
+            address,
+            server_name,
+            pinned_certificate,
+            credential,
+            hello,
+            Some(self),
+            fresh,
+        )
+        .await
+    }
+}
 pub struct NetworkClient {
-    socket: WebSocketStream<websocket::ResponseGuard<tokio_rustls::client::TlsStream<TcpStream>>>,
+    socket: ClientSocket,
+    client_instance: Id,
     pub session_id: Id,
     pub epoch: Id,
     pub view_id: Id,
@@ -48,6 +125,9 @@ pub struct NetworkClient {
     announce_evictions: bool,
     deadline: Duration,
     pending: PendingReplies,
+    awaiting_resume: Option<u64>,
+    resume_applied: Option<u64>,
+    resume_needed: Option<u64>,
 }
 
 struct PendingReply {
@@ -209,11 +289,134 @@ impl NetworkClient {
         server_name: String,
         pinned_certificate: Vec<u8>,
         credential: &Credential,
-        mut hello: ClientHello,
+        hello: ClientHello,
     ) -> Result<Self, TransportError> {
         if hello.resume.is_some() {
             return Err(TransportError::Protocol);
         }
+        Self::connect_retained(
+            address,
+            server_name,
+            pinned_certificate,
+            credential,
+            hello,
+            None,
+            false,
+        )
+        .await
+    }
+    async fn connect_retained(
+        address: SocketAddr,
+        server_name: String,
+        pinned_certificate: Vec<u8>,
+        credential: &Credential,
+        mut hello: ClientHello,
+        retained: Option<&mut RetainedClientView>,
+        fresh: bool,
+    ) -> Result<Self, TransportError> {
+        let deadline = Duration::from_secs(5);
+        // Only the authenticated explicit busy code is retryable. Generic
+        // credential/pin/I/O failures leave the retained owner intact.
+        let (socket, server, limits, context) = timeout(Duration::from_secs(2), async {
+            loop {
+                match Self::handshake(
+                    address,
+                    server_name.clone(),
+                    pinned_certificate.clone(),
+                    credential,
+                    &mut hello,
+                    fresh,
+                )
+                .await
+                {
+                    Err(TransportError::ProducerBusy) if retained.is_some() => {
+                        tokio::time::sleep(Duration::from_millis(10)).await
+                    }
+                    result => break result,
+                }
+            }
+        })
+        .await
+        .map_err(|_| TransportError::Deadline)??;
+        if let Some(old) = retained.as_deref() {
+            if (old.context == context
+                && (old.limits != limits || old.profiles != server.selected_profiles))
+                || (fresh && old.context == context)
+            {
+                return Err(TransportError::Protocol);
+            }
+        }
+        let config = ReceiverConfig {
+            single_glyph_outlines: server
+                .selected_profiles
+                .iter()
+                .any(|f| f == "glyph.outline-single.v1"),
+            ..Default::default()
+        };
+        let (receiver, pending) = if let Some(old) = retained {
+            if old.context == context
+                && old.limits == limits
+                && old.profiles == server.selected_profiles
+            {
+                let receiver = old.receiver.as_ref().ok_or(TransportError::Receiver)?;
+                let pending = PendingReplies::new(receiver.memory_budget(), &limits)?;
+                old.receiver
+                    .as_mut()
+                    .unwrap()
+                    .reconnect(context)
+                    .map_err(|_| TransportError::Receiver)?;
+                (old.receiver.take().unwrap(), pending)
+            } else {
+                let receiver = ViewReceiver::new(context, limits.clone(), config)
+                    .map_err(|_| TransportError::Receiver)?;
+                let pending = PendingReplies::new(receiver.memory_budget(), &limits)?;
+                // Both allocations succeeded and a different scope is confirmed
+                // before the former reducer/retired identities are disposed.
+                old.receiver.take();
+                (receiver, pending)
+            }
+        } else {
+            let receiver = ViewReceiver::new(context, limits.clone(), config)
+                .map_err(|_| TransportError::Receiver)?;
+            let pending = PendingReplies::new(receiver.memory_budget(), &limits)?;
+            (receiver, pending)
+        };
+        Ok(Self {
+            socket,
+            client_instance: hello.client_instance_id,
+            session_id: context.scope.session_id,
+            epoch: context.scope.epoch,
+            view_id: context.view_id,
+            limits,
+            profiles: server.selected_profiles,
+            context,
+            receiver,
+            needed: None,
+            needed_requested: 0,
+            announce_evictions: false,
+            deadline,
+            pending,
+            awaiting_resume: hello.resume.as_ref().map(|r| r.acknowledged_revision),
+            resume_applied: None,
+            resume_needed: None,
+        })
+    }
+    async fn handshake(
+        address: SocketAddr,
+        server_name: String,
+        pinned_certificate: Vec<u8>,
+        credential: &Credential,
+        hello: &mut ClientHello,
+        fresh_view: bool,
+    ) -> Result<
+        (
+            ClientSocket,
+            p::ServerHello,
+            ReceiverLimits,
+            ResourceContext,
+        ),
+        TransportError,
+    > {
         let deadline = Duration::from_secs(5);
         let mut ceiling = hello.receiver_limits.envelope_bytes.min(1024 * 1024);
         if ceiling < websocket::MIN_MESSAGE {
@@ -249,7 +452,8 @@ impl NetworkClient {
             supported_profiles: hello.supported_profiles.iter().cloned().collect(),
             required_profiles: hello.required_profiles.iter().cloned().collect(),
             receiver_limits: Some(codec::wire_limits(&hello.receiver_limits)),
-            resume: hello.resume.map(|r| p::ResumeRequest {
+            fresh_view,
+            resume: hello.resume.as_ref().map(|r| p::ResumeRequest {
                 epoch: r.epoch.to_vec(),
                 view_id: r.view_id.to_vec(),
                 acknowledged_revision: r.acknowledged_revision,
@@ -267,6 +471,14 @@ impl NetworkClient {
             .await
             .map_err(|_| TransportError::Deadline)??;
         let initial: p::Packet = codec::decode(&raw, ceiling)?;
+        if initial.kind == p::Kind::Error as i32 {
+            let error: p::Error = codec::decode(&initial.payload, ceiling)?;
+            return Err(if error.code == "PRODUCER_CONNECTION_BUSY" {
+                TransportError::ProducerBusy
+            } else {
+                TransportError::Authentication
+            });
+        }
         let binding = (
             codec::id(&initial.session_id)?,
             codec::id(&initial.epoch)?,
@@ -310,31 +522,39 @@ impl NetworkClient {
             },
             view_id: binding.2,
         };
-        let config = ReceiverConfig {
-            single_glyph_outlines: server
-                .selected_profiles
-                .iter()
-                .any(|f| f == "glyph.outline-single.v1"),
-            ..ReceiverConfig::default()
-        };
-        let receiver = ViewReceiver::new(context, limits.clone(), config)
-            .map_err(|_| TransportError::Receiver)?;
-        let pending = PendingReplies::new(receiver.memory_budget(), &limits)?;
-        Ok(Self {
+        Ok((socket, server, limits, context))
+    }
+    pub fn into_retained(self) -> RetainedClientView {
+        let Self {
             socket,
-            session_id: binding.0,
-            epoch: binding.1,
-            view_id: binding.2,
-            limits,
-            profiles: server.selected_profiles,
+            client_instance,
             context,
-            receiver,
-            needed: None,
-            needed_requested: 0,
-            announce_evictions: false,
-            deadline,
+            limits,
+            profiles,
+            mut receiver,
             pending,
-        })
+            needed,
+            ..
+        } = self;
+        receiver.disconnect();
+        // Retain the actual live closure; obsolete cache entries belong to the
+        // former connection's eviction metadata and may be discarded locally.
+        while receiver
+            .evict_one_unpinned_resource()
+            .ok()
+            .flatten()
+            .is_some()
+        {}
+        drop(needed);
+        drop(pending);
+        drop(socket);
+        RetainedClientView {
+            context,
+            client_instance,
+            limits,
+            profiles,
+            receiver: Some(receiver),
+        }
     }
     fn binding(&self) -> Option<(Id, Id, Id)> {
         Some((self.session_id, self.epoch, self.view_id))
@@ -555,6 +775,12 @@ impl NetworkClient {
     /// are queued before returning; the next receive/send flushes them reliably.
     pub async fn receive(&mut self) -> Result<ClientEvent, TransportError> {
         loop {
+            if let Some(revision) = self.resume_needed.take() {
+                return Ok(ClientEvent::ResourcesNeeded { revision });
+            }
+            if let Some(revision) = self.resume_applied.take() {
+                return self.outcome(ReceiveOutcome::Applied { revision });
+            }
             self.queue_resource_request()?;
             self.flush_pending().await?;
             let raw = timeout(self.deadline, websocket::receive(&mut self.socket))
@@ -701,16 +927,45 @@ impl NetworkClient {
                     )?))
                 }
                 p::Kind::ResumeAccepted => {
-                    return Ok(ClientEvent::ResumeAccepted(codec::decode(
-                        &packet.payload,
-                        ceiling,
-                    )?))
+                    let resumed: p::ResumeAccepted = codec::decode(&packet.payload, ceiling)?;
+                    let revision = self
+                        .receiver
+                        .state()
+                        .map_err(|_| TransportError::Receiver)?
+                        .revision;
+                    if self.awaiting_resume.take() != Some(resumed.from_revision)
+                        || revision != resumed.from_revision
+                        || resumed.through_revision < revision
+                    {
+                        return Err(TransportError::Protocol);
+                    }
+                    if resumed.through_revision == revision {
+                        let missing = self
+                            .receiver
+                            .missing_live_resources()
+                            .map_err(|_| TransportError::Receiver)?;
+                        if missing.is_empty() {
+                            self.resume_applied = Some(revision);
+                        } else {
+                            self.needed = Some(missing);
+                            self.needed_requested = 0;
+                            self.announce_evictions = true;
+                            self.resume_needed = Some(revision);
+                            self.queue_resource_request()?;
+                        }
+                    }
+                    return Ok(ClientEvent::ResumeAccepted(resumed));
                 }
                 p::Kind::ResetRequired => {
+                    if self.awaiting_resume.take().is_none() {
+                        return Err(TransportError::Protocol);
+                    }
+                    // A higher checkpoint preserves this retained reducer's
+                    // retirement and monotonic clocks under the same view.
                     return Ok(ClientEvent::ResetRequired(codec::decode(
                         &packet.payload,
                         ceiling,
-                    )?))
+                    )?));
                 }
                 p::Kind::Error => {
                     let error: p::Error = codec::decode(&packet.payload, ceiling)?;

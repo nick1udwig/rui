@@ -130,6 +130,7 @@ impl Schema {
             (S::ClientHello, 4..=5) => Some(Strings),
             (S::ClientHello, 6) => Some(Nested(S::Limits)),
             (S::ClientHello, 7) => Some(Nested(S::ResumeRequest)),
+            (S::ClientHello, 8) => Some(Scalar),
             (S::Permissions, 1..=2) => Some(Scalar),
             (S::Permissions, 3) => Some(Strings),
             (S::ServerHello, 1) => Some(Scalar),
@@ -562,6 +563,7 @@ mod tests {
             required_profiles: vec![],
             receiver_limits: None,
             resume: None,
+            fresh_view: false,
         };
         assert!(!format!("{hello:?}").contains(secret));
         let packet = wrap(p::Kind::ClientHello, &hello, None);

@@ -31,9 +31,33 @@ pub use source_fonts::{
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use thiserror::Error;
 
+/// Trusted authentication adapter's immutable local approval lifetime. Remote
+/// packets cannot create, revoke or replace this token. Revocation is permanent
+/// and makes even disconnected retained projections unreadable immediately.
+#[derive(Clone)]
+pub struct AuthorizationLifetime(Arc<AtomicBool>);
+impl Default for AuthorizationLifetime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl AuthorizationLifetime {
+    pub fn new() -> Self {
+        Self(Arc::new(AtomicBool::new(true)))
+    }
+    pub fn revoke(&self) {
+        self.0.store(false, Ordering::Release);
+    }
+    pub fn is_authorized(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
 /// Explicit fixture content-reading permission in trusted Permissions::actions.
 /// Being a controller alone does not authorize reading the private field.
 pub const READ_SECRET_PERMISSION: &str = "fixture.read-secret.v1";
@@ -63,6 +87,7 @@ pub enum PublicationFailure {
     ReceiverLimit,
     RevisionExhausted,
     ProjectionUnavailable,
+    AuthorizationRevoked,
 }
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum HostError {
@@ -157,6 +182,7 @@ struct Projection {
     records: BTreeMap<u64, RecordStamp>,
     resources: Option<PublicationAttachment>,
     resource_registry: BTreeMap<ResourceDigest, Vec<WeakPublicationAttachment>>,
+    authorization_lifetime: Option<AuthorizationLifetime>,
 }
 #[derive(Clone)]
 struct RecordStamp {
@@ -189,6 +215,7 @@ impl Projection {
             records: BTreeMap::new(),
             resources: None,
             resource_registry: BTreeMap::new(),
+            authorization_lifetime: None,
         }
     }
     fn envelope(
@@ -357,21 +384,56 @@ impl ControlledHost {
         hello: ClientHello,
         now: u64,
     ) -> Result<NegotiatedSession, HostError> {
-        let mut negotiated = self.sessions.negotiate(Some(authorization), hello, now)?;
-        // This fixture retains complete Envelope bytes rather than independently
-        // chunked transaction payloads. A lowered envelope ceiling must also fit
-        // every retained resume envelope.
-        if matches!(&negotiated.resume, ResumeDisposition::Accepted {transactions,..}
-            if transactions.iter().any(|bytes| bytes.len() > negotiated.limits.envelope_bytes))
+        self.negotiate_with_lifetime(authorization, hello, None, now)
+    }
+    pub fn negotiate_with_lifetime(
+        &mut self,
+        authorization: VerifiedAuthorization,
+        hello: ClientHello,
+        lifetime: Option<AuthorizationLifetime>,
+        now: u64,
+    ) -> Result<NegotiatedSession, HostError> {
+        if self
+            .projections
+            .get(&hello.client_instance_id)
+            .is_some_and(|old| old.client.principal != authorization.principal)
         {
-            negotiated.resume = ResumeDisposition::ResetRequired(ResetReason::HistoryUnavailable);
+            return Err(SessionError::WrongPrincipal.into());
         }
+        if lifetime
+            .as_ref()
+            .is_some_and(|token| !token.is_authorized())
+        {
+            return Err(SessionError::Unauthenticated.into());
+        }
+        self.prune_revoked_authorizations(now);
+        let old = self
+            .projections
+            .get(&hello.client_instance_id)
+            .map(|projection| (projection.view_id, projection.limits.clone()));
+        let requested_resume = hello.resume.is_some();
+        let mut negotiated =
+            self.sessions
+                .negotiate(Some(authorization.clone()), hello.clone(), now)?;
+        if requested_resume
+            && old.as_ref().is_some_and(|(view, limits)| {
+                *view == negotiated.view_id && *limits != negotiated.limits
+            })
+        {
+            self.retire_registered_view(&negotiated.client, now)?;
+            let mut fresh = hello;
+            fresh.resume = None;
+            negotiated = self.sessions.negotiate(Some(authorization), fresh, now)?;
+            negotiated.resume = ResumeDisposition::ResetRequired(ResetReason::ViewChanged);
+        }
+
         match self
             .projections
             .get_mut(&negotiated.client.client_instance_id)
         {
             Some(projection) if projection.view_id == negotiated.view_id => {
                 projection.connected = true;
+                projection.authorization_lifetime = lifetime.clone();
                 projection.limits = negotiated.limits.clone();
                 if projection.capture_commit != self.source.commit
                     || !matches!(negotiated.resume, ResumeDisposition::Accepted { .. })
@@ -384,13 +446,34 @@ impl ControlledHost {
                 }
             }
             _ => {
-                self.projections.insert(
-                    negotiated.client.client_instance_id,
-                    Projection::new(&negotiated),
-                );
+                let mut projection = Projection::new(&negotiated);
+                projection.authorization_lifetime = lifetime;
+                self.projections
+                    .insert(negotiated.client.client_instance_id, projection);
             }
         }
         Ok(negotiated)
+    }
+    /// Explicit authenticated fresh-view request. Only this registered principal
+    /// may retire its producer's prior view; negotiation then creates a distinct
+    /// scope and never restores control.
+    pub fn retire_registered_view(
+        &mut self,
+        client: &AuthenticatedClient,
+        now: u64,
+    ) -> Result<(), HostError> {
+        if let Some(projection) = self.projections.get_mut(&client.client_instance_id) {
+            if projection.client != *client {
+                return Err(SessionError::WrongPrincipal.into());
+            }
+            close_projection(
+                &mut self.sessions,
+                projection,
+                PublicationFailure::ProjectionUnavailable,
+                now,
+            );
+        }
+        Ok(())
     }
     fn projection(&self, client: &AuthenticatedClient, view: Id) -> Result<&Projection, HostError> {
         let projection = self
@@ -402,6 +485,13 @@ impl ControlledHost {
         }
         if projection.view_id != view {
             return Err(SessionError::WrongView.into());
+        }
+        if projection
+            .authorization_lifetime
+            .as_ref()
+            .is_some_and(|token| !token.is_authorized())
+        {
+            return Err(SessionError::Unauthenticated.into());
         }
         if let Some(reason) = projection.closed {
             return Err(HostError::ViewClosed(reason));
@@ -467,6 +557,19 @@ impl ControlledHost {
         client: &AuthenticatedClient,
         view: Id,
     ) -> Result<SharedPayload, HostError> {
+        let output = self.snapshot_publication(client, view)?;
+        if output.len() > self.projection(client, view)?.limits.envelope_bytes {
+            return Err(SessionError::Oversized.into());
+        }
+        Ok(output)
+    }
+    /// Read-only whole snapshot/closure keeper for a chunked authenticated
+    /// transport. This does not reset history or acknowledgements.
+    pub fn snapshot_publication(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<SharedPayload, HostError> {
         let projection = self.projection(client, view)?;
         if projection.checkpoint_required || projection.capture_commit != self.source.commit {
             return Err(HostError::CheckpointRequired);
@@ -492,9 +595,6 @@ impl ControlledHost {
             p::MessageKind::Snapshot,
             snapshot.encode_to_vec(),
         );
-        if bytes.len() > projection.limits.envelope_bytes {
-            return Err(SessionError::Oversized.into());
-        }
         Ok(self
             .sessions
             .snapshot_publication_payload(client, view, bytes, resources)?)
@@ -767,8 +867,26 @@ impl ControlledHost {
         self.sessions.local_activity(now);
     }
     pub fn tick(&mut self, now: u64) {
+        self.prune_revoked_authorizations(now);
         self.sessions.tick(now);
         self.ledger.expire_outcomes(now);
+    }
+    fn prune_revoked_authorizations(&mut self, now: u64) {
+        for projection in self.projections.values_mut() {
+            if projection
+                .authorization_lifetime
+                .as_ref()
+                .is_some_and(|token| !token.is_authorized())
+                && projection.closed.is_none()
+            {
+                close_projection(
+                    &mut self.sessions,
+                    projection,
+                    PublicationFailure::AuthorizationRevoked,
+                    now,
+                );
+            }
+        }
     }
     pub fn take_cleanup(&mut self) -> Option<InputCleanup> {
         self.sessions.take_cleanup()
@@ -957,7 +1075,20 @@ fn publish_projections(
     now: u64,
 ) {
     for projection in projections.values_mut() {
-        if !projection.connected || projection.closed.is_some() || projection.checkpoint_required {
+        if projection
+            .authorization_lifetime
+            .as_ref()
+            .is_some_and(|token| !token.is_authorized())
+        {
+            close_projection(
+                sessions,
+                projection,
+                PublicationFailure::AuthorizationRevoked,
+                now,
+            );
+            continue;
+        }
+        if projection.closed.is_some() || projection.checkpoint_required {
             continue;
         }
         let Some(base) = projection.revision else {
@@ -972,7 +1103,7 @@ fn publish_projections(
             );
             continue;
         };
-        let _working = match sessions.reserve_view_memory(
+        let _working = match sessions.reserve_producer_view_memory(
             &projection.client,
             projection.view_id,
             source.decoded_projection_bytes(projection),
@@ -1019,7 +1150,7 @@ fn publish_projections(
             p::MessageKind::Transaction,
             transaction.encode_to_vec(),
         );
-        match sessions.publish_with_attachment(
+        match sessions.publish_retained_with_attachment(
             &projection.client,
             projection.view_id,
             base,
@@ -1116,7 +1247,8 @@ fn resource_closure(
             .checked_add(r.bytes().len() + 512)
             .ok_or(HostError::FixtureLimit)?;
     }
-    let memory = sessions.reserve_view_memory(&projection.client, projection.view_id, bytes)?;
+    let memory =
+        sessions.reserve_producer_view_memory(&projection.client, projection.view_id, bytes)?;
     let outlines = digests
         .iter()
         .map(|digest| {

@@ -10,12 +10,14 @@ mod server;
 mod source_delivery;
 mod tls;
 mod websocket;
-pub use client::{ClientEvent, NetworkClient};
+pub use client::{ClientEvent, NetworkClient, RetainedClientView};
 pub use server::{ServerConfig, ServerHandle};
 use thiserror::Error;
 pub use tls::HostIdentity;
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TransportError {
+    #[error("registered producer still has a connection closing")]
+    ProducerBusy,
     #[error("TLS identity verification or handshake failed")]
     Tls,
     #[error("pinned host identity differs")]

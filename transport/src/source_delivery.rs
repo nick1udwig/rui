@@ -41,6 +41,10 @@ impl Delivery {
             _memory: memory,
         })
     }
+    pub fn seed_resumed(&mut self, revision: u64, frame: SharedPayload) {
+        debug_assert!(self.last_applied.is_none() && self.publication.is_none());
+        self.last_applied = Some((revision, frame));
+    }
     pub fn install(&mut self, publication: Outgoing) {
         debug_assert!(self.publication.is_none());
         self.publication = Some(publication);

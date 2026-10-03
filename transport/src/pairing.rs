@@ -35,6 +35,12 @@ pub struct PendingPairing {
 struct Approved {
     client_instance_id: Id,
     authorization: VerifiedAuthorization,
+    lifetime: rui_host_broker::AuthorizationLifetime,
+}
+impl Drop for Approved {
+    fn drop(&mut self) {
+        self.lifetime.revoke();
+    }
 }
 /// Bounded authority state owned by the local operator. Approved records hold
 /// SHA-256 credential digests; raw bearer credentials are returned once only.
@@ -109,6 +115,7 @@ impl PairingAuthority {
             Approved {
                 client_instance_id: request.client_instance_id,
                 authorization,
+                lifetime: rui_host_broker::AuthorizationLifetime::new(),
             },
         );
         self.pending.remove(&request_id);
@@ -140,6 +147,19 @@ impl PairingAuthority {
             return Err(TransportError::Authentication);
         }
         Ok(approved.authorization.clone())
+    }
+    pub(crate) fn approval_lifetime(
+        &self,
+        raw: &[u8],
+        client: Id,
+    ) -> Result<rui_host_broker::AuthorizationLifetime, TransportError> {
+        let digest = self.approval_id(raw, client)?;
+        Ok(self
+            .approved
+            .get(&digest)
+            .ok_or(TransportError::Authentication)?
+            .lifetime
+            .clone())
     }
     pub(crate) fn approval_id(&self, raw: &[u8], client: Id) -> Result<[u8; 32], TransportError> {
         self.authenticated(raw, client)?;
@@ -216,5 +236,43 @@ mod tests {
             pairing.request_local_pairing([0; 16]).unwrap_err(),
             TransportError::Limit
         );
+    }
+}
+
+#[cfg(test)]
+mod lifetime_tests {
+    use super::*;
+    use rui_protocol_core::session::Permissions;
+    #[test]
+    fn immutable_approval_lifetime_ends_on_local_revoke_reapproval_and_authority_drop() {
+        let mut authority = PairingAuthority::new(1).unwrap();
+        let request = authority.request_local_pairing([3; 16]).unwrap();
+        let auth = VerifiedAuthorization {
+            principal: "alice".into(),
+            policy_version: 1,
+            permissions: Permissions {
+                can_view: true,
+                can_control: false,
+                actions: Default::default(),
+            },
+        };
+        let credential = authority
+            .approve_local(request.request_id, auth.clone())
+            .unwrap();
+        let old = authority
+            .approval_lifetime(credential.expose_for_tls_authentication(), [3; 16])
+            .unwrap();
+        assert!(old.is_authorized());
+        assert!(authority.revoke_local([3; 16]));
+        assert!(!old.is_authorized());
+        let request = authority.request_local_pairing([3; 16]).unwrap();
+        let replacement = authority.approve_local(request.request_id, auth).unwrap();
+        let fresh = authority
+            .approval_lifetime(replacement.expose_for_tls_authentication(), [3; 16])
+            .unwrap();
+        assert!(!old.is_authorized());
+        assert!(fresh.is_authorized());
+        drop(authority);
+        assert!(!fresh.is_authorized());
     }
 }

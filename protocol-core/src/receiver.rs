@@ -279,6 +279,23 @@ impl ViewReceiver {
     pub fn presented_revision(&self) -> Result<Option<u64>, ReceiverError> {
         Ok(self.inner()?.replica.presented_revision())
     }
+    /// Bounded transport/conformance progress metadata; exposes no payload.
+    pub fn staged_publication_bytes(&self) -> usize {
+        self.inner
+            .as_ref()
+            .map_or(0, |inner| inner.assembler.staged_bytes())
+    }
+    /// Trusted cache pressure evicts exactly one unpinned entry without retaining
+    /// an internal notification queue. The live/pending closure remains pinned.
+    pub fn evict_one_unpinned_resource(
+        &mut self,
+    ) -> Result<Option<ResourceEvicted>, ReceiverError> {
+        self.inner()?; // local disposal is also safe while disconnected
+        let inner = self.inner.as_mut().unwrap();
+        let result = inner.cache.evict_one_unpinned();
+        inner.cache.prune_unused_authorizations(self.context);
+        Ok(result)
+    }
     pub fn has_pending_publication(&self) -> bool {
         self.inner
             .as_ref()

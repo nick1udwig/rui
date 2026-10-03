@@ -41,9 +41,21 @@ disclosed copies held by an authorized recipient cannot be recalled.
 revision, and resets history and readiness. `snapshot` reads the current
 published capture without resetting anything; use it with a fresh replica or
 for inspection. Feeding it to an existing replica at a transaction's revision
-conflicts with exact-byte replay validation. A disconnected view that missed
-source changes requires a new checkpoint rather than a delta with skipped
-object versions. Reconnection never restores control or presentation readiness.
+conflicts with exact-byte replay validation. Disconnected registered views retain
+bounded source deltas without an outbound socket queue. Resume replays a retained
+contiguous chain; missing history requires an explicit higher-revision checkpoint.
+Reconnection never restores control or presentation readiness. Changed receiver
+limits on resume select a distinct view before reconfiguring a receiver.
+
+An external authentication adapter can call `negotiate_with_lifetime` with an
+immutable `AuthorizationLifetime`. Revocation immediately denies new reads and
+input; the next host tick/publication/negotiation releases retained projection
+history and resources. Tokens never renew after revocation. The transport's local
+pairing authority revokes them when approvals are removed or replaced. Direct
+trusted adapters using `negotiate` without a lifetime remain responsible for
+explicitly invalidating revoked registered views. Already-held local bytes cannot
+be recalled. `retire_registered_view` accepts only the registered authenticated
+principal and makes subsequent negotiation create a distinct view.
 
 Snapshot and update outputs are full, bound `Envelope` bytes. `snapshot` keeps
 its single-envelope ceiling. The checkpoint producer and queued transactions
@@ -62,7 +74,7 @@ For a nonvisual consumer, explicitly require and advertise `semantics.only.v1`. 
 
 `ControlledHost::new_corpus(config, secret)` opts into the expanded cooperating source. It adds a public Unicode field with backward scalar selection and source focus, a desired Boolean checkbox, three stable materialized list items with total count ten, stable-ID selection/reordering, a clipped scroll viewport, a second toplevel, and fresh popup/modal/tooltip incarnations. List-item activation requires the current version of its published collection owner. The no-argument reorder button needs no undiscoverable collection precondition. Modal state disables main-window actions and moves source focus to its dismiss target, then restores focus. Incarnations are bounded and deleted IDs are never reused.
 
-The corpus currently declares its main surface **Partial**, with `source-glyph-provider-pending`; valid Unicode text, including supplementary characters, remains available semantically. The vector canvas currently publishes its bounded scene region; raw event tracing, composition, authorized resize, resource-bearing network delivery and retained network recovery remain subsequent integration work. This slice does not claim complete visual mirroring. `view_description` reports the actual source canvas and selected scope instead of advertising baseline dimensions or complete coverage.
+The corpus without a font provider declares its main surface **Partial**, with `source-glyph-provider-pending`; valid Unicode text, including supplementary characters, remains available semantically. The vector canvas currently publishes its bounded scene region; raw event tracing, composition and authorized resize remain subsequent integration work. `view_description` reports the actual source canvas and selected scope instead of advertising baseline dimensions or complete coverage.
 
 `source_capture(client, view)` reconstructs records directly from the authoritative cooperating source, independently of encoded publications or a client replica. It requires the current published capture context and exposes borrowed `records()`, validated `state()` and `source_commit()` under an opaque view-memory reservation. Direct source conversion checks graph, identities, geometry and model limits; it establishes neither source provenance nor resource availability. The capture's Debug omits content. Its current graph has no receiver retirement history. Consumers own and must budget any copies they create.
 
@@ -98,8 +110,9 @@ history, outbound and capture handles. Old still-live closure owners remain
 available even when newer owners drop first. The weak authority registry is
 bounded to 512 digests and 4096 owner references, pruned before publication;
 its metadata fits the conservative decoded projection reservation. Source
-bodies and registry content never appear in automatic Debug/errors. Network
-offer/chunk/ack retention is a separate integration gate, not claimed here.
+bodies and registry content never appear in automatic Debug/errors. The sibling
+transport crate supplies authorized network offer/chunk/ack retention and
+retained replica recovery; this source API itself performs no network I/O.
 
 The default tests are pure Rust. Run the explicit native font gate on the pinned
 source environment (GTK4.22.4/Pango1.58.2/Cairo1.18.4, Python GI/Cairo and the

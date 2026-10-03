@@ -25,6 +25,8 @@ message ClientHello {
   bytes credential=1; bytes client_instance_id=2; repeated uint32 supported_versions=3;
   repeated string supported_profiles=4; repeated string required_profiles=5;
   Limits receiver_limits=6; ResumeRequest resume=7;
+  // Authenticated producer requests a distinct view; never an authority grant.
+  bool fresh_view=8;
 }
 message Permissions { bool can_view=1; bool can_control=2; repeated string actions=3; }
 message ServerHello { uint32 selected_version=1; repeated string selected_profiles=2; Limits negotiated_limits=3; Permissions permissions=4; bytes principal_id=5; }

@@ -1215,3 +1215,46 @@ fn trusted_partial_grant_limit_failure_prunes_new_grants_without_changing_live_o
         ReceiverError::Resource(ResourceError::NotAuthorized)
     );
 }
+
+#[test]
+fn same_context_checkpoint_after_reconnect_preserves_retired_ids_and_record_clocks() {
+    let mut r = receiver();
+    submit(&mut r, 1, 1, None).unwrap();
+    let removed = pb::Transaction {
+        base_revision: 1,
+        new_revision: 2,
+        mutations: vec![pb::Mutation {
+            mutation: Some(pb::mutation::Mutation::Delete(pb::ObjectRef {
+                kind: pb::ObjectKind::Scene as i32,
+                id: 1,
+            })),
+        }],
+        ..Default::default()
+    };
+    r.receive_envelope(
+        [2; 16],
+        &envelope(pb::MessageKind::Transaction, removed.encode_to_vec()),
+    )
+    .unwrap();
+    r.disconnect();
+    r.reconnect(context()).unwrap();
+    assert!(submit(&mut r, 3, 3, None).is_err());
+    assert_eq!(r.state().unwrap().revision, 2);
+    assert!(r.state().unwrap().records.is_empty());
+    let mut r = receiver();
+    submit(&mut r, 1, 2, None).unwrap();
+    r.disconnect();
+    r.reconnect(context()).unwrap();
+    let rollback = pb::Snapshot {
+        revision: 3,
+        records: vec![scene(1, None)],
+        ..Default::default()
+    };
+    assert!(r
+        .receive_envelope(
+            [3; 16],
+            &envelope(pb::MessageKind::Snapshot, rollback.encode_to_vec())
+        )
+        .is_err());
+    assert_eq!(r.state().unwrap().revision, 2);
+}
