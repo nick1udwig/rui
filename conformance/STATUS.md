@@ -28,6 +28,7 @@ remaining integration gates.
 | Guarded GTK mirror | `client-desktop/src/desktop.rs`, `tests/interaction.rs`; `fixtures/render/native_smoke.py` | Actual GTK frame callbacks and two-mirror TLS smoke; generic advertised actions, scalar text context guards, bounded frame ownership and local observer transforms; bounded causal FIFO, visible native preedit and sticky input failure feedback; full-canvas two-window source/record/pixel convergence and independent Python item effects pass; broader interaction/recovery remain |
 | Expanded controlled source | `host-broker/tests/corpus.rs`; `client-desktop/tests/corpus_reference.rs` | Unicode edits, checkbox, stable collections, clipped scrolling and fresh transient identities; two TLS replicas equal direct source records and selected vector renders; absent font provider stays explicitly Partial and no Presented is claimed |
 | Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; paged real TLS delivery and actual native font/two-mirror gate accepted |
+| Isolated native session foundation | `session-shell/tests/native.rs`, `tests/topology.rs`; `fixtures/session-shell/native-source.json` | Nine actual fd-only EIS tests and five topology/reducer tests: explicit unequal regions, actual XKB layout/repeat, topmost hit/modal guards, source effects and verified releases/cancels/STOP; resource readiness loss neutralizes repeats; no native local-device, TLS or actual mirror Presented claim |
 | Pinned vector cursor | `client-desktop/tests/cursor.rs`, `spec/cursor-profile.md` | Explicit optional profile, bundled vector shapes, authorized custom paths, hotspot and canvas clipping; native session integration remains |
 | Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact result plus source text/version/selection confirmation and actual Presented gate; six rapid native characters, repeated focus, Unicode preedit and sticky full-channel rejection pass |
 | Trusted resource admission | `protocol-core/tests/receiver.rs` | Authenticated producer helper validates the complete graph before granting its declared closure; invalid graphs and allocation failures roll back grants; strict default receiver unchanged |
@@ -61,9 +62,10 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   audits have passed review. Wire IME, persistent source restart, full network
   recording and coherent whole-view transients remain. The declared seventeen-frame local
   visual comparison has passed.
-- **M4 remains open.** Implement and test the explicitly supported isolated session
-  shell, permissioned libei input, geometry/modality/focus/scaling, takeover,
-  observed accessibility reconciliation and enforceable scope.
+- **M4 remains open.** The isolated fd-only native shell foundation passes actual EIS,
+  source geometry/hit testing, host XKB/repeat and verified cleanup gates. Complete
+  native local-device capture, shared transport authority, actual mirror presentation,
+  observed accessibility reconciliation and the final scope/integration audit.
 - **M5 remains open.** Extend accepted Python item/two-mirror convergence to button/text; complete network fault and
   recovery traces, sustained resource churn, case-by-case acceptance audit and
   integrated named-hardware CPU/latency/bandwidth/memory measurements.
