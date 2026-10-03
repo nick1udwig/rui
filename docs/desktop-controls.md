@@ -54,9 +54,12 @@ python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe corpus \
   --report /tmp/rui-native-broad.json
 ```
 
-Native GTK producer wire composition and native session physical input remain
-separate integration gates. This controlled-source run measures real after-paint
-callbacks; it does not establish physical scanout timing.
+The GTK producer's guarded wire composition has a separate
+[accepted source trace](gtk-coverage.md#native-wire-composition-producer); actual
+desktop wire IM callbacks and cancellation remain a separate acceptance gate.
+Native session physical input passes the baseline, cleanup and routing/scope
+measurements below. This controlled-source run measures real after-paint callbacks
+without a physical scanout claim.
 
 The desktop physical-input path recognizes an explicitly granted
 `raw.host.v1`/`HOST_PHYSICAL` device in the `linux.evdev` namespace.
@@ -96,8 +99,18 @@ pixels match direct authoritative captures. A physical US Y key produces German
 host z with host repeat and exactly one native press/release pair. Pointer and
 vector cursor use distinct logical, granted EIS and framebuffer geometry. Native
 popup, tooltip, modal, configure and local takeover changes converge; all shared
-parent charges return to zero after disposal. Negative routing and held-input
-cleanup variants are assessed separately.
+parent charges return to zero after disposal. Separate
+[held-input verification](../fixtures/session-shell/native-held-verification.json)
+covers disconnect, expiry, approval revocation and local takeover, including
+native releases/STOP and observer convergence. The
+[mapping follow-up](../fixtures/session-shell/native-mapping.json) compares a real
+remote TLS/EIS click with a direct GDK source click after local pan and fractional
+scale. The [wire routing/scope follow-up](../fixtures/session-shell/native-wire.json)
+uses nine actual paints from a third receiver to establish valid input before
+move, occlusion and modal changes. Each old route and exact retry is rejected
+without source effects. Application-only scope closes before projection, and a
+fresh manual generation performs one source effect after local takeover. The
+third receiver and source owner return their reservations to zero.
 
 ```sh
 cargo build --offline --locked -p rui-session-shell --features native-mirrors --example native_session_smoke

@@ -515,10 +515,12 @@ cargo test -p rui-producer-sdk --test whole_trace
 ```
 
 That retained five-frame whole-view run uses native cooperating fixture lifecycle
-callbacks. The admitted-command whole-view connection is measured separately
-below. Wire composition/IME ownership and the persistent/network producer path
-remain required for M3. AT-SPI was not used to infer coherence. These are component measurements,
-not a whole-milestone claim.
+callbacks. It is the historical capture component, separate from the later
+[TLS producer](#optional-gtk-producer-port-and-actual-tls),
+[actual mirror presentation](#native-bindings-and-actual-mirror-presentation), and
+[wire composition producer](#native-wire-composition-producer) measurements.
+Actual desktop wire IM callbacks remain a separate acceptance gate. AT-SPI was
+not used to infer coherence; this capture run alone is not a whole-milestone claim.
 
 ## Admitted commands and whole-view captures
 
@@ -587,9 +589,13 @@ cargo test -p rui-producer-sdk --test whole_native_trace
 This is a bounded 30-second isolated cooperating-source component. Authorized
 public consumers are separate instances of the same Rust reducer, receive only
 semantics, and acknowledge semantic readiness without Presented. The full
-private visual capture is verified and replayed separately; this run does not
-establish network whole-view delivery, actual client Presented readiness or
-wire composition. Those M3 integration gates remain open.
+private visual capture is verified and replayed separately. This historical
+semantic component makes no network, Presented or wire composition claim; those
+source capabilities are measured in the later
+[TLS](#optional-gtk-producer-port-and-actual-tls),
+[mirror](#native-bindings-and-actual-mirror-presentation), and
+[composition](#native-wire-composition-producer) sections. Actual desktop wire IM
+callbacks remain a separate acceptance gate.
 
 ## Per-view visual publication ownership
 
@@ -614,8 +620,11 @@ attachment. Focused tests cover foreign attachment/digest rejection, exact old
 ACKs after source advances, resource recovery, independent stalled views,
 mapped Partial rejection, and per-view cleanup when replacement installation
 fails after graph verification. Readiness calls in these unit tests are simulated
-callback inputs, not native presentation evidence. The transport owner lane and
-real mirror/wire-composition probes remain pending.
+callback inputs, not native presentation evidence. The later
+[TLS owner](#optional-gtk-producer-port-and-actual-tls),
+[actual mirror](#native-bindings-and-actual-mirror-presentation), and
+[composition producer](#native-wire-composition-producer) measurements establish
+their respective integration boundaries.
 
 ## Native lifecycle fence
 
@@ -700,8 +709,10 @@ The `gtk-native-focus-context.v1` diagnostic profile binds the accepted Session
 focus clock to the serialized source boundary; substituting that boundary clock
 fails the audit before presentation. This profile is cooperating-source evidence,
 not remote attestation. The probe uses semantic readiness, not Presented, and
-makes no TextComposition or preedit claim; it is the source-context prerequisite
-for the pending full visual/IME integration.
+makes no TextComposition or preedit claim. Its source-context guards are reused
+by the subsequently accepted [visual mirror](#native-bindings-and-actual-mirror-presentation)
+and [composition producer](#native-wire-composition-producer); actual desktop wire
+IM callbacks remain a separate acceptance gate.
 
 ```sh
 python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb \
@@ -844,9 +855,13 @@ formatting. Recording prefixes exclude handshake credentials and
 can end before a canceled native command finishes; the ordered native receipts
 and fresh-scope result query establish that lifecycle outcome separately.
 
-The driver's Presented calls are explicitly simulated callback inputs. These
-runs do not establish actual mirror after-paint readiness, wire composition,
-preedit or physical input. Those remain required subsequent integration gates.
+The driver's Presented calls are explicitly simulated callback inputs. This
+historical transport run makes no actual mirror, wire composition or physical
+input claim. Actual after-paint readiness is measured in the
+[mirror section](#native-bindings-and-actual-mirror-presentation), and private
+preedit/native commit are measured by the
+[composition producer](#native-wire-composition-producer). Native session physical
+input has its own [declared baseline and cleanup scope](desktop-controls.md).
 
 ```sh
 cargo build --locked --offline -p rui-producer-sdk \
@@ -930,9 +945,10 @@ cargo test --locked -p rui-client-desktop --test gtk_bindings
 ```
 
 This slice establishes real mirror after-paint readiness and source-bound native
-pointer discovery. Negotiated wire composition and its complete cancellation
-matrix remain separate pending work; the existing local preedit/ReplaceText path
-does not establish that protocol feature.
+pointer discovery. The later [composition producer](#native-wire-composition-producer)
+measurement verifies native transient stages and their cancellation matrix.
+Actual desktop wire IM callbacks remain a separate acceptance gate; the earlier
+local preedit/ReplaceText path alone does not establish that protocol feature.
 
 Root independently rebuilt the frozen binding/mirror slice and reran both native
 probes. `fixtures/gtk/mirror-root-verification.json` records four actual after-paint

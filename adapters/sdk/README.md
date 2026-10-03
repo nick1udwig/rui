@@ -2,9 +2,9 @@
 
 `producer.py` supplies explicit identities, synchronous semantic capture, bounded
 vector resources and an exact RUI Protobuf snapshot encoder. The GTK adapter in
-`../gtk4/capture.py` supplies the actual source snapshot boundary. This package
-does not authenticate a producer, discover authorization, fetch assets or route
-network commands.
+`../gtk4/capture.py` supplies the actual source snapshot boundary. This Python
+encoder does not authenticate a producer, discover authorization, fetch assets
+or route network commands.
 
 The Rust `CaptureArtifact` bridge consumes local fixture manifests and their
 exact `.bin` envelopes and `.rvp` resources through `ViewReceiver`. Calling
@@ -59,12 +59,25 @@ relevant clocks, popup modality and the admitted lease's absolute Linux monotoni
 deadline are rechecked on the GTK main-loop thread immediately before execution.
 The socket is not a peer endpoint and the Python process owns no command ledger.
 
-Only public semantic projections are supported. Scenes, bindings, visual links,
-cursor and resource closure are removed; each projection has an actual private
-semantic consumer. That consumer acknowledges Applied and semantic readiness,
-never Presented. Joining observers do not reset existing readiness; a client
-whose negotiated pool cannot hold a projection closes independently. Source
-authority always comes from the full private source receiver.
+The host supports semantic-only and full visual projections. Semantic-only views
+remove scenes, bindings, visual links, cursor and resource closure, and acknowledge
+Applied and semantic readiness without Presented. Full visual views retain the
+audited scene and attached vector closure; control requires current resource
+readiness and an actual client Presented callback. Joining observers do not reset
+existing readiness; a client whose negotiated pool cannot hold a projection
+closes independently. Source authority comes from the full private source receiver.
+The optional `transport` feature exposes this owner through `GtkProducerPort`.
+
+The cooperating whole-view source supports `text.client.v1` for full visual
+controllers explicitly permitted TextComposition. Begin, UpdatePreedit and Cancel
+return Dispatched after the native thread acknowledges private transient state.
+They leave document state and public publications unchanged. Commit replaces the
+original scalar range once and returns Applied after a fresh audited capture;
+its source evidence names the editing Surface's actual capture token. Semantic-only
+views and observers receive no composition capability. The optional pinned GTK
+clock contract and accepted producer scope are documented in the
+[input profile](../../spec/input-profile.md) and
+[composition report](../../docs/gtk-coverage.md#native-wire-composition-producer).
 
 Applied requires a newer valid same-source capture carrying the exact private
 request ID and authority marker. Its source token and actual published revision
@@ -74,8 +87,8 @@ control. Exact retries return the retained result without another native call.
 The process has a 30-second watchdog: this is a bounded fixture, not a persistent
 network host. Its private socket owns an explicit application hold, so retiring
 the last native window can still publish and acknowledge lifecycle state; pipe
-closure and the watchdog quit the held application. Raw input, wire
-composition/IME and resize are unsupported here.
+closure and the watchdog quit the held application. This GTK producer does not
+advertise raw input or source resize.
 
 Trusted supervisors can replace an exited source with `restart_source` while
 keeping the broker epoch, negotiated views and common ledger. Source absence
@@ -118,8 +131,10 @@ python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb --output /tmp/rui-gtk-
 python3 -m unittest adapters.gtk4.test_native adapters.sdk.test_producer
 ```
 
-The integration driver uses a private authenticated Xvfb display and a private
-`dbus-run-session`, with no connection to the personal compositor/session bus.
+The integration drivers reuse the reviewed mirror harness: two owned authenticated
+Xvfb displays and a private EXTERNAL session bus with no service search directories.
+Their process group is disposed on success, failure or deadline, with no connection
+to the personal compositor/session bus.
 `gtk-fixture-hooks` enables explicit trusted race/fault controls, never decoded
 from peer command bytes. The output contains exact full-source snapshots,
 manifests and a decoded interaction report. These finite test trace copies are

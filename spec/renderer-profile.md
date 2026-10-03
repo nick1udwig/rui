@@ -246,9 +246,14 @@ Lifecycle and editing state use a separate bounded latest-state watch channel.
 Clear/Closed/Quit cannot be lost behind a full frame/status queue; generations
 prevent old queued textures from reviving an invalidated view. Closed and Quit
 are terminal. A rendered-revision reset, disconnect or permission loss disables
-editing and clears the displayed frame. This first shell does not retain and
-reconnect a replica or implement raw input/resize commands. Visible cursors use
-the separately negotiated vector cursor profile.
+editing and clears the displayed frame. The connection actor retains its replica
+for bounded reconnect and resource-cache recovery, then requires fresh actual
+presentation before control. Safety-stopped input requires a fresh manual grant.
+Advertised canvas input and authorized source
+resize use the shared command ledger; negotiated session physical input uses its
+separate granted device and routing guards. Visible cursors use the separately
+negotiated vector cursor profile. The accepted controlled-source and session
+scopes are documented in [desktop controls](../docs/desktop-controls.md).
 
 Build and run the isolated probes (an Xvfb path is required if not installed):
 

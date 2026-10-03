@@ -114,8 +114,11 @@ bytes/results, both directions, credential/private-source exclusion, metadata
 mode, wrong scope, revocation, connection capacity and record exhaustion. These
 are recorder integration evidence. The controlled native two-mirror interaction
 now has a separate [exact recorded network audit](../docs/desktop-controls.md),
-including full record prefixes and independently verified vector bodies. Real GTK
-producer wire composition and native session input remain separate gates.
+including full record prefixes and independently verified vector bodies. The GTK
+producer's [wire composition trace](../docs/gtk-coverage.md#native-wire-composition-producer)
+and the [native session baseline, cleanup and routing/scope checks](../docs/desktop-controls.md)
+are separately accepted. Actual desktop wire IM callbacks remain a separate
+acceptance gate.
 
 `tests/fault_matrix.rs` learns the bounded actual packet sequence, then closes
 owned TLS/WebSocket connections before every snapshot/delta begin, publication
