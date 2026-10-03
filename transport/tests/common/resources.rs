@@ -15,10 +15,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 pub const SECRET: &str = "RESOURCE-TRANSPORT-PRIVATE-SENTINEL";
+pub const EDITED_SECRET: &str = "NEW-PRIVATE-ENTRY-ONLY-AUTHORIZED-CONTROLLER-938154";
 struct SyntheticPublicShaper;
 impl SourceFontProvider for SyntheticPublicShaper {
     fn shape(&self, text: &str, size: f64) -> Result<SourceShapedText, SourceFontError> {
         assert!(!text.contains(SECRET));
+        assert!(!text.contains(EDITED_SECRET));
         let mut resources = BTreeMap::new();
         let mut glyphs = Vec::new();
         for (i, c) in text.chars().enumerate() {
@@ -119,13 +121,31 @@ pub async fn setup_with_config(
     Credential,
     Arc<Mutex<PairingAuthority>>,
 ) {
+    setup_with_authorization(config, auth(3, true)).await
+}
+pub async fn setup_with_authorization(
+    config: ServerConfig,
+    controller_authorization: VerifiedAuthorization,
+) -> (
+    ServerHandle,
+    Credential,
+    Credential,
+    Arc<Mutex<PairingAuthority>>,
+) {
     let mut pairing = PairingAuthority::new(2).unwrap();
     let mut credentials = Vec::new();
     for id in [3, 4] {
         let request = pairing.request_local_pairing([id; 16]).unwrap();
         credentials.push(
             pairing
-                .approve_local(request.request_id, auth(id, id == 3))
+                .approve_local(
+                    request.request_id,
+                    if id == 3 {
+                        controller_authorization.clone()
+                    } else {
+                        auth(id, false)
+                    },
+                )
                 .unwrap(),
         );
     }
