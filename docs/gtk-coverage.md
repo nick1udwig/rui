@@ -413,10 +413,32 @@ exporter, not native GTK internals or arbitrary malicious producers. Each stored
 native source manifest carries the probe observations; no asserted forbidden-zero
 counters are used for this new evidence.
 
-These are measured negative and full-trace checks for this bounded private fixture,
-not a whole-milestone claim. Supplementary/combining/RTL text, wire composition/IME
-ownership, combined transient-surface projection and the persistent/network
-producer path remain required for M3. AT-SPI was not used to infer coherence.
+The additional native Unicode scenario in `unicode-interaction.json` ran eight
+native dispatches and eight observed callbacks through the same core ledger and
+final native guard, with a separate semantic observer. Nine source captures
+in 58 hash-bound `.bin/.json/.rvp` files replay exact content and scalar ranges.
+It replaces `A𝄞e◌́ אבגZ` (the actual source contains e+U+0301, not a dotted-circle
+character), selects a supplementary scalar, selects between base and combining
+mark, preserves backward RTL `[8,5]`, replaces a supplementary scalar and combining
+mark, and replaces the RTL substring in source logical order. Returned caret and
+selection assertions use actual native GtkText state; selection-only changes
+preserve the content clock. Exact retry adds no native call, and stale content
+clocks reject with no effect. Native glyph evidence is checked against the decoded
+scene; native opacity gaps remain Partial, without a Unicode pixel-equivalence
+claim.
+
+This found and fixed a source bug: GtkText logical cursor movement follows
+grapheme boundaries and cannot implement every scalar selection. The dispatcher
+now calls `GtkEditable.select_region(anchor, focus)` once, with no preceding
+caret-collapse transition. Actual snapshots confirm `[2,3]` inside the combining
+sequence and backward RTL direction; the existing backward-ASCII native scenario
+also passes. GTK positions are character offsets, not byte offsets.
+[GTK scalar range API](https://docs.gtk.org/gtk4/method.Editable.select_region.html).
+
+These are measured negative, trace and native Unicode checks for this bounded
+private fixture, not a whole-milestone claim. Wire composition/IME ownership,
+combined transient-surface projection and the persistent/network producer path
+remain required for M3. AT-SPI was not used to infer coherence.
 
 The alternate GTK 4.22.4 Broadway harness repeatedly aborted while repainting a
 native popup at `gdk/broadway/broadway-output.c:456`,

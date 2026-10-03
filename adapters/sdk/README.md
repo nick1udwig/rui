@@ -87,6 +87,24 @@ from peer command bytes. The output contains exact full-source snapshots,
 manifests and a decoded interaction report. These finite test trace copies are
 separate from the native source's bounded current/pending artifact ownership.
 
+The separate native Unicode scenario uses the same core ledger and final source
+guard for supplementary, combining and RTL content, with a separate semantic
+observer. `SetSelection` makes one native `GtkEditable.select_region` call;
+grapheme cursor movement cannot implement arbitrary scalar offsets, and an
+intermediate caret collapse can lose the selection before capture. Actual source
+snapshots verify a supplementary scalar, a selection inside a combining sequence,
+backward RTL direction, scalar replacements/carets and unchanged content clocks
+on selection changes. Exact retry has no native effect; stale text is rejected.
+
+```sh
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb --output /tmp/rui-gtk-unicode-empty --scenario unicode
+```
+
+`unicode-interaction.json` and `unicode-golden` retain nine exact source captures
+and ten command/retry entries from eight real native dispatches/callbacks. These
+source state/geometry checks do not establish wire IME or cross-backend Unicode
+pixel acceptance; native opacity gaps are preserved as Partial coverage.
+
 The no-fallback negative corpus submits actual photograph/texture, Cairo, blur
 and GLShader nodes, plus a native path control. It records Partial coverage with
 specific unsupported reasons. The original NASA JPEG has an exact hash and

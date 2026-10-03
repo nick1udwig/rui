@@ -341,8 +341,10 @@ class NativeDispatcher:
         elif action == 'SetSelection':
             delegate = widget.get_delegate() or widget
             anchor, focus = arguments['anchor'], arguments['focus']
-            delegate.set_position(anchor)
-            delegate.emit('move-cursor', Gtk.MovementStep.LOGICAL_POSITIONS, focus - anchor, True)
+            # GtkText movement skips grapheme cursor boundaries. GtkEditable
+            # selection ranges count Unicode scalars, including boundaries
+            # between a base and combining mark; use that native API directly.
+            delegate.select_region(anchor, focus)
             if editable_text(widget)['selection'] != [anchor, focus]:
                 raise RuntimeError('native scalar selection differs after dispatch')
         elif action == 'ScrollTo':

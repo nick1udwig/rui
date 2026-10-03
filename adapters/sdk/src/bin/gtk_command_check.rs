@@ -709,6 +709,102 @@ fn expiry(root: &Path) -> Result<Value> {
     assert_eq!(receipt["reason"], "lease-expired-at-native-dispatch");
     f.finish()
 }
+fn unicode(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "unicode")?;
+    let observer = f.host.negotiate(
+        authorization("unicode-observer", false),
+        hello(5, ReceiverLimits::default()),
+        f.now(),
+    )?;
+    f.host.consume_semantics(&observer.client)?;
+    f.observers.push(observer.client);
+    let entry = named(f.state(), "Editable text");
+    let c = f.command(entry, "Focus", none());
+    f.submit("unicode-native-focus", &c, Status::Applied)?;
+    let initial = text(f.state(), entry)
+        .content
+        .as_ref()
+        .unwrap()
+        .chars()
+        .count() as u64;
+    let mixed = "A𝄞e\u{301} אבגZ";
+    assert_eq!(mixed.chars().count(), 9);
+    assert!(mixed.len() > 9);
+    let c = f.command(entry, "ReplaceText", replace(0, initial, mixed));
+    let applied = f.submit(
+        "supplementary-combining-rtl-native-replace",
+        &c,
+        Status::Applied,
+    )?;
+    assert_eq!(text(f.state(), entry).content.as_deref(), Some(mixed));
+    assert_eq!(
+        text(f.state(), entry).selection,
+        Some(TextRange {
+            anchor: 9,
+            focus: 9
+        })
+    );
+    f.retry("exact-mixed-text-retry", &c, &applied)?;
+    let content_clock = text(f.state(), entry).text_version;
+    for (label, anchor, focus) in [
+        ("one-supplementary-scalar", 1, 2),
+        ("between-base-and-combining-scalar", 2, 3),
+        ("backward-rtl-scalar-selection", 8, 5),
+    ] {
+        let c = f.command(
+            entry,
+            "SetSelection",
+            p::semantic_command::Arguments::SetSelection(p::SelectionArguments { anchor, focus }),
+        );
+        f.submit(label, &c, Status::Applied)?;
+        assert_eq!(
+            text(f.state(), entry).selection,
+            Some(TextRange { anchor, focus })
+        );
+        assert_eq!(text(f.state(), entry).text_version, content_clock);
+    }
+    let c = f.command(entry, "ReplaceText", replace(1, 2, "𐐷"));
+    f.submit("replace-one-supplementary-scalar", &c, Status::Applied)?;
+    assert_eq!(
+        text(f.state(), entry).content.as_deref(),
+        Some("A𐐷e\u{301} אבגZ")
+    );
+    let mut old = f.command(entry, "ReplaceText", replace(3, 4, "\u{308}"));
+    old.preconditions.as_mut().unwrap().text_version = Some(content_clock);
+    let rejected = f.submit("mixed-text-stale-content-clock", &old, Status::Rejected)?;
+    assert_eq!(rejected.rejection, Some(Rejection::StaleText));
+    let c = f.command(entry, "ReplaceText", replace(3, 4, "\u{308}"));
+    f.submit(
+        "replace-combining-mark-without-byte-index",
+        &c,
+        Status::Applied,
+    )?;
+    assert_eq!(
+        text(f.state(), entry).content.as_deref(),
+        Some("A𐐷e\u{308} אבגZ")
+    );
+    assert_eq!(
+        text(f.state(), entry).selection,
+        Some(TextRange {
+            anchor: 4,
+            focus: 4
+        })
+    );
+    let c = f.command(entry, "ReplaceText", replace(5, 8, "שלום"));
+    f.submit("rtl-substring-source-logical-order", &c, Status::Applied)?;
+    assert_eq!(
+        text(f.state(), entry).content.as_deref(),
+        Some("A𐐷e\u{308} שלוםZ")
+    );
+    assert_eq!(
+        text(f.state(), entry).selection,
+        Some(TextRange {
+            anchor: 9,
+            focus: 9
+        })
+    );
+    f.finish()
+}
 fn main() -> Result<()> {
     let root = PathBuf::from(
         std::env::args()
@@ -716,7 +812,11 @@ fn main() -> Result<()> {
             .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
     );
     fs::create_dir_all(&root)?;
-    let report = json!({"scope":"bounded30s private cooperating GTK fixture; one real core ledger; semantic-only clients; no TLS, raw/IME or Presented claim","semantic":positive_and_races(&root)?,"escaped_text":escaped_text(&root)?,"pipe_loss":fault(&root,"pipe-loss",Mutation::LoseAfterDispatch)?,"pipe_stall":fault(&root,"pipe-stall",Mutation::StallAfterDispatch)?,"uncorrelated_capture":fault(&root,"uncorrelated-capture",Mutation::UncorrelatedCapture)?,"delayed_expiry":expiry(&root)?});
+    let report = if std::env::args().nth(2).as_deref() == Some("unicode") {
+        json!({"scope":"actual core admission and native GTK Unicode callbacks; private isolated fixture; semantic-only observers; no wire IME or Presented claim","unicode":unicode(&root)?})
+    } else {
+        json!({"scope":"bounded30s private cooperating GTK fixture; one real core ledger; semantic-only clients; no TLS, raw/IME or Presented claim","semantic":positive_and_races(&root)?,"escaped_text":escaped_text(&root)?,"pipe_loss":fault(&root,"pipe-loss",Mutation::LoseAfterDispatch)?,"pipe_stall":fault(&root,"pipe-stall",Mutation::StallAfterDispatch)?,"uncorrelated_capture":fault(&root,"uncorrelated-capture",Mutation::UncorrelatedCapture)?,"delayed_expiry":expiry(&root)?})
+    };
     fs::write(
         root.join("interaction.json"),
         serde_json::to_vec_pretty(&report)?,
