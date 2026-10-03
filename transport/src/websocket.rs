@@ -218,6 +218,13 @@ pub(crate) async fn send<S: AsyncRead + AsyncWrite + Unpin>(
     }
     let bytes = packet.encode_to_vec();
     packet.payload.zeroize();
+    send_bytes(socket, bytes, deadline).await
+}
+pub(crate) async fn send_bytes<S: AsyncRead + AsyncWrite + Unpin>(
+    socket: &mut WebSocketStream<S>,
+    bytes: Vec<u8>,
+    deadline: Duration,
+) -> Result<(), TransportError> {
     tokio::time::timeout(deadline, socket.send(Message::Binary(bytes.into())))
         .await
         .map_err(|_| TransportError::Deadline)?

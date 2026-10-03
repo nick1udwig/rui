@@ -105,6 +105,20 @@ pub async fn setup() -> (
     Credential,
     Arc<Mutex<PairingAuthority>>,
 ) {
+    setup_with_config(ServerConfig {
+        max_message_bytes: 1024,
+        ..Default::default()
+    })
+    .await
+}
+pub async fn setup_with_config(
+    config: ServerConfig,
+) -> (
+    ServerHandle,
+    Credential,
+    Credential,
+    Arc<Mutex<PairingAuthority>>,
+) {
     let mut pairing = PairingAuthority::new(2).unwrap();
     let mut credentials = Vec::new();
     for id in [3, 4] {
@@ -139,10 +153,7 @@ pub async fn setup() -> (
         identity,
         host,
         pairing.clone(),
-        ServerConfig {
-            max_message_bytes: 1024,
-            ..Default::default()
-        },
+        config,
     )
     .await
     .unwrap();

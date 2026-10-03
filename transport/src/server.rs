@@ -1,3 +1,4 @@
+use crate::diagnostics::{Diagnostics, RecordingSession};
 use crate::source_delivery::Delivery;
 use crate::{
     codec, pairing::PairingAuthority, proto as p, websocket, HostIdentity, TransportError,
@@ -9,6 +10,7 @@ use rui_protocol_core::publication::publication_digest;
 use rui_protocol_core::session::{
     InputCleanup, NegotiatedSession, ResumeDisposition, SharedPayload,
 };
+use rui_protocol_core::transcript::Direction;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     net::SocketAddr,
@@ -27,6 +29,8 @@ use zeroize::Zeroize;
 
 #[derive(Clone)]
 pub struct ServerConfig {
+    /// Opt-in trusted local diagnostics; exact bytes require explicit policy.
+    pub diagnostics: Option<Arc<Diagnostics>>,
     pub max_connections: usize,
     pub max_message_bytes: usize,
     pub handshake_timeout: Duration,
@@ -40,6 +44,7 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
+            diagnostics: None,
             max_connections: 16,
             max_message_bytes: 1024 * 1024,
             handshake_timeout: Duration::from_secs(5),
@@ -289,7 +294,12 @@ async fn connection(
             .map_err(|_| TransportError::Authority)?;
         }
         let session = host
-            .negotiate_with_lifetime(authorization.clone(), hello, Some(lifetime), shared.now())
+            .negotiate_with_lifetime(
+                authorization.clone(),
+                hello,
+                Some(lifetime.clone()),
+                shared.now(),
+            )
             .map_err(|_| TransportError::Authority)?;
         // Capture the exact zero-delta keeper while negotiation and source
         // state share the host lock; later source changes queue normal deltas.
@@ -310,6 +320,23 @@ async fn connection(
         (session, keeper)
     };
     let client = session.client.clone();
+    let recording = if let Some(owner) = &shared.config.diagnostics {
+        let host = shared.host.lock().await;
+        let memory = host
+            .reserve_view_memory(&client, session.view_id, owner.reservation_bytes())
+            .map_err(|_| TransportError::Limit);
+        match memory.and_then(|memory| owner.open(&session, lifetime, memory)) {
+            Ok(recording) => Some(recording),
+            Err(error) => {
+                drop(host);
+                let _ = shared.host.lock().await.disconnect(&client, shared.now());
+                drain_cleanup(&shared).await;
+                return Err(error);
+            }
+        }
+    } else {
+        None
+    };
     let result = run_authenticated(
         &mut socket,
         &shared,
@@ -318,12 +345,14 @@ async fn connection(
         approval,
         authorization,
         resume_keeper,
+        recording,
     )
     .await;
     let _ = shared.host.lock().await.disconnect(&client, shared.now());
     drain_cleanup(&shared).await;
     result
 }
+#[allow(clippy::too_many_arguments)] // Authenticated ownership and resume keeper remain explicit.
 async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     socket: &mut tokio_tungstenite::WebSocketStream<S>,
     shared: &Shared,
@@ -332,6 +361,7 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     approval: [u8; 32],
     authorization: rui_protocol_core::session::VerifiedAuthorization,
     mut resume_keeper: Option<SharedPayload>,
+    recording: Option<RecordingSession>,
 ) -> Result<(), TransportError> {
     if session.limits.envelope_bytes != ceiling {
         return Err(TransportError::Limit);
@@ -369,7 +399,8 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
             Sha256::digest(session.client.principal.as_bytes())[..16].to_vec()
         },
     };
-    websocket::send(
+    send_recorded(
+        recording.as_ref(),
         socket,
         codec::wrap(p::Kind::ServerHello, &hello, binding),
         ceiling,
@@ -397,19 +428,20 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                     let semantic_only=session.profiles.contains("semantics.only.v1");
                     if view.selection!="fixture" || view.mirror_canvas_policy!=if semantic_only {"semantic-only"}else {"host-canvas"} {return Err(TransportError::Protocol);}opened=true;
                     let description={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?};
+                    record_incoming(recording.as_ref(),kind,&raw)?;
                     let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage,granted_input_modes:description.input_modes};
-                    websocket::send(socket,codec::wrap(p::Kind::ViewOpened,&opened,binding),ceiling,timeout).await?;
+                    send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ViewOpened,&opened,binding),ceiling,timeout).await?;
                     match &session.resume {
                         ResumeDisposition::Accepted {from_revision,through_revision,transactions,requires_resources}=>{
                             let resumed=p::ResumeAccepted {from_revision:*from_revision,through_revision:*through_revision,requires_resources:*requires_resources};
-                            websocket::send(socket,codec::wrap(p::Kind::ResumeAccepted,&resumed,binding),ceiling,timeout).await?;
+                            send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ResumeAccepted,&resumed,binding),ceiling,timeout).await?;
                             if from_revision==through_revision {
                                 delivery.seed_resumed(*from_revision,resume_keeper.take().ok_or(TransportError::Protocol)?);
                             }
                             queued.extend(transactions.iter().cloned());
                         }
                         _=>{
-                            if let ResumeDisposition::ResetRequired(reason)=&session.resume {websocket::send(socket,codec::wrap(p::Kind::ResetRequired,&p::ResetRequired {reason:format!("{reason:?}")},binding),ceiling,timeout).await?;}
+                            if let ResumeDisposition::ResetRequired(reason)=&session.resume {send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ResetRequired,&p::ResetRequired {reason:format!("{reason:?}")},binding),ceiling,timeout).await?;}
                             let mut host=shared.host.lock().await;let pairing=approved(shared,&session,approval,&authorization)?;
                             queued.push_back(host.checkpoint(&session.client,session.view_id).map_err(|_|TransportError::Authority)?);drop(pairing);
                         }
@@ -437,7 +469,8 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                                 _=>unreachable!(),
                             }
                         };
-                        if rejected {websocket::send(socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?;}
+                        if !rejected {record_incoming(recording.as_ref(),kind,&raw)?;}
+                        if rejected {send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?;}
                         continue;
                     }
                     if kind==p::Kind::AppliedAck {
@@ -453,18 +486,20 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                             host.acknowledge_applied(&session.client,session.view_id,ack.revision)
                                 .map_err(|_|TransportError::Authority)?;
                         }
+                        record_incoming(recording.as_ref(),kind,&raw)?;
                         continue;
                     }
                     let response=handle(shared,&session,kind,&packet.payload,approval,&authorization).await;
-                    match response {Ok(Some((kind,bytes)))=>websocket::send(socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout).await?,Ok(None)=>{},
-                        Err(TransportError::Authority)=>websocket::send(socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?,Err(error)=>return Err(error)}
+                    if response.is_ok() {record_incoming(recording.as_ref(),kind,&raw)?;}
+                    match response {Ok(Some((kind,bytes)))=>send_recorded(recording.as_ref(), socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout).await?,Ok(None)=>{},
+                        Err(TransportError::Authority)=>send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?,Err(error)=>return Err(error)}
                 }
             }
             _=heartbeat.tick()=>{
                 if !shared.pairing.lock().map_err(|_|TransportError::Authentication)?.remains_authorized(approval,session.client.client_instance_id,&authorization) {return Err(TransportError::Authentication);}
                 shared.host.lock().await.tick(shared.now());drain_cleanup(shared).await;
                 let notice=shared.revoked.lock().map_err(|_|TransportError::Authority)?.remove(&session.client.client_instance_id);
-                if let Some(notice)=notice {websocket::send(socket,codec::wrap(p::Kind::ControlRevoked,&notice,binding),ceiling,timeout).await?;}
+                if let Some(notice)=notice {send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ControlRevoked,&notice,binding),ceiling,timeout).await?;}
                 if !opened {continue;}
                 if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout) {return Err(TransportError::Deadline);}
                 if delivery.can_start() {
@@ -474,10 +509,40 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                 }
                 let packet={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;
                     host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;delivery.next(binding)?};
-                if let Some(packet)=packet {websocket::send(socket,packet,ceiling,timeout).await?;}
+                if let Some(packet)=packet {send_recorded(recording.as_ref(), socket,packet,ceiling,timeout).await?;}
             }
         }
     }
+}
+fn record_incoming(
+    recording: Option<&RecordingSession>,
+    kind: p::Kind,
+    raw: &[u8],
+) -> Result<(), TransportError> {
+    if let Some(recording) = recording {
+        recording.record(Direction::ClientToHost, kind, raw)?;
+    }
+    Ok(())
+}
+async fn send_recorded<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+    recording: Option<&RecordingSession>,
+    socket: &mut tokio_tungstenite::WebSocketStream<S>,
+    mut packet: p::Packet,
+    ceiling: usize,
+    timeout: Duration,
+) -> Result<(), TransportError> {
+    if packet.encoded_len() > ceiling {
+        return Err(TransportError::Limit);
+    }
+    let kind = p::Kind::try_from(packet.kind).map_err(|_| TransportError::Protocol)?;
+    let bytes = packet.encode_to_vec();
+    packet.payload.zeroize();
+    if let Some(recording) = recording {
+        recording.record(Direction::HostToClient, kind, &bytes)?;
+    }
+    // Exact same bytes enter the maintained WebSocket/TLS sink. This is an
+    // attempted send, not proof of remote receipt or presentation.
+    websocket::send_bytes(socket, bytes, timeout).await
 }
 fn approved<'a>(
     shared: &'a Shared,

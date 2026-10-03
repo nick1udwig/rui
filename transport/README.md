@@ -33,3 +33,28 @@ A semantic-only receiver validates transmitted Surface geometry structurally, wi
 `NetworkClient::receive` is cancellation-safe for staged/applied state and returned events. It handles a packet synchronously through the event return and queues required acknowledgements before returning. The next receive/send flushes them. Each preencoded packet remains at the queue front until its flush succeeds. Sink admission is recorded before awaiting the flush, so cancellation retains the pending frame without admitting it twice. A cancelled send also retains its queued packet until a later flush or client drop. This queue has an eight-packet count ceiling and the negotiated outbound byte ceiling. GUI workers may select between this receive future and a bounded local command channel.
 
 Outgoing buffering shares `ViewReceiver`'s memory ledger. Before any post-negotiation send, the client reserves lifetime writer headroom of `4 * envelope_bytes + 64 KiB` for bounded framing/TLS send buffers. Each queued packet reserves `4 * encoded_packet_bytes + 4096` before creating its typed payload, wrapping or encoding it; low-level `send_packet` accepts a caller-owned Packet and reserves before its encoding. Encoded bodies use shared immutable bytes, so flushing does not clone their contents. Packet reservations survive cancellation and release after a successful flush or drop; writer headroom remains until client drop. These conservative charges can reject a negotiated view budget too small for its envelope ceiling. The duplex regression polls a blocked flush, cancels it, resumes exactly one frame and verifies all reservations release.
+
+`ServerConfig::diagnostics` optionally installs a trusted local `Diagnostics`
+owner. Choose `RecordingPolicy::MetadataOnly` for ordinary diagnostics: entries
+contain only direction, kind, length and digest. Exact packet bytes require the
+explicit `AuthorizedDiagnosticBytes` policy; a peer cannot enable it. Neither
+ClientHello nor ServerHello enters the recorder. Incoming packets are recorded
+only after their binding and operation authorization/validation succeed.
+Outgoing records contain the exact encoded bytes passed to the WebSocket/TLS
+sink, before encryption; they prove an attempted send, not remote receipt.
+
+Each recorder has count/message/byte limits and a complete reserved sub-arena
+charged to that host view before construction. A bounded local registry holds
+at most the configured number of connections. Exhaustion fails the diagnostic
+connection explicitly; it never silently omits subsequent messages. The local
+`inspect` callback borrows entries under the exact session/epoch/principal/view
+context. Approval revocation makes reads fail and drops retained state on the
+next access; connection completion/cancellation also drops the recorder and its
+view reservation. There is no automatic disk export. Explicit local copies made
+inside `inspect` have their own retention responsibility and cannot be recalled.
+
+The real TLS diagnostic tests cover resource-bearing snapshots/deltas, command
+bytes/results, both directions, credential/private-source exclusion, metadata
+mode, wrong scope, revocation, connection capacity and record exhaustion. These
+are recorder integration evidence; the full native interaction trace and decoded
+no-raster audit remain separate gates.

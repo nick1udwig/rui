@@ -5,6 +5,7 @@ pub mod proto {
 }
 mod client;
 pub mod codec;
+pub mod diagnostics;
 pub mod pairing;
 mod server;
 mod source_delivery;
