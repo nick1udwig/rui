@@ -622,16 +622,32 @@ impl NetworkClient {
         self.flush_pending().await
     }
     pub async fn open_view(&mut self) -> Result<(), TransportError> {
+        let policy = if self.profiles.iter().any(|p| p == "semantics.only.v1") {
+            "semantic-only"
+        } else {
+            "host-canvas"
+        };
+        self.open_view_with("fixture", policy).await
+    }
+    /// Request an explicit producer selection. The authenticated producer must
+    /// approve this scope; the transport never aliases it to a wider view.
+    pub async fn open_view_with(
+        &mut self,
+        selection: &str,
+        canvas_policy: &str,
+    ) -> Result<(), TransportError> {
+        if selection.is_empty()
+            || selection.len() > 256
+            || canvas_policy.is_empty()
+            || canvas_policy.len() > 256
+        {
+            return Err(TransportError::Limit);
+        }
         self.send(
             p::Kind::OpenView,
             &p::OpenView {
-                selection: "fixture".into(),
-                mirror_canvas_policy: if self.profiles.iter().any(|p| p == "semantics.only.v1") {
-                    "semantic-only"
-                } else {
-                    "host-canvas"
-                }
-                .into(),
+                selection: selection.into(),
+                mirror_canvas_policy: canvas_policy.into(),
             },
         )
         .await
