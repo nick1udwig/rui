@@ -570,12 +570,21 @@ fn memory_reservations_are_shared_atomic_and_released_by_owner() {
     let mut first = budget.reserve(60).unwrap();
     let second = budget.clone().reserve(30).unwrap();
     assert_eq!(budget.used(), 90);
+    assert_eq!(budget.peak(), 90);
     assert_eq!(first.resize(80), Err(MemoryError::Exceeded));
     assert_eq!(first.bytes(), 60);
+    assert_eq!(budget.peak(), 90);
     first.resize(50).unwrap();
     assert_eq!(budget.used(), 80);
     drop(second);
     assert_eq!(budget.used(), 50);
     drop(first);
     assert_eq!(budget.used(), 0);
+    assert_eq!(budget.peak(), 90);
+    let mut resized = budget.reserve(1).unwrap();
+    resized.resize(95).unwrap();
+    assert_eq!(budget.peak(), 95);
+    drop(resized);
+    assert_eq!(budget.used(), 0);
+    assert_eq!(budget.peak(), 95);
 }

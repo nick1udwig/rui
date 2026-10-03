@@ -218,6 +218,7 @@ pub enum SessionError {
 struct MemoryBudget {
     used: AtomicUsize,
     limit: AtomicUsize,
+    peak: AtomicUsize,
 }
 #[derive(Debug)]
 struct Reservation {
@@ -268,13 +269,14 @@ impl ViewMemoryReservation {
 }
 impl Reservation {
     fn new(budget: Arc<MemoryBudget>, bytes: usize) -> Result<Self, SessionError> {
-        budget
+        let previous = budget
             .used
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
                 used.checked_add(bytes)
                     .filter(|next| *next <= budget.limit.load(Ordering::Acquire))
             })
             .map_err(|_| SessionError::Oversized)?;
+        budget.peak.fetch_max(previous + bytes, Ordering::AcqRel);
         Ok(Self { budget, bytes })
     }
 }
@@ -627,6 +629,7 @@ impl SessionBroker {
                 .unwrap_or_else(|| {
                     Arc::new(MemoryBudget {
                         used: AtomicUsize::new(0),
+                        peak: AtomicUsize::new(0),
                         limit: AtomicUsize::new(limits.view_memory_bytes),
                     })
                 });
@@ -1101,6 +1104,19 @@ impl SessionBroker {
             .connection(client, view)?
             .budget
             .used
+            .load(Ordering::Acquire))
+    }
+    /// Successful reservation high-water mark over this client's budget
+    /// lifetime, including earlier views when renegotiation reuses that budget.
+    pub fn peak_memory_bytes(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<usize, SessionError> {
+        Ok(self
+            .connection(client, view)?
+            .budget
+            .peak
             .load(Ordering::Acquire))
     }
     /// Share the same ceiling used by decoded snapshots, history, queues and

@@ -33,6 +33,7 @@ pub struct MemoryBudget(Arc<Mutex<MemoryUsage>>);
 struct MemoryUsage {
     limit: usize,
     used: usize,
+    peak: usize,
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
@@ -45,11 +46,20 @@ pub enum MemoryError {
 
 impl MemoryBudget {
     pub fn new(limit: usize) -> Self {
-        Self(Arc::new(Mutex::new(MemoryUsage { limit, used: 0 })))
+        Self(Arc::new(Mutex::new(MemoryUsage {
+            limit,
+            used: 0,
+            peak: 0,
+        })))
     }
 
     pub fn used(&self) -> usize {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).used
+    }
+    /// Lifetime high-water mark of successful reservations, including scratch
+    /// allocations released before callers can sample `used()`.
+    pub fn peak(&self) -> usize {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).peak
     }
 
     pub fn limit(&self) -> usize {
@@ -63,6 +73,7 @@ impl MemoryBudget {
             return Err(MemoryError::Exceeded);
         }
         usage.used = next;
+        usage.peak = usage.peak.max(next);
         Ok(MemoryReservation {
             budget: self.clone(),
             bytes,
@@ -94,6 +105,7 @@ impl MemoryReservation {
             return Err(MemoryError::Exceeded);
         }
         usage.used = next;
+        usage.peak = usage.peak.max(next);
         self.bytes = bytes;
         Ok(())
     }

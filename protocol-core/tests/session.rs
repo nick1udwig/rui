@@ -69,6 +69,16 @@ fn trusted_adapter_reservations_share_view_budget_and_survive_scope_disconnect()
     let session = connect(&mut broker, 3, "alice", true);
     assert_eq!(
         broker
+            .peak_memory_bytes(&session.client, session.view_id)
+            .unwrap(),
+        session.limits.view_memory_bytes
+    );
+    assert_eq!(
+        broker.peak_memory_bytes(&wrong, session.view_id),
+        Err(SessionError::WrongPrincipal)
+    );
+    assert_eq!(
+        broker
             .retained_memory_bytes(&session.client, session.view_id)
             .unwrap(),
         0
