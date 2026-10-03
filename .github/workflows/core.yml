@@ -26,7 +26,7 @@ jobs:
       - run: cargo clippy -p rui-producer-sdk --features transport,gtk-fixture-hooks --all-targets --locked -- -D warnings
       - run: cargo test -p rui-producer-sdk --features transport,gtk-fixture-hooks --all-targets --locked
       - run: python3 conformance/check.py
-      - run: python3 -m unittest adapters.sdk.test_producer
+      - run: python3 -m unittest adapters.sdk.test_producer adapters.gtk4.test_composition
       - run: python3 -m unittest adapters.atspi.test_observer adapters.atspi.test_trace
       - run: python3 -m unittest conformance.test_shrink
       - run: python3 -m unittest conformance.test_semantic_client
@@ -39,3 +39,4 @@ jobs:
       - run: python3 -m conformance.indexed_network_audit fixtures/gtk/transport-golden/full-visual/protocol/full/index.json --replay target/debug/examples/replay --expected fixtures/gtk/transport-full.audit.json
       - run: python3 -m conformance.network_audit fixtures/gtk/mirror-golden/controller.trace.jsonl --replay target/debug/examples/replay --expected fixtures/gtk/mirror-controller.audit.json
       - run: python3 -m conformance.network_audit fixtures/gtk/mirror-golden/observer.trace.jsonl --replay target/debug/examples/replay --expected fixtures/gtk/mirror-observer.audit.json
+      - run: python3 -m conformance.indexed_network_audit fixtures/gtk/composition-golden/commit/protocol-final/index.json --replay target/debug/examples/replay --expected fixtures/gtk/composition-commit.audit.json

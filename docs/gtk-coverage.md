@@ -973,3 +973,13 @@ replay of the final commit trace passed 364 exact packets, six publications,
 78 vector transfers (58,012 bytes), all six record kinds, four distinct commands
 and one exact retry. This producer acceptance does not close TXT-002/TXT-003
 until actual desktop wire composition is independently verified.
+
+
+The 15 root-run scenarios are retained in
+`fixtures/gtk/composition-interaction.json` and `composition-golden/` as exact
+protobuf packets, source manifests and RVP vectors. The bounded
+`adapters/sdk/tests/composition_trace.rs` replay checks all 11,077 artifacts
+(29,904,909 bytes), authenticated scope/order, public preedit absence, native
+cancellation receipts, causal Surface tokens, exact retries, measured clocks and
+zero disposal ownership. Root reran the frozen replay and strict Clippy. CI also
+runs the independent commit-trace audit against `composition-commit.audit.json`.

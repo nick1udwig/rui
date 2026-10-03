@@ -1,0 +1,38 @@
+{
+  "closed_prefixes": 2,
+  "command_family_50": 1,
+  "command_family_52": 4,
+  "command_results": 5,
+  "commands": 4,
+  "complete_publications": 6,
+  "exact_command_retries": 1,
+  "exact_packet_bytes": 355040,
+  "incomplete_resource_transfers": 0,
+  "index_sha256": "85a125ea04ddca0fb3237a36c2e25972131ce8c2f294c2d8fc28c7cdaed00f08",
+  "interrupted_publications": 0,
+  "packets": 364,
+  "passed": true,
+  "presented_acknowledgements": 4,
+  "readiness_acknowledgements": 5,
+  "record_kinds": [
+    "Binding",
+    "Scene",
+    "Semantic",
+    "Session",
+    "Surface",
+    "Text"
+  ],
+  "scene_primitives": [
+    "Border",
+    "FillPath",
+    "GlyphRun",
+    "Group",
+    "SolidRect",
+    "StrokePath"
+  ],
+  "segments": 2,
+  "sha256": "8f4f1225ad7a6da10d4523e8191ecc47fe6a980ea746a178af4fa0e291d3793f",
+  "unrequested_resource_offers": 0,
+  "verified_resource_transfers": 78,
+  "verified_vector_bytes": 58012
+}
