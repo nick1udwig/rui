@@ -3,7 +3,10 @@
 //! receiver, memory, permissions and viewport. No receipt is synthesized.
 use gtk4::{gio, glib, graphene, prelude::*};
 use rui_client_desktop::{
-    desktop::{self, gtk, DesktopObservation, DisplayedObservation, Options, ViewSelection},
+    desktop::{
+        self, gtk, DesktopObservation, DisplayedObservation, ObservationBinding, Options,
+        ViewSelection,
+    },
     RenderLimits, RenderProfile, Renderer, Viewport,
 };
 use rui_protocol_core::{
@@ -20,7 +23,9 @@ use rui_session_shell::{
     topology::WindowSpec,
     Framebuffer, InjectionScope, RegionGrant,
 };
-use rui_transport::{pairing::PairingAuthority, HostIdentity, ProducerServerHandle, ServerConfig};
+use rui_transport::{
+    pairing::PairingAuthority, HostIdentity, ProducerServerHandle, ServerConfig, TransportError,
+};
 use sha2::{Digest, Sha256};
 use std::{
     cell::RefCell,
@@ -63,6 +68,49 @@ mod tests {
         });
         assert!(failed.is_err());
         assert!(*signal.borrow());
+    }
+    #[test]
+    fn comparison_never_pairs_a_capture_with_retired_scope_or_paint_generation() {
+        let scope = ObservationBinding {
+            client: [81; 16],
+            epoch: [2; 16],
+            view: [3; 16],
+        };
+        let mut observed = DesktopObservation {
+            binding: Some(scope),
+            displayed: Some(DisplayedObservation {
+                stamp: desktop::Stamp {
+                    generation: 5,
+                    serial: 7,
+                    revision: 9,
+                    viewport: Viewport::new(200, 120),
+                    pixel_digest: [0; 32],
+                    records_digest: None,
+                },
+                canvas_origin: Point { x: 0., y: 0. },
+                window_scale: 1,
+                frame_time_us: 0,
+                refresh_interval_us: 0,
+                predicted_presentation_us: 0,
+                after_paint_time_us: 0,
+            }),
+            ..Default::default()
+        };
+        assert!(capture_paint(scope, 5, observed).is_some());
+        observed.binding.as_mut().unwrap().view = [4; 16];
+        assert!(capture_paint(scope, 5, observed).is_none());
+        observed.binding = Some(scope);
+        observed.binding.as_mut().unwrap().epoch = [6; 16];
+        assert!(capture_paint(scope, 5, observed).is_none());
+        observed.binding = Some(scope);
+        observed.binding.as_mut().unwrap().client = [82; 16];
+        assert!(capture_paint(scope, 5, observed).is_none());
+        observed.binding = Some(scope);
+        observed.displayed.as_mut().unwrap().stamp.generation = 6;
+        assert!(capture_paint(scope, 5, observed).is_none());
+        assert!(capture_paint(scope, 6, observed).is_some());
+        observed.displayed = None;
+        assert!(capture_paint(scope, 6, observed).is_none());
     }
 }
 fn hex(bytes: &[u8]) -> String {
@@ -223,24 +271,59 @@ struct Compared {
     records: [u8; 32],
     pixels: [u8; 32],
 }
+fn capture_paint(
+    scope: ObservationBinding,
+    generation: u64,
+    observed: DesktopObservation,
+) -> Option<DisplayedObservation> {
+    if observed.closed {
+        return None;
+    }
+    let current = observed.binding?;
+    if (current.client, current.epoch, current.view) != (scope.client, scope.epoch, scope.view) {
+        return None;
+    }
+    let painted = observed.displayed?;
+    (painted.stamp.generation == generation && painted.stamp.revision > 0).then_some(painted)
+}
 async fn compare(
     port: &NativeProducerPort,
     observation: &watch::Receiver<DesktopObservation>,
 ) -> Result<Compared, Error> {
     let deadline = Instant::now() + Duration::from_secs(20);
+    let mut denied_reads = 0u64;
     loop {
-        let capture = source(port, observation).await?;
-        let displayed = wait(observation, |o| {
-            o.displayed
-                .is_some_and(|d| d.stamp.revision >= capture.state().revision)
-        })
-        .await?
-        .displayed
-        .unwrap();
-        if displayed.stamp.revision != capture.state().revision {
-            if Instant::now() >= deadline {
-                return Err("source/mirror matching revision deadline".into());
+        let observed = *observation.borrow();
+        if observed.closed || Instant::now() >= deadline {
+            return Err(format!(
+                "current authorized source/mirror comparison deadline/closed after {denied_reads} denied transitional reads: {observed:?}"
+            )
+            .into());
+        }
+        let Some((scope, painted)) = observed.binding.zip(observed.displayed) else {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            continue;
+        };
+        // Losing GTK focus intentionally stops input and reconnects as an
+        // observer. The latest diagnostic can still name the retired socket
+        // while its disconnect reaches the owner. Re-select the actual scope
+        // after denial; never retain that old capture through recovery.
+        let capture = match port.projected_source(scope.client, scope.view).await {
+            Ok(capture) => capture,
+            Err(TransportError::Authority) => {
+                denied_reads = denied_reads.saturating_add(1);
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                continue;
             }
+            Err(error) => return Err(error.into()),
+        };
+        let Some(displayed) = capture_paint(scope, painted.stamp.generation, *observation.borrow())
+        else {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            continue;
+        };
+        if displayed.stamp.revision != capture.state().revision {
+            tokio::time::sleep(Duration::from_millis(10)).await;
             continue;
         }
         let records =
