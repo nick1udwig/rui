@@ -82,6 +82,31 @@ impl NativeProducerPort {
             _ => Err(TransportError::Protocol),
         }
     }
+    /// Trusted, read-only observation of the broker's actual renderer marker.
+    /// The named view must still be connected, opened and approved. No marker
+    /// can be created or advanced by this diagnostic capability.
+    pub async fn presented_revision(
+        &self,
+        client: Id,
+        view: Id,
+    ) -> Result<Option<u64>, TransportError> {
+        let _admitted = self
+            .0
+            .admission
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| TransportError::Limit)?;
+        let pending = self
+            .0
+            .host
+            .request(4096, || Operation::PresentedSource { client, view })
+            .map_err(error)?;
+        let received = receive(pending).await?;
+        match received.value {
+            Response::PresentedRevision(revision) => Ok(revision),
+            _ => Err(TransportError::Protocol),
+        }
+    }
     fn native_connection<'a>(
         &self,
         connection: &'a port::Connection,
@@ -249,21 +274,20 @@ pub(super) struct Context<'a> {
     pub now: u64,
 }
 impl NativeViews {
-    pub(super) fn capture_named(
+    fn named_view(
         &self,
         client: Id,
         view_id: Id,
-        budget: &MemoryBudget,
         broker: &SessionBroker,
         priority: &Priority,
-    ) -> Result<ProjectedCapture, ShellError> {
+    ) -> Result<&View, ShellError> {
         let (index, view) = self
             .views
             .iter()
             .enumerate()
             .find_map(|(index, view)| {
                 view.as_ref()
-                    .filter(|v| v.stamp.client == client && v.stamp.view == view_id)
+                    .filter(|v| v.stamp.client == client && v.stamp.view == view_id && v.opened)
                     .map(|v| (index, v))
             })
             .ok_or(ShellError::Scope)?;
@@ -273,6 +297,27 @@ impl NativeViews {
             return Err(ShellError::Scope);
         }
         broker.authorize_projection(&view.client, view_id)?;
+        Ok(view)
+    }
+    pub(super) fn presented_named(
+        &self,
+        client: Id,
+        view_id: Id,
+        broker: &SessionBroker,
+        priority: &Priority,
+    ) -> Result<Option<u64>, ShellError> {
+        let view = self.named_view(client, view_id, broker, priority)?;
+        Ok(broker.presented_revision(&view.client, view_id)?)
+    }
+    pub(super) fn capture_named(
+        &self,
+        client: Id,
+        view_id: Id,
+        budget: &MemoryBudget,
+        broker: &SessionBroker,
+        priority: &Priority,
+    ) -> Result<ProjectedCapture, ShellError> {
+        let view = self.named_view(client, view_id, broker, priority)?;
         let memory = broker.reserve_view_memory(&view.client, view_id, 2 << 20)?;
         let mut capture =
             projection::copy(view.capture.as_ref().ok_or(ShellError::Scope)?, budget)?;

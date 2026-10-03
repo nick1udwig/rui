@@ -445,9 +445,61 @@ async fn named_diagnostic_capture_requires_current_approved_scope_and_retains_it
     };
     let connection = connection.clone();
     drop(received);
-    ready(&port, &connection).await;
     let client = connection.session().client.client_instance_id;
     let view = connection.session().view_id;
+    assert!(port.presented_revision(client, view).await.is_err());
+    let opened = call(
+        &port,
+        &connection,
+        Operation::Open {
+            selection: "session".into(),
+            mirror_canvas_policy: "host-canvas".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let Reply::Opened {
+        checkpoint: Some(frame),
+        ..
+    } = opened.value()
+    else {
+        panic!()
+    };
+    let frame = frame.clone();
+    drop(opened);
+    let envelope = pb::Envelope::decode(frame.as_ref()).unwrap();
+    let revision = pb::Snapshot::decode(envelope.payload.as_slice())
+        .unwrap()
+        .revision;
+    let used = budget.used();
+    for _ in 0..16 {
+        assert_eq!(port.presented_revision(client, view).await.unwrap(), None);
+        assert_eq!(budget.used(), used, "read retained a new ownership charge");
+    }
+    call(
+        &port,
+        &connection,
+        Operation::Ack(Acknowledgement::Applied {
+            revision,
+            witness: frame,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(port.presented_revision(client, view).await.unwrap(), None);
+    call(
+        &port,
+        &connection,
+        Operation::Ack(Acknowledgement::Presented { revision }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        port.presented_revision(client, view).await.unwrap(),
+        Some(revision)
+    );
+    assert!(port.presented_revision([99; 16], view).await.is_err());
+    assert!(port.presented_revision(client, [99; 16]).await.is_err());
     let capture = port.projected_source(client, view).await.unwrap();
     assert_eq!(
         capture.state(),
@@ -455,7 +507,12 @@ async fn named_diagnostic_capture_requires_current_approved_scope_and_retains_it
     );
     assert!(port.projected_source([99; 16], view).await.is_err());
     assert!(port.projected_source(client, [99; 16]).await.is_err());
+    call(&port, &connection, Operation::ResourcesMissing)
+        .await
+        .unwrap();
+    assert_eq!(port.presented_revision(client, view).await.unwrap(), None);
     approval.revoke();
+    assert!(port.presented_revision(client, view).await.is_err());
     assert!(port.projected_source(client, view).await.is_err());
     port.shutdown();
     port.flush_lifecycle(0).await.unwrap();

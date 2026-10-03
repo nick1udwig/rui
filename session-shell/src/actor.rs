@@ -94,6 +94,8 @@ pub enum Response {
     Transport(Result<rui_transport::producer::Received, rui_transport::TransportError>),
     #[cfg(feature = "transport")]
     Projected(transport::ProjectedCapture),
+    #[cfg(feature = "transport")]
+    PresentedRevision(Option<u64>),
     Connected {
         connection: Connection,
         negotiated: NegotiatedSession,
@@ -274,6 +276,11 @@ enum Operation {
     },
     #[cfg(feature = "transport")]
     ProjectedSource {
+        client: Id,
+        view: Id,
+    },
+    #[cfg(feature = "transport")]
+    PresentedSource {
         client: Id,
         view: Id,
     },
@@ -937,6 +944,15 @@ impl Owner {
                                             client,
                                             view,
                                             &owner_budget,
+                                            &broker,
+                                            &owner_priority,
+                                        )?)
+                                    }
+                                    #[cfg(feature = "transport")]
+                                    Operation::PresentedSource { client, view } => {
+                                        Response::PresentedRevision(transport.presented_named(
+                                            client,
+                                            view,
                                             &broker,
                                             &owner_priority,
                                         )?)
