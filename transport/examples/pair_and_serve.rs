@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     file.sync_all()?;
     drop(file);
     drop(credential);
-    let host = ControlledHost::new(HostConfig::default(), "private fixture field".into())?;
+    let host = ControlledHost::new(HostConfig::fresh()?, "private fixture field".into())?;
     let server = ServerHandle::bind(
         "127.0.0.1:8443".parse()?,
         identity,

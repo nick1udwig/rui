@@ -5,6 +5,12 @@ private text field. The host owns all business logic and source clocks. Clients
 receive exact Protobuf envelopes and send exact Protobuf command payloads. No
 client code executes application logic.
 
+`HostConfig::default()` contains deterministic test-fixture identities. A runnable
+host must use fallible `HostConfig::fresh()` when creating a new in-memory ledger;
+losing retained command outcomes requires a new epoch, even when TLS identity and
+approved client credentials survive. Replacing only a source while its broker
+and ledger survive is a separate operation and preserves that broker epoch.
+
 Run the two-client fixture:
 
 ```sh

@@ -18,7 +18,20 @@ Resource requests page through at most 512 digests. Immutable resource ownership
 
 The server reserves `8 * envelope_bytes + 128 KiB` lifetime framing/decode headroom and 512 KiB bounded delivery metadata against the host view budget before post-authentication sends. Publication and resource bodies retain their own shared reservations. A budget too small for these conservative charges rejects the connection.
 
-Raw input, IME and resize kinds are reserved and rejected until their shared-ledger integration. There is no GUI renderer or OS input injection here. Private-field filtering is guaranteed only for this controlled cooperating fixture, not arbitrary applications.
+Semantic, raw input, text composition and source resize share the common exact-byte
+ledger. The controlled corpus implements permission-filtered raw canvas effects,
+transient preedit/scalar commits and bounded source resize; the baseline counter
+source rejects unsupported families. OS input and native presentation are separate
+adapter/client integrations. Private-field filtering is guaranteed only for this
+controlled cooperating fixture, not arbitrary applications.
+
+The runnable pairing example uses `HostConfig::fresh()` before creating its
+in-memory dispatch ledger. A broker restart or lost ledger must mint a new epoch;
+retained client state then receives a fresh checkpoint. `tests/epoch.rs` preserves
+the TLS identity and approval across broker replacement, loses the first action's
+reply, and verifies that both ambiguous and never-sent old-epoch commands close
+without dispatch or sequence consumption, even after a fresh lease is acquired.
+The new epoch accepts sequence one only when encoded under its new authority.
 
 `NetworkClient::into_retained()` drops its socket, staged publication/resource transfers, unsent replies and presentation state. It keeps the committed reducer, retired identities and live resource cache. Call `RetainedClientView::reconnect(...)` with the same credential-bound producer ID and no caller-supplied resume request, then call `open_view()` on the returned client. A failed or cancelled reconnect preserves the retained owner for retry. Only the authenticated `PRODUCER_CONNECTION_BUSY` response retries automatically, within two seconds, while the previous connection finishes cleanup; pin, credential and other failures do not retry automatically.
 

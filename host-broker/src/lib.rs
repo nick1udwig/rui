@@ -78,6 +78,8 @@ pub struct HostConfig {
     pub max_text_bytes: usize,
 }
 impl Default for HostConfig {
+    /// Deterministic test-fixture identities. Runnable hosts must use `fresh`
+    /// whenever constructing a new in-memory command ledger.
     fn default() -> Self {
         Self {
             session_id: [1; 16],
@@ -86,6 +88,20 @@ impl Default for HostConfig {
             ledger: LedgerLimits::default(),
             max_text_bytes: 64 * 1024,
         }
+    }
+}
+impl HostConfig {
+    /// Mint a fresh session and epoch before creating a new dispatch ledger.
+    /// Persisting credentials or TLS identity must not preserve an epoch whose
+    /// exact-command outcomes have been lost. Entropy failure prevents startup.
+    pub fn fresh() -> Result<Self, HostError> {
+        let mut config = Self::default();
+        getrandom::getrandom(&mut config.session_id).map_err(|_| HostError::IdentityUnavailable)?;
+        getrandom::getrandom(&mut config.epoch).map_err(|_| HostError::IdentityUnavailable)?;
+        if config.session_id == [0; 16] || config.epoch == [0; 16] {
+            return Err(HostError::IdentityUnavailable);
+        }
+        Ok(config)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +114,8 @@ pub enum PublicationFailure {
 }
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum HostError {
+    #[error("fresh host identity could not be generated")]
+    IdentityUnavailable,
     #[error(transparent)]
     Session(#[from] SessionError),
     #[error(transparent)]
