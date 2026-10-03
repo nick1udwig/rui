@@ -7,8 +7,10 @@ workspace, property and independent replay checks recorded in [STATUS.md](STATUS
 Integration rows still require their stated native gates; every accepted case
 remains part of the final regression suite.
 Evidence includes the accepted isolated native input foundation and coherent
-whole-view GTK capture. Their broader transport integration remains open. The native command bridge
-is a bounded private semantic fixture; it does not establish TLS/IME integration.
+whole-view GTK capture. The same GTK source now serves two real TLS clients with
+exact command/source evidence and native lifecycle fencing; its recorded complete
+vector trace passes independent replay. Actual GTK mirror after-paint and wire IME
+remain open, as does the full native session physical-input integration.
 
 | Case | Layer | Accepted evidence | Remaining gate or final-suite obligation |
 | --- | --- | --- | --- |
@@ -69,7 +71,7 @@ is a bounded private semantic fixture; it does not establish TLS/IME integration
 | VIS-002 | render (P0) | [pixels.rs](../client-desktop/tests/pixels.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Five actual coherent whole-view toplevel/popup/tooltip/modal transactions pass direct native-source versus decoded render comparisons (`fixtures/gtk/whole-interaction.json`); network whole-view action integration remains. |
 | VIS-003 | render (P0) | [gtk-coverage.md](../docs/gtk-coverage.md) | Actual photo/texture/Cairo/blur/shader nodes produce named Partial regions; observed exporter probes and decoded vector audit pass (`fixtures/gtk/negative-report.json`); retain native negative corpus in final suite. |
 | VIS-004 | render (P0) | [scene.rs](../protocol-core/tests/scene.rs); [cli.rs](../client-desktop/tests/cli.rs) | Unknown required vocabulary and rendering failure covered; retain negotiated feature rejection in final suite. |
-| PIX-001 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs); [gtk-coverage.md](../docs/gtk-coverage.md) | Full private native trace (47 source publications/61 command entries) passes exact vector/resource/origin audit with observed exporter probes; post-auth scoped TLS recorder passes (`transport/tests/diagnostics.rs`); complete native network trace audit remains. |
+| PIX-001 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs); [gtk-coverage.md](../docs/gtk-coverage.md) | Full private native trace (47 source publications/61 command entries) passes exact vector/resource/origin audit with observed exporter probes; post-auth scoped TLS recorder passes (`transport/tests/diagnostics.rs`); the actual GTK full-visual TLS trace independently passes four publication prefixes, 335 exact packets and 76 verified vector transfers (`fixtures/gtk/transport-full.audit.json`). Declared no-raster network case accepted; retain the source exporter negatives and exact trace in the final suite. This does not claim actual native mirror paint from the driver’s simulated Presented callbacks. |
 | PIX-002 | integration (P0) | [resources.rs](../protocol-core/tests/resources.rs) | Original NASA photograph is actually drawn locally and exported as an explicit unsupported region, without any image resource or conversion attempt (`fixtures/gtk/negative-report.json`); retain final negative suite. |
 | MUL-001 | integration (P0) | [loopback.rs](../transport/tests/loopback.rs) | Actual two-window GTK/TLS presentation, causal typing and independent Python item convergence pass (`fixtures/render/native-corpus.json`); broader native controls and actual cache loss/reconnect now pass (`fixtures/render/native-broad.json`); retain final suite. |
 | MUL-002 | integration (P0) | [session.rs](../protocol-core/tests/session.rs) | Trusted shell local handler revokes before matched native releases/cancels/STOP and preserves common cleanup ownership (`session-shell/tests/native.rs`); actual native local-device callback integration remains. |
