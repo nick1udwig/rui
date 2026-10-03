@@ -1,0 +1,34 @@
+{
+  "source_window": {
+    "scope": "private-GDK-owned-source-window",
+    "admission_fixture": "trusted readiness; no remote mirror Presented claim",
+    "local_input_origin": "actual authenticated private-X11 GDK physical callbacks",
+    "focus_loss": "held physical key cleared; source stable for 500ms before native release",
+    "host_layout": "de",
+    "client_layout": "us",
+    "physical_evdev_code": 21,
+    "native_key_presses": 4,
+    "native_key_releases": 3,
+    "native_pointer_callbacks": 3,
+    "source_revision": 17,
+    "source_records": 25,
+    "source_snapshot_sha256": "1ae333a7c47dc5909074bdd042f64843a00cbd5b80cec88b26d03840b3452f21",
+    "after_paint_rgba8_sha256": "7751c8aa66907825a2a26a78685a9108ec30a6ef65c228ab5a7a429d7b0af001",
+    "accounted_bytes": 105673674,
+    "memory_limit_bytes": 134217728
+  },
+  "native_owner": {
+    "native_owner_cleanup": "actual releases and STOP verified",
+    "held_keys": 0,
+    "held_buttons": 0,
+    "held_touches": 0,
+    "local_held_keys": 0,
+    "native_clone_allowance": "retained until final native object clones dropped",
+    "libei": "1.6.0",
+    "libeis": "1.6.0",
+    "xkbcommon": "1.13.2",
+    "keymap_sha256": "bfe9411505eff4e1583be93e3d7ea87a6ae0fa78f93bd9fc9e940f3e36cae4bc",
+    "native_frames_applied": 1,
+    "native_frames_cancelled": 1
+  }
+}

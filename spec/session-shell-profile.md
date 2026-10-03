@@ -1,4 +1,4 @@
-# Isolated session shell native foundation
+# Isolated session shell profile
 
 `rui-session-shell` owns a built-in vector input laboratory. Its native-eis
 feature creates an EIS server and a libei sender joined by an owned private fd.
@@ -139,14 +139,122 @@ cargo test -p rui-session-shell --features native-eis --test native --offline --
 cargo run -p rui-session-shell --features native-eis --example native_probe --offline --locked -- /tmp/session-shell.pam
 ```
 
-The native probe renders the actual source records into a local PAM and prints
+The fd-only native probe renders the actual source records into a local PAM and prints
 a hash-only JSON report. It uses trusted admission readiness fixtures; it does
 not claim actual desktop mirror Presented, a network round trip, or physical
 scanout. Its local takeover enters the real shell handler and verifies native
-neutralization, but native local-device capture remains a later integration gate.
+neutralization. It predates the separate actual GDK source-window gate below.
 The retained report is `fixtures/session-shell/native-source.json`.
 
-This slice is a source/native foundation. M4 still requires the shared transport
-host raw-family hook, actual mirror presentation, owned native local-input
-capture, and host IME/resize integration. Full M2 control/transient/recovery gates
-remain separate from this probe.
+## Native owner and local source window
+
+The optional owner actor constructs the native contexts, authoritative topology,
+one SessionBroker and one CommandLedger on its named owning thread. Callers get
+an opaque connection and a Send port, never a native context. Normal requests
+have a 32-entry bounded queue and one-entry charged reply channels. Captures are
+borrowed direct-source projections; checkpoints encode those same records.
+Checkpoint budget preflight precedes changing the broker view. Escaped projection
+and immutable publication handles retain their global charges after owner
+shutdown, including cloned publication handles.
+
+Each connection capability binds the owner identity and a monotonically issued
+connection serial as well as protocol client/view/epoch. Every queued operation
+rechecks the current serial on its owning thread. Same-view reconnect cannot
+reuse an old capability, and late old disconnects cannot overwrite or disconnect
+a newer incarnation. Cross-owner capabilities fail even when trusted fixtures
+explicitly use identical protocol IDs. A standalone owner mints fresh OS-random
+session and epoch IDs; fixed IDs are available only through the explicit trusted
+fixture/deployment constructor. A trusted deployment must issue a new epoch when
+replacing broker or ledger state. Dropped authentication replies disconnect
+their exact registration, including a queued reply never consumed by its caller.
+Connection storage reserves before broker negotiation. Negotiation returns the
+exact retained checkpoint keeper atomically for a zero-delta resume, even if
+current source records have since changed. Resume clears presentation/control;
+the integrating mirror must provide new actual presentation evidence.
+
+Local input is a separate trusted capability that cannot be selected by a wire
+message. Its 64-entry fixed-event FIFO records a checked outstanding obligation
+before invalidation and enqueue. Priority generation checks cancel already-sent
+native work at receipt. Raw and acquire requests also require the owner to have
+acknowledged the exact generation after lifecycle handling, verified cleanup and
+local FIFO processing. A new-generation request cannot overtake an unprocessed
+local event. A failed enqueue still invalidates remote authority; earlier
+accepted local events finish before an explicit poisoned status denies fresh
+dispatch. Capture/status remain usable for reporting the safe or failed source.
+
+Native cleanup is incremental: each owner iteration receives bounded native
+events without sleeping on a native wait. The owner continues handling priority
+local/disconnect/quit notices while actual releases, cancels and STOP arrive.
+Eight fixed disconnect slots are exact client/view bound; observer disconnect
+does not revoke the controller. Quit is terminal and cannot be blocked by normal
+queue pressure. Startup failures join and dispose the native owner. The actor
+currently grants only RawInputBatch, so its central cleanup coordinator can
+acknowledge after this backend is neutral; an unexpected composition cleanup is
+fail-closed. A multi-family integration must replace that narrow fanout with all
+participating owners.
+
+The actor reserves a conservative 64 MiB broker allowance, 24 MiB ledger allowance
+and 1 MiB request/priority allowance before creating bounded maps or queues.
+The broker profile has at most eight clients, 1 MiB decoded checkpoints/history
+per view, 64 history entries, 512 KiB outbound queues, 128 held inputs, and 1024
+control request identities. The ledger has at most 4096 identities, 8 MiB retained
+exact command bodies, and 512 retained outcomes. Native/backend/topology charges
+remain those above; exported bytes and replies charge the shared budget in
+addition. These allowances describe this narrow actor profile, not arbitrary
+future source or resource allocations.
+
+`source-window` adds a private GTK frontend. It currently requires explicit
+authenticated isolated X11 with the verified hardware-keycode = evdev + 8
+mapping; other GDK backends are unsupported. Actual GDK key/motion/click
+callbacks enter the local priority capability before source work. Physical keys
+are interpreted by the source's native XKB state, with no client text commit or
+IME substitution. The vector canvas scales uniformly with letterboxing;
+inverse pointer mapping rejects letterbox pixels, then the independent granted
+EIS region maps source logical coordinates. Native platform cursor painting is
+hidden over this canvas; its visible cursor is the explicit vector Session
+cursor. GTK diagnostics/chrome outside the canvas are local and not projected.
+
+Canvas focus loss, unmap, close and frontend disposal send a separate priority
+local-device cancellation. It cannot be blocked by a full FIFO, clears native
+XKB/local held state after remote cleanup, and invalidates old queued local
+events by their local-device generation. Teardown removes controllers, timer,
+after-paint handler, texture and window content. The shared opaque native
+allowance remains attached to native object clones until their final drop.
+
+The frontend renders the actor's actual borrowed source state. Its linear frame
+is transferred over a white linear matte into budget-owned RGBA bytes retained
+by GLib.Bytes/MemoryTexture. It reserves an explicit 4 MiB GTK/GDK allowance;
+native allocator/GPU RSS is not instrumented. Local allocation/queue/capture
+failures keep visible feedback across later frames. Diagnostic observation is
+default-off and stores one fixed-size metadata value with hashes/revision only.
+The observed stamp is the one submitted by Widget.snapshot and subsequently
+seen at GTK after-paint. This proves a source-window presentation opportunity,
+not physical scanout or a remote RUI PresentedAck.
+
+```
+cargo test -p rui-session-shell --features source-window --offline --locked
+cargo test -p rui-session-shell --features source-window --offline --locked -- --ignored
+cargo build -p rui-session-shell --features source-window --example source_window_probe --offline --locked
+python3 fixtures/session-shell/native_window.py --xvfb /path/to/Xvfb --report /tmp/source-window.json
+```
+
+The private runner owns authenticated Xvfb and its DBus session. The probe starts
+with an actually received remote Shift held, then delivers real private-display
+XTest events through the same GDK callbacks used by the source frontend. A US
+client physical y key becomes German z, after the remote held modifier has been
+released. It checks actual local pointer mapping, native held state/STOP cleanup,
+direct-source interior pixels, and exact source/pixel hashes for the revision
+observed at after-paint. Four source surfaces compose into a 200×120 frame.
+It then holds an actual native key, moves native focus to another private window,
+and proves local held state is cleared before the otherwise missing native
+release. The source stays unchanged for 500 ms before that test key is released.
+The probe also retains window/canvas clones across frontend disposal and checks
+that controller/content teardown occurs and the opaque native allowance releases
+only after those clones are dropped.
+The retained hash-only report is `fixtures/session-shell/native-window.json`.
+Trusted test acknowledgements admit the initial raw command; this probe does
+not claim a remote mirror, network transport or actual physical keyboard device.
+
+Shared transport adaptation, view-delta publication, actual mirror presentation,
+host IME and authorized source resize remain M4 integration work. Full M2
+control/transient/recovery gates remain separate from these probes.

@@ -371,3 +371,68 @@ fn resource_readiness_loss_neutralizes_host_repeat_and_cannot_rearm_old_key() {
     f.backend.local_input(&mut f.broker, 801).unwrap();
     assert!(f.broker.take_cleanup().unwrap().keys.is_empty());
 }
+
+#[test]
+#[ignore = "explicit pinned libei/libeis/XKB native gate"]
+fn owner_generation_cancels_already_sent_native_frames_before_receipt() {
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    };
+    let mut f = Fixture::new();
+    let generation = Arc::new(AtomicU64::new(1));
+    f.backend.bind_generation(generation.clone()).unwrap();
+    let raw = f.raw(f.main, vec![key(21, true)]);
+    assert_eq!(f.submit(&raw, 0).status, CommandStatus::Dispatched);
+    generation.store(2, Ordering::Release);
+    f.pump(0);
+    assert_eq!(f.backend.topology().text(f.main), Some(""));
+    assert_eq!(
+        f.backend.traces().last().unwrap().receipt,
+        rui_session_shell::backend::Receipt::Cancelled
+    );
+    f.backend.invalidate_local_input(&mut f.broker, 1).unwrap();
+    assert!(f.backend.cleanup_pending());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while f.backend.cleanup_pending() {
+        f.backend.poll_nonblocking(&mut f.broker, 1).unwrap();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::yield_now();
+    }
+    assert!(f.backend.held().keys.is_empty());
+    assert_eq!(f.backend.pending_frames(), 0);
+    assert!(f.broker.current_lease(1).is_none());
+    assert!(f.broker.take_cleanup().is_some());
+}
+
+#[test]
+#[ignore = "explicit pinned libei/libeis/XKB native gate"]
+fn incremental_cleanup_holds_common_handoff_until_actual_release_and_stop() {
+    let mut f = Fixture::new();
+    let raw = f.raw(f.main, vec![key(42, true)]);
+    assert_eq!(f.submit(&raw, 0).status, CommandStatus::Dispatched);
+    f.pump(0);
+    f.backend.invalidate_local_input(&mut f.broker, 1).unwrap();
+    assert!(f.backend.cleanup_pending());
+    assert!(f
+        .broker
+        .acquire_control(&f.session.client, f.session.view_id, [24; 16], 1)
+        .is_err());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while f.backend.cleanup_pending() {
+        f.backend.poll_nonblocking(&mut f.broker, 1).unwrap();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::yield_now();
+    }
+    assert!(f.backend.held().keys.is_empty());
+    let cleanup = f.broker.take_cleanup().unwrap();
+    assert_eq!(cleanup.keys.len(), 1);
+    f.lease = f
+        .broker
+        .acquire_control(&f.session.client, f.session.view_id, [25; 16], 1)
+        .unwrap();
+    let raw = f.raw(f.main, vec![key(21, true), key(21, false)]);
+    assert_eq!(f.submit(&raw, 1).status, CommandStatus::Dispatched);
+    f.pump(1);
+    assert_eq!(f.backend.topology().text(f.main), Some("z"));
+}

@@ -961,6 +961,7 @@ dependencies = [
 name = "rui-session-shell"
 version = "0.1.0"
 dependencies = [
+ "gtk4",
  "prost",
  "rui-client-desktop",
  "rui-protocol-core",

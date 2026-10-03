@@ -18,6 +18,10 @@ use rui_protocol_core::{
 use std::{
     cell::RefCell,
     collections::{BTreeMap, VecDeque},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -71,6 +75,7 @@ struct Expected {
     touch: u64,
     cleanup: bool,
     hit_required: bool,
+    work_generation: u64,
 }
 struct Repeat {
     surface: u64,
@@ -78,6 +83,7 @@ struct Repeat {
     lease: Id,
     generation: u64,
     next: u64,
+    work_generation: u64,
 }
 /// One owning thread, one explicit whole-session region and one native device.
 /// All mutating native input enters through `submit_raw`; topology is trusted
@@ -99,6 +105,8 @@ pub struct Backend {
     traces: VecDeque<NativeTrace>,
     profile: NativeProfile,
     failed: bool,
+    cleanup_deadline: Option<Instant>,
+    work_generation: Arc<AtomicU64>,
     _memory: MemoryReservation,
 }
 impl Backend {
@@ -149,8 +157,18 @@ impl Backend {
             traces: VecDeque::new(),
             profile,
             failed: false,
+            cleanup_deadline: None,
+            work_generation: Arc::new(AtomicU64::new(1)),
             _memory: memory,
         })
+    }
+    /// Trusted owner binds priority invalidation before any native emulation.
+    pub fn bind_generation(&mut self, generation: Arc<AtomicU64>) -> Result<(), ShellError> {
+        if self.active.is_some() || !self.expected.is_empty() {
+            return Err(ShellError::Scope);
+        }
+        self.work_generation = generation;
+        Ok(())
     }
     pub fn topology(&self) -> &Topology {
         &self.topology
@@ -173,7 +191,7 @@ impl Backend {
         self.expected.len()
     }
     pub fn validate_source(&mut self, command: &RawInputCommand) -> Result<(), ShellError> {
-        if self.failed {
+        if self.failed || self.cleanup_deadline.is_some() {
             return Err(ShellError::Native("backend requires cleanup or disposal"));
         }
         if command.seat_id != SEAT || command.device_id != DEVICE {
@@ -252,6 +270,23 @@ impl Backend {
         bytes: &[u8],
         now_ms: u64,
     ) -> Result<CommandResult, ShellError> {
+        let generation = self.work_generation.load(Ordering::Acquire);
+        self.submit_raw_at_generation(sessions, ledger, client, bytes, now_ms, generation)
+    }
+    /// Owner-queued work keeps its ORIGINAL invalidation generation. Never
+    /// relabel a stale queued command with a newer local editing generation.
+    pub fn submit_raw_at_generation(
+        &mut self,
+        sessions: &mut SessionBroker,
+        ledger: &mut CommandLedger,
+        client: &AuthenticatedClient,
+        bytes: &[u8],
+        now_ms: u64,
+        generation: u64,
+    ) -> Result<CommandResult, ShellError> {
+        if generation != self.work_generation.load(Ordering::Acquire) {
+            return Err(ShellError::Native("stale owner generation"));
+        }
         self.synchronize(sessions, now_ms)?;
         let this = RefCell::new(self);
         Ok(ledger.submit_controlled_with_session(
@@ -272,7 +307,8 @@ impl Backend {
                 let Command::RawInput(c) = command else {
                     return Err(DispatchFailure::Failed);
                 };
-                this.borrow_mut().dispatch_admitted(c, sessions, now_ms)
+                this.borrow_mut()
+                    .dispatch_at_generation(c, sessions, now_ms, generation)
             },
         )?)
     }
@@ -284,7 +320,20 @@ impl Backend {
         sessions: &mut SessionBroker,
         now: u64,
     ) -> Result<DispatchOutcome, DispatchFailure> {
-        let result = self.dispatch_inner(command, sessions, now);
+        let generation = self.work_generation.load(Ordering::Acquire);
+        self.dispatch_at_generation(command, sessions, now, generation)
+    }
+    pub fn dispatch_at_generation(
+        &mut self,
+        command: &RawInputCommand,
+        sessions: &mut SessionBroker,
+        now: u64,
+        generation: u64,
+    ) -> Result<DispatchOutcome, DispatchFailure> {
+        if generation != self.work_generation.load(Ordering::Acquire) {
+            return Err(DispatchFailure::Failed);
+        }
+        let result = self.dispatch_inner(command, sessions, now, generation);
         if result == Err(DispatchFailure::OutcomeUnknown) {
             self.failed = true;
         }
@@ -295,6 +344,7 @@ impl Backend {
         command: &RawInputCommand,
         sessions: &mut SessionBroker,
         now: u64,
+        generation: u64,
     ) -> Result<DispatchOutcome, DispatchFailure> {
         self.synchronize(sessions, now)
             .map_err(|_| DispatchFailure::OutcomeUnknown)?;
@@ -397,6 +447,7 @@ impl Backend {
                 touch,
                 cleanup,
                 hit_required,
+                work_generation: generation,
             });
             for event in &events[..count] {
                 self.endpoint.send(*event).map_err(|_| ())?;
@@ -499,7 +550,8 @@ impl Backend {
         Ok((out, count, touch))
     }
     fn current(&self, expected: &Expected, sessions: &mut SessionBroker, now: u64) -> bool {
-        self.active == Some((expected.lease, expected.generation))
+        expected.work_generation == self.work_generation.load(Ordering::Acquire)
+            && self.active == Some((expected.lease, expected.generation))
             && sessions.current_lease(now).is_some_and(|l| {
                 l.lease_id == expected.lease
                     && l.generation == expected.generation
@@ -541,6 +593,13 @@ impl Backend {
         now_ms: u64,
     ) -> Result<usize, ShellError> {
         self.synchronize(sessions, now_ms)?;
+        self.pump_frames(sessions, now_ms)
+    }
+    fn pump_frames(
+        &mut self,
+        sessions: &mut SessionBroker,
+        now_ms: u64,
+    ) -> Result<usize, ShellError> {
         let mut frames = 0;
         for _ in 0..2048 {
             let Some(event) = self.endpoint.next()? else {
@@ -679,6 +738,7 @@ impl Backend {
                                 lease: job.lease,
                                 generation: job.generation,
                                 next: now.saturating_add(self.profile.repeat_delay_ms),
+                                work_generation: job.work_generation,
                             },
                         );
                     }
@@ -726,13 +786,15 @@ impl Backend {
         let lease = sessions.current_lease(now);
         let mut burst = 0;
         for (&code, repeat) in &mut self.repeats {
-            let valid = lease.as_ref().is_some_and(|l| {
-                l.lease_id == repeat.lease
-                    && l.generation == repeat.generation
-                    && native_ready(sessions, l)
-            }) && self.topology.route(repeat.surface, 1).is_ok_and(|r| {
-                r.token == repeat.token && r.mapped && r.focused && !r.blocked_by_modal
-            });
+            let valid = repeat.work_generation == self.work_generation.load(Ordering::Acquire)
+                && lease.as_ref().is_some_and(|l| {
+                    l.lease_id == repeat.lease
+                        && l.generation == repeat.generation
+                        && native_ready(sessions, l)
+                })
+                && self.topology.route(repeat.surface, 1).is_ok_and(|r| {
+                    r.token == repeat.token && r.mapped && r.focused && !r.blocked_by_modal
+                });
             if !valid {
                 continue;
             }
@@ -782,7 +844,10 @@ impl Backend {
         self.neutralize(sessions, now)?;
         Ok(())
     }
-    fn neutralize(&mut self, sessions: &mut SessionBroker, now: u64) -> Result<(), ShellError> {
+    fn begin_neutralization(&mut self) -> Result<(), ShellError> {
+        if self.cleanup_deadline.is_some() {
+            return Ok(());
+        }
         self.repeats.clear();
         let Some((lease, generation)) = self.active else {
             if self.failed {
@@ -809,6 +874,7 @@ impl Backend {
                 touch,
                 cleanup: true,
                 hit_required: false,
+                work_generation: self.work_generation.load(Ordering::Acquire),
             };
             for code in held.keys {
                 let e = NativeEvent {
@@ -843,9 +909,19 @@ impl Backend {
             }
         }
         self.endpoint.stop();
-        let deadline = Instant::now() + Duration::from_secs(2);
+        self.cleanup_deadline = Some(Instant::now() + Duration::from_secs(2));
+        Ok(())
+    }
+    fn advance_cleanup(
+        &mut self,
+        sessions: &mut SessionBroker,
+        now: u64,
+    ) -> Result<bool, ShellError> {
+        let Some(deadline) = self.cleanup_deadline else {
+            return Ok(true);
+        };
         let mut stopped = false;
-        while !stopped {
+        for _ in 0..2048 {
             match self.endpoint.next()? {
                 Some(event) if event.kind == 201 => {
                     if event.sequence != self.sequence
@@ -855,6 +931,7 @@ impl Backend {
                         return Err(ShellError::Native("incomplete native cleanup"));
                     }
                     stopped = true;
+                    break;
                 }
                 Some(event)
                     if [MOTION, BUTTON, SCROLL, KEY, DOWN, MOVE, UP].contains(&event.kind) =>
@@ -873,9 +950,15 @@ impl Backend {
                     if Instant::now() >= deadline {
                         return Err(ShellError::Native("neutralization timeout"));
                     }
-                    std::thread::sleep(Duration::from_millis(1));
+                    return Ok(false);
                 }
             }
+        }
+        if !stopped {
+            if Instant::now() >= deadline {
+                return Err(ShellError::Native("neutralization timeout"));
+            }
+            return Ok(false);
         }
         if !self.source_held.keys.is_empty()
             || !self.source_held.buttons.is_empty()
@@ -889,7 +972,91 @@ impl Backend {
         self.router_surface = None;
         self.active = None;
         self.failed = false;
+        self.cleanup_deadline = None;
+        Ok(true)
+    }
+    fn neutralize(&mut self, sessions: &mut SessionBroker, now: u64) -> Result<(), ShellError> {
+        self.begin_neutralization()?;
+        while !self.advance_cleanup(sessions, now)? {
+            std::thread::sleep(Duration::from_millis(1));
+        }
         Ok(())
+    }
+    pub fn cleanup_pending(&self) -> bool {
+        self.cleanup_deadline.is_some()
+    }
+    pub(crate) fn source_local_key(
+        &mut self,
+        code: u32,
+        pressed: bool,
+        update: bool,
+    ) -> Result<(), ShellError> {
+        if self.failed || self.cleanup_pending() || !self.endpoint.has_key(code) {
+            return Err(ShellError::Native("local device is unready"));
+        }
+        let surface = self.topology.focused_surface().ok_or(ShellError::Scope)?;
+        let text = self.endpoint.key(code, pressed, update)?;
+        self.topology.source_activity(surface, &text)
+    }
+    pub(crate) fn clear_local_keys(&mut self) -> Result<(), ShellError> {
+        if self.failed || self.cleanup_pending() {
+            return Err(ShellError::Native("native cleanup pending"));
+        }
+        self.endpoint.clear_keys()
+    }
+    /// Begin the same verified cleanup without waiting on native I/O. The
+    /// owner loop continues serving priority invalidation while it advances.
+    pub fn invalidate_local_input(
+        &mut self,
+        sessions: &mut SessionBroker,
+        now: u64,
+    ) -> Result<(), ShellError> {
+        sessions.local_activity(now);
+        self.begin_neutralization()
+    }
+    /// Bounded nonblocking owner-loop pump. Fresh commands must wait while
+    /// cleanup_pending is true; central common cleanup remains unacknowledged.
+    pub fn poll_nonblocking(
+        &mut self,
+        sessions: &mut SessionBroker,
+        now: u64,
+    ) -> Result<usize, ShellError> {
+        let result = self.poll_nonblocking_inner(sessions, now);
+        if result.is_err() {
+            self.failed = true;
+        }
+        result
+    }
+    fn poll_nonblocking_inner(
+        &mut self,
+        sessions: &mut SessionBroker,
+        now: u64,
+    ) -> Result<usize, ShellError> {
+        if self.cleanup_pending() {
+            self.advance_cleanup(sessions, now)?;
+            return Ok(0);
+        }
+        if self.failed {
+            return Err(ShellError::Native("backend requires cleanup or disposal"));
+        }
+        let lease = sessions.current_lease(now);
+        let current = lease.as_ref().map(|l| (l.lease_id, l.generation));
+        let ready = lease.as_ref().is_some_and(|l| native_ready(sessions, l));
+        let stale = self
+            .router
+            .as_ref()
+            .is_some_and(|r| held_count(r.held()) != 0)
+            && self.router_surface.is_some_and(|surface| {
+                self.topology
+                    .route(surface, 1)
+                    .map_or(true, |r| r.token != self.router_token)
+            });
+        if self.active.is_some() && (self.active != current || !ready || stale) {
+            self.begin_neutralization()?;
+            self.advance_cleanup(sessions, now)?;
+            return Ok(0);
+        }
+        self.pump_frames(sessions, now)
     }
 }
 fn held_count(held: &HeldInput) -> usize {

@@ -4,12 +4,16 @@ version.workspace = true
 edition.workspace = true
 
 [features]
-native-eis = ["dep:sha2"]
+native-eis = ["dep:sha2", "dep:prost"]
+source-window = ["native-eis", "dep:gtk4", "dep:rui-client-desktop"]
 
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }
 thiserror = "2"
 sha2 = { version = "0.10", optional = true }
+prost = { version = "0.13", optional = true }
+gtk4 = { version = "=0.9.7", optional = true }
+rui-client-desktop = { path = "../client-desktop", optional = true }
 
 [dev-dependencies]
 prost = "0.13"
@@ -18,3 +22,7 @@ rui-client-desktop = { path = "../client-desktop" }
 [[example]]
 name = "native_probe"
 required-features = ["native-eis"]
+
+[[example]]
+name = "source_window_probe"
+required-features = ["source-window"]

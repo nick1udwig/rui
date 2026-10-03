@@ -24,6 +24,8 @@ pub enum ShellError {
     Model(#[from] rui_protocol_core::model::ModelError),
     #[error(transparent)]
     Ledger(#[from] rui_protocol_core::commands::LedgerError),
+    #[error(transparent)]
+    Session(#[from] rui_protocol_core::session::SessionError),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InjectionScope {
@@ -103,7 +105,11 @@ impl RegionGrant {
     }
 }
 #[cfg(feature = "native-eis")]
+pub mod actor;
+#[cfg(feature = "native-eis")]
 pub mod backend;
 #[cfg(feature = "native-eis")]
 pub mod native;
+#[cfg(feature = "source-window")]
+pub mod source_window;
 pub mod topology;
