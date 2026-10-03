@@ -14,7 +14,7 @@ import shutil
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('run', type=Path)
-    parser.add_argument('--name',choices=['native','unicode','restart'],default='native')
+    parser.add_argument('--name',choices=['native','unicode','restart','whole-native'],default='native')
     args = parser.parse_args()
     target = Path(__file__).parent
     trace = args.run / 'trace'
@@ -22,6 +22,11 @@ def main():
     if report_path.stat().st_size > 32 << 20:
         raise SystemExit('interaction report ceiling')
     report = json.loads(report_path.read_text())
+    if args.name == 'whole-native':
+        pixels = json.loads((args.run / 'pixels.json').read_text())
+        if not pixels['passed']:
+            raise SystemExit('whole-native pixel comparison failed')
+        report['pixels'] = pixels
     files = list(trace.rglob('*'))
     bodies = [path for path in files if path.is_file()]
     if sum(path.stat().st_size for path in bodies) > 64 << 20 or any(path.suffix not in ('.json', '.bin', '.rvp') for path in bodies):

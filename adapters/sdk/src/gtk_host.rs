@@ -930,6 +930,7 @@ impl GtkCommandHost {
                 let authority = authority.as_ref().ok_or(DispatchFailure::Failed)?;
                 let request = native_command(
                     &capture.artifact,
+                    source,
                     authority,
                     command,
                     pipe.next_request,
@@ -1020,6 +1021,7 @@ pub enum FixtureMutation {
     RaceVisual,
     RaceModel,
     RaceSourceGeneration,
+    InterruptWholeCapture,
     DisableButton,
     EnableButton,
     DestroySurface,
@@ -1038,6 +1040,7 @@ impl FixtureMutation {
             Self::RaceVisual => "race-visual",
             Self::RaceModel => "race-model",
             Self::RaceSourceGeneration => "race-source-generation",
+            Self::InterruptWholeCapture => "interrupt-whole-capture",
             Self::DisableButton => "disable-button",
             Self::EnableButton => "enable-button",
             Self::DestroySurface => "destroy-surface",
@@ -1096,6 +1099,13 @@ fn verify_capture(capture: &NativeCapture, source: &ViewReceiver) -> Result<(), 
     if manifest["revision"].as_u64() != Some(state.revision) {
         return Err(GtkHostError::Unsupported);
     }
+    if manifest["capture_boundary"].as_str()
+        == Some("source-thread-all-registered-surfaces-fresh-snapshot-barrier")
+    {
+        // The shared vector audit already validates exact whole-view surface
+        // membership, nonce, topology, focus, metadata and source token binding.
+        return Ok(());
+    }
     let surface = manifest["surface_id"]
         .as_u64()
         .ok_or(GtkHostError::Unsupported)?;
@@ -1119,6 +1129,42 @@ fn verify_capture(capture: &NativeCapture, source: &ViewReceiver) -> Result<(), 
     Ok(())
 }
 
+fn semantic_surface(state: &State, target: u64) -> Result<u64, GtkHostError> {
+    for record in state.records.values() {
+        let Record::Surface(surface) = record else {
+            continue;
+        };
+        let Some(root) = surface.semantic_root else {
+            continue;
+        };
+        let mut pending = vec![root.id];
+        while let Some(id) = pending.pop() {
+            if id == target {
+                return Ok(surface.id);
+            }
+            let Some(Record::Semantic(node)) = state.records.get(&id) else {
+                return Err(GtkHostError::Unsupported);
+            };
+            pending.extend(node.children.iter().map(|reference| reference.id));
+        }
+    }
+    Err(GtkHostError::Unsupported)
+}
+fn surface_descends_from(state: &State, mut id: u64, ancestor: u64) -> bool {
+    // The installed graph already guarantees acyclic typed surface ownership.
+    loop {
+        if id == ancestor {
+            return true;
+        }
+        let Some(Record::Surface(surface)) = state.records.get(&id) else {
+            return false;
+        };
+        let Some(parent) = surface.parent else {
+            return false;
+        };
+        id = parent.id;
+    }
+}
 fn authority(source: &ViewReceiver, view: Id) -> Result<SemanticAuthority, GtkHostError> {
     let state = source.state().map_err(CaptureError::from)?;
     let focus = state.records.values().find_map(|record| {
@@ -1155,6 +1201,20 @@ fn authority(source: &ViewReceiver, view: Id) -> Result<SemanticAuthority, GtkHo
         let Record::Semantic(semantic) = record else {
             continue;
         };
+        let owner = semantic_surface(state, semantic.id)?;
+        let Some(Record::Surface(surface)) = state.records.get(&owner) else {
+            return Err(GtkHostError::Unsupported);
+        };
+        if !surface.mapped
+            || state.records.values().any(|record| {
+                matches!(record,
+            Record::Surface(modal) if modal.mapped && modal.modal_for.is_some_and(|reference|
+                !surface_descends_from(state, owner, modal.id)
+                    && surface_descends_from(state, owner, reference.id)))
+            })
+        {
+            continue;
+        }
         if semantic.sensitivity != Sensitivity::Public {
             return Err(GtkHostError::Unsupported);
         }
@@ -1227,6 +1287,7 @@ fn public_authority(
 
 fn native_command<'a>(
     artifact: &CaptureArtifact,
+    source: &ViewReceiver,
     authority: &SemanticAuthority,
     command: &'a SemanticCommand,
     request_id: u64,
@@ -1238,16 +1299,15 @@ fn native_command<'a>(
         .get(&command.target_id)
         .ok_or(GtkHostError::Unsupported)?;
     let manifest = artifact.manifest();
+    let private_target = identities.private_id(command.target_id)?;
     let guard = SourceGuard {
         source_generation: identities.generation(),
         incarnation: manifest["binding"]["epoch"]
             .as_str()
             .ok_or(GtkHostError::Unsupported)?
             .to_owned(),
-        surface_id: manifest["surface_id"]
-            .as_u64()
-            .ok_or(GtkHostError::Unsupported)?,
-        target_id: identities.private_id(command.target_id)?,
+        surface_id: semantic_surface(source.state().map_err(CaptureError::from)?, private_target)?,
+        target_id: private_target,
         target_version: target.target_version,
         text_version: command.preconditions.text_version,
         model_version: command.preconditions.model_version,

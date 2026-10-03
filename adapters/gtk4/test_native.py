@@ -26,6 +26,7 @@ class NativeBoundsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             dispatcher = NativeDispatcher.__new__(NativeDispatcher)
+            dispatcher.whole = None
             dispatcher.corpus = SimpleNamespace(output=output)
             dispatcher.current_artifact = 'first.json'
             dispatcher.promised_artifact = 'second.json'

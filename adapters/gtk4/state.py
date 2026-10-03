@@ -8,6 +8,21 @@ class SourceRejected(ValueError):
     pass
 
 
+class NativeAction:
+    """Explicit source-owned Gio action in a registered menu surface."""
+    def __init__(self, action, capture):
+        self.action, self.capture = action, capture
+
+    def get_mapped(self):
+        return self.capture.source_alive and self.capture.get_mapped()
+
+    def get_sensitive(self):
+        return self.action.get_enabled()
+
+    def activate(self):
+        self.action.activate(None)
+
+
 def editable_text(widget):
     """GtkEditable positions count Unicode characters, never UTF-8 bytes."""
     delegate = widget.get_delegate() or widget
@@ -24,20 +39,27 @@ class NativeRegistry:
         self.source, self.window = source, window
         self.widgets = {}
         self.surfaces = {}
+        self.windows = {}
         window.connect('notify::focus-widget', self.focus_changed)
 
     def bind(self, key, widget, surface):
         if key in self.widgets or key not in self.source._semantics:
             raise ValueError('native semantic object identity already bound or unregistered')
         self.widgets[key] = (widget, surface)
-        widget.connect('notify::sensitive', lambda *_: self.source.changed())
+        if isinstance(widget, NativeAction):
+            widget.action.connect('notify::enabled', lambda *_: self.source.changed())
+        else:
+            widget.connect('notify::sensitive', lambda *_: self.source.changed())
 
-    def surface(self, key, capture):
+    def surface(self, key, capture, window=None):
         self.surfaces[key] = capture
+        self.windows[key] = window or self.window
+        if window is not None and window != self.window:
+            window.connect('notify::focus-widget', self.focus_changed)
         capture.focus_reader = lambda: self.focus(key)
 
     def focus(self, surface):
-        widget = self.window.get_focus()
+        widget = self.windows[surface].get_focus()
         while widget is not None:
             for key, (registered, owner) in self.widgets.items():
                 if widget == registered:

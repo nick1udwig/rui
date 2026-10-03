@@ -20,7 +20,7 @@ from adapters.gtk4.capture import CaptureMixin, CaptureWidget, Exporter
 from adapters.gtk4.transaction import CaptureTransaction, CaptureBudget, ArtifactQuota, BarrierRejected
 from adapters.gtk4.state import editable_text
 from adapters.sdk.producer import encode_snapshot, MAX_MANIFEST_BYTES
-from corpus import Corpus
+from fixtures.gtk.corpus import Corpus
 import time
 import cairo
 import io
@@ -44,11 +44,15 @@ class TooltipCapture(CaptureMixin, Gtk.Popover):
 
 
 class WholeView:
-    def __init__(self, app, output):
+    def __init__(self, app, output, *, scripted=True):
+        self.scripted = scripted
+        self.consumer = None
+        self.command_cause = None
+        self.stage = 'cooperating-source-command'
         self.app, self.output = app, output
         self.corpus = Corpus(app, output, 'strict', timed_actions=False)
         self.source = self.corpus.source
-        self.source.artifact_quota = ArtifactQuota()
+        self.source.artifact_quota = ArtifactQuota() if scripted else ArtifactQuota(limit=128 << 20, max_files=16384)
         Gtk.Settings.get_default().set_property('gtk-cursor-blink', False)
         self.source.register('tooltip-root', 1, lambda: {'label': 'Controlled tooltip root'})
         self.source.register('tooltip-label', 6, lambda: {'label': 'Controlled native tooltip'}, parent='tooltip-root')
@@ -75,6 +79,7 @@ class WholeView:
         self.publications = []
         self.interrupt = False
         self.interrupted_nonce = None
+        self.on_tooltip_retired = None
         self.failures = []
         self.budget = CaptureBudget()
         self.view_id = self.source.identifier('whole-view')
@@ -95,9 +100,11 @@ class WholeView:
         self.modal_entry.grab_focus()
         # The source owns the scenario clock. No animations, blinking caret,
         # arbitrary timer or external actor mutates visuals within a barrier.
-        GLib.timeout_add(400, self.start_initial)
+        if scripted:
+            GLib.timeout_add(400, self.start_initial)
         GLib.timeout_add(50, self.deadline_tick)
-        GLib.timeout_add(8000, self.watchdog)
+        if scripted:
+            GLib.timeout_add(8000, self.watchdog)
 
     def oracle(self):
         surfaces = {}
@@ -107,10 +114,16 @@ class WholeView:
         focus = None
         if modal_live and self.modal.get_focus() is not None:
             focus = ('modal', self.source.identifier('semantic:modal-entry'))
-        elif self.corpus.capture.get_mapped():
-            key = self.corpus.registry.focus('main-content')
-            if key:
-                focus = ('main-content', self.source.identifier('semantic:' + key))
+        else:
+            # Resolve only explicitly bound native objects, including a popup
+            # root when GTK focus is inside its source-owned menu descendants.
+            for owner in sorted(self.corpus.registry.surfaces, key=lambda key: self.stack[key], reverse=True):
+                capture = self.captures[owner]
+                if capture.source_alive and capture.get_mapped():
+                    key = self.corpus.registry.focus(owner)
+                    if key:
+                        focus = (owner, self.source.identifier('semantic:' + key))
+                        break
         for key, capture in self.captures.items():
             alive, mapped = capture.source_alive, capture.source_alive and capture.get_mapped()
             semantics = self.source.semantics(capture.semantic_root, 1) if alive else []
@@ -134,10 +147,15 @@ class WholeView:
             'visual_policy': {'animations': False, 'cursor_blink': False, 'controlled_static_canvas': True}}
 
     def request(self, nonce, required):
-        for key in sorted(required):
-            # invalidate_contents forces an actual native snapshot even when
-            # the subtree's cached render node was unchanged since last frame.
-            self.captures[key].queue_draw()
+        def queue_fresh():
+            # A restart can occur inside a GTK snapshot callback. Schedule its
+            # redraw after that submission; queue_draw inside do_snapshot may
+            # be consumed by the frame already being submitted.
+            if self.barrier.active and self.barrier.nonce == nonce:
+                for key in sorted(required):
+                    self.captures[key].queue_draw()
+            return False
+        GLib.idle_add(queue_fresh)
 
     def start_initial(self):
         try:
@@ -158,10 +176,21 @@ class WholeView:
             self.tooltip.retire_source()
             self.tooltip.popdown()
             self.tooltip.unparent()
+            if self.on_tooltip_retired:
+                self.on_tooltip_retired()
 
     def commit(self, nonce, facts, candidates, offers):
         self.revision += 1
         frame = self.assemble(nonce, facts, candidates, offers)
+        if hasattr(self.source, 'private_generation'):
+            frame['source_generation'] = self.source.private_generation
+        if self.command_cause is not None:
+            frame['command_cause'] = self.command_cause
+        if not self.scripted:
+            frame['barrier_events'] = list(self.barrier.events)
+            frame['interrupted_nonce'] = self.interrupted_nonce
+            frame['capture_budget'] = {'limit': self.budget.limit, 'peak': self.budget.peak}
+            frame['fallback_probe'] = self.corpus.capture.export_probe()
         binding = {'session_id': '01' * 16, 'epoch': self.source.identity, 'view_id': f'{self.view_id:032x}'}
         envelope = encode_snapshot(frame, binding)
         frame.update(binding=binding, envelope_sha256=hashlib.sha256(envelope).hexdigest())
@@ -174,6 +203,11 @@ class WholeView:
             raise BarrierRejected('whole-view-manifest-ceiling')
         self.source.write_artifact(self.output, label + '.bin', envelope)
         self.source.write_artifact(self.output, label + '.json', manifest.encode())
+        if not self.scripted:
+            if self.consumer is None:
+                raise BarrierRejected('whole-source-consumer-missing')
+            self.consumer(self, frame, label)
+            return
         self.publications.append({'stage': self.stage, 'label': label, 'nonce': nonce, 'revision': self.revision,
             'surfaces': [s['surface_key'] for s in frame['surfaces']], 'mapped': sorted(candidates),
             'tokens': {key: value['capture_token'] for key, value in candidates.items()}, 'source_revision': facts['source_revision']})
@@ -337,7 +371,13 @@ class WholeView:
 
     def failed(self, error):
         self.failures.append(str(error))
-        self.barrier.close()
+        try:
+            if not self.scripted:
+                self.source.write_artifact(self.output, 'whole-failure.json', json.dumps({'reason': str(error), 'events': list(self.barrier.events), 'required': sorted(self.barrier.required), 'candidates': sorted(self.barrier.candidates)}, sort_keys=True).encode())
+        except (OSError, ValueError):
+            pass  # Diagnostic quota/write failure cannot defer cancellation.
+        finally:
+            self.barrier.close()
         print('ERROR:', error, file=sys.stderr, flush=True)
         self.app.quit()
 

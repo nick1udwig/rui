@@ -58,6 +58,13 @@ class FallbackProbe:
                 self.attempts['cairo.ImageSurface'] += 1
                 raise ForbiddenFallback('cairo.ImageSurface')
             return original_surface(format_, width, height, *args, **kwargs)
+        def create_for_data(*args, **kwargs):
+            if self.active:
+                self.attempts['cairo.ImageSurface.create_for_data'] += 1
+                raise ForbiddenFallback('cairo.ImageSurface.create_for_data')
+            self.outside['cairo.ImageSurface.create_for_data'] += 1
+            return original_surface.create_for_data(*args, **kwargs)
+        surface.create_for_data = create_for_data
         self.stack.enter_context(patch.object(cairo, 'ImageSurface', surface))
         return self
 

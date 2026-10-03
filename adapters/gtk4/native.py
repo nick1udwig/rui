@@ -12,7 +12,7 @@ import time
 
 from gi.repository import GLib, Gtk
 
-from adapters.gtk4.state import SourceRejected, editable_text
+from adapters.gtk4.state import NativeAction, SourceRejected, editable_text
 
 
 MAX_REQUEST = 128 << 10
@@ -54,8 +54,9 @@ def decode_request(body):
 
 
 class NativeDispatcher:
-    def __init__(self, corpus, *, fixture_hooks=False):
+    def __init__(self, corpus, *, fixture_hooks=False, whole=None):
         self.corpus = corpus
+        self.whole = whole
         self.source_generation = int(os.environ.get("RUI_PRIVATE_SOURCE_GENERATION", "1"))
         if not 1 <= self.source_generation <= 5:
             raise ValueError("private-source-generation-ceiling")
@@ -75,7 +76,15 @@ class NativeDispatcher:
         self.promised_artifact = None
         self.artifacts = {}
         self.original_capture = corpus.capture.on_capture
-        corpus.capture.on_capture = self.captured
+        if whole is None:
+            corpus.capture.on_capture = self.captured
+        else:
+            whole.consumer = self.whole_captured
+            self.capture_memory = whole.budget.reserve(8 << 20)
+            GLib.timeout_add(400, self.request_capture)
+            for capture in whole.captures.values():
+                capture.connect('map', self.observed_callback)
+                capture.connect('unmap', self.observed_callback)
         for widget, signal in [(corpus.button, 'clicked'), (corpus.entry, 'changed'),
                                (corpus.list, 'row-selected'), (corpus.window, 'notify::focus-widget')]:
             widget.connect(signal, self.observed_callback)
@@ -90,8 +99,15 @@ class NativeDispatcher:
         self.native_callbacks += 1
 
     def watchdog(self):
+        self.close()
         self.corpus.app.quit()
         return False
+
+    def close(self):
+        self.closed = True
+        if self.whole is not None:
+            self.whole.barrier.close()
+            self.capture_memory.close()
 
     def reply(self, request_id, status, *, artifact=None, reason=None):
         body = json.dumps({'request_id': request_id, 'source_generation': self.source_generation, 'status': status, 'artifact': artifact,
@@ -122,6 +138,35 @@ class NativeDispatcher:
             capture.command_cause = None
         self.prune_artifacts()
 
+    def whole_captured(self, whole, frame, label):
+        files = {label + '.json', label + '.bin', label + '.local.png', label + '.local.bgra'} | {digest + '.rvp' for digest in frame['resources']}
+        for surface in frame['surfaces']:
+            if surface['mapped']:
+                prefix = surface['local_reference_label']
+                files.update(prefix + suffix for suffix in ('.json', '.bin', '.local.png', '.local.bgra'))
+        self.artifacts[label + '.json'] = files
+        if self.pending is None:
+            raise ValueError('whole-source-capture-without-owner')
+        request_id, status = self.pending
+        self.pending = None
+        self.promised_artifact = label + '.json'
+        self.reply(request_id, status, artifact=self.promised_artifact)
+        whole.command_cause = None
+        self.prune_artifacts()
+
+    def request_capture(self):
+        if self.whole is None:
+            self.corpus.capture.queue_draw()
+        elif not self.closed:
+            try:
+                self.whole.barrier.begin()
+            except Exception as error:
+                # No causal handoff occurred. The Rust owner records UNKNOWN
+                # after an attempted action, and never redispatches on timeout.
+                self.whole.failed(error)
+                self.close()
+        return False
+
     def prune_artifacts(self):
         owners = {self.current_artifact, self.promised_artifact} - {None}
         keep = set().union(*(files for artifact, files in self.artifacts.items() if artifact in owners))
@@ -129,6 +174,11 @@ class NativeDispatcher:
         for name in obsolete:
             (self.corpus.output / name).unlink(missing_ok=True)
         self.artifacts = {name: files for name, files in self.artifacts.items() if name in owners}
+        if self.whole is not None:
+            quota = self.whole.source.artifact_quota
+            for path in tuple(quota.files):
+                if path.name not in keep:
+                    quota.discard(path)
         # Two retained capture closures, plus the just-written unclaimed frame
         # before pruning: each has <=32MiB vector bodies, <=2MiB metadata/wire,
         # <=4MiB BGRA and <=4MiB+64KiB PNG. Never a sustained artifact history.
@@ -137,12 +187,13 @@ class NativeDispatcher:
 
     def readable(self, _fd, condition):
         if condition & (GLib.IO_HUP | GLib.IO_ERR):
-            self.closed = True
+            self.close()
             self.corpus.app.quit()
             return False
         try:
             body = os.read(0, len(self.buffer) - self.used)
             if not body:
+                self.close()
                 self.corpus.app.quit()
                 return False
             self.buffer[self.used:self.used + len(body)] = body
@@ -158,7 +209,7 @@ class NativeDispatcher:
                     self.used = 0
                     self.handle(request)
         except (ValueError, KeyError, TypeError, OSError):
-            self.closed = True
+            self.close()
             self.corpus.app.quit()
             return False
         return True
@@ -182,7 +233,7 @@ class NativeDispatcher:
             return
         if kind == 'capture':
             self.pending = (request_id, 'capture')
-            self.corpus.capture.queue_draw()
+            self.request_capture()
             return
         if kind == 'fixture' and self.fixture_hooks:
             operation = request['operation']
@@ -196,6 +247,8 @@ class NativeDispatcher:
                 self.race_next = 'model'
             elif operation == 'race-source-generation':
                 self.race_next = 'source-generation'
+            elif operation == 'interrupt-whole-capture' and self.whole is not None:
+                self.whole.interrupt = True
             elif operation in ('lose-after-dispatch', 'stall-after-dispatch', 'uncorrelated-capture', 'crash-after-dispatch'):
                 self.fail_after_dispatch = operation
             elif operation == 'delay-until-expired':
@@ -253,11 +306,14 @@ class NativeDispatcher:
                     (self.corpus.output / 'native-expiry-receipt.json').write_text(json.dumps({'native_dispatches': self.native_dispatches, 'reason': 'lease-expired-at-native-dispatch'}))
                 raise SourceRejected('lease-expired-at-native-dispatch')
             key, widget = self.corpus.registry.resolve_semantic(guard['incarnation'], guard['surface_id'], guard['target_id'])
-            if self.corpus.popup_capture.get_mapped():
+            owner = self.corpus.registry.widgets[key][1]
+            if self.whole is not None and self.whole.modal_capture.get_mapped() and owner != 'modal':
+                raise SourceRejected('blocked-by-native-modal')
+            if self.whole is None and self.corpus.popup_capture.get_mapped():
                 # This semantic fixture projects only main content. A native
                 # transient blocks it until a whole-view projection is available.
                 raise SourceRejected('blocked-by-native-popup-modality')
-            capture = self.corpus.registry.surfaces['main-content']
+            capture = self.corpus.registry.surfaces[owner]
             # Actual native reads catch edits/selection/materialization changes
             # even when GTK has not submitted its next visual frame yet.
             capture.source.focus_changed(capture.surface_key, capture.focus_reader())
@@ -273,8 +329,16 @@ class NativeDispatcher:
                 actual = own or (collections[0] if len(collections) == 1 else None)
                 if actual is None or actual['version'] != guard['model_version']:
                     raise SourceRejected('stale-model-clock')
-            if guard.get('focus_generation') is not None and self.corpus.source._focus.get('main-content', (None, 1))[1] != guard['focus_generation']:
-                raise SourceRejected('stale-focus-clock')
+            if guard.get('focus_generation') is not None:
+                if self.whole is None:
+                    current_focus = self.corpus.source._focus.get(owner, (None, 1))[1]
+                else:
+                    facts = self.whole.oracle()
+                    if facts['focus'] != self.whole.previous_focus:
+                        raise SourceRejected('stale-native-aggregate-focus')
+                    current_focus = self.whole.focus_generation
+                if current_focus != guard['focus_generation']:
+                    raise SourceRejected('stale-focus-clock')
             action, arguments = request['action'], request['arguments']
             if action not in semantic['actions']:
                 raise SourceRejected('unsupported-native-action')
@@ -288,12 +352,15 @@ class NativeDispatcher:
         # No peer callback/crawl can replace the source object between them.
         self.native_dispatches += 1
         capture.command_cause = {'private_request_id': request_id, 'source_generation': self.source_generation, 'authority_gate': 'core-ledger-admitted'}
+        if self.whole is not None:
+            self.whole.command_cause = capture.command_cause
         self.pending = (request_id, 'applied')
         try:
             self.apply_native(key, widget, action, arguments)
         except Exception:
             # Once native execution started, any unexpected source failure is
             # ambiguous. Close the pipe; the Rust ledger records UNKNOWN.
+            self.close()
             self.corpus.app.quit()
             return
         if self.fail_after_dispatch:
@@ -315,11 +382,16 @@ class NativeDispatcher:
                 os.close(0)
                 self.corpus.app.quit()
             return
-        self.corpus.capture.queue_draw()
+        if self.whole is None:
+            self.request_capture()
+        else:
+            # Mapping/layout/focus notifications settle before reading the
+            # whole boundary; only fresh subsequent snapshots become candidates.
+            GLib.timeout_add(20, self.request_capture)
 
     def validate_arguments(self, key, widget, action, arguments):
         if action in ('ReplaceText', 'SetSelection'):
-            if key != 'entry' or not widget.get_editable():
+            if not isinstance(widget, Gtk.Entry) or not widget.get_editable():
                 raise SourceRejected('native-text-not-editable')
             count = len(widget.get_text())
             if action == 'ReplaceText':
@@ -331,7 +403,7 @@ class NativeDispatcher:
                     raise SourceRejected('native-text-ceiling')
             elif not all(0 <= arguments[name] <= count for name in ('anchor', 'focus')):
                 raise SourceRejected('native-selection-range')
-        elif action == 'Activate' and key not in ('button', 'row-alpha', 'row-beta', 'row-gamma'):
+        elif action == 'Activate' and not isinstance(widget, (Gtk.Button, Gtk.MenuButton, Gtk.ListBoxRow, NativeAction)):
             raise SourceRejected('unsupported-native-activation')
         elif action == 'ScrollTo' and key != 'list':
             raise SourceRejected('unsupported-native-scroll')
@@ -340,10 +412,17 @@ class NativeDispatcher:
 
     def apply_native(self, key, widget, action, arguments):
         if action == 'Activate':
-            if key == 'button':
+            if isinstance(widget, NativeAction):
+                widget.activate()
+            elif isinstance(widget, Gtk.MenuButton):
+                if widget.get_popover().get_mapped():
+                    widget.popdown()
+                else:
+                    widget.popup()
+            elif isinstance(widget, Gtk.Button):
                 widget.emit('clicked')
             else:
-                self.corpus.list.select_row(widget)
+                widget.get_parent().select_row(widget)
         elif action == 'Focus':
             if not widget.grab_focus():
                 raise RuntimeError('native focus declined after dispatch')

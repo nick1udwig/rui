@@ -67,6 +67,13 @@ class ArtifactQuota:
         self.files[path] = len(body)
         path.write_bytes(body)
 
+    def discard(self, path):
+        """Release an explicitly owned superseded artifact, never a peer path."""
+        if path in self.files:
+            size = self.files.pop(path)
+            path.unlink(missing_ok=True)
+            self.used -= size
+
 
 def stamp(value):
     # Source callback data, never peer JSON. Reserve METADATA_CHARGE before

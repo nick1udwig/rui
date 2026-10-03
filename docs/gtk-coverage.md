@@ -514,12 +514,82 @@ python3 -m unittest fixtures.gtk.test_transaction
 cargo test -p rui-producer-sdk --test whole_trace
 ```
 
-This whole-view slice uses native cooperating fixture lifecycle callbacks.
-Common-ledger remote actions are established separately by the native semantic
-bridge; the whole-view barrier is not yet connected to that command/transport path.
-Wire composition/IME ownership and the persistent/network producer path remain required for
-M3. AT-SPI was not used to infer coherence. These are component measurements,
+That retained five-frame whole-view run uses native cooperating fixture lifecycle
+callbacks. The admitted-command whole-view connection is measured separately
+below. Wire composition/IME ownership and the persistent/network producer path
+remain required for M3. AT-SPI was not used to infer coherence. These are component measurements,
 not a whole-milestone claim.
+
+## Admitted commands and whole-view captures
+
+`whole_native_source.py` connects the same private native dispatcher and one
+`GtkCommandHost` broker/common ledger to the cooperating whole-view barrier.
+The source explicitly binds widgets and its own Gio menu action to semantic
+identities and owning surfaces. Core admission excludes unmapped surfaces and
+modal-blocked owners, including popup descendants; the GTK thread rechecks
+actual source identity, relevant clocks, modality, enablement and lease deadline
+before any native callback. Semantic actions retain their target clocks across
+unrelated scene/topology updates.
+
+After native execution, mapping/layout notifications settle before a fresh
+transaction reads its boundary. Each registered mapped surface contributes a
+new actual snapshot; the identical immutable node is submitted locally and
+lowered for export. The accepted union carries the exact admitted private request
+ID, source generation and capture token. Native focus is read through explicitly
+registered owners across main, popup and modal surfaces. Closing the modal
+clears modality, preserves its unmapped identity, and publishes main focus;
+closing/remapping the native menu preserves its surface and semantic IDs.
+
+`whole-native-interaction.json` binds 63 exact vector files (eight full private
+captures, eight authorized semantic-only snapshots and their resource closure).
+Thirteen command scenarios establish seven actual dispatches, four pre-native
+rejections and two exact retries with zero additional native calls. Effects
+include modal Unicode editing with a scalar caret, a real modal-close callback,
+GtkMenuButton map/unmap/remap, and the explicitly registered native Gio action.
+An admitted button action deliberately interrupts its subsequent capture after
+one candidate: a trusted race hook mutates semantics and destroys the tooltip.
+The old nonce is aborted, no stale candidate token enters the accepted snapshot,
+and the tooltip plus semantic subtree retire. This nested race is a diagnostic
+negative control, not a second remote action. A redraw requested during native
+snapshot submission is scheduled after that callback returns so a restarted
+transaction cannot lose its fresh-frame request.
+
+All eight exact `render_view` outputs passed the established GTK/Cairo-versus-CPU
+criteria: zero bad interior pixels, viewport mean RGB error ≤0.575, edge mean RGB
+error ≤3.776, and 1277 native glyph checks with bounds error ≤1.56×10⁻¹⁵ source
+pixels. Each pixel report binds its envelope and local source-reference hashes.
+Decoded scene/resource/geometry audits run for every capture before rendering.
+Local BGRA composition and image-data drawing are counted outside the exporter;
+the exporter probe rejects image-backed conversion, download, serialization and
+raster fallback paths. Native GTK backend drawing remains outside that Python
+probe boundary. Raster diagnostics are excluded from vector traces and caches.
+
+The capture counter reserves an additional 8 MiB before retaining dispatcher
+buffers and file inventories; measured capture peak is 244,372,754 bytes within
+256 MiB, separately from GTK app memory and the Rust host budget. Native artifact
+ownership retains only current/promised capture closures and prunes superseded
+bodies and diagnostics, within 128 MiB/16384 files. Finite vector-trace and local
+comparison directories each have their own 64 MiB quota. Quota regressions prove
+consumed files release capacity for sustained replacement; host and replay
+receiver disposal returns their reservations to zero. Barrier surface, candidate,
+resource, restart and deadline ceilings are unchanged.
+
+```sh
+cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-gtk-whole-native-empty --scenario whole-native
+python3 fixtures/gtk/compare.py /tmp/rui-gtk-whole-native-empty/local-reference/whole-native \
+  --whole-view --output /tmp/rui-gtk-whole-native-empty/pixels.json
+python3 fixtures/gtk/retain_native.py /tmp/rui-gtk-whole-native-empty --name whole-native
+cargo test -p rui-producer-sdk --test whole_native_trace
+```
+
+This is a bounded 30-second isolated cooperating-source component. Authorized
+public consumers are separate instances of the same Rust reducer, receive only
+semantics, and acknowledge semantic readiness without Presented. The full
+private visual capture is verified and replayed separately; this run does not
+establish network whole-view delivery, actual client Presented readiness or
+wire composition. Those M3 integration gates remain open.
 
 ## Broker continuity across native source exit
 

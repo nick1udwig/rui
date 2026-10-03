@@ -104,6 +104,43 @@ fn retain_capture(host: &GtkCommandHost, directory: &Path) -> Result<()> {
             fs::copy(source.parent().unwrap().join(resource), destination)?;
         }
     }
+    if manifest["capture_boundary"]
+        == "source-thread-all-registered-surfaces-fresh-snapshot-barrier"
+    {
+        // Diagnostic pixels have their own finite fixture quota. They never
+        // enter the vector trace, protocol resources or consumer cache.
+        let local = directory
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("local-reference")
+            .join(directory.file_name().unwrap());
+        fs::create_dir_all(&local)?;
+        let revision = manifest["revision"].as_u64().unwrap();
+        let label = format!("whole-{revision:04}");
+        fs::copy(source, local.join(format!("{label}.json")))?;
+        fs::copy(
+            source.with_extension("bin"),
+            local.join(format!("{label}.bin")),
+        )?;
+        let raster = source.with_file_name(format!("{label}.local.bgra"));
+        assert!(raster.metadata()?.len() <= 4 << 20);
+        fs::copy(raster, local.join(format!("{label}.local.bgra")))?;
+        for offer in manifest["resource_offers"].as_array().unwrap() {
+            let resource = format!("{}.rvp", offer["digest"].as_str().unwrap());
+            if !local.join(&resource).exists() {
+                fs::copy(
+                    source.parent().unwrap().join(&resource),
+                    local.join(resource),
+                )?;
+            }
+        }
+        let bytes: u64 = fs::read_dir(&local)?
+            .map(|e| e.unwrap().metadata().unwrap().len())
+            .sum();
+        assert!(bytes <= 64 << 20, "fixed local-reference quota");
+    }
     // Finite diagnostic trace ownership is separate from native cache retention.
     let bytes: u64 = fs::read_dir(directory)?
         .map(|e| e.unwrap().metadata().unwrap().len())
@@ -147,7 +184,11 @@ impl Fixture {
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut command = Command::new("python3");
         command
-            .arg(repository.join("fixtures/gtk/native_source.py"))
+            .arg(repository.join(if name == "whole-native" {
+                "fixtures/gtk/whole_native_source.py"
+            } else {
+                "fixtures/gtk/native_source.py"
+            }))
             .arg("--output")
             .arg(&directory)
             .arg("--fixture-hooks");
@@ -159,7 +200,7 @@ impl Fixture {
             hello(4, ReceiverLimits::default()),
             clock.elapsed().as_millis() as u64,
         )?;
-        if name == "restart" {
+        if matches!(name, "restart" | "whole-native") {
             retain_public(&host, &session.client, &trace_directory)?;
         }
         host.consume_semantics(&session.client)?;
@@ -184,7 +225,7 @@ impl Fixture {
             trace: Vec::new(),
             directory,
             trace_directory,
-            record_public: name == "restart",
+            record_public: matches!(name, "restart" | "whole-native"),
         })
     }
     fn now(&self) -> u64 {
@@ -1037,6 +1078,196 @@ fn unicode(root: &Path) -> Result<Value> {
     );
     f.finish()
 }
+fn whole_native(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "whole-native")?;
+    let observer = f.host.negotiate(
+        authorization("whole-observer", false),
+        hello(5, ReceiverLimits::default()),
+        f.now(),
+    )?;
+    f.host.consume_semantics(&observer.client)?;
+    f.observers.push(observer.client);
+    let initial = f.host.source_capture_for_diagnostics().clone();
+    assert_eq!(initial["surfaces"].as_array().unwrap().len(), 4);
+    assert!(
+        initial["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["mapped"] == true)
+    );
+    let modal_entry = named(f.state(), "Modal entry");
+    let modal_close = named(f.state(), "Close native modal");
+    let main_button = named(f.state(), "Activate source action");
+    let menu = named(f.state(), "Ordinary GTK menu");
+    let menu_item = named(f.state(), "Menu source action");
+    let tooltip_root = named(f.state(), "Controlled tooltip root");
+    let blocked = f.command(main_button, "Activate", none());
+    let rejected = f.submit(
+        "mapped-native-modal-blocks-main-command",
+        &blocked,
+        Status::Rejected,
+    )?;
+    assert_eq!(rejected.rejection, Some(Rejection::MissingTarget));
+    let blocked_menu = f.command(menu_item, "Activate", none());
+    let rejected = f.submit(
+        "native-modal-blocks-main-popup-descendant",
+        &blocked_menu,
+        Status::Rejected,
+    )?;
+    assert_eq!(rejected.rejection, Some(Rejection::MissingTarget));
+    let c = f.command(modal_entry, "Focus", none());
+    f.submit("native-modal-focus-whole-capture", &c, Status::Applied)?;
+    let count = text(f.state(), modal_entry)
+        .content
+        .as_ref()
+        .unwrap()
+        .chars()
+        .count() as u64;
+    let c = f.command(
+        modal_entry,
+        "ReplaceText",
+        replace(0, count, "Modal 𝄞 é שלום"),
+    );
+    f.submit(
+        "native-modal-unicode-edit-whole-capture",
+        &c,
+        Status::Applied,
+    )?;
+    assert_eq!(
+        text(f.state(), modal_entry).content.as_deref(),
+        Some("Modal 𝄞 é שלום")
+    );
+    assert_eq!(
+        text(f.state(), modal_entry).selection,
+        Some(TextRange {
+            anchor: 15,
+            focus: 15
+        })
+    );
+    let c = f.command(modal_close, "Activate", none());
+    let applied = f.submit(
+        "native-modal-close-and-main-focus-one-capture",
+        &c,
+        Status::Applied,
+    )?;
+    f.retry("modal-close-exact-retry-no-native-call", &c, &applied)?;
+    let surface = |m: &Value, key: &str| {
+        m["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["surface_key"] == key)
+            .unwrap()
+            .clone()
+    };
+    let closed = f.host.source_capture_for_diagnostics();
+    assert_eq!(surface(closed, "modal")["mapped"], false);
+    assert!(surface(closed, "modal")["modal_for"].is_null());
+    assert_eq!(surface(closed, "main-content")["focused"], true);
+    assert_eq!(
+        surface(&initial, "modal")["surface_id"],
+        surface(closed, "modal")["surface_id"]
+    );
+    let c = f.command(modal_entry, "Focus", none());
+    let rejected = f.submit(
+        "unmapped-modal-target-rejected-before-native-call",
+        &c,
+        Status::Rejected,
+    )?;
+    assert_eq!(rejected.rejection, Some(Rejection::MissingTarget));
+    // Native modality may have closed the menu. Map it through its real
+    // GtkMenuButton, then close/remap it to prove stable source ownership.
+    if surface(f.host.source_capture_for_diagnostics(), "menu-popup")["mapped"] != true {
+        let c = f.command(menu, "Activate", none());
+        f.submit("native-menu-first-map", &c, Status::Applied)?;
+    }
+    let mapped_menu = surface(f.host.source_capture_for_diagnostics(), "menu-popup");
+    let c = f.command(menu, "Activate", none());
+    f.submit("native-menu-unmap-whole-capture", &c, Status::Applied)?;
+    assert_eq!(
+        surface(f.host.source_capture_for_diagnostics(), "menu-popup")["mapped"],
+        false
+    );
+    let c = f.command(menu_item, "Activate", none());
+    let rejected = f.submit("unmapped-native-menu-action-rejected", &c, Status::Rejected)?;
+    assert_eq!(rejected.rejection, Some(Rejection::MissingTarget));
+    let c = f.command(menu, "Activate", none());
+    f.submit("native-menu-remap-whole-capture", &c, Status::Applied)?;
+    assert_eq!(
+        mapped_menu["surface_id"],
+        surface(f.host.source_capture_for_diagnostics(), "menu-popup")["surface_id"]
+    );
+    assert_eq!(named(f.state(), "Menu source action"), menu_item);
+    let c = f.command(menu_item, "Activate", none());
+    f.submit(
+        "registered-native-gio-menu-action-and-close",
+        &c,
+        Status::Applied,
+    )?;
+    assert!(f.state().records.values().any(|r| matches!(r, Record::Semantic(s) if s.label.as_deref() == Some("Native menu action applied"))));
+    assert_eq!(
+        surface(f.host.source_capture_for_diagnostics(), "menu-popup")["mapped"],
+        false
+    );
+    f.host
+        .trusted_fixture_mutation(Mutation::InterruptWholeCapture)?;
+    let c = f.command(main_button, "Activate", none());
+    let applied = f.submit(
+        "admitted-native-action-interrupted-barrier-restarts-without-stale-union",
+        &c,
+        Status::Applied,
+    )?;
+    f.retry(
+        "interrupted-action-exact-retry-zero-new-native-calls",
+        &c,
+        &applied,
+    )?;
+    let final_capture = f.host.source_capture_for_diagnostics().clone();
+    let interrupted = final_capture["interrupted_nonce"].as_u64().unwrap();
+    let events = final_capture["barrier_events"].as_array().unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| e["nonce"] == interrupted && e["event"] == "abort")
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|e| e["nonce"] == interrupted && e["event"] == "commit")
+    );
+    assert_ne!(final_capture["capture_barrier_nonce"], interrupted);
+    let stale: Vec<_> = events
+        .iter()
+        .filter(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
+        .map(|e| &e["token"])
+        .collect();
+    assert!(
+        final_capture["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| !stale.contains(&&s["capture_token"]))
+    );
+    assert!(!f.state().records.contains_key(&tooltip_root));
+    assert!(
+        final_capture["surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["surface_key"] != "tooltip")
+    );
+    assert!(f.state().records.values().any(|r| matches!(r, Record::Semantic(s) if s.label.as_deref() == Some("Barrier semantic mutation retained"))));
+    let mut result = f.finish()?;
+    result["final_whole_capture"] = final_capture;
+    result["initial_whole_capture"] = initial;
+    Ok(result)
+}
 fn main() -> Result<()> {
     let root = PathBuf::from(
         std::env::args()
@@ -1044,7 +1275,9 @@ fn main() -> Result<()> {
             .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
     );
     fs::create_dir_all(&root)?;
-    let report = if std::env::args().nth(2).as_deref() == Some("restart") {
+    let report = if std::env::args().nth(2).as_deref() == Some("whole-native") {
+        json!({"scope":"one core ledger to actual native GTK callbacks and coherent cooperating whole-view capture; semantic-only observers; no TLS, wire IME or Presented claim", "whole_native":whole_native(&root)?})
+    } else if std::env::args().nth(2).as_deref() == Some("restart") {
         json!({"scope":"same broker/common ledger survives disposable native GTK SIGKILL/restart; semantic-only consumers, no wire IME or Presented claim","restart":restart(&root)?})
     } else if std::env::args().nth(2).as_deref() == Some("unicode") {
         json!({"scope":"actual core admission and native GTK Unicode callbacks; private isolated fixture; semantic-only observers; no wire IME or Presented claim","unicode":unicode(&root)?})

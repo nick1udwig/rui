@@ -1,7 +1,30 @@
 """Barrier quota/cancellation regressions; native coherence uses whole_check."""
+import tempfile
+from pathlib import Path
 import unittest
 from types import SimpleNamespace
-from adapters.gtk4.transaction import CaptureBudget, CaptureTransaction, BarrierRejected, METADATA_CHARGE
+from adapters.gtk4.transaction import CaptureBudget, CaptureTransaction, BarrierRejected, METADATA_CHARGE, ArtifactQuota
+
+
+class ArtifactOwnership(unittest.TestCase):
+    def test_consumed_files_release_quota_for_sustained_replacement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            quota = ArtifactQuota(limit=32, max_files=2)
+            shared = Path(directory) / 'shared.rvp'
+            quota.write(shared, b'shared-body')
+            for index in range(40):
+                path = Path(directory) / str(index)
+                quota.write(path, b'new-capture')
+                with self.assertRaises(BarrierRejected):
+                    quota.write(Path(directory) / 'extra', b'x')
+                quota.discard(path)
+                self.assertFalse(path.exists())
+                self.assertTrue(shared.exists())
+                self.assertEqual(quota.used, len(b'shared-body'))
+            quota.discard(shared)
+            quota.discard(shared)
+            self.assertEqual(quota.used, 0)
+            self.assertEqual(list(Path(directory).iterdir()), [])
 
 
 class TransactionLifecycle(unittest.TestCase):

@@ -3,12 +3,24 @@ from collections import Counter
 
 from adapters.gtk4.capture import Exporter
 from adapters.sdk.producer import CoherentSource
-from fixtures.gtk.fallback_probe import FallbackProbe
+from fixtures.gtk.fallback_probe import FallbackProbe, ForbiddenFallback
 from fixtures.gtk.negative_source import CASES, PHOTO, memory_texture, source_node
 from gi.repository import Gdk
 
 
 class SourceNegativeTests(unittest.TestCase):
+    def test_image_data_diagnostics_work_locally_and_are_forbidden_during_export(self):
+        import cairo
+        with FallbackProbe() as probe:
+            pixels = bytearray(16)
+            image = cairo.ImageSurface.create_for_data(pixels, cairo.FORMAT_ARGB32, 2, 2, 8)
+            self.assertEqual(image.get_width(), 2)
+            self.assertEqual(probe.outside['cairo.ImageSurface.create_for_data'], 1)
+            probe.active += 1
+            with self.assertRaises(ForbiddenFallback):
+                cairo.ImageSurface.create_for_data(pixels, cairo.FORMAT_ARGB32, 2, 2, 8)
+            self.assertEqual(probe.attempts['cairo.ImageSurface.create_for_data'], 1)
+
     def test_actual_native_nodes_declined_without_pixel_or_conversion_paths(self):
         photo = Gdk.Texture.new_from_filename(str(PHOTO))
         texture = memory_texture()
