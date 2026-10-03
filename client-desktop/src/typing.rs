@@ -5,6 +5,7 @@ use rui_protocol_core::{
     model::*,
     resources::{MemoryBudget, MemoryReservation},
 };
+use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use thiserror::Error;
 
@@ -28,8 +29,13 @@ struct Expected {
     before: String,
     after: String,
     selection: TextRange,
-    resulting_revision: Option<u64>,
+    result: Option<ConfirmedResult>,
     _memory: MemoryReservation,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct ConfirmedResult {
+    source_commit: [u8; 32],
+    revision: Option<u64>,
 }
 pub struct PreparedText {
     pub context: EditingContext,
@@ -191,7 +197,7 @@ impl TypingQueue {
                 anchor: cursor,
                 focus: cursor,
             },
-            resulting_revision: None,
+            result: None,
             _memory: memory,
         });
         Ok(Some(PreparedText {
@@ -200,7 +206,9 @@ impl TypingQueue {
             memory: input._memory,
         }))
     }
-    /// A matching terminal result must contain the source's resulting revision.
+    /// Only the matching authenticated terminal result with actual source
+    /// evidence can confirm an edit. A coalesced publication may not yet have
+    /// an installed view revision; its exact text/context still must be observed.
     /// Dispatched is nonterminal. Other sequences cannot advance this FIFO.
     pub fn result(
         &mut self,
@@ -221,17 +229,19 @@ impl TypingQueue {
         let previous = self.confirmed.ok_or(TypingError::Context)?;
         if (status != "Applied" && status != "APPLIED")
             || source_commit.is_empty()
-            || revision.is_none_or(|v| v <= previous.revision)
+            || source_commit.len() > 1024
+            || revision.is_some_and(|v| v <= previous.revision)
         {
             return Err(TypingError::Result);
         }
-        if pending
-            .resulting_revision
-            .is_some_and(|old| Some(old) != revision)
-        {
+        let result = ConfirmedResult {
+            source_commit: Sha256::digest(source_commit.as_bytes()).into(),
+            revision,
+        };
+        if pending.result.is_some_and(|old| old != result) {
             return Err(TypingError::Result);
         }
-        pending.resulting_revision = revision;
+        pending.result = Some(result);
         Ok(())
     }
     /// Returns true only when an in-flight edit is causally confirmed. A source
@@ -303,10 +313,13 @@ impl TypingQueue {
         if !expected && !unchanged {
             return Err(TypingError::Context);
         }
-        if pending
-            .resulting_revision
-            .is_some_and(|revision| state.revision >= revision)
-        {
+        if pending.result.is_some_and(|result| {
+            state.revision > previous.revision
+                && result
+                    .revision
+                    .is_none_or(|revision| state.revision >= revision)
+                && (result.revision.is_some() || expected)
+        }) {
             if !expected {
                 return Err(TypingError::Context);
             }

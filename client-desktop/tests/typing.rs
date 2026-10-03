@@ -296,7 +296,6 @@ fn rejection_missing_evidence_or_incorrect_revision_never_replays_pending_text()
         ("Rejected", "", None),
         ("OutcomeUnknown", "", None),
         ("Applied", "", Some(2)),
-        ("Applied", "source", None),
         ("Applied", "source", Some(1)),
     ] {
         let budget = MemoryBudget::new(1 << 20);
@@ -316,6 +315,133 @@ fn rejection_missing_evidence_or_incorrect_revision_never_replays_pending_text()
             Err(TypingError::Result)
         );
         assert_eq!(q.cancel(), 1);
+    }
+}
+
+#[test]
+fn omitted_installed_revision_needs_own_result_exact_context_and_later_source_state() {
+    for state_first in [false, true] {
+        let budget = MemoryBudget::new(1 << 20);
+        let mut queue = TypingQueue::new(budget.clone()).unwrap();
+        let mut state = fixture(
+            "",
+            TextRange {
+                anchor: 0,
+                focus: 0,
+            },
+        );
+        let context = editing_context(&state, 20, &binding()).unwrap();
+        accept(&mut queue, &state, context, "😀", &budget);
+        accept(&mut queue, &state, context, "é", &budget);
+        queue.start(1, &state, &binding()).unwrap();
+        if state_first {
+            apply(
+                &mut state,
+                "😀",
+                TextRange {
+                    anchor: 1,
+                    focus: 1,
+                },
+            );
+            assert!(!queue.observe(&state, &binding()).unwrap());
+        }
+        queue
+            .result(99, "Applied", "foreign-native-cause", None)
+            .unwrap();
+        assert!(!queue.observe(&state, &binding()).unwrap());
+        queue.result(1, "Dispatched", "", None).unwrap();
+        assert!(!queue.observe(&state, &binding()).unwrap());
+        queue
+            .result(1, "Applied", "own-serialized-native-capture", None)
+            .unwrap();
+        if !state_first {
+            // Causal text may follow an unrelated visual publication even
+            // after the matching authenticated terminal result arrives.
+            state.revision += 1;
+            assert!(!queue.observe(&state, &binding()).unwrap());
+            assert!(queue.start(2, &state, &binding()).unwrap().is_none());
+            apply(
+                &mut state,
+                "😀",
+                TextRange {
+                    anchor: 1,
+                    focus: 1,
+                },
+            );
+        }
+        // A later coalesced visual frame preserves the exact text clocks.
+        state.revision += 1;
+        assert!(queue.observe(&state, &binding()).unwrap());
+        let second = queue.start(2, &state, &binding()).unwrap().unwrap();
+        assert_eq!(
+            second.context.selection,
+            TextRange {
+                anchor: 1,
+                focus: 1
+            }
+        );
+        assert_eq!(second.text, "é");
+        drop(second);
+        drop(queue);
+        assert_eq!(budget.used(), 0);
+    }
+}
+
+#[test]
+fn coalesced_result_cannot_confirm_coincidental_text_after_context_aba_or_changed_cause() {
+    for clock in 0..3 {
+        let budget = MemoryBudget::new(1 << 20);
+        let mut queue = TypingQueue::new(budget.clone()).unwrap();
+        let mut state = fixture(
+            "",
+            TextRange {
+                anchor: 0,
+                focus: 0,
+            },
+        );
+        let context = editing_context(&state, 20, &binding()).unwrap();
+        accept(&mut queue, &state, context, "x", &budget);
+        queue.start(1, &state, &binding()).unwrap();
+        queue
+            .result(1, "Applied", "own-native-capture", None)
+            .unwrap();
+        assert_eq!(
+            queue.result(1, "Applied", "substituted-cause", None),
+            Err(TypingError::Result)
+        );
+        apply(
+            &mut state,
+            "x",
+            TextRange {
+                anchor: 1,
+                focus: 1,
+            },
+        );
+        match clock {
+            0 => {
+                let Record::Text(text) = state.records.get_mut(&40).unwrap() else {
+                    panic!()
+                };
+                text.version += 2;
+            }
+            1 => {
+                let Record::Text(text) = state.records.get_mut(&40).unwrap() else {
+                    panic!()
+                };
+                text.text_version += 2;
+            }
+            2 => {
+                let Record::Session(session) = state.records.get_mut(&50).unwrap() else {
+                    panic!()
+                };
+                session.focus_generation += 2;
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(queue.observe(&state, &binding()), Err(TypingError::Context));
+        assert_eq!(queue.cancel(), 1);
+        drop(queue);
+        assert_eq!(budget.used(), 0);
     }
 }
 #[test]
