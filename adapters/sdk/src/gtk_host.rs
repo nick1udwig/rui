@@ -1,7 +1,7 @@
 //! A controlled cooperating GTK source behind the common session/command gate.
 //! The caller authenticates principals. The inherited native socket is private
 //! to this host and its source; it accepts only commands this ledger admitted.
-//! This slice projects public semantics only, with no visual resources/readiness.
+//! Public projections have independent bounded delivery and resource ownership.
 use crate::source_identity::SourceIdentities;
 use crate::{
     CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES, MAX_MANIFEST_ALLOCATION, bounded_read,
@@ -18,11 +18,12 @@ use rui_protocol_core::model::{
 };
 use rui_protocol_core::receiver::{ReceiveOutcome, ReceiverConfig, ViewReceiver};
 use rui_protocol_core::resources::{
-    MemoryBudget, MemoryError, MemoryReservation, ResourceContext, ResourceScope,
+    MemoryBudget, MemoryError, MemoryReservation, OfferOutcome, ResourceContext, ResourceDigest,
+    ResourceOffer, ResourceScope,
 };
 use rui_protocol_core::session::{
     ClientHello, ControlLease, NegotiatedSession, ReceiverLimits, SessionBroker, SessionConfig,
-    SessionError, SharedPayload, VerifiedAuthorization,
+    SessionError, SharedPayload, VerifiedAuthorization, ViewMemoryReservation,
 };
 use rui_protocol_core::wire::{self, proto as pb};
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,7 @@ use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command as ProcessCommand, Stdio};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 
@@ -342,8 +344,33 @@ struct View {
     // Its state is private; readiness is set only after it decodes a publication.
     consumer: ViewReceiver,
     publication: Option<SharedPayload>,
+    installed: Option<SharedPayload>,
+    replacement: Option<PendingSnapshot>,
+    ready: bool,
     published_revision: u64,
-    _memory: MemoryReservation,
+    _memory: Arc<MemoryReservation>,
+}
+
+struct PendingSnapshot {
+    publication: SharedPayload,
+    revision: u64,
+    decoded: usize,
+}
+
+/// The private type and broker-issued attachment jointly bind an immutable
+/// verified closure to one authorized publication/view allocation.
+struct PublishedClosure {
+    revision: u64,
+    resources: BTreeMap<ResourceDigest, PublishedResource>,
+    _memory: Arc<ViewMemoryReservation>,
+    _pool: Arc<MemoryReservation>,
+}
+#[derive(Clone)]
+struct PublishedResource {
+    offer: ResourceOffer,
+    bytes: Arc<[u8]>,
+    _memory: Arc<ViewMemoryReservation>,
+    _pool: Arc<MemoryReservation>,
 }
 
 /// Cooperating-source fixture with mandatory core admission and actual native
@@ -418,6 +445,9 @@ impl GtkCommandHost {
             ..SessionConfig::default()
         };
         config.supported_profiles.insert("semantics.only.v1".into());
+        config
+            .supported_profiles
+            .insert("glyph.outline-single.v1".into());
         let sessions = SessionBroker::new(context.scope.session_id, context.scope.epoch, config)?;
         let ledger = CommandLedger::new(
             context.scope.epoch,
@@ -553,7 +583,7 @@ impl GtkCommandHost {
             .ok_or(GtkHostError::Unsupported)?;
         let snapshot = self.identities.unavailable(self.public_revision, canvas)?;
         let _working = self.pipe.budget.reserve(PROJECT_MEMORY)?;
-        publish_snapshot(snapshot, 4096, &mut self.sessions, &mut self.views)
+        publish_snapshot(snapshot, 4096, None, &mut self.sessions, &mut self.views)
     }
     #[cfg(feature = "gtk-fixture-hooks")]
     pub fn native_pid(&self) -> u32 {
@@ -633,13 +663,11 @@ impl GtkCommandHost {
         hello: ClientHello,
         now: u64,
     ) -> Result<NegotiatedSession, GtkHostError> {
-        if !hello.required_profiles.contains("semantics.only.v1")
-            || self.views.contains_key(&hello.client_instance_id)
-        {
+        if self.views.contains_key(&hello.client_instance_id) {
             return Err(GtkHostError::Unsupported);
         }
         // Two 8MiB pools: actual semantic consumer and core session retention.
-        let memory = self.pipe.budget.reserve(2 * CLIENT_MEMORY)?;
+        let memory = Arc::new(self.pipe.budget.reserve(2 * CLIENT_MEMORY)?);
         let negotiated = self.sessions.negotiate(Some(authorization), hello, now)?;
         let consumer = consumer_for_view(&mut self.sessions, &negotiated, now)?;
         self.views.insert(
@@ -648,6 +676,9 @@ impl GtkCommandHost {
                 negotiated: negotiated.clone(),
                 consumer,
                 publication: None,
+                installed: None,
+                replacement: None,
+                ready: true,
                 published_revision: 0,
                 _memory: memory,
             },
@@ -682,17 +713,19 @@ impl GtkCommandHost {
         &self,
         client: &AuthenticatedClient,
     ) -> Result<Option<u64>, GtkHostError> {
-        self.view(client)?
-            .consumer
-            .presented_revision()
-            .map_err(CaptureError::from)
-            .map_err(GtkHostError::from)
+        let view = self.view(client)?;
+        Ok(self
+            .sessions
+            .presented_revision(client, view.negotiated.view_id)?)
     }
     /// Actual local semantic client consumes exact authorized bytes. This does
     /// not mark Presented and cannot authorize raw input, IME or resize.
     pub fn consume_semantics(&mut self, client: &AuthenticatedClient) -> Result<u64, GtkHostError> {
         self.view(client)?;
         let view = self.views.get_mut(&client.client_instance_id).unwrap();
+        if !view.negotiated.profiles.contains("semantics.only.v1") {
+            return Err(GtkHostError::Unsupported);
+        }
         let bytes = view.publication.take().ok_or(GtkHostError::Unsupported)?;
         let revision = match view
             .consumer
@@ -717,7 +750,69 @@ impl GtkCommandHost {
             .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
         self.sessions
             .acknowledge_semantic_ready(client, view.negotiated.view_id, revision)?;
+        view.ready = true;
+        install_replacement(&mut self.sessions, view)?;
         Ok(revision)
+    }
+    #[cfg(test)]
+    fn acknowledge_applied(
+        &mut self,
+        client: &AuthenticatedClient,
+        revision: u64,
+        witness: &SharedPayload,
+    ) -> Result<(), GtkHostError> {
+        let view = self.view(client)?;
+        let installed = view.installed.as_ref().ok_or(GtkHostError::Unsupported)?;
+        let same_attachment = installed
+            .attachment()
+            .zip(witness.attachment())
+            .is_some_and(|(a, b)| a.ptr_eq(b));
+        if revision != view.published_revision || installed != witness || !same_attachment {
+            return Err(SessionError::WrongRevision.into());
+        }
+        self.sessions
+            .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
+        Ok(())
+    }
+    #[cfg(test)]
+    fn acknowledge_presented(
+        &mut self,
+        client: &AuthenticatedClient,
+        revision: u64,
+    ) -> Result<(), GtkHostError> {
+        let view_id = self.view(client)?.negotiated.view_id;
+        self.sessions
+            .authorize_presented(client, view_id, revision)?;
+        let view = self.views.get_mut(&client.client_instance_id).unwrap();
+        if view.consumer.state().map_err(CaptureError::from)?.records.values().any(|record| {
+            matches!(record, Record::Surface(surface) if surface.mapped && surface.visual_coverage != rui_protocol_core::model::VisualCoverage::Complete)
+        }) {
+            return Err(GtkHostError::Unsupported);
+        }
+        view.consumer
+            .mark_presented(revision)
+            .map_err(CaptureError::from)?;
+        self.sessions
+            .acknowledge_presented(client, view_id, revision)?;
+        view.ready = true;
+        install_replacement(&mut self.sessions, view)
+    }
+    #[cfg(test)]
+    fn publication_resource(
+        &self,
+        client: &AuthenticatedClient,
+        witness: &SharedPayload,
+        digest: ResourceDigest,
+    ) -> Result<PublishedResource, GtkHostError> {
+        let view = self.view(client)?;
+        let attachment = witness.attachment().ok_or(GtkHostError::Unsupported)?;
+        self.sessions
+            .authorize_attachment(client, view.negotiated.view_id, attachment)?;
+        attachment
+            .get::<PublishedClosure>()
+            .and_then(|closure| closure.resources.get(&digest))
+            .cloned()
+            .ok_or(GtkHostError::Unsupported)
     }
     pub fn acquire_control(
         &mut self,
@@ -800,7 +895,7 @@ impl GtkCommandHost {
                 self.last_canvas.ok_or(GtkHostError::Unsupported)?,
             )?;
             let _working = self.pipe.budget.reserve(PROJECT_MEMORY)?;
-            return publish_snapshot(snapshot, 4096, &mut self.sessions, &mut self.views);
+            return publish_snapshot(snapshot, 4096, None, &mut self.sessions, &mut self.views);
         }
         self.last_canvas = self
             .source
@@ -1073,7 +1168,10 @@ fn consumer_for_view(
     match ViewReceiver::new(
         context,
         negotiated.limits.clone(),
-        ReceiverConfig::default(),
+        ReceiverConfig {
+            single_glyph_outlines: negotiated.profiles.contains("glyph.outline-single.v1"),
+            ..ReceiverConfig::default()
+        },
     ) {
         Ok(consumer) => Ok(consumer),
         Err(error) => {
@@ -1415,6 +1513,19 @@ fn publish(
         wire::decode_snapshot(&envelope.payload, &limits).map_err(|_| GtkHostError::Unsupported)?;
     identities.project(&mut snapshot, source_offset)?;
     *public_revision = snapshot.revision;
+    publish_snapshot(
+        snapshot,
+        source
+            .state()
+            .map_err(CaptureError::from)?
+            .estimated_bytes(),
+        Some(source),
+        sessions,
+        views,
+    )
+}
+
+fn semantic_projection(snapshot: &mut pb::Snapshot) {
     snapshot
         .records
         .retain_mut(|record| match record.record.as_mut() {
@@ -1437,31 +1548,28 @@ fn publish(
             }
             _ => false,
         });
-    publish_snapshot(
-        snapshot,
-        source
-            .state()
-            .map_err(CaptureError::from)?
-            .estimated_bytes(),
-        sessions,
-        views,
-    )
-}
-
-fn publish_snapshot(
-    mut snapshot: pb::Snapshot,
-    decoded: usize,
-    sessions: &mut SessionBroker,
-    views: &mut BTreeMap<Id, View>,
-) -> Result<(), GtkHostError> {
     snapshot.required_resources.clear();
     snapshot.required_features = vec![
         "semantics.core.v1".into(),
         "semantics.only.v1".into(),
         "content.no-raster.v1".into(),
     ];
+}
+
+fn publish_snapshot(
+    snapshot: pb::Snapshot,
+    decoded: usize,
+    source: Option<&ViewReceiver>,
+    sessions: &mut SessionBroker,
+    views: &mut BTreeMap<Id, View>,
+) -> Result<(), GtkHostError> {
     views.retain(|_, view| {
-        if view.published_revision == snapshot.revision {
+        if view.published_revision == snapshot.revision
+            || view
+                .replacement
+                .as_ref()
+                .is_some_and(|pending| pending.revision == snapshot.revision)
+        {
             return true;
         }
         let result = (|| {
@@ -1471,6 +1579,18 @@ fn publish_snapshot(
                 view.negotiated.view_id,
                 decoded + 3 * MAX_ENVELOPE_BYTES as usize,
             )?;
+            let mut snapshot = snapshot.clone();
+            if view.negotiated.profiles.contains("semantics.only.v1") {
+                semantic_projection(&mut snapshot);
+            } else if source.is_none() {
+                snapshot.required_features = vec![
+                    "mirror2d.core.v1".into(),
+                    "semantics.core.v1".into(),
+                    "content.no-raster.v1".into(),
+                ];
+            }
+            let closure =
+                retain_closure(&snapshot, source, sessions, &view.negotiated, &view._memory)?;
             let bytes = pb::Envelope {
                 protocol_version: 1,
                 session_id: view.negotiated.session_id.to_vec(),
@@ -1486,19 +1606,23 @@ fn publish_snapshot(
             {
                 return Err(GtkHostError::Unsupported);
             }
-            let publication = sessions.snapshot_payload(
+            let publication = sessions.snapshot_publication_payload(
                 &view.negotiated.client,
                 view.negotiated.view_id,
                 bytes,
+                Some(closure),
             )?;
-            sessions.install_snapshot(
-                &view.negotiated.client,
-                view.negotiated.view_id,
-                snapshot.revision,
+            // A slow view owns one installed publication and one replacement.
+            // Snapshot reset is delayed until the previous real readiness ACK;
+            // old exact ACKs remain valid while source/controller work proceeds.
+            view.replacement = Some(PendingSnapshot {
+                publication,
+                revision: snapshot.revision,
                 decoded,
-            )?;
-            view.publication = Some(publication);
-            view.published_revision = snapshot.revision;
+            });
+            if view.ready {
+                install_replacement(sessions, view)?;
+            }
             Ok::<(), GtkHostError>(())
         })();
         if result.is_err() {
@@ -1513,9 +1637,543 @@ fn publish_snapshot(
     Ok(())
 }
 
+fn retain_closure(
+    snapshot: &pb::Snapshot,
+    source: Option<&ViewReceiver>,
+    sessions: &SessionBroker,
+    negotiated: &NegotiatedSession,
+    pool: &Arc<MemoryReservation>,
+) -> Result<rui_protocol_core::session::PublicationAttachment, GtkHostError> {
+    let mut charge = 8192usize;
+    for digest in &snapshot.required_resources {
+        let digest: ResourceDigest = digest
+            .as_slice()
+            .try_into()
+            .map_err(|_| GtkHostError::Unsupported)?;
+        let source = source.ok_or(GtkHostError::Unsupported)?;
+        charge = charge
+            .checked_add(
+                source
+                    .read_resource(digest)
+                    .map_err(CaptureError::from)?
+                    .len()
+                    + 1024,
+            )
+            .ok_or(GtkHostError::Unsupported)?;
+    }
+    let memory =
+        Arc::new(sessions.reserve_view_memory(&negotiated.client, negotiated.view_id, charge)?);
+    let attachment = sessions.reserve_view_memory(&negotiated.client, negotiated.view_id, 4096)?;
+    let mut resources = BTreeMap::new();
+    for digest in &snapshot.required_resources {
+        let digest: ResourceDigest = digest
+            .as_slice()
+            .try_into()
+            .map_err(|_| GtkHostError::Unsupported)?;
+        let source = source.ok_or(GtkHostError::Unsupported)?;
+        resources.insert(
+            digest,
+            PublishedResource {
+                offer: source
+                    .resource_offer(digest)
+                    .map_err(CaptureError::from)?
+                    .clone(),
+                bytes: Arc::from(source.read_resource(digest).map_err(CaptureError::from)?),
+                _memory: memory.clone(),
+                _pool: pool.clone(),
+            },
+        );
+    }
+    Ok(attachment.attach(PublishedClosure {
+        revision: snapshot.revision,
+        resources,
+        _memory: memory,
+        _pool: pool.clone(),
+    }))
+}
+
+fn install_replacement(sessions: &mut SessionBroker, view: &mut View) -> Result<(), GtkHostError> {
+    let Some(pending) = view.replacement.take() else {
+        return Ok(());
+    };
+    // Full-view verification does not create a renderer acknowledgement. The
+    // native authority remains the private, unredacted source graph.
+    let staged = (|| {
+        if !view.negotiated.profiles.contains("semantics.only.v1") {
+            verify_publication(&mut view.consumer, &view.negotiated, &pending.publication)?;
+        }
+        sessions.install_snapshot(
+            &view.negotiated.client,
+            view.negotiated.view_id,
+            pending.revision,
+            pending.decoded,
+        )?;
+        Ok::<(), GtkHostError>(())
+    })();
+    if let Err(error) = staged {
+        // Consumer verification can commit before the broker's decoded-state
+        // reservation fails. Close this view atomically with that failure;
+        // neither old readiness nor a mismatched committed graph survives.
+        let _ = sessions.invalidate_authorization(&view.negotiated.client, 0);
+        view.consumer.revoke();
+        view.installed = None;
+        view.publication = None;
+        view.ready = false;
+        return Err(error);
+    }
+    view.installed = Some(pending.publication.clone());
+    view.publication = Some(pending.publication);
+    view.published_revision = pending.revision;
+    view.ready = false;
+    Ok(())
+}
+
+fn verify_publication(
+    consumer: &mut ViewReceiver,
+    negotiated: &NegotiatedSession,
+    publication: &SharedPayload,
+) -> Result<(), GtkHostError> {
+    let closure = publication
+        .attachment()
+        .and_then(|a| a.get::<PublishedClosure>())
+        .ok_or(GtkHostError::Unsupported)?;
+    for digest in closure.resources.keys() {
+        consumer
+            .authorize_resource(*digest)
+            .map_err(CaptureError::from)?;
+    }
+    let missing = if consumer.state().map_err(CaptureError::from)?.revision == closure.revision {
+        // Cache-loss recovery leaves the verified live graph installed. A
+        // duplicate publication intentionally cannot acknowledge unavailable
+        // bytes; refill that exact live closure before retrying readiness.
+        Some(
+            consumer
+                .missing_live_resources()
+                .map_err(CaptureError::from)?,
+        )
+    } else {
+        match consumer
+            .receive_envelope((closure.revision as u128).to_be_bytes(), publication)
+            .map_err(CaptureError::from)?
+        {
+            ReceiveOutcome::NeedResources { missing, .. } => Some(missing),
+            _ => None,
+        }
+    };
+    if let Some(missing) = missing {
+        let context = ResourceContext {
+            scope: ResourceScope {
+                session_id: negotiated.session_id,
+                epoch: negotiated.epoch,
+                principal_id: negotiated.client.client_instance_id,
+            },
+            view_id: negotiated.view_id,
+        };
+        for digest in &*missing {
+            let resource = closure
+                .resources
+                .get(digest)
+                .ok_or(GtkHostError::Unsupported)?;
+            if consumer
+                .receive_resource_offer(context, resource.offer.clone())
+                .map_err(CaptureError::from)?
+                == OfferOutcome::AlreadyAvailable
+            {
+                continue;
+            }
+            for (index, chunk) in resource
+                .bytes
+                .chunks(negotiated.limits.chunk_bytes)
+                .enumerate()
+            {
+                consumer
+                    .resource_chunk(context, resource.offer.digest, index as u32, chunk)
+                    .map_err(CaptureError::from)?;
+            }
+            consumer
+                .complete_resource(context, resource.offer.digest)
+                .map_err(CaptureError::from)?;
+        }
+    }
+    if consumer.state().map_err(CaptureError::from)?.revision != closure.revision
+        || !consumer.resources_ready().map_err(CaptureError::from)?
+    {
+        return Err(GtkHostError::Unsupported);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn visual_host() -> GtkCommandHost {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/gtk/whole-native-golden/whole-native");
+        let budget = MemoryBudget::new(256 << 20);
+        let source_memory = budget.reserve(SOURCE_MEMORY).unwrap();
+        let ledger_memory = budget.reserve(4 << 20).unwrap();
+        let identity_memory = budget.reserve(4 << 20).unwrap();
+        let capture = NativeCapture {
+            _memory: budget.reserve(ARTIFACT_MEMORY).unwrap(),
+            artifact: CaptureArtifact::read(root.join("snapshot-01-000001.json")).unwrap(),
+        };
+        let mut source = capture.artifact.receiver().unwrap();
+        capture.artifact.apply_trusted_fixture(&mut source).unwrap();
+        let context = capture.artifact.context();
+        let directory =
+            std::env::temp_dir().join(format!("rui-visual-owner-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let (socket, _peer) = UnixStream::pair().unwrap();
+        let pipe = NativePipe {
+            child: ProcessCommand::new("true").spawn().unwrap(),
+            socket,
+            directory,
+            _working: budget.reserve(1 << 20).unwrap(),
+            budget,
+            next_request: 1,
+            source_generation: 1,
+            failed: false,
+            diagnostics: NativeDiagnostics::default(),
+        };
+        let config = SessionConfig {
+            max_clients: MAX_CLIENTS,
+            receiver_limits: ReceiverLimits {
+                view_memory_bytes: CLIENT_MEMORY,
+                ..Default::default()
+            },
+            supported_profiles: [
+                "mirror2d.core.v1",
+                "semantics.core.v1",
+                "content.no-raster.v1",
+                "glyph.outline-single.v1",
+                "semantics.only.v1",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            ..Default::default()
+        };
+        let mut host = GtkCommandHost {
+            pipe,
+            capture,
+            source,
+            sessions: SessionBroker::new(context.scope.session_id, context.scope.epoch, config)
+                .unwrap(),
+            ledger: CommandLedger::new(context.scope.epoch, LedgerLimits::default()).unwrap(),
+            views: BTreeMap::new(),
+            native_lease: None,
+            broker_epoch: context.scope.epoch,
+            source_incarnations: [context.scope.epoch].into_iter().collect(),
+            public_revision: 0,
+            source_offset: 0,
+            source_alive: true,
+            identities: SourceIdentities::new(),
+            _identity_memory: identity_memory,
+            last_canvas: None,
+            last_source_signal: None,
+            _source_memory: source_memory,
+            _ledger_memory: ledger_memory,
+        };
+        host.publish_all().unwrap();
+        host
+    }
+
+    fn visual_client(host: &mut GtkCommandHost, id: u8) -> AuthenticatedClient {
+        let profiles: BTreeSet<_> = [
+            "mirror2d.core.v1",
+            "semantics.core.v1",
+            "content.no-raster.v1",
+            "glyph.outline-single.v1",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        host.negotiate(
+            VerifiedAuthorization {
+                principal: format!("visual-{id}"),
+                policy_version: 1,
+                permissions: rui_protocol_core::session::Permissions {
+                    can_view: true,
+                    can_control: true,
+                    actions: ["Focus".into()].into_iter().collect(),
+                },
+            },
+            ClientHello {
+                client_instance_id: [id; 16],
+                supported_versions: [1].into_iter().collect(),
+                supported_profiles: profiles.clone(),
+                required_profiles: profiles,
+                receiver_limits: ReceiverLimits::default(),
+                resume: None,
+            },
+            0,
+        )
+        .unwrap()
+        .client
+    }
+
+    fn advance_visual_source(host: &mut GtkCommandHost, revision: u64) {
+        let next = NativeCapture {
+            _memory: host.pipe.budget.reserve(ARTIFACT_MEMORY).unwrap(),
+            artifact: CaptureArtifact::read(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("../../fixtures/gtk/whole-native-golden/whole-native/snapshot-01-{revision:06}.json"))).unwrap(),
+        };
+        next.artifact
+            .apply_trusted_fixture(&mut host.source)
+            .unwrap();
+        host.capture = next;
+        host.publish_all().unwrap();
+    }
+
+    #[test]
+    fn stalled_visual_observer_retains_old_ack_and_closure_while_controller_advances() {
+        let mut host = visual_host();
+        let budget = host.memory_budget();
+        let controller = visual_client(&mut host, 2);
+        let observer = visual_client(&mut host, 3);
+        let first = host.views[&observer.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        let controller_first = host.views[&controller.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        let old_closure = first
+            .attachment()
+            .unwrap()
+            .get::<PublishedClosure>()
+            .unwrap();
+        assert!(!old_closure.resources.is_empty());
+        assert!(
+            host.sessions
+                .acquire_control(
+                    &controller,
+                    host.views[&controller.client_instance_id]
+                        .negotiated
+                        .view_id,
+                    [8; 16],
+                    0
+                )
+                .is_err()
+        );
+        host.acknowledge_applied(&controller, 1, &controller_first)
+            .unwrap();
+        assert!(host.presented_revision(&controller).unwrap().is_none());
+        host.acknowledge_presented(&controller, 1).unwrap();
+        advance_visual_source(&mut host, 2);
+        advance_visual_source(&mut host, 3);
+        assert_eq!(
+            host.views[&controller.client_instance_id].published_revision,
+            2
+        );
+        assert_eq!(
+            host.views[&observer.client_instance_id].published_revision,
+            1
+        );
+        assert_eq!(
+            host.views[&observer.client_instance_id]
+                .replacement
+                .as_ref()
+                .unwrap()
+                .revision,
+            3
+        );
+        assert!(host.acknowledge_applied(&observer, 3, &first).is_err());
+        assert!(
+            host.acknowledge_applied(&observer, 1, &controller_first)
+                .is_err()
+        );
+        // The exact old witness still works after two source captures. It does
+        // not acquire presentation on its own or advance another view.
+        host.acknowledge_applied(&observer, 1, &first).unwrap();
+        assert!(host.presented_revision(&observer).unwrap().is_none());
+        host.acknowledge_presented(&observer, 1).unwrap();
+        assert_eq!(
+            host.views[&observer.client_instance_id].published_revision,
+            3
+        );
+        assert!(host.presented_revision(&observer).unwrap().is_none());
+        assert_eq!(host.state(&observer).unwrap().revision, 3);
+        assert_eq!(
+            host.views[&controller.client_instance_id].published_revision,
+            2
+        );
+        let resource = old_closure.resources.values().next().unwrap().clone();
+        host.source.close();
+        assert_eq!(
+            old_closure
+                .resources
+                .values()
+                .next()
+                .unwrap()
+                .bytes
+                .as_ref(),
+            resource.bytes.as_ref()
+        );
+        host.disconnect(&controller, 0).unwrap();
+        host.disconnect(&observer, 0).unwrap();
+        drop(controller_first);
+        drop(first);
+        drop(host);
+        assert_eq!(budget.used(), 2 * CLIENT_MEMORY);
+        drop(resource);
+        assert_eq!(budget.used(), 0);
+    }
+
+    #[test]
+    fn visual_resource_cache_loss_recovers_exact_old_closure_without_source_cache() {
+        let mut host = visual_host();
+        let client = visual_client(&mut host, 4);
+        let other = visual_client(&mut host, 5);
+        let publication = host.views[&client.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        let digest = *publication
+            .attachment()
+            .unwrap()
+            .get::<PublishedClosure>()
+            .unwrap()
+            .resources
+            .keys()
+            .next()
+            .unwrap();
+        assert!(
+            host.publication_resource(&other, &publication, digest)
+                .is_err()
+        );
+        assert!(
+            host.publication_resource(&client, &publication, [255; 32])
+                .is_err()
+        );
+        host.acknowledge_applied(&client, 1, &publication).unwrap();
+        host.acknowledge_presented(&client, 1).unwrap();
+        let view = host.views.get_mut(&client.client_instance_id).unwrap();
+        view.consumer.resource_cache_lost().unwrap();
+        assert!(!view.consumer.resources_ready().unwrap());
+        host.sessions
+            .mark_resources_missing(&client, view.negotiated.view_id)
+            .unwrap();
+        view.ready = false;
+        assert!(host.acknowledge_presented(&client, 1).is_err());
+        advance_visual_source(&mut host, 2);
+        host.source.close();
+        // Resource recovery uses the retained publication capability, never
+        // the now-closed source cache or an arbitrary globally known digest.
+        let resource = host
+            .publication_resource(&client, &publication, digest)
+            .unwrap();
+        assert_eq!(resource.offer.digest, digest);
+        assert!(!resource.bytes.is_empty());
+        let view = host.views.get_mut(&client.client_instance_id).unwrap();
+        verify_publication(&mut view.consumer, &view.negotiated, &publication).unwrap();
+        host.acknowledge_applied(&client, 1, &publication).unwrap();
+        host.acknowledge_presented(&client, 1).unwrap();
+        assert_eq!(host.state(&client).unwrap().revision, 2);
+        assert!(host.presented_revision(&client).unwrap().is_none());
+        host.revoke_authorization(&client, 0).unwrap();
+        assert!(
+            host.publication_resource(&client, &publication, digest)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn partial_visual_snapshot_cannot_create_presented_or_control_authority() {
+        let mut host = visual_host();
+        let client = visual_client(&mut host, 6);
+        let first = host.views[&client.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        host.acknowledge_applied(&client, 1, &first).unwrap();
+        host.acknowledge_presented(&client, 1).unwrap();
+        let envelope = pb::Envelope::decode(
+            std::fs::read(host.capture.artifact.path.with_extension("bin"))
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        let mut snapshot = pb::Snapshot::decode(envelope.payload.as_slice()).unwrap();
+        host.identities.project(&mut snapshot, 0).unwrap();
+        snapshot.revision = 2;
+        for record in &mut snapshot.records {
+            match record.record.as_mut() {
+                Some(pb::record::Record::Surface(surface)) => {
+                    surface.version = 2;
+                    surface.visual_coverage = 2;
+                    surface
+                        .unsupported_features
+                        .push("native-unsupported-effect".into());
+                }
+                Some(pb::record::Record::Session(session)) => session.version = 2,
+                _ => {}
+            }
+        }
+        publish_snapshot(
+            snapshot,
+            host.source.state().unwrap().estimated_bytes(),
+            Some(&host.source),
+            &mut host.sessions,
+            &mut host.views,
+        )
+        .unwrap();
+        let second = host.views[&client.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        host.acknowledge_applied(&client, 2, &second).unwrap();
+        assert!(host.acknowledge_presented(&client, 2).is_err());
+        assert!(host.presented_revision(&client).unwrap().is_none());
+        assert!(
+            host.sessions
+                .acquire_control(
+                    &client,
+                    host.views[&client.client_instance_id].negotiated.view_id,
+                    [9; 16],
+                    0
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn replacement_install_failure_revokes_only_its_view_after_verified_commit() {
+        let mut host = visual_host();
+        let client = visual_client(&mut host, 7);
+        let other = visual_client(&mut host, 8);
+        let old = host.views[&client.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        let other_old = host.views[&other.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        advance_visual_source(&mut host, 2);
+        host.views
+            .get_mut(&client.client_instance_id)
+            .unwrap()
+            .replacement
+            .as_mut()
+            .unwrap()
+            .decoded = CLIENT_MEMORY + 1;
+        host.acknowledge_applied(&client, 1, &old).unwrap();
+        assert!(host.acknowledge_presented(&client, 1).is_err());
+        assert!(host.state(&client).is_err());
+        assert_eq!(
+            host.views[&client.client_instance_id]
+                .consumer
+                .memory_used(),
+            0
+        );
+        assert!(host.views[&client.client_instance_id].installed.is_none());
+        host.acknowledge_applied(&other, 1, &other_old).unwrap();
+        host.acknowledge_presented(&other, 1).unwrap();
+        assert_eq!(host.state(&other).unwrap().revision, 2);
+    }
 
     #[test]
     fn private_reply_rejects_delayed_source_generation_before_accepting_diagnostics() {

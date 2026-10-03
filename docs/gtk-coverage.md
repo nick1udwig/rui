@@ -591,6 +591,32 @@ private visual capture is verified and replayed separately; this run does not
 establish network whole-view delivery, actual client Presented readiness or
 wire composition. Those M3 integration gates remain open.
 
+## Per-view visual publication ownership
+
+The controlled GTK host can prepare a full public corpus projection with the
+validated vector resource closure attached to its exact bound snapshot. Approved
+full viewers receive the same public content. This adapter does not implement
+independent observer redaction; the separate controlled-host redaction fixture
+remains separate evidence. Semantic-only projections remove scenes, bindings,
+cursor and resource dependencies.
+
+Each view keeps one installed snapshot and one bounded coalesced replacement.
+A stalled observer therefore retains a valid old Applied/Presented boundary
+while the source and another controller advance. Installing the replacement
+resets its readiness; full readiness requires an actual client Presented
+callback. A command capture that is pending rather than installed has truthful
+source evidence with no resulting published revision.
+
+Resource handles retain their actual view-budget charge and aggregate host pool
+allowance after source cache loss, view teardown, or source process replacement.
+Only a current authorized view can retrieve the closure from its publication
+attachment. Focused tests cover foreign attachment/digest rejection, exact old
+ACKs after source advances, resource recovery, independent stalled views,
+mapped Partial rejection, and per-view cleanup when replacement installation
+fails after graph verification. Readiness calls in these unit tests are simulated
+callback inputs, not native presentation evidence. The transport owner lane,
+native lifecycle fence and real mirror/wire-composition probes remain pending.
+
 ## Native editing context between frames
 
 `native-context-interaction.json` retains a separate actual core-admitted source
