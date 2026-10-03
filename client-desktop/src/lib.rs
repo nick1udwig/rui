@@ -1,5 +1,6 @@
 //! Bounded CPU reference rendering of committed RUI state.
 pub mod command_queue;
+pub mod composition;
 mod cursor;
 #[cfg(feature = "desktop")]
 pub mod desktop;
