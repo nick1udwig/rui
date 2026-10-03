@@ -305,6 +305,50 @@ impl ControlledHost {
             .ok_or(HostError::ResourceUnavailable)?;
         Ok(AuthorizedResource { attachment, index })
     }
+    /// Trusted transport scratch/writer allocation against the same view ceiling.
+    /// Reserve before allocating and retain through buffered socket lifetime.
+    pub fn reserve_view_memory(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        bytes: usize,
+    ) -> Result<ViewMemoryReservation, HostError> {
+        self.projection(client, view)?;
+        Ok(self.sessions.reserve_view_memory(client, view, bytes)?)
+    }
+    /// Select only a resource pinned by this exact publication, while rechecking
+    /// the current registered principal/view and originating allocation scope.
+    pub fn publication_resource(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        publication: &SharedPayload,
+        digest: ResourceDigest,
+    ) -> Result<AuthorizedResource, HostError> {
+        self.projection(client, view)?;
+        let attachment = publication
+            .attachment()
+            .ok_or(HostError::ResourceUnavailable)?;
+        self.sessions
+            .authorize_attachment(client, view, attachment)?;
+        let index = attachment
+            .get::<ResourceClosure>()
+            .and_then(|r| r.outlines.iter().position(|r| r.offer().digest == digest))
+            .ok_or(HostError::ResourceUnavailable)?;
+        Ok(AuthorizedResource {
+            attachment: attachment.clone(),
+            index,
+        })
+    }
+    pub fn mark_resources_missing(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<(), HostError> {
+        self.projection(client, view)?;
+        self.sessions.mark_resources_missing(client, view)?;
+        Ok(())
+    }
     /// The caller supplies credentials already verified by its trusted auth
     /// adapter. Never deserialize VerifiedAuthorization from client data.
     pub fn negotiate(
@@ -636,6 +680,20 @@ impl ControlledHost {
         self.projection(client, view)?;
         self.sessions
             .acknowledge_applied(client, view, revision, true)?;
+        Ok(())
+    }
+    /// A trusted network sender retains the exact broker-created transaction
+    /// through resource verification, even when bounded history has moved on.
+    pub fn acknowledge_applied_publication(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        revision: u64,
+        publication: &SharedPayload,
+    ) -> Result<(), HostError> {
+        self.projection(client, view)?;
+        self.sessions
+            .acknowledge_applied_publication(client, view, revision, true, publication)?;
         Ok(())
     }
     pub fn acknowledge_presented(

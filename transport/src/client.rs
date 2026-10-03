@@ -44,6 +44,8 @@ pub struct NetworkClient {
     context: ResourceContext,
     receiver: ViewReceiver,
     needed: Option<NeededResources>,
+    needed_requested: usize,
+    announce_evictions: bool,
     deadline: Duration,
     pending: PendingReplies,
 }
@@ -328,6 +330,8 @@ impl NetworkClient {
             context,
             receiver,
             needed: None,
+            needed_requested: 0,
+            announce_evictions: false,
             deadline,
             pending,
         })
@@ -445,34 +449,113 @@ impl NetworkClient {
         match outcome {
             ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
                 self.needed = None;
+                self.needed_requested = 0;
+                self.announce_evictions = false;
                 self.queue(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
                 Ok(ClientEvent::Applied { revision })
             }
             ReceiveOutcome::NeedResources {
                 revision, missing, ..
             } => {
-                let maximum = self.limits.envelope_bytes.saturating_sub(256) / 40;
-                if missing.len() > maximum {
-                    return Err(TransportError::Limit);
-                }
-                self.pending.enqueue_with(
-                    p::Kind::NeedResources,
-                    missing.len() * 34,
-                    self.binding(),
-                    || p::ResourceIds {
-                        digests: missing.iter().map(|d| d.to_vec()).collect(),
-                    },
-                )?;
                 self.needed = Some(missing);
+                self.needed_requested = 0;
+                self.queue_resource_request()?;
                 Ok(ClientEvent::ResourcesNeeded { revision })
             }
         }
+    }
+    fn queue_resource_request(&mut self) -> Result<(), TransportError> {
+        let Some(needed) = &self.needed else {
+            return Ok(());
+        };
+        if self.needed_requested >= needed.len() {
+            return Ok(());
+        }
+        let maximum = self.limits.envelope_bytes.saturating_sub(256) / 40;
+        if maximum == 0 || needed.len() > 512 {
+            return Err(TransportError::Limit);
+        }
+        let start = self.needed_requested;
+        let count = (needed.len() - start).min(maximum);
+        let binding = self.binding();
+        if self.announce_evictions {
+            self.pending
+                .enqueue_with(p::Kind::ResourceEvicted, count * 34, binding, || {
+                    p::ResourceIds {
+                        digests: needed
+                            .iter()
+                            .skip(start)
+                            .take(count)
+                            .map(|d| d.to_vec())
+                            .collect(),
+                    }
+                })?;
+        }
+        self.pending
+            .enqueue_with(p::Kind::NeedResources, count * 34, binding, || {
+                p::ResourceIds {
+                    digests: needed
+                        .iter()
+                        .skip(start)
+                        .take(count)
+                        .map(|d| d.to_vec())
+                        .collect(),
+                }
+            })?;
+        self.needed_requested += count;
+        Ok(())
+    }
+    /// Trusted local cache-loss signal. It pauses presentation immediately;
+    /// resource recovery is requested in bounded pages and APPLIED is re-sent
+    /// only after the live closure is verified. A pending candidate must first
+    /// abort/reconnect rather than mixing its receiving transfer with cache loss.
+    pub async fn resource_cache_lost(&mut self) -> Result<(), TransportError> {
+        if self.receiver.has_pending_publication() {
+            return Err(TransportError::Receiver);
+        }
+        // There is no cache-loss transition for a resource-less graph. In
+        // particular, do not clear local presentation while the host still has
+        // its valid readiness and no missing-digest marker can be sent.
+        if self
+            .receiver
+            .cache_bytes()
+            .map_err(|_| TransportError::Receiver)?
+            == 0
+            && self
+                .receiver
+                .resources_ready()
+                .map_err(|_| TransportError::Receiver)?
+        {
+            return Ok(());
+        }
+        self.receiver
+            .resource_cache_lost()
+            .map_err(|_| TransportError::Receiver)?;
+        let missing = self
+            .receiver
+            .missing_live_resources()
+            .map_err(|_| TransportError::Receiver)?;
+        if missing.is_empty() {
+            let revision = self
+                .receiver
+                .state()
+                .map_err(|_| TransportError::Receiver)?
+                .revision;
+            self.queue(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
+        } else {
+            self.needed = Some(missing);
+            self.needed_requested = 0;
+            self.announce_evictions = true;
+            self.queue_resource_request()?;
+        }
+        self.flush_pending().await
     }
     /// Cancellation-safe for receiver state and observable events: every received
     /// packet is handled synchronously through its event return. Required replies
     /// are queued before returning; the next receive/send flushes them reliably.
     pub async fn receive(&mut self) -> Result<ClientEvent, TransportError> {
         loop {
+            self.queue_resource_request()?;
             self.flush_pending().await?;
             let raw = timeout(self.deadline, websocket::receive(&mut self.socket))
                 .await
@@ -514,7 +597,11 @@ impl NetworkClient {
                     let id = codec::id(&commit.publication_id)?;
                     let outcome = self
                         .receiver
-                        .commit_publication(context, id, codec::publication_commit(commit)?)
+                        .commit_authenticated_publication(
+                            context,
+                            id,
+                            codec::publication_commit(commit)?,
+                        )
                         .map_err(|_| TransportError::Receiver)?;
                     return self.outcome(outcome);
                 }
@@ -570,7 +657,28 @@ impl NetworkClient {
                         },
                     )?;
                     if let Some(outcome) = outcome {
+                        // The original, charged request set/cursor already
+                        // covers the whole candidate closure. A partial retry
+                        // reports a smaller missing set, not a new publication
+                        // or a reason to request completed resources again.
+                        if matches!(outcome, ReceiveOutcome::NeedResources { .. }) {
+                            return Ok(ClientEvent::ResourceAvailable);
+                        }
                         return self.outcome(outcome);
+                    }
+                    if self.needed.is_some()
+                        && !self.receiver.has_pending_publication()
+                        && self
+                            .receiver
+                            .resources_ready()
+                            .map_err(|_| TransportError::Receiver)?
+                    {
+                        let revision = self
+                            .receiver
+                            .state()
+                            .map_err(|_| TransportError::Receiver)?
+                            .revision;
+                        return self.outcome(ReceiveOutcome::Applied { revision });
                     }
                     return Ok(ClientEvent::ResourceAvailable);
                 }

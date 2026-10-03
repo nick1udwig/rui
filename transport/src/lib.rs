@@ -7,6 +7,7 @@ mod client;
 pub mod codec;
 pub mod pairing;
 mod server;
+mod source_delivery;
 mod tls;
 mod websocket;
 pub use client::{ClientEvent, NetworkClient};

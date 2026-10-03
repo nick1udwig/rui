@@ -284,6 +284,9 @@ impl Drop for Reservation {
     }
 }
 struct Payload {
+    view_id: Id,
+    publication_revision: Option<u64>,
+    checkpoint_generation: u64,
     bytes: Box<[u8]>,
     _reservation: Reservation,
     _attachment: Option<PublicationAttachment>,
@@ -298,6 +301,18 @@ impl std::fmt::Debug for SharedPayload {
             .field("bytes", &self.len())
             .field("attachment", &self.0._attachment.is_some())
             .finish()
+    }
+}
+impl SharedPayload {
+    /// Broker-stamped transaction revision; arbitrary snapshot byte handles
+    /// are never retained-transaction acknowledgement proofs.
+    pub fn publication_revision(&self) -> Option<u64> {
+        self.0.publication_revision
+    }
+    /// Borrow the trusted adapter keepalive; content access still requires the
+    /// adapter's current authenticated scope check.
+    pub fn attachment(&self) -> Option<&PublicationAttachment> {
+        self.0._attachment.as_ref()
     }
 }
 impl Deref for SharedPayload {
@@ -329,6 +344,7 @@ struct Connection {
     closed: bool,
     revision: Option<u64>,
     snapshot_revision: Option<u64>,
+    checkpoint_generation: u64,
     acknowledged_revision: Option<u64>,
     resources_ready: bool,
     presented_revision: Option<u64>,
@@ -630,6 +646,7 @@ impl SessionBroker {
                     closed: false,
                     revision: None,
                     snapshot_revision: None,
+                    checkpoint_generation: 0,
                     acknowledged_revision: None,
                     resources_ready: false,
                     presented_revision: None,
@@ -845,7 +862,12 @@ impl SessionBroker {
         {
             return Err(SessionError::Oversized);
         }
+        let checkpoint_generation = conn
+            .checkpoint_generation
+            .checked_add(1)
+            .ok_or(SessionError::WrongRevision)?;
         let allocation = Reservation::new(conn.budget.clone(), decoded_bytes)?;
+        conn.checkpoint_generation = checkpoint_generation;
         conn.snapshot_allocation = Some(allocation);
         conn.revision = Some(revision);
         conn.snapshot_revision = Some(revision);
@@ -930,6 +952,9 @@ impl SessionBroker {
             return Err(SessionError::SlowConsumer);
         }
         let bytes = SharedPayload(Arc::new(Payload {
+            view_id: view,
+            publication_revision: Some(revision),
+            checkpoint_generation: conn.checkpoint_generation,
             bytes: bytes.into_boxed_slice(),
             _reservation: reservation.unwrap(),
             _attachment: attachment,
@@ -1005,6 +1030,9 @@ impl SessionBroker {
             .ok_or(SessionError::Oversized)?;
         let reservation = Reservation::new(conn.budget.clone(), charge)?;
         Ok(SharedPayload(Arc::new(Payload {
+            view_id: view,
+            publication_revision: None,
+            checkpoint_generation: conn.checkpoint_generation,
             bytes: bytes.into_boxed_slice(),
             _reservation: reservation,
             _attachment: attachment,
@@ -1042,6 +1070,22 @@ impl SessionBroker {
             _reservation: Reservation::new(conn.budget.clone(), bytes)?,
         })
     }
+    /// Recheck an adapter allocation against this currently authenticated view.
+    /// Both view identity and the broker's private budget identity must match.
+    pub fn authorize_attachment(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        attachment: &PublicationAttachment,
+    ) -> Result<(), SessionError> {
+        let conn = self.connection(client, view)?;
+        if attachment.0.memory.view_id != view
+            || !Arc::ptr_eq(&attachment.0.memory._reservation.budget, &conn.budget)
+        {
+            return Err(SessionError::WrongView);
+        }
+        Ok(())
+    }
     pub fn acknowledge_applied(
         &mut self,
         client: &AuthenticatedClient,
@@ -1049,10 +1093,47 @@ impl SessionBroker {
         revision: u64,
         resources_ready: bool,
     ) -> Result<(), SessionError> {
+        self.acknowledge_applied_inner(client, view, revision, resources_ready, false)
+    }
+    /// Trusted sender proof for a broker-published transaction retained through
+    /// delivery even after recovery history evicts it. An arbitrary snapshot
+    /// payload or attachment cannot create this proof. The current authenticated
+    /// view, budget, checkpoint generation and exact stamped revision must match.
+    pub fn acknowledge_applied_publication(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        revision: u64,
+        resources_ready: bool,
+        publication: &SharedPayload,
+    ) -> Result<(), SessionError> {
+        let conn = self.connection(client, view)?;
+        if publication.0.view_id != view
+            || !Arc::ptr_eq(&publication.0._reservation.budget, &conn.budget)
+        {
+            return Err(SessionError::WrongView);
+        }
+        if publication.0.publication_revision != Some(revision)
+            || publication.0.checkpoint_generation != conn.checkpoint_generation
+        {
+            return Err(SessionError::WrongRevision);
+        }
+        self.acknowledge_applied_inner(client, view, revision, resources_ready, true)
+    }
+    fn acknowledge_applied_inner(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        revision: u64,
+        resources_ready: bool,
+        retained_proof: bool,
+    ) -> Result<(), SessionError> {
         let conn = self.connection_mut(client, view)?;
-        if conn.revision.is_none_or(|r| revision > r)
+        if revision == 0
+            || conn.revision.is_none_or(|r| revision > r)
             || conn.acknowledged_revision.is_some_and(|r| revision < r)
-            || !(conn.snapshot_revision == Some(revision)
+            || !(retained_proof
+                || conn.snapshot_revision == Some(revision)
                 || conn.acknowledged_revision == Some(revision)
                 || conn.history.iter().any(|h| h.revision == revision))
         {

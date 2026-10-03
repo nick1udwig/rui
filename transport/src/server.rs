@@ -1,3 +1,4 @@
+use crate::source_delivery::Delivery;
 use crate::{
     codec, pairing::PairingAuthority, proto as p, websocket, HostIdentity, TransportError,
 };
@@ -30,6 +31,8 @@ pub struct ServerConfig {
     pub max_message_bytes: usize,
     pub handshake_timeout: Duration,
     pub send_timeout: Duration,
+    /// Whole publication/resource wait ceiling, including delayed APPLIED.
+    pub publication_timeout: Duration,
     /// Trusted host adapter callback: execute all cleanup before another lease
     /// can be granted. The network never silently discards held-input cleanup.
     pub cleanup: Arc<dyn Fn(InputCleanup) + Send + Sync>,
@@ -41,6 +44,7 @@ impl Default for ServerConfig {
             max_message_bytes: 1024 * 1024,
             handshake_timeout: Duration::from_secs(5),
             send_timeout: Duration::from_secs(2),
+            publication_timeout: Duration::from_secs(30),
             cleanup: Arc::new(|cleanup| {
                 assert!(
                     cleanup.keys.is_empty()
@@ -86,6 +90,7 @@ impl ServerHandle {
             || config.max_message_bytes > 1024 * 1024
             || config.handshake_timeout.is_zero()
             || config.send_timeout.is_zero()
+            || config.publication_timeout.is_zero()
         {
             return Err(TransportError::Limit);
         }
@@ -287,6 +292,23 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     }
     let binding = Some((session.session_id, session.epoch, session.view_id));
     let timeout = shared.config.send_timeout;
+    // Lifetime headroom is acquired before a post-authenticated socket send
+    // can retain encoded bytes. It also covers one bounded incoming decode.
+    let (_io_memory, mut delivery) = {
+        let host = shared.host.lock().await;
+        let _pairing = approved(shared, &session, approval, &authorization)?;
+        let memory = host
+            .reserve_view_memory(
+                &session.client,
+                session.view_id,
+                ceiling
+                    .checked_mul(8)
+                    .and_then(|n| n.checked_add(128 * 1024))
+                    .ok_or(TransportError::Limit)?,
+            )
+            .map_err(|_| TransportError::Limit)?;
+        (memory, Delivery::new(&host, &session)?)
+    };
     let hello = p::ServerHello {
         selected_version: session.version,
         selected_profiles: session.profiles.iter().cloned().collect(),
@@ -310,7 +332,6 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     .await?;
     let mut opened = false;
     let mut queued = VecDeque::new();
-    let mut publication = None;
     let chunk_size = session
         .limits
         .chunk_bytes
@@ -346,6 +367,44 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                     }
                 }else {
                     if !opened {return Err(TransportError::Protocol);}
+                    if matches!(kind,p::Kind::NeedResources|p::Kind::ResourceAvailable|p::Kind::ResourceEvicted) {
+                        let ids:p::ResourceIds=codec::decode(&packet.payload,ceiling)?;
+                        let rejected={
+                            let mut host=shared.host.lock().await;
+                            let _pairing=approved(shared,&session,approval,&authorization)?;
+                            match kind {
+                                p::Kind::NeedResources=>match delivery.need(&host,&session,ids,chunk_size) {
+                                    Ok(())=>false,
+                                    Err(TransportError::Authority)=>true,
+                                    Err(error)=>return Err(error),
+                                },
+                                p::Kind::ResourceAvailable=>{delivery.available(ids)?;false},
+                                p::Kind::ResourceEvicted=>{
+                                    delivery.evicted(&host,&session,&ids)?;
+                                    host.mark_resources_missing(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;
+                                    false
+                                }
+                                _=>unreachable!(),
+                            }
+                        };
+                        if rejected {websocket::send(socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?;}
+                        continue;
+                    }
+                    if kind==p::Kind::AppliedAck {
+                        let ack:p::RevisionAck=codec::decode(&packet.payload,ceiling)?;
+                        let mut host=shared.host.lock().await;
+                        let _pairing=approved(shared,&session,approval,&authorization)?;
+                        delivery.applied(ack.revision)?;
+                        let frame=delivery.applied_frame(ack.revision)?;
+                        if frame.publication_revision().is_some() {
+                            host.acknowledge_applied_publication(&session.client,session.view_id,ack.revision,frame)
+                                .map_err(|_|TransportError::Authority)?;
+                        }else {
+                            host.acknowledge_applied(&session.client,session.view_id,ack.revision)
+                                .map_err(|_|TransportError::Authority)?;
+                        }
+                        continue;
+                    }
                     let response=handle(shared,&session,kind,&packet.payload,approval,&authorization).await;
                     match response {Ok(Some((kind,bytes)))=>websocket::send(socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout).await?,Ok(None)=>{},
                         Err(TransportError::Authority)=>websocket::send(socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?,Err(error)=>return Err(error)}
@@ -357,12 +416,15 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                 let notice=shared.revoked.lock().map_err(|_|TransportError::Authority)?.remove(&session.client.client_instance_id);
                 if let Some(notice)=notice {websocket::send(socket,codec::wrap(p::Kind::ControlRevoked,&notice,binding),ceiling,timeout).await?;}
                 if !opened {continue;}
-                if publication.is_none() {
+                if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout) {return Err(TransportError::Deadline);}
+                if delivery.can_start() {
                     let frame={let mut host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;
                         if let Some(frame)=queued.pop_front() {Some(frame)}else {host.take_outbound(&session.client,session.view_id).map_err(|_|TransportError::Authority)?}};
-                    if let Some(frame)=frame {publication=Some(Outgoing::new(frame,chunk_size,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}
+                    if let Some(frame)=frame {delivery.install(Outgoing::new(frame,chunk_size,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}
                 }
-                if let Some(pending)=&mut publication {if let Some(packet)=pending.next(binding)? {websocket::send(socket,packet,ceiling,timeout).await?;}else {publication=None;}}
+                let packet={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;
+                    host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;delivery.next(binding)?};
+                if let Some(packet)=packet {websocket::send(socket,packet,ceiling,timeout).await?;}
             }
         }
     }
@@ -506,17 +568,21 @@ async fn handle(
     drain_host_cleanup(shared, &mut host);
     Ok(result)
 }
-struct Outgoing {
-    frame: SharedPayload,
+pub(crate) struct Outgoing {
+    pub frame: SharedPayload,
     payload: std::ops::Range<usize>,
-    begin: p::PublicationBegin,
+    pub begin: p::PublicationBegin,
     kind: p::Kind,
-    stage: u32,
+    pub stage: u32,
     index: u32,
     chunk: usize,
 }
 impl Outgoing {
-    fn new(frame: SharedPayload, chunk: usize, maximum: usize) -> Result<Self, TransportError> {
+    pub(crate) fn new(
+        frame: SharedPayload,
+        chunk: usize,
+        maximum: usize,
+    ) -> Result<Self, TransportError> {
         // Source envelopes are host-generated, bounded and contain one payload.
         // Keep the original SharedPayload and borrow slices rather than copying
         // a complete snapshot into another unaccounted queue.
@@ -552,7 +618,10 @@ impl Outgoing {
             chunk,
         })
     }
-    fn next(&mut self, binding: Option<(Id, Id, Id)>) -> Result<Option<p::Packet>, TransportError> {
+    pub fn next(
+        &mut self,
+        binding: Option<(Id, Id, Id)>,
+    ) -> Result<Option<p::Packet>, TransportError> {
         if self.stage == 0 {
             self.stage = 1;
             return Ok(Some(codec::wrap(self.kind, &self.begin, binding)));

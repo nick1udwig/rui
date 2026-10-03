@@ -1211,3 +1211,91 @@ fn snapshot_chunk_producer_bound_does_not_widen_single_envelope_api() {
         Err(SessionError::Oversized)
     );
 }
+
+#[test]
+fn retained_transaction_ack_survives_history_eviction_but_rejects_forged_scope() {
+    let mut broker = SessionBroker::new(
+        [1; 16],
+        [2; 16],
+        SessionConfig {
+            max_history_records: 1,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let s = connect(&mut broker, 3, "alice", true);
+    usable(&mut broker, &s, 1);
+    broker
+        .publish(&s.client, s.view_id, 1, 2, vec![2], 0)
+        .unwrap();
+    let retained = broker.take_outbound(&s.client, s.view_id).unwrap().unwrap();
+    assert_eq!(retained.publication_revision(), Some(2));
+    broker
+        .publish(&s.client, s.view_id, 2, 3, vec![3], 0)
+        .unwrap();
+    assert_eq!(
+        broker.acknowledge_applied(&s.client, s.view_id, 2, true),
+        Err(SessionError::WrongRevision)
+    );
+    assert_eq!(
+        broker.acknowledge_applied_publication(&s.client, s.view_id, 3, true, &retained),
+        Err(SessionError::WrongRevision)
+    );
+    // Read-only arbitrary bytes and adapter allocations carry no published
+    // transaction stamp, even if their contents equal a real transaction.
+    let arbitrary = broker
+        .snapshot_payload(&s.client, s.view_id, vec![2])
+        .unwrap();
+    assert_eq!(arbitrary.publication_revision(), None);
+    assert_eq!(
+        broker.acknowledge_applied_publication(&s.client, s.view_id, 2, true, &arbitrary),
+        Err(SessionError::WrongRevision)
+    );
+    let other = connect(&mut broker, 4, "bob", true);
+    usable(&mut broker, &other, 1);
+    assert_eq!(
+        broker.acknowledge_applied_publication(&other.client, other.view_id, 2, true, &retained),
+        Err(SessionError::WrongView)
+    );
+    // Even identically chosen session/view IDs from another broker do not share
+    // its private budget identity.
+    let mut independent = SessionBroker::new(
+        [1; 16],
+        [2; 16],
+        SessionConfig {
+            max_history_records: 1,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let clone_scope = connect(&mut independent, 3, "alice", true);
+    usable(&mut independent, &clone_scope, 1);
+    assert_eq!(clone_scope.view_id, s.view_id);
+    assert_eq!(
+        independent.acknowledge_applied_publication(
+            &clone_scope.client,
+            clone_scope.view_id,
+            2,
+            true,
+            &retained
+        ),
+        Err(SessionError::WrongView)
+    );
+    broker
+        .acknowledge_applied_publication(&s.client, s.view_id, 2, true, &retained)
+        .unwrap();
+    // An explicit checkpoint invalidates retained proof from its former chain.
+    broker.install_snapshot(&s.client, s.view_id, 3, 1).unwrap();
+    assert_eq!(
+        broker.acknowledge_applied_publication(&s.client, s.view_id, 2, true, &retained),
+        Err(SessionError::WrongRevision)
+    );
+    let mut changed = auth("alice", true);
+    changed.policy_version = 2;
+    let fresh = broker.negotiate(Some(changed), hello(3), 1).unwrap();
+    assert_ne!(fresh.view_id, s.view_id);
+    assert_eq!(
+        broker.acknowledge_applied_publication(&fresh.client, fresh.view_id, 2, true, &retained),
+        Err(SessionError::WrongView)
+    );
+}
