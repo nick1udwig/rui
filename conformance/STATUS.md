@@ -21,11 +21,12 @@ remaining integration gates.
 | Receiver recovery matrix | `protocol-core/tests/recovery_matrix.rs` | Every publication/resource chunk cut, duplicate chunks, cache loss, fresh-state equivalence and 256-resource churn; synthetic command and presentation callbacks, not network/visual evidence |
 | Independent decoder/reducer | `python3 conformance/check.py` | 1,275 semantic replay prefixes and 144 scene fixtures across exact bytes and 16 seeds |
 | Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | Pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation; cancelled receives and polled flushes retain budgeted replies without duplicate frames |
+| Authorized network resources | `transport/tests/resources.rs`, `protocol-core/tests/session.rs` | Two TLS clients, paged cold closure, warm reuse, live cache loss, premature acknowledgments, invalid eviction and revocation; exact retained transaction acknowledgment survives history eviction; historical unpinned eviction and retained reconnect remain |
 | Independent semantic client | `conformance/semantic_client.py`, `test_semantic_client.py`, `typed_interop.py`; `transport/tests/independent.rs` | Standard-library Python decoder, reducer and TLS client; six typed replay prefixes agree with Rust; real source activation, Unicode replacement, stable-item selection and exact retry without scenes or Presented; combined graphical-observer integration remains |
 | CPU reference renderer | `client-desktop/tests/pixels.rs`, `cli.rs` | Nine primitives, analytic pixels, linear composition, transforms, clipping, surfaces, paths, glyphs, bounds and explicit failure |
 | Guarded GTK mirror | `client-desktop/src/desktop.rs`, `tests/interaction.rs`; `fixtures/render/native_smoke.py` | Actual GTK frame callbacks and two-mirror TLS smoke; generic advertised actions, scalar text context guards, bounded frame ownership and local observer transforms; pure bounded causal typing queue accepted; native FIFO and visible preedit integration remain |
 | Expanded controlled source | `host-broker/tests/corpus.rs`; `client-desktop/tests/corpus_reference.rs` | Unicode edits, checkbox, stable collections, clipped scrolling and fresh transient identities; two TLS replicas equal direct source records and selected vector renders; absent font provider stays explicitly Partial and no Presented is claimed |
-| Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; network delivery remains |
+| Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; paged real TLS delivery accepted, combined native mirror gate remains |
 | Pinned vector cursor | `client-desktop/tests/cursor.rs`, `spec/cursor-profile.md` | Explicit optional profile, bundled vector shapes, authorized custom paths, hotspot and canvas clipping; native session integration remains |
 | Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact command result plus source text/version/selection confirmation; native integration remains |
 | Trusted resource admission | `protocol-core/tests/receiver.rs` | Authenticated producer helper validates the complete graph before granting its declared closure; invalid graphs and allocation failures roll back grants; strict default receiver unchanged |
@@ -48,7 +49,8 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
 - **M1 remains open.** Complete all controlled command families, post-auth transcript
   integration, independent result interoperability and the full core-case audit.
 - **M2 remains open.** The expanded source corpus and guarded desktop mirror are
-  accepted separately. Bounded source glyph closures are accepted. Complete network resource delivery, rapid native typing,
+  accepted separately. Bounded source glyph closures and network delivery are
+  accepted. Complete rapid native typing,
   authorized resize, retained reconnect and complete source/reference/two-mirror
   comparisons must work together across the full interaction corpus.
 - **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
