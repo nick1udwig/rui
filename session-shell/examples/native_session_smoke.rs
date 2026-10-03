@@ -37,6 +37,8 @@ use tokio::sync::watch;
 mod matrix;
 #[path = "native_session_smoke/routing.rs"]
 mod routing;
+#[path = "native_session_smoke/wire.rs"]
+mod wire;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 const CONTROLLER: &str = "RUI native session controller";
 const OBSERVER: &str = "RUI native session observer";
@@ -74,6 +76,7 @@ fn source_hashes(root: &Path) -> Result<String, Error> {
         "session-shell/examples/native_session_smoke/matrix.rs",
         "fixtures/session-shell/native_held.py",
         "session-shell/examples/native_session_smoke/routing.rs",
+        "session-shell/examples/native_session_smoke/wire.rs",
         "fixtures/session-shell/native_mapping.py",
         "fixtures/session-shell/native_focus.py",
         "fixtures/render/native_events.py",
@@ -436,9 +439,13 @@ async fn drive(
     observations: &[watch::Receiver<DesktopObservation>],
     local: &watch::Receiver<LocalObservation>,
     report: Option<&Path>,
-    scenario: (Option<&matrix::Context>, Option<&str>),
+    scenario: (
+        Option<&matrix::Context>,
+        Option<&str>,
+        Option<&wire::Context>,
+    ),
 ) -> Result<(), Error> {
-    let (matrix, routing_mode) = scenario;
+    let (matrix, routing_mode, wire) = scenario;
     eprintln!("native session: actual initial source/two-mirror presentation");
     let arranged = Command::new("/usr/bin/python3")
         .arg(root.join("fixtures/session-shell/native_session.py"))
@@ -455,6 +462,16 @@ async fn drive(
         wait(o, |o| o.displayed.is_some()).await?;
     }
     let mut initial = pair(port, observations).await?;
+    if let Some(context) = wire {
+        native(
+            root,
+            CONTROLLER,
+            "click",
+            &point(&initial[0], Point { x: 30., y: 64. }),
+        )?;
+        matrix::settle_source_focus(host, local).await?;
+        return wire::run(context, port, host, root, observations, local, report).await;
+    }
     if routing_mode == Some("mapping") {
         routing::letterbox(root, &observations[0]).await?;
         routing::source_grid(root, local).await?;
@@ -778,7 +795,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let routing_mode = std::env::var("RUI_NATIVE_ROUTING").ok();
     if routing_mode
         .as_deref()
-        .is_some_and(|mode| mode != "mapping")
+        .is_some_and(|mode| mode != "mapping" && mode != "wire")
     {
         return Err("unknown finite native routing case".into());
     }
@@ -857,6 +874,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let host = owner.port();
     let (local_tx, local_rx) = watch::channel(LocalObservation::default());
     let (stop, signal) = watch::channel(false);
+    let paint = if routing_mode.as_deref() == Some("wire") {
+        let (port, ui) = wire::channel();
+        wire::install(ui, signal.clone());
+        Some(port)
+    } else {
+        None
+    };
     let source = Rc::new(RefCell::new(None::<source_window::SourceWindow>));
     let source_slot = source.clone();
     let source_signal = signal.clone();
@@ -908,9 +932,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap();
         rt.block_on(async {
             let cert = include_bytes!("../../transport/tests/data/localhost.der");
-            let mut pairing = PairingAuthority::new(2)?;
+            let is_wire = routing_mode.as_deref() == Some("wire");
+            let mut pairing = PairingAuthority::new(if is_wire { 3 } else { 2 })?;
             let mut credentials = Vec::new();
-            for id in [81u8, 82] {
+            for &id in if is_wire {
+                &[81u8, 82, 83][..]
+            } else {
+                &[81u8, 82][..]
+            } {
                 let request = pairing.request_local_pairing([id; 16])?;
                 credentials.push(pairing.approve_local(
                     request.request_id,
@@ -919,8 +948,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         policy_version: 1,
                         permissions: Permissions {
                             can_view: true,
-                            can_control: id == 81,
-                            actions: if id == 81 {
+                            can_control: id != 82,
+                            actions: if id != 82 {
                                 ["RawInputBatch".into()].into_iter().collect()
                             } else {
                                 Default::default()
@@ -941,6 +970,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ServerConfig::default(),
             )
             .await?;
+            let wire_context = if is_wire {
+                Some(wire::Context {
+                    address: server.address,
+                    credential: credentials.pop().ok_or("third explicit pairing missing")?,
+                    paint: paint.ok_or("third actual paint channel missing")?,
+                })
+            } else {
+                None
+            };
             let matrix_context = match matrix_mode {
                 Some(mode) => Some(matrix::Context {
                     mode,
@@ -988,7 +1026,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &observations,
                 &local_rx,
                 driver_report.as_deref(),
-                (matrix_context.as_ref(), routing_mode.as_deref()),
+                (
+                    matrix_context.as_ref(),
+                    routing_mode.as_deref(),
+                    wire_context.as_ref(),
+                ),
             )
             .await;
             stop.send_replace(true);

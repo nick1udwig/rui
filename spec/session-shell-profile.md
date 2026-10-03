@@ -366,3 +366,32 @@ python3 fixtures/session-shell/native_session.py --xvfb /tmp/rui-xvfb/usr/bin/Xv
 Repeat with `expiry`, `revoke` and `local-takeover`, each with a fresh report path.
 This declared backend remains an isolated exported session, not arbitrary
 personal desktop input or physical scanout evidence.
+
+
+### Actual stale-route and scope rejection
+
+`fixtures/session-shell/native-wire.json` records root's independent frozen run.
+Two normal mirrors stay live while a third authenticated receiver renders its
+own validated source projection. Its GTK snapshot and actual frame-clock
+callback provide nine distinct Presented witnesses; it borrows no other view's
+marker. Each move, occlusion and modal case first proves a valid native click
+with exactly one source effect. The probe then captures immutable R1 bytes,
+mutates the source route, and sends those bytes through TLS. The adapter maps
+its routing rejection to `Rejected InvalidArguments`; exact retries agree and
+both native frame counters and authoritative text/activity remain unchanged.
+
+An authenticated application-only Open closes before any projection or resource
+delivery. A separate connection explicitly opens the supported whole session.
+Actual local GDK activity then revokes the original generation: its old wire
+command is `Rejected StaleControl` without effects. A separate manual fresh
+grant dispatches once, with two EIS press/release frames and one source effect;
+exact retry adds neither. Both normal mirrors match their own source records
+and pixels. The third receiver/GTK budget and the parent owner return to zero.
+
+```sh
+python3 fixtures/session-shell/native_session.py --xvfb /path/to/Xvfb \
+  --routing wire --report /tmp/rui-native-wire.json
+```
+
+These results complete the declared isolated-backend M4 integration gates.
+They do not extend support to an arbitrary desktop or unexported application.

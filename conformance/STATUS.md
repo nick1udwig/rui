@@ -102,14 +102,16 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   Wire IME remains. Coherent whole-view
   native capture and all five direct/replay pixel comparisons have passed. The declared seventeen-frame local
   visual comparison has passed.
-- **M4 remains open.** Actual EIS, source geometry/hit testing, host XKB/repeat,
+- **M4 accepted for the declared isolated backend.** Actual EIS, source geometry/hit testing, host XKB/repeat,
   serialized native authority, private GDK local-device capture/focus cleanup and
   observed accessibility reconciliation have passed review. The native owner now
   implements the shared producer port with reviewed scope, reconnect, allocation
   and priority-cleanup tests. Actual TLS/two-mirror physical input, native host
   layout/repeat, unequal coordinate mapping, topology/cursor and local takeover
-  now pass the root-reviewed baseline. Direct-versus-local click equivalence,
-  stale-route negatives and app-only denial remain. Independent actual runs now
+  now pass the root-reviewed baseline. Root also accepts direct-versus-local
+  click equivalence, actual TLS stale-route rejection after move/occlusion/modal
+  with valid positive controls, authenticated app-only denial before disclosure,
+  and explicit old-generation rejection after real local takeover. Independent actual runs now
   accept disconnect/expiry/approval/local-takeover held-input cleanup, exact causes,
   native releases/STOP, observer convergence and zero disposal ownership. The
   separate MUL-005 live-control TLS retry case is accepted.
@@ -156,3 +158,11 @@ full-field replay of 23 prefixes across five scopes. Implementation and artifact
 hashes, native callback counts, exporter traps and disposal evidence are retained
 in `fixtures/gtk/final-native-root-verification.json`. Actual desktop wire IME
 and the two remaining session authority negatives are still separate gates.
+
+
+Root's frozen native wire authority probe passed independently with strict
+native-example Clippy. `fixtures/session-shell/native-wire.json` binds source
+fingerprints to nine actual third-view paints, three positive native controls,
+four exact rejected retries, no negative source effects, one fresh manual-grant
+effect, healthy mirror convergence and zero receiver/owner disposal memory.
+INP-002 and INP-007 are accepted. TXT-002/TXT-003 desktop wire IME remain open.

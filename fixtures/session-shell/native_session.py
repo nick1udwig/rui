@@ -46,7 +46,7 @@ class BoundedLog:
             return text.encode('utf-8')[:65536].decode('utf-8', errors='ignore')
 
 
-def arrange():
+def arrange(probe=False):
     """Give all three owned windows visible, disjoint GTK paint regions."""
     if os.environ.get('RUI_ISOLATED_DISPLAY') != '1' or not os.environ.get('DISPLAY') or not os.environ.get('XAUTHORITY'):
         raise RuntimeError('authenticated private display required')
@@ -67,6 +67,8 @@ def arrange():
         b'RUI native session observer': (900, 0, 860, 560),
         b'RUI isolated source probe': (0, 650, 650, 450),
     }
+    if probe:
+        placements = {b'RUI native wire paint probe': (900, 650, 200, 120)}
     try:
         visited = 0
         def windows(window, depth=0):
@@ -121,11 +123,12 @@ def main():
     parser.add_argument('--target-dir', type=Path, default=Path('target/debug'))
     parser.add_argument('--report', type=Path, default=Path('/tmp/rui-native-session.json'))
     parser.add_argument('--matrix', choices=('disconnect', 'expiry', 'revoke', 'local-takeover'))
-    parser.add_argument('--routing', choices=('mapping',))
+    parser.add_argument('--routing', choices=('mapping', 'wire'))
     parser.add_argument('--arrange', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--arrange-probe', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.arrange:
-        arrange()
+    if args.arrange or args.arrange_probe:
+        arrange(args.arrange_probe)
         return
     if not args.xvfb or not Path(args.xvfb).is_file():
         parser.error('an isolated Xvfb binary is required')
@@ -188,8 +191,12 @@ def main():
                     if report['matrix'] != args.matrix or report['held_before'] != [1, 1, 0] or report['held_after'] != [0, 0, 0] or report['actual_cleanup_release_frames'] < 2:
                         raise RuntimeError('actual held cleanup report mismatch')
                 elif args.routing:
-                    if report['routing'] != args.routing or not report['same_source_coordinates'] or report['remote_effect_delta'] != 1 or report['direct_effect_delta'] != 1 or any(margin <= 0 for margin in report['letterbox_margins']):
+                    if report['routing'] != args.routing:
+                        raise RuntimeError('native routing report mismatch')
+                    if args.routing == 'mapping' and (not report['same_source_coordinates'] or report['remote_effect_delta'] != 1 or report['direct_effect_delta'] != 1 or any(margin <= 0 for margin in report['letterbox_margins'])):
                         raise RuntimeError('actual direct/remote mapping mismatch')
+                    if args.routing == 'wire' and (not report['application_only_denied_before_projection'] or report['stale_route_cases'] != ['move','occlusion','modal'] or not report['old_generation_after_actual_local_callback_denied'] or not report['fresh_exact_retry_no_redispatch'] or report['real_third_view_after_paints'] < 9 or report['valid_native_preconditions'] != 3 or report['negative_source_effects'] != 0 or report['fresh_source_effect_delta'] != 1 or report['wire_receiver_disposal_bytes'] != 0):
+                        raise RuntimeError('actual authenticated wire negative mismatch')
                 elif report['native_press_release_frames'] != 2 or report['host_layout'] != 'de' or report['client_layout'] != 'us':
                     raise RuntimeError('native key ownership report mismatch')
                 print(output.strip())
