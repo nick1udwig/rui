@@ -1,18 +1,21 @@
 //! Optional GTK mirror shell. All document state remains in NetworkClient's
 //! receiver; local viewport changes never generate application commands.
 use crate::{
+    command_queue::CommandQueue,
     interaction::{self, CommandBinding, EditingContext},
     *,
 };
 use prost::Message;
 use rui_protocol_core::{
-    commands::Arguments,
+    commands::{Arguments, CommandFamily},
     model::*,
     resources::{MemoryBudget, MemoryReservation},
     session::{ClientHello, ReceiverLimits, SessionConfig},
     wire::proto as core,
 };
-use rui_transport::{pairing::Credential, proto as session, ClientEvent, NetworkClient};
+use rui_transport::{
+    pairing::Credential, proto as session, ClientEvent, NetworkClient, TransportError,
+};
 use sha2::{Digest, Sha256};
 use std::{
     net::SocketAddr,
@@ -102,6 +105,8 @@ pub fn records_digest(state: &State) -> Option<[u8; 32]> {
 pub enum UiCommand {
     Acquire,
     Release,
+    Reconnect,
+    LoseResources,
     Presented(Stamp),
     Click {
         stamp: Stamp,
@@ -219,15 +224,129 @@ fn command_binding(
 async fn submit_semantic(
     client: &mut NetworkClient,
     domain: rui_protocol_core::commands::SemanticCommand,
-    budget: &MemoryBudget,
-) -> Result<(), ()> {
+    pending: &mut CommandQueue,
+) -> Result<(), TransportError> {
+    if domain.command_seq != pending.next_sequence() {
+        return Err(TransportError::Protocol);
+    }
     let wire = wire_command(domain);
     let length = wire.encoded_len();
-    let _memory = budget.reserve(length + 8192).map_err(|_| ())?;
-    let mut bytes = Vec::new();
-    bytes.try_reserve_exact(length).map_err(|_| ())?;
-    wire.encode(&mut bytes).map_err(|_| ())?;
-    client.submit(&bytes).await.map_err(|_| ())
+    pending
+        .encode(CommandFamily::Semantic, length, |bytes| {
+            wire.encode(bytes).map_err(|_| ())
+        })
+        .map_err(|_| TransportError::Limit)?;
+    client.submit(pending.latest().unwrap().bytes()).await
+}
+fn recoverable(error: &TransportError) -> bool {
+    matches!(
+        error,
+        TransportError::Io
+            | TransportError::WebSocket
+            | TransportError::Closed
+            | TransportError::Deadline
+            | TransportError::ProducerBusy
+    )
+}
+/// Reauthentication preserves the retained reducer, and never restores a lease.
+/// A failed attempt waits for an explicit bounded retry. Stale UI input drops
+/// while disconnected; shutdown can cancel every network wait.
+#[allow(clippy::too_many_arguments)]
+async fn recover_connection(
+    client: NetworkClient,
+    options: &Options,
+    hello: &ClientHello,
+    pending: &mut CommandQueue,
+    commands: &mut mpsc::Receiver<UiCommand>,
+    events: &SyncSender<UiEvent>,
+    shutdown: &mut watch::Receiver<bool>,
+) -> Option<(NetworkClient, bool)> {
+    let mut context = (client.epoch, client.view_id);
+    let mut retained = client.into_retained();
+    loop {
+        let attempt = tokio::select! {
+            _=shutdown.changed()=>return None,
+            result=retained.reconnect(options.address,options.server_name.clone(),options.certificate.clone(),&options.credential,hello.clone())=>result,
+        };
+        if let Ok(mut client) = attempt {
+            let binding = (client.epoch, client.view_id);
+            let ready = binding == context
+                || pending
+                    .rebind(
+                        client.epoch,
+                        client.receiver().memory_budget(),
+                        client.limits.envelope_bytes.saturating_sub(128),
+                    )
+                    .is_ok();
+            if ready {
+                context = binding;
+                let mut applied = false;
+                let recovery = async {
+                    client.open_view().await?;
+                    // Old-lease exact retries either recover a retained result
+                    // or consume a rejection. They cannot restore source input.
+                    while !pending.is_empty() {
+                        let command = pending.commands().next().unwrap();
+                        let sequence = command.sequence();
+                        client
+                            .submit_family(command.family(), command.bytes())
+                            .await?;
+                        for index in 0..1024 {
+                            let result = client.receive().await?;
+                            match result {
+                                ClientEvent::CommandResult(r) if r.command_seq == sequence => break,
+                                ClientEvent::ControlRevoked(_) => {}
+                                ClientEvent::ViewOpened(_)
+                                | ClientEvent::ResumeAccepted(_)
+                                | ClientEvent::ResetRequired(_)
+                                | ClientEvent::ResourceAvailable => {}
+                                ClientEvent::ResourcesNeeded { .. } => applied = false,
+                                ClientEvent::Applied { .. } => applied = true,
+                                _ => return Err(TransportError::Protocol),
+                            }
+                            if index == 1023 {
+                                return Err(TransportError::Limit);
+                            }
+                        }
+                        pending.complete(sequence);
+                    }
+                    client.flush_pending().await
+                };
+                let recovered = tokio::select! {
+                    _=shutdown.changed()=>return None,
+                    result=tokio::time::timeout(Duration::from_secs(15),recovery)=>result.unwrap_or(Err(TransportError::Deadline)),
+                };
+                if recovered.is_ok() {
+                    return Some((client, applied));
+                }
+                status(
+                    events,
+                    "Reconnect interrupted; pending outcomes remain unconfirmed.",
+                );
+            } else {
+                status(
+                    events,
+                    "New limits cannot recover pending commands; input remains paused.",
+                );
+            }
+            retained = client.into_retained();
+        } else {
+            status(
+                events,
+                "Reconnect failed; check approval and identity, then retry.",
+            );
+        }
+        loop {
+            tokio::select! {
+                _=shutdown.changed()=>return None,
+                command=commands.recv()=>match command {
+                    Some(UiCommand::Reconnect)=>break,
+                    Some(UiCommand::Quit)|None=>return None,
+                    Some(_)=>status(events,"Disconnected; reconnect before sending input."),
+                }
+            }
+        }
+    }
 }
 fn wire_command(c: rui_protocol_core::commands::SemanticCommand) -> core::SemanticCommand {
     let arguments = match c.arguments {
@@ -326,10 +445,10 @@ pub async fn worker(
     };
     let mut client = match NetworkClient::connect(
         options.address,
-        options.server_name,
-        options.certificate,
+        options.server_name.clone(),
+        options.certificate.clone(),
         &options.credential,
-        hello,
+        hello.clone(),
     )
     .await
     {
@@ -344,7 +463,7 @@ pub async fn worker(
             return;
         }
     };
-    let budget = client.receiver().memory_budget();
+    let mut budget = client.receiver().memory_budget();
     if let Some(observations) = &options.observations {
         observations.send_modify(|o| {
             o.binding = Some(ObservationBinding {
@@ -354,7 +473,7 @@ pub async fn worker(
             })
         });
     }
-    let _queue_memory = match budget.reserve(32 * std::mem::size_of::<UiCommand>() + 8192) {
+    let mut _queue_memory = match budget.reserve(32 * std::mem::size_of::<UiCommand>() + 8192) {
         Ok(m) => m,
         Err(_) => {
             status(&events, "Memory limit reached.");
@@ -363,7 +482,7 @@ pub async fn worker(
             return;
         }
     };
-    let renderer = match Renderer::new_with_profile(
+    let mut renderer = match Renderer::new_with_profile(
         RenderLimits::default(),
         budget.clone(),
         RenderProfile {
@@ -382,13 +501,19 @@ pub async fn worker(
         }
     };
     let mut pending = Some(UiEvent::Ready(budget.clone()));
-    if client.open_view().await.is_err() {
-        status(&events, "View could not be opened.");
-        ui_state.clear(Lifecycle::Closed);
-        ui.send_replace(ui_state);
-        return;
-    }
-    let mut tick = tokio::time::interval(Duration::from_millis(33));
+    let mut initial_reconnect = match client.open_view().await {
+        Ok(()) => false,
+        Err(error) if recoverable(&error) => true,
+        Err(_) => {
+            status(&events, "View could not be opened.");
+            ui_state.clear(Lifecycle::Closed);
+            ui.send_replace(ui_state);
+            return;
+        }
+    };
+    // Sixty render opportunities per second. Actual acknowledgement remains
+    // tied to GTK's after-paint callback, not this scheduling timer.
+    let mut tick = tokio::time::interval(Duration::from_nanos(16_666_667));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut ping = tokio::time::interval(Duration::from_secs(2));
     ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -411,225 +536,336 @@ pub async fn worker(
             return;
         }
     };
-    loop {
-        let binding = command_binding(&client, options.client_id, lease.as_ref(), sequence);
-        let raw_editing = match (selected, lease.as_ref(), presented) {
-            (Some(target), Some(current), Some(stamp))
-                if ui_state.accepts(stamp)
-                    && current
-                        .wire
-                        .allowed_actions
-                        .iter()
-                        .any(|a| a == "ReplaceText") =>
-            {
-                current
-                    .wire
-                    .lease_id
-                    .as_slice()
-                    .try_into()
-                    .ok()
-                    .and_then(|lease_id| {
-                        client.receiver().state().ok().and_then(|s| {
-                            interaction::editing_context(
-                                s,
-                                target,
-                                &CommandBinding {
-                                    epoch: client.epoch,
-                                    view: client.view_id,
-                                    client: options.client_id,
-                                    lease: lease_id,
-                                    generation: current.wire.generation,
-                                    sequence,
-                                },
-                            )
-                        })
-                    })
-            }
-            _ => None,
-        };
-        if typing.context().is_some() {
-            let valid = match (raw_editing, binding, client.receiver().state()) {
-                (Some(_), Some(binding), Ok(state)) => typing.observe(state, &binding).is_ok(),
-                _ => false,
-            };
-            if !valid {
-                typing.cancel();
-                selected = None;
-                ui_state.typing_notice = TypingNotice::Cancelled;
-                ui_state.editing_generation = match ui_state.editing_generation.checked_add(1) {
-                    Some(v) => v,
-                    None => break,
-                };
-                status(
-                    &events,
-                    "Editing context changed; pending typing cancelled.",
-                );
-            }
-        }
-        ui_state.editing = if selected.is_some() {
-            typing.context().or(raw_editing)
-        } else {
-            None
-        };
-        if *ui.borrow() != ui_state {
+    let mut pending_commands = match CommandQueue::new(
+        client.epoch,
+        budget.clone(),
+        client.limits.envelope_bytes.saturating_sub(128),
+    ) {
+        Ok(queue) => queue,
+        Err(_) => {
+            ui_state.clear(Lifecycle::Closed);
             ui.send_replace(ui_state);
+            return;
         }
+    };
+    'connection: loop {
+        let mut reconnect = std::mem::take(&mut initial_reconnect);
+        loop {
+            if reconnect {
+                break;
+            }
+            let binding = command_binding(&client, options.client_id, lease.as_ref(), sequence);
+            let raw_editing = match (selected, lease.as_ref(), presented) {
+                (Some(target), Some(current), Some(stamp))
+                    if ui_state.accepts(stamp)
+                        && current
+                            .wire
+                            .allowed_actions
+                            .iter()
+                            .any(|a| a == "ReplaceText") =>
+                {
+                    current
+                        .wire
+                        .lease_id
+                        .as_slice()
+                        .try_into()
+                        .ok()
+                        .and_then(|lease_id| {
+                            client.receiver().state().ok().and_then(|s| {
+                                interaction::editing_context(
+                                    s,
+                                    target,
+                                    &CommandBinding {
+                                        epoch: client.epoch,
+                                        view: client.view_id,
+                                        client: options.client_id,
+                                        lease: lease_id,
+                                        generation: current.wire.generation,
+                                        sequence,
+                                    },
+                                )
+                            })
+                        })
+                }
+                _ => None,
+            };
+            if typing.context().is_some() {
+                let valid = match (raw_editing, binding, client.receiver().state()) {
+                    (Some(_), Some(binding), Ok(state)) => typing.observe(state, &binding).is_ok(),
+                    _ => false,
+                };
+                if !valid {
+                    typing.cancel();
+                    selected = None;
+                    ui_state.typing_notice = TypingNotice::Cancelled;
+                    ui_state.editing_generation = match ui_state.editing_generation.checked_add(1) {
+                        Some(v) => v,
+                        None => break,
+                    };
+                    status(
+                        &events,
+                        "Editing context changed; pending typing cancelled.",
+                    );
+                }
+            }
+            ui_state.editing = if selected.is_some() {
+                typing.context().or(raw_editing)
+            } else {
+                None
+            };
+            if *ui.borrow() != ui_state {
+                ui.send_replace(ui_state);
+            }
+            if let Some(observations) = &options.observations {
+                observations.send_modify(|o| {
+                    o.typing_pending = typing.pending_count();
+                    o.has_control = lease.is_some();
+                });
+            }
+            if !deliver(&events, &mut pending) {
+                break;
+            }
+            if let (Some(binding), Ok(state)) = (binding, client.receiver().state()) {
+                if !awaiting_resources
+                    && presented.is_some_and(|stamp| {
+                        ui_state.accepts(stamp) && stamp.revision == state.revision
+                    })
+                {
+                    match typing.start(sequence, state, &binding) {
+                        Ok(Some(prepared)) => {
+                            let domain = match interaction::captured_text_command(
+                                state,
+                                prepared.context,
+                                prepared.text,
+                                binding,
+                            ) {
+                                Ok(command) => command,
+                                Err(_) => {
+                                    typing.cancel();
+                                    selected = None;
+                                    ui_state.typing_notice = TypingNotice::Cancelled;
+                                    status(&events, "Pending typing cancelled before dispatch.");
+                                    continue;
+                                }
+                            };
+                            if let Err(error) =
+                                submit_semantic(&mut client, domain, &mut pending_commands).await
+                            {
+                                reconnect = recoverable(&error);
+                                break;
+                            }
+                            sequence = pending_commands.next_sequence();
+                            drop(prepared.memory);
+                        }
+                        Ok(None) => {}
+                        Err(_) => {
+                            typing.cancel();
+                            selected = None;
+                            ui_state.typing_notice = TypingNotice::Limit;
+                            status(
+                                &events,
+                                "Typing limit or context changed; pending input cancelled.",
+                            );
+                            continue;
+                        }
+                    }
+                }
+            }
+            tokio::select! {
+                _=shutdown.changed()=>{ui_state.clear(Lifecycle::Quit);break;},
+                _=tick.tick()=>{
+                    if dirty && !awaiting_resources && pending.is_none() {
+                        let v=*viewport.borrow();
+                        match client.receiver().state().map_err(|_|()).and_then(|state|renderer.render_view(state,v,client.receiver()).map_err(|_|())) {
+                            Ok(frame)=>match frame.into_rgba8_over(Color{red:1.0,green:1.0,blue:1.0,alpha:1.0}) {
+                                Ok(pixels)=>{if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);pending=Some(UiEvent::Frame{stamp,pixels});dirty=false;},
+                                Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Display allocation limit reached.");dirty=false;},
+                            },
+                            Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
+                        }
+                    }
+                },
+                _=ping.tick()=>{
+                    if let Err(error)=client.send(session::Kind::Ping,&session::Ping{nonce:serial}).await {reconnect=recoverable(&error);break;}
+                    if let Some(current)=&lease {
+                        let Some(request)=request_id(&mut requests) else {break;};
+                        if let Err(error)=client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}).await {reconnect=recoverable(&error);break;}
+                    }
+                },
+                changed=viewport.changed()=>{if changed.is_err() {break;}dirty=true;},
+                event=client.receive()=>match event {
+                    Ok(ClientEvent::Applied{..})=>{awaiting_resources=false;dirty=true;status(&events,"View applied; waiting for display.");},
+                    Ok(ClientEvent::ResourcesNeeded{..})=>{awaiting_resources=true;status(&events,"Waiting for verified resources; typing remains queued.");},
+                    Ok(ClientEvent::ControlGranted(granted))=>{
+                        if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=false);}
+                        let charge=2048+granted.allowed_actions.capacity()*std::mem::size_of::<String>()+granted.allowed_actions.iter().map(String::capacity).sum::<usize>()+granted.lease_id.capacity()+granted.request_id.capacity();
+                        match budget.reserve(charge) {Ok(memory)=>{lease=Some(Lease{wire:granted,_memory:memory});status(&events,"Control granted.");if options.smoke_frames.is_some_and(|n|presented_frames>=n) {ui_state.clear(Lifecycle::Quit);break;}},Err(_)=>break}
+                    },
+                    Ok(ClientEvent::ControlRevoked(_))=>{lease=None;selected=None;if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=true);}status(&events,"Observing; control released.");},
+                    Ok(ClientEvent::CommandResult(result))=>{
+                        pending_commands.complete(result.command_seq);
+                        if typing.result(result.command_seq,&result.status,&result.source_commit,result.resulting_view_revision).is_err() {
+                            typing.cancel();selected=None;
+                            ui_state.typing_notice=TypingNotice::Rejected;
+                            ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(v)=>v,None=>break};
+                            status(&events,"Remote text edit rejected or unconfirmed; pending input cancelled.");
+                        } else {status(&events,if result.status=="Applied" || result.status=="APPLIED" {"Remote action applied."} else {"Remote action completed or rejected."});}
+                    },
+                Ok(ClientEvent::ResetRequired(_))=>{
+                    pending=None;issued=None;presented=None;lease=None;selected=None;typing.cancel();
+                    ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
+                    dirty=false;awaiting_resources=false;
+                    status(&events,"Retained history expired; waiting for the coherent checkpoint.");
+                },
+                    Ok(ClientEvent::Error(_))=>status(&events,"Host rejected the request."),
+                    Ok(_)=>{},
+                    Err(error)=>{status(&events,"Disconnected; input has been cleared.");reconnect=recoverable(&error);break;},
+                },
+                command=commands.recv()=>{
+                    let Some(command)=command else {break;};
+                    match command {
+                        UiCommand::Quit=>{ui_state.clear(Lifecycle::Quit);break;},
+                        UiCommand::Reconnect=>{reconnect=true;break;},
+                        UiCommand::LoseResources=>{
+                            if awaiting_resources {status(&events,"Wait for the current publication before dropping its cache.");continue;}
+                            typing.cancel();selected=None;presented=None;issued=None;pending=None;
+                            ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
+                            if let Err(error)=client.resource_cache_lost().await {reconnect=recoverable(&error);break;}
+                            awaiting_resources= !client.receiver().resources_ready().unwrap_or(false);dirty= !awaiting_resources;
+                            status(&events,"Cache cleared; waiting for verified resources and a new frame.");
+                        },
+                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {reconnect=recoverable(&error);break;}},
+                        UiCommand::Release=>{
+                            typing.cancel();selected=None;
+                            if let Some(current)=lease.take() {
+                                let Some(request)=request_id(&mut requests) else {break;};
+                                if let Err(error)=client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}).await {reconnect=recoverable(&error);break;}
+                            }
+                        },
+                        UiCommand::Presented(stamp)=>{
+                            if !ui_state.accepts(stamp) {continue;}
+                            if !awaiting_resources && ui_state.accepts(stamp) && issued.is_some_and(|s:Stamp|s.serial==stamp.serial && s.revision==stamp.revision)
+                                && client.receiver().state().is_ok_and(|s|s.revision==stamp.revision) {
+                                if let Err(error)=client.presented(stamp.revision).await {reconnect=recoverable(&error);break;}
+                                presented=Some(stamp);presented_frames+=1;status(&events,"Displayed.");
+                                if options.auto_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {reconnect=recoverable(&error);break;}}
+                                if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!options.auto_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
+                            } else if !awaiting_resources {dirty=true;}
+                        },
+                        input=>{
+                            let stamp=match &input {UiCommand::Click{stamp,..}|UiCommand::Commit{stamp,..}|UiCommand::SelectAll{stamp}=>*stamp,_=>unreachable!()};
+                            if !ui_state.accepts(stamp) {continue;}
+                            if matches!(&input,UiCommand::Click{..}|UiCommand::SelectAll{..}) {ui_state.typing_notice=if typing.cancel()>0{TypingNotice::Cancelled}else{TypingNotice::None};if matches!(&input,UiCommand::Click{..}) {selected=None;}ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(n)=>n,None=>break};}
+                            if !ui_state.accepts(stamp) || presented.is_none() || (!matches!(&input,UiCommand::Commit{..}) && (awaiting_resources || !presented.is_some_and(|p|p.serial==stamp.serial) || !client.receiver().state().is_ok_and(|s|s.revision==stamp.revision))) {status(&events,"View changed; wait for the latest frame.");continue;}
+                            let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
+                            let target=match input {
+                                UiCommand::Click{point,..}=>{match interaction::hit_test(state,stamp.revision,stamp.viewport,point) {Ok(t)=>{selected=Some(t.semantic);t.semantic},Err(_)=>{selected=None;status(&events,"No enabled remote action here.");continue;}}},
+                                UiCommand::Commit{context,..}=>context.target,
+                                _=>match selected {Some(t)=>t,None=>{status(&events,"Select a remote text target first.");continue;}},
+                            };
+                            let Some(Record::Semantic(node))=state.records.get(&target) else {continue;};
+                            let (action,args)=match input {
+                                UiCommand::Click{..}=>{
+                                    if node.actions.iter().any(|a|a.id=="Focus") && node.actions.iter().any(|a|a.id=="ReplaceText") {("Focus",Arguments::None)}
+                                    else if node.actions.iter().any(|a|a.id=="Activate") {("Activate",Arguments::None)}
+                                    else if node.actions.iter().any(|a|a.id=="SetValue") {
+                                        let Some(TypedValue::Boolean(value))=&node.value else {status(&events,"This value requires an explicit editor.");continue;};("SetValue",Arguments::Checked(!value))
+                                    } else {status(&events,"Text target selected; type to edit or Ctrl+A to select all.");continue;}
+                                },
+                                UiCommand::Commit{text,_memory,context,..}=>{
+                                    if ui_state.editing != Some(context) || selected != Some(context.target) {ui_state.typing_notice=TypingNotice::Cancelled;status(&events,"Editing context changed; composition cancelled.");continue;}
+                                    let Some(binding)=command_binding(&client,options.client_id,lease.as_ref(),sequence) else {continue;};
+                                    if typing.accept(context,text,_memory,state,&binding).is_err() {typing.cancel();selected=None;ui_state.typing_notice=TypingNotice::Limit;status(&events,"Typing queue full or context changed; pending input cancelled.");}else{ui_state.typing_notice=TypingNotice::None;}
+                                    continue;
+                                },
+                                UiCommand::SelectAll{..}=>{let Some(reference)=node.text else {continue;};let Some(Record::Text(model))=state.records.get(&reference.id) else {continue;};let Some(content)=&model.content else {continue;};("SetSelection",Arguments::Selection{anchor:0,focus:content.chars().count() as u64})},
+                                _=>unreachable!(),
+                            };
+                            let Some(current)=&lease else {status(&events,"Request control to send remote input.");continue;};
+                            if !current.wire.allowed_actions.iter().any(|a|a==action) {status(&events,"This action is not granted.");continue;}
+                            let lease_id: [u8;16]=match current.wire.lease_id.as_slice().try_into() {Ok(id)=>id,Err(_)=>break};
+                            let domain=match interaction::command(state,target,action,args,CommandBinding{epoch:client.epoch,view:client.view_id,client:options.client_id,lease:lease_id,generation:current.wire.generation,sequence}) {Ok(c)=>c,Err(_)=>{status(&events,"Remote target or editing context is unavailable.");continue;}};
+                            if let Err(error)=submit_semantic(&mut client,domain,&mut pending_commands).await {reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
+                        },
+                    }
+                },
+            }
+        }
+        if !reconnect {
+            break 'connection;
+        }
+        pending = None;
+        issued = None;
+        presented = None;
+        lease = None;
+        selected = None;
+        typing.cancel();
+        ui_state.clear(Lifecycle::Suspended);
+        ui_state.typing_notice = TypingNotice::Cancelled;
+        ui.send_replace(ui_state);
         if let Some(observations) = &options.observations {
             observations.send_modify(|o| {
-                o.typing_pending = typing.pending_count();
-                o.has_control = lease.is_some();
+                o.displayed = None;
+                o.has_control = false;
+                o.editing_target = None;
+                o.typing_pending = 0;
             });
         }
-        if !deliver(&events, &mut pending) {
-            break;
-        }
-        if let (Some(binding), Ok(state)) = (binding, client.receiver().state()) {
-            if !awaiting_resources
-                && presented.is_some_and(|stamp| {
-                    ui_state.accepts(stamp) && stamp.revision == state.revision
-                })
-            {
-                match typing.start(sequence, state, &binding) {
-                    Ok(Some(prepared)) => {
-                        let domain = match interaction::captured_text_command(
-                            state,
-                            prepared.context,
-                            prepared.text,
-                            binding,
-                        ) {
-                            Ok(command) => command,
-                            Err(_) => {
-                                typing.cancel();
-                                selected = None;
-                                ui_state.typing_notice = TypingNotice::Cancelled;
-                                status(&events, "Pending typing cancelled before dispatch.");
-                                continue;
-                            }
-                        };
-                        if submit_semantic(&mut client, domain, &budget).await.is_err() {
-                            break;
-                        }
-                        sequence = match sequence.checked_add(1) {
-                            Some(n) => n,
-                            None => break,
-                        };
-                        drop(prepared.memory);
-                    }
-                    Ok(None) => {}
-                    Err(_) => {
-                        typing.cancel();
-                        selected = None;
-                        ui_state.typing_notice = TypingNotice::Limit;
-                        status(
-                            &events,
-                            "Typing limit or context changed; pending input cancelled.",
-                        );
-                        continue;
-                    }
-                }
+        let Some((reconnected, recovery_applied)) = recover_connection(
+            client,
+            &options,
+            &hello,
+            &mut pending_commands,
+            &mut commands,
+            &events,
+            &mut shutdown,
+        )
+        .await
+        else {
+            ui_state.clear(Lifecycle::Closed);
+            ui.send_replace(ui_state);
+            if let Some(observations) = &options.observations {
+                observations.send_modify(|o| {
+                    o.closed = true;
+                    o.displayed = None;
+                    o.has_control = false;
+                });
             }
-        }
-        tokio::select! {
-            _=shutdown.changed()=>{ui_state.clear(Lifecycle::Quit);break;},
-            _=tick.tick()=>{
-                if dirty && !awaiting_resources && pending.is_none() {
-                    let v=*viewport.borrow();
-                    match client.receiver().state().map_err(|_|()).and_then(|state|renderer.render_view(state,v,client.receiver()).map_err(|_|())) {
-                        Ok(frame)=>match frame.into_rgba8_over(Color{red:1.0,green:1.0,blue:1.0,alpha:1.0}) {
-                            Ok(pixels)=>{if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);pending=Some(UiEvent::Frame{stamp,pixels});dirty=false;},
-                            Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Display allocation limit reached.");dirty=false;},
-                        },
-                        Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
-                    }
-                }
+            return;
+        };
+        client = reconnected;
+        budget = client.receiver().memory_budget();
+        sequence = pending_commands.next_sequence();
+        renderer = match Renderer::new_with_profile(
+            RenderLimits::default(),
+            budget.clone(),
+            RenderProfile {
+                cursor_vectors: client.profiles.iter().any(|p| p == CURSOR_PROFILE),
             },
-            _=ping.tick()=>{
-                if client.send(session::Kind::Ping,&session::Ping{nonce:serial}).await.is_err() {break;}
-                if let Some(current)=&lease {
-                    let Some(request)=request_id(&mut requests) else {break;};
-                    if client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}).await.is_err() {break;}
-                }
-            },
-            changed=viewport.changed()=>{if changed.is_err() {break;}dirty=true;},
-            event=client.receive()=>match event {
-                Ok(ClientEvent::Applied{..})=>{awaiting_resources=false;dirty=true;status(&events,"View applied; waiting for display.");},
-                Ok(ClientEvent::ResourcesNeeded{..})=>{awaiting_resources=true;status(&events,"Waiting for verified resources; typing remains queued.");},
-                Ok(ClientEvent::ControlGranted(granted))=>{
-                    if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=false);}
-                    let charge=2048+granted.allowed_actions.capacity()*std::mem::size_of::<String>()+granted.allowed_actions.iter().map(String::capacity).sum::<usize>()+granted.lease_id.capacity()+granted.request_id.capacity();
-                    match budget.reserve(charge) {Ok(memory)=>{lease=Some(Lease{wire:granted,_memory:memory});status(&events,"Control granted.");if options.smoke_frames.is_some_and(|n|presented_frames>=n) {ui_state.clear(Lifecycle::Quit);break;}},Err(_)=>break}
-                },
-                Ok(ClientEvent::ControlRevoked(_))=>{lease=None;selected=None;if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=true);}status(&events,"Observing; control released.");},
-                Ok(ClientEvent::CommandResult(result))=>{
-                    if typing.result(result.command_seq,&result.status,&result.source_commit,result.resulting_view_revision).is_err() {
-                        typing.cancel();selected=None;
-                        ui_state.typing_notice=TypingNotice::Rejected;
-                        ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(v)=>v,None=>break};
-                        status(&events,"Remote text edit rejected or unconfirmed; pending input cancelled.");
-                    } else {status(&events,if result.status=="Applied" || result.status=="APPLIED" {"Remote action applied."} else {"Remote action completed or rejected."});}
-                },
-                Ok(ClientEvent::ResetRequired(_))=>{status(&events,"View reset required; reconnect.");break;},
-                Ok(ClientEvent::Error(_))=>status(&events,"Host rejected the request."),
-                Ok(_)=>{},
-                Err(_)=>{status(&events,"Disconnected; input has been cleared.");break;},
-            },
-            command=commands.recv()=>{
-                let Some(command)=command else {break;};
-                match command {
-                    UiCommand::Quit=>{ui_state.clear(Lifecycle::Quit);break;},
-                    UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if client.acquire_control(request).await.is_err() {break;}},
-                    UiCommand::Release=>{
-                        typing.cancel();selected=None;
-                        if let Some(current)=lease.take() {
-                            let Some(request)=request_id(&mut requests) else {break;};
-                            if client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}).await.is_err() {break;}
-                        }
-                    },
-                    UiCommand::Presented(stamp)=>{
-                        if !awaiting_resources && ui_state.accepts(stamp) && issued.is_some_and(|s:Stamp|s.serial==stamp.serial && s.revision==stamp.revision)
-                            && client.receiver().state().is_ok_and(|s|s.revision==stamp.revision) {
-                            if client.presented(stamp.revision).await.is_err() {break;}
-                            presented=Some(stamp);presented_frames+=1;status(&events,"Displayed.");
-                            if options.auto_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if client.acquire_control(request).await.is_err() {break;}}
-                            if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!options.auto_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
-                        } else if !awaiting_resources {dirty=true;}
-                    },
-                    input=>{
-                        let stamp=match &input {UiCommand::Click{stamp,..}|UiCommand::Commit{stamp,..}|UiCommand::SelectAll{stamp}=>*stamp,_=>unreachable!()};
-                        if matches!(&input,UiCommand::Click{..}|UiCommand::SelectAll{..}) {ui_state.typing_notice=if typing.cancel()>0{TypingNotice::Cancelled}else{TypingNotice::None};if matches!(&input,UiCommand::Click{..}) {selected=None;}ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(n)=>n,None=>break};}
-                        if !ui_state.accepts(stamp) || presented.is_none() || (!matches!(&input,UiCommand::Commit{..}) && (awaiting_resources || !presented.is_some_and(|p|p.serial==stamp.serial) || !client.receiver().state().is_ok_and(|s|s.revision==stamp.revision))) {status(&events,"View changed; wait for the latest frame.");continue;}
-                        let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
-                        let target=match input {
-                            UiCommand::Click{point,..}=>{match interaction::hit_test(state,stamp.revision,stamp.viewport,point) {Ok(t)=>{selected=Some(t.semantic);t.semantic},Err(_)=>{selected=None;status(&events,"No enabled remote action here.");continue;}}},
-                            UiCommand::Commit{context,..}=>context.target,
-                            _=>match selected {Some(t)=>t,None=>{status(&events,"Select a remote text target first.");continue;}},
-                        };
-                        let Some(Record::Semantic(node))=state.records.get(&target) else {continue;};
-                        let (action,args)=match input {
-                            UiCommand::Click{..}=>{
-                                if node.actions.iter().any(|a|a.id=="Focus") && node.actions.iter().any(|a|a.id=="ReplaceText") {("Focus",Arguments::None)}
-                                else if node.actions.iter().any(|a|a.id=="Activate") {("Activate",Arguments::None)}
-                                else if node.actions.iter().any(|a|a.id=="SetValue") {
-                                    let Some(TypedValue::Boolean(value))=&node.value else {status(&events,"This value requires an explicit editor.");continue;};("SetValue",Arguments::Checked(!value))
-                                } else {status(&events,"Text target selected; type to edit or Ctrl+A to select all.");continue;}
-                            },
-                            UiCommand::Commit{text,_memory,context,..}=>{
-                                if ui_state.editing != Some(context) || selected != Some(context.target) {ui_state.typing_notice=TypingNotice::Cancelled;status(&events,"Editing context changed; composition cancelled.");continue;}
-                                let Some(binding)=command_binding(&client,options.client_id,lease.as_ref(),sequence) else {continue;};
-                                if typing.accept(context,text,_memory,state,&binding).is_err() {typing.cancel();selected=None;ui_state.typing_notice=TypingNotice::Limit;status(&events,"Typing queue full or context changed; pending input cancelled.");}else{ui_state.typing_notice=TypingNotice::None;}
-                                continue;
-                            },
-                            UiCommand::SelectAll{..}=>{let Some(reference)=node.text else {continue;};let Some(Record::Text(model))=state.records.get(&reference.id) else {continue;};let Some(content)=&model.content else {continue;};("SetSelection",Arguments::Selection{anchor:0,focus:content.chars().count() as u64})},
-                            _=>unreachable!(),
-                        };
-                        let Some(current)=&lease else {status(&events,"Request control to send remote input.");continue;};
-                        if !current.wire.allowed_actions.iter().any(|a|a==action) {status(&events,"This action is not granted.");continue;}
-                        let lease_id: [u8;16]=match current.wire.lease_id.as_slice().try_into() {Ok(id)=>id,Err(_)=>break};
-                        let domain=match interaction::command(state,target,action,args,CommandBinding{epoch:client.epoch,view:client.view_id,client:options.client_id,lease:lease_id,generation:current.wire.generation,sequence}) {Ok(c)=>c,Err(_)=>{status(&events,"Remote target or editing context is unavailable.");continue;}};
-                        if submit_semantic(&mut client,domain,&budget).await.is_err() {break;}sequence=match sequence.checked_add(1) {Some(n)=>n,None=>break};
-                    },
-                }
-            },
+        ) {
+            Ok(renderer) => renderer,
+            Err(_) => break 'connection,
+        };
+        _queue_memory = match budget.reserve(32 * std::mem::size_of::<UiCommand>() + 8192) {
+            Ok(memory) => memory,
+            Err(_) => break 'connection,
+        };
+        typing = match crate::typing::TypingQueue::new(budget.clone()) {
+            Ok(queue) => queue,
+            Err(_) => break 'connection,
+        };
+        pending = Some(UiEvent::Ready(budget.clone()));
+        dirty = recovery_applied;
+        awaiting_resources = false;
+        auto_acquired = false;
+        if let Some(observations) = &options.observations {
+            observations.send_modify(|o| {
+                o.binding = Some(ObservationBinding {
+                    client: options.client_id,
+                    epoch: client.epoch,
+                    view: client.view_id,
+                });
+            });
         }
     }
     drop(pending);

@@ -324,12 +324,14 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             let zoom_out = gtk4::Button::with_label("−");
             let zoom_in = gtk4::Button::with_label("+");
             let reset = gtk4::Button::with_label("Reset view");
+            let reconnect = gtk4::Button::with_label("Reconnect");
+            let clear_cache = gtk4::Button::with_label("Clear cache");
             let label = gtk4::Label::new(Some("Connecting…"));
             label.set_hexpand(true);
             label.set_xalign(0.0);
             label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
             let feedback = LocalFeedback::new(&label);
-            for button in [&acquire, &release, &zoom_out, &zoom_in, &reset] {
+            for button in [&acquire, &release, &zoom_out, &zoom_in, &reset, &reconnect, &clear_cache] {
                 toolbar.append(button);
             }
             toolbar.append(&label);
@@ -378,6 +380,12 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let label = label.clone();
                 release.connect_clicked(move |_| {
                     enqueue(&sender, UiCommand::Release, &label);
+                });
+            }
+            for (button,cache_loss) in [(reconnect,false),(clear_cache,true)] {
+                let sender=command_tx.clone();let label=label.clone();
+                button.connect_clicked(move |_| {
+                    enqueue(&sender,if cache_loss {UiCommand::LoseResources}else{UiCommand::Reconnect},&label);
                 });
             }
             for (button, factor) in [(zoom_out, 0.8), (zoom_in, 1.25)] {
