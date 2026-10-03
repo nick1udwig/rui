@@ -94,7 +94,7 @@ impl Corpus {
                 slot: 2,
                 scene: FIRST_SCENE + 1,
                 surface: SURFACE_ID,
-                text: "Checked".into(),
+                text: if self.checked { "On" } else { "Off" }.into(),
             },
             Caption {
                 slot: 4,
