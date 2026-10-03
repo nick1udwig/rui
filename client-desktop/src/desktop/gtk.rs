@@ -1053,6 +1053,8 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let ui = ui_rx.clone();
                 let canvas_feedback = canvas_feedback.clone();
                 let controls = [
+                    acquire.upcast_ref::<gtk4::Widget>().downgrade(),
+                    release.upcast_ref::<gtk4::Widget>().downgrade(),
                     resize_source.upcast_ref::<gtk4::Widget>().downgrade(),
                     source_width.upcast_ref::<gtk4::Widget>().downgrade(),
                     source_height.upcast_ref::<gtk4::Widget>().downgrade(),
@@ -1131,12 +1133,14 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                                                                     })
                                                             });
                                                             if let [
-                                                                Some(resize), Some(width), Some(height),
+                                                                Some(request_control), Some(release_control), Some(resize), Some(width), Some(height),
                                                                 Some(scroll), Some(scroll_y), Some(reconnect), Some(cache),
                                                             ] = points
                                                             {
                                                                 observations.send_modify(|o| {
                                                                     o.local_controls = Some(LocalControls {
+                                                                        request_control,
+                                                                        release_control,
                                                                         resize,
                                                                         width,
                                                                         height,

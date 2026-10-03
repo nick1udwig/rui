@@ -131,6 +131,8 @@ pub struct DisplayedObservation {
 }
 #[derive(Clone, Copy, Debug)]
 pub struct LocalControls {
+    pub request_control: Point,
+    pub release_control: Point,
     pub resize: Point,
     pub width: Point,
     pub height: Point,
