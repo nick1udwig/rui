@@ -45,6 +45,8 @@ remaining integration gates.
 | Native source restart | `adapters/sdk/tests/restart_trace.rs`, `fixtures/gtk/restart-interaction.json` | Actual post-callback SIGKILL preserves the broker epoch/common ledger; exact ambiguous retries perform no new effects, old app IDs retire, replacement identities/clocks are fresh, delayed generation dispatch fails, three failed starts preserve unavailable state and final ownership returns to zero; bounded private semantic fixture |
 | GTK unsupported sources and vector audit | `adapters/sdk/tests/negative_trace.rs`, `fixtures/gtk/negative-report.json`; refreshed native trace | Actual photograph, texture, Cairo, blur and shader nodes decline with named Partial regions; native path control succeeds; observed Python exporter traps, exact decoded geometry/resources and gap census checks; full network recorder remains open |
 | Coherent native whole-view capture | `adapters/sdk/tests/whole_trace.rs`, `fixtures/gtk/whole-interaction.json`, `test_transaction.py` | Five real four-surface/lifecycle transactions, fresh per-surface snapshot barrier, interrupted-union abort, typed focus/modal topology, exact vector closure and five direct native/replay pixel comparisons; bounded quota returns to zero; remote whole-view command path remains |
+| Guarded whole-view native commands | `adapters/sdk/tests/whole_native_trace.rs`, `fixtures/gtk/whole-native-interaction.json` | Thirteen admitted/rejected/retry scenarios, seven native dispatches, modal Unicode editing/close, menu unmap/remap/action and tooltip retirement during a fresh capture barrier; eight full-view source/replay pixel comparisons and sixteen independent private/public wire prefixes; bounded semantic fixture, no TLS/IME/Presented claim |
+| Full native independent record audit | `conformance/full_reference.py`, `full_interop.py` | All fields of 117 exact publication prefixes across seventeen scopes agree with Rust, including glyph geometry, semantic/text clocks, coverage, focus, retirement and collections; approved vector bodies pass independent descriptor/hash/geometry checks; full network interaction transcript remains |
 | GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Seventeen strict frames pass declared native/replay tolerance; zero interior mismatches, 1,577 outline bounds checked; actual decoded glyph omission/shift/size rejected; reports bind exact golden envelope bytes |
 
 Root review required corrections to authorization revocation races, cleanup
@@ -69,8 +71,8 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
 - **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
   semantic dispatch, causal action evidence and observed unsupported-source/vector
   audits and actual broker-preserving native source restart have passed review.
-  Wire IME, full native interaction recording and remote whole-view command integration
-  remain. Coherent whole-view
+  Guarded whole-view native command integration also passes its private semantic
+  fixture. Wire IME, TLS and full native interaction recording remain. Coherent whole-view
   native capture and all five direct/replay pixel comparisons have passed. The declared seventeen-frame local
   visual comparison has passed.
 - **M4 remains open.** Actual EIS, source geometry/hit testing, host XKB/repeat,

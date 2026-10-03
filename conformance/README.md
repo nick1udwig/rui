@@ -67,7 +67,7 @@ native corpus; combined button/text graphical scenarios remain separately gated.
 flat RVP1 geometry and exact envelope hashes before comparing every retained
 record field against the Rust reducer. The handwritten decoder covers all six
 record kinds and all nine scene primitives. The accepted native corpus currently
-exercises 101 publication prefixes across 15 scopes, with five record kinds and
+exercises 117 publication prefixes across 17 scopes, with five record kinds and
 six scene primitives; the existing generated scene fixtures cover all nine.
 It includes semantic, Unicode, restart, unsupported-source, whole-view and
 observed AT-SPI captures. Each prefix compares retirement and stable object clocks

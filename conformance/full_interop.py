@@ -13,7 +13,8 @@ from .reference import fields, one, many, number
 
 ROOT = Path(__file__).resolve().parent.parent
 CORPORA = ('gtk/golden', 'gtk/native-golden', 'gtk/unicode-golden',
-           'gtk/restart-golden', 'gtk/negative-golden', 'gtk/whole-golden', 'atspi/golden')
+           'gtk/restart-golden', 'gtk/negative-golden', 'gtk/whole-golden',
+           'gtk/whole-native-golden', 'atspi/golden')
 
 
 def verify_resource(body, kind, version, provenance, digest):
@@ -73,8 +74,8 @@ def captures(corpora=CORPORA):
                 if path.with_suffix('.json').exists():
                     manifest = json.loads(path.with_suffix('.json').read_text())
                     assert manifest['envelope_sha256'] == hashlib.sha256(raw).hexdigest(), str(path)
-                elif corpus == 'gtk/restart-golden':
-                    manifest = json.loads((ROOT / 'fixtures/gtk/restart-interaction.json').read_text())
+                elif corpus in ('gtk/restart-golden', 'gtk/whole-native-golden'):
+                    manifest = json.loads((ROOT / 'fixtures' / corpus.replace('-golden', '-interaction.json')).read_text())
                     assert manifest['retained_trace_sha256'][str(path.relative_to(root))] == hashlib.sha256(raw).hexdigest()
                 else:
                     raise ValueError('missing capture manifest')
