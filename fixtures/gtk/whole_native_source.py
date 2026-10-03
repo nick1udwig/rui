@@ -26,9 +26,6 @@ def main():
             app.hold()
             whole = WholeView(app, args.output, scripted=False)
             corpus, source = whole.corpus, whole.source
-            corpus.registry.surface('modal', whole.modal_capture, whole.modal)
-            corpus.registry.surface('tooltip', whole.tooltip)
-            corpus.registry.bind('modal-entry', whole.modal_entry, 'modal')
 
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             whole.modal_entry.unparent()

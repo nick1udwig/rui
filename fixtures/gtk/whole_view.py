@@ -18,7 +18,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, GLib
 from adapters.gtk4.capture import CaptureMixin, CaptureWidget, Exporter
 from adapters.gtk4.transaction import CaptureTransaction, CaptureBudget, ArtifactQuota, BarrierRejected
-from adapters.gtk4.state import editable_text
+from adapters.gtk4.state import editable_text, invalidate_native_context, require_native_context
 from adapters.sdk.producer import encode_snapshot, MAX_MANIFEST_BYTES
 from fixtures.gtk.corpus import Corpus
 import time
@@ -73,6 +73,10 @@ class WholeView:
         self.windows = {'main-content': self.corpus.window, 'menu-popup': self.corpus.popup_capture, 'tooltip': self.tooltip, 'modal': self.modal}
         self.positions = {'main-content': [0, 0], 'menu-popup': [40, 330], 'tooltip': [300, 300], 'modal': [120, 40]}
         self.stack = {'main-content': 0, 'menu-popup': 1, 'tooltip': 2, 'modal': 3}
+        self.corpus.registry.surface('modal', self.modal_capture, self.modal)
+        self.corpus.registry.bind('modal-entry', self.modal_entry, 'modal')
+        self.corpus.registry.surface('tooltip', self.tooltip)
+        self.corpus.registry.bind('tooltip-root', self.tooltip, 'tooltip')
         self.revision = 0
         self.focus_generation = 1
         self.previous_focus = None
@@ -82,6 +86,7 @@ class WholeView:
         self.on_tooltip_retired = None
         self.failures = []
         self.budget = CaptureBudget()
+        self.source.capture_budget = self.budget
         self.view_id = self.source.identifier('whole-view')
         self.session_id = self.source.identifier('whole-view-session')
         # All source surface identities are allocated before reading a boundary.
@@ -90,6 +95,10 @@ class WholeView:
             capture.capture_transaction = None
             capture.connect('map', lambda *_: self.source.changed())
             capture.connect('unmap', lambda *_, c=capture: c.publish_lifecycle())
+            capture.connect('map', self.observe_focus)
+            capture.connect('unmap', self.observe_focus)
+        for window in (self.corpus.window, self.modal):
+            window.connect('notify::focus-widget', self.observe_focus)
         self.barrier = CaptureTransaction(self.source, self.oracle, self.request, self.commit, budget=self.budget, timeout=3, on_candidate=self.on_candidate)
         for key, capture in self.captures.items():
             self.barrier.register(key, capture)
@@ -106,24 +115,44 @@ class WholeView:
         if scripted:
             GLib.timeout_add(8000, self.watchdog)
 
-    def oracle(self):
-        surfaces = {}
-        # This native re-read is serialized with all source callbacks. It also
-        # computes stable Text/Semantic/Collection clocks at both boundaries.
+    def native_focus(self):
         modal_live = self.modal_capture.source_alive and self.modal_capture.get_mapped()
-        focus = None
-        if modal_live and self.modal.get_focus() is not None:
-            focus = ('modal', self.source.identifier('semantic:modal-entry'))
-        else:
-            # Resolve only explicitly bound native objects, including a popup
-            # root when GTK focus is inside its source-owned menu descendants.
-            for owner in sorted(self.corpus.registry.surfaces, key=lambda key: self.stack[key], reverse=True):
-                capture = self.captures[owner]
-                if capture.source_alive and capture.get_mapped():
-                    key = self.corpus.registry.focus(owner)
-                    if key:
-                        focus = (owner, self.source.identifier('semantic:' + key))
-                        break
+        # A mapped source-owned modal suppresses every other registered owner.
+        owners = ['modal'] if modal_live else sorted(self.corpus.registry.surfaces, key=lambda key: self.stack[key], reverse=True)
+        for owner in owners:
+            capture = self.captures[owner]
+            if capture.source_alive and capture.get_mapped():
+                key = self.corpus.registry.focus(owner)
+                if key:
+                    return (owner, self.source.identifier('semantic:' + key))
+        return None
+
+    def observe_focus(self, *_):
+        if getattr(self.source, 'native_context_unavailable', False):
+            return None
+        try:
+            focus = self.native_focus()
+            if focus != self.previous_focus:
+                if self.focus_generation >= (1 << 64) - 1:
+                    raise BarrierRejected('native-focus-generation-ceiling')
+                self.focus_generation += 1
+                self.previous_focus = focus
+                self.source.changed()
+            return focus
+        except Exception:
+            # GObject callbacks cannot propagate a dependable failure to the
+            # host. Latch before returning; every later oracle/dispatch denies.
+            invalidate_native_context(self.source)
+            return None
+
+    def oracle(self):
+        require_native_context(self.source)
+        surfaces = {}
+        # Notifications advance the clock immediately, including away/back
+        # transitions before the next snapshot. A final native read also catches
+        # a focus notification that has not run before a serialized command.
+        focus = self.observe_focus()
+        require_native_context(self.source)
         for key, capture in self.captures.items():
             alive, mapped = capture.source_alive, capture.source_alive and capture.get_mapped()
             semantics = self.source.semantics(capture.semantic_root, 1) if alive else []
@@ -143,7 +172,7 @@ class WholeView:
                 'native_modal': self.modal.get_modal() if key == 'modal' else False,
                 'semantics': semantics}
         return {'incarnation': self.source.identity, 'source_revision': self.source.source_revision,
-            'surfaces': surfaces, 'focus': focus,
+            'surfaces': surfaces, 'focus': focus, 'focus_generation': self.focus_generation,
             'visual_policy': {'animations': False, 'cursor_blink': False, 'controlled_static_canvas': True}}
 
     def request(self, nonce, required):
@@ -300,14 +329,11 @@ class WholeView:
                 surface['local_reference'] = source['local_reference']
                 surface['local_reference_label'] = f'{key}-{source["revision"]:04d}'
         focus = facts['focus']
-        if focus != self.previous_focus:
-            self.focus_generation += 1
-            self.previous_focus = focus
         session = {'id': self.session_id, 'version': self.revision, 'canvas': [0, 0, 720, 600], 'focus': focus[1] if focus else None,
             'focus_surface': facts['surfaces'][focus[0]]['surface_id'] if focus else None, 'focus_generation': self.focus_generation}
         token = f'{self.source.identity}:whole:{facts["source_revision"]}:{nonce}'
         return {'revision': self.revision, 'source_revision': facts['source_revision'], 'capture_token': token,
-            'capture_boundary': 'source-thread-all-registered-surfaces-fresh-snapshot-barrier',
+            'capture_boundary': 'source-thread-all-registered-surfaces-fresh-snapshot-barrier', 'native_context_profile': 'gtk-native-focus-context.v1',
             'gtk_version': [4, 22, 4], 'capture_barrier_nonce': nonce, 'whole_view_stage': self.stage, 'size': [720, 600],
             'surfaces': surfaces, 'scene': scene, 'semantics': semantics, 'session': session,
             'gaps': gaps, 'resources': sorted(offers), 'resource_offers': list(offers.values()),

@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--xvfb', required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--case', '--scenario', choices=['semantic', 'unicode', 'restart', 'whole-native'], default='semantic')
+    parser.add_argument('--case', '--scenario', choices=['semantic', 'unicode', 'restart', 'whole-native', 'native-context'], default='semantic')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='rui-gtk-native-display-') as runtime:
         display = ':' + str(1100 + os.getpid() % 20_000)

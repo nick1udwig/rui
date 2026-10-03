@@ -82,6 +82,7 @@ class NativeDispatcher:
             whole.consumer = self.whole_captured
             self.capture_memory = whole.budget.reserve(8 << 20)
             GLib.timeout_add(400, self.request_capture)
+            whole.modal.connect('notify::focus-widget', self.observed_callback)
             for capture in whole.captures.values():
                 capture.connect('map', self.observed_callback)
                 capture.connect('unmap', self.observed_callback)
@@ -247,6 +248,14 @@ class NativeDispatcher:
                 self.race_next = 'model'
             elif operation == 'race-source-generation':
                 self.race_next = 'source-generation'
+            elif operation == 'race-focus-cycle' and self.whole is not None:
+                self.race_next = 'focus-cycle'
+            elif operation == 'selection-cycle' and self.whole is not None:
+                widget = self.corpus.registry.widgets['modal-entry'][0]
+                before = editable_text(widget)['selection']
+                delegate = widget.get_delegate() or widget
+                delegate.select_region(0, 1)
+                delegate.select_region(*before)
             elif operation == 'interrupt-whole-capture' and self.whole is not None:
                 self.whole.interrupt = True
             elif operation in ('lose-after-dispatch', 'stall-after-dispatch', 'uncorrelated-capture', 'crash-after-dispatch'):
@@ -293,6 +302,14 @@ class NativeDispatcher:
             self.corpus.canvas.queue_draw()
             self.corpus.source.changed()
             self.race_next = None
+        elif self.race_next == 'focus-cycle':
+            self.race_next = None
+            previous = self.whole.modal.get_focus()
+            other = self.corpus.registry.widgets['modal-close'][0]
+            other.grab_focus()
+            self.whole.observe_focus()
+            previous.grab_focus()
+            self.whole.observe_focus()
         elif self.race_next == 'model':
             self.corpus.unmaterialize_row()
             self.race_next = None

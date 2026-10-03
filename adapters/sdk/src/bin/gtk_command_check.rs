@@ -184,11 +184,13 @@ impl Fixture {
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut command = Command::new("python3");
         command
-            .arg(repository.join(if name == "whole-native" {
-                "fixtures/gtk/whole_native_source.py"
-            } else {
-                "fixtures/gtk/native_source.py"
-            }))
+            .arg(
+                repository.join(if matches!(name, "whole-native" | "native-context") {
+                    "fixtures/gtk/whole_native_source.py"
+                } else {
+                    "fixtures/gtk/native_source.py"
+                }),
+            )
             .arg("--output")
             .arg(&directory)
             .arg("--fixture-hooks");
@@ -1268,6 +1270,86 @@ fn whole_native(root: &Path) -> Result<Value> {
     result["initial_whole_capture"] = initial;
     Ok(result)
 }
+fn native_context(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "native-context")?;
+    let entry = named(f.state(), "Modal entry");
+    let c = f.command(entry, "Focus", none());
+    f.submit("native-entry-focus-context", &c, Status::Applied)?;
+    let old_focus = f.host.source_capture_for_diagnostics()["session"]["focus_generation"]
+        .as_u64()
+        .unwrap();
+    let mut stale = f.command(entry, "Focus", none());
+    stale.preconditions.as_mut().unwrap().focus_generation = Some(old_focus);
+    f.host.trusted_fixture_mutation(Mutation::RaceFocusCycle)?;
+    let rejected = f.submit(
+        "native-away-and-back-in-one-frame-rejects-old-focus-clock",
+        &stale,
+        Status::Failed,
+    )?;
+    f.retry(
+        "exact-focus-context-failure-zero-redispatch",
+        &stale,
+        &rejected,
+    )?;
+    f.refresh()?;
+    let current = f.host.source_capture_for_diagnostics()["session"]["focus_generation"]
+        .as_u64()
+        .unwrap();
+    assert!(current >= old_focus + 2);
+    assert_eq!(named(f.state(), "Modal entry"), entry);
+    let Record::Session(session) = f
+        .state()
+        .records
+        .values()
+        .find(|r| matches!(r, Record::Session(_)))
+        .unwrap()
+    else {
+        panic!("session")
+    };
+    assert_eq!(session.focus.unwrap().id, entry);
+    let c = f.command(
+        entry,
+        "SetSelection",
+        p::semantic_command::Arguments::SetSelection(p::SelectionArguments {
+            anchor: 8,
+            focus: 6,
+        }),
+    );
+    let content_version = text(f.state(), entry).text_version;
+    let record_version = text(f.state(), entry).version;
+    f.submit(
+        "native-backward-selection-has-distinct-full-record-clock",
+        &c,
+        Status::Applied,
+    )?;
+    assert_eq!(
+        text(f.state(), entry).selection,
+        Some(TextRange {
+            anchor: 8,
+            focus: 6
+        })
+    );
+    assert_eq!(text(f.state(), entry).text_version, content_version);
+    assert!(text(f.state(), entry).version > record_version);
+    let same_selection = text(f.state(), entry).selection;
+    let before_cycle = text(f.state(), entry).version;
+    f.host.trusted_fixture_mutation(Mutation::SelectionCycle)?;
+    f.refresh()?;
+    assert_eq!(text(f.state(), entry).selection, same_selection);
+    assert_eq!(text(f.state(), entry).text_version, content_version);
+    assert!(
+        text(f.state(), entry).version > before_cycle,
+        "native selection away/back advances full context clock without changing content"
+    );
+    let after_cycle = text(f.state(), entry).version;
+    let mut result = f.finish()?;
+    result["text_record_before_selection_cycle"] = json!(before_cycle);
+    result["text_record_after_selection_cycle"] = json!(after_cycle);
+    result["content_clock_after_selection_cycle"] = json!(content_version);
+    result["focus_generation_before_native_cycle"] = json!(old_focus);
+    result["focus_generation_after_native_cycle"] = json!(current);
+    Ok(result)
+}
 fn main() -> Result<()> {
     let root = PathBuf::from(
         std::env::args()
@@ -1275,7 +1357,9 @@ fn main() -> Result<()> {
             .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
     );
     fs::create_dir_all(&root)?;
-    let report = if std::env::args().nth(2).as_deref() == Some("whole-native") {
+    let report = if std::env::args().nth(2).as_deref() == Some("native-context") {
+        json!({"scope":"actual core semantic admission and native focus/selection context guards; no TextComposition or Presented claim", "native_context":native_context(&root)?})
+    } else if std::env::args().nth(2).as_deref() == Some("whole-native") {
         json!({"scope":"one core ledger to actual native GTK callbacks and coherent cooperating whole-view capture; semantic-only observers; no TLS, wire IME or Presented claim", "whole_native":whole_native(&root)?})
     } else if std::env::args().nth(2).as_deref() == Some("restart") {
         json!({"scope":"same broker/common ledger survives disposable native GTK SIGKILL/restart; semantic-only consumers, no wire IME or Presented claim","restart":restart(&root)?})

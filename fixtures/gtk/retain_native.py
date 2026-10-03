@@ -14,7 +14,7 @@ import shutil
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('run', type=Path)
-    parser.add_argument('--name',choices=['native','unicode','restart','whole-native'],default='native')
+    parser.add_argument('--name',choices=['native','unicode','restart','whole-native','native-context'],default='native')
     args = parser.parse_args()
     target = Path(__file__).parent
     trace = args.run / 'trace'

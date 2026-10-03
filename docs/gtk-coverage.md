@@ -591,6 +591,51 @@ private visual capture is verified and replayed separately; this run does not
 establish network whole-view delivery, actual client Presented readiness or
 wire composition. Those M3 integration gates remain open.
 
+## Native editing context between frames
+
+`native-context-interaction.json` retains a separate actual core-admitted source
+probe. Focus notifications update the whole-view aggregate clock immediately,
+including a native focus move away and back before another frame. In the
+retained run the clock advances 7→9 while the focused entry identity returns to
+the same value. A command admitted against clock7 fails at the final GTK guard
+with zero additional dispatches, and an exact retry returns that retained failure.
+The source resolves actual modal focus through registered widgets, including the
+close button; an initial native focus assignment is not relabeled as entry focus.
+
+Native GtkEditable content/selection notifications read the authoritative typed
+model immediately. A backward selection advances its full record clock without
+changing the content clock. A subsequent selection away and back within one
+frame advances record clock2→4 while content clock remains1 and the final scalar
+selection remains8→6. These intermediate native transitions cannot restore an
+old editing context merely by restoring the final widget or selection. Event
+reads acquire and release a conservative 16 MiB scratch reservation inside the
+whole capture budget. Native text callbacks for a retired registry binding do
+nothing.
+
+If a native event read, reservation, or focus-clock increment fails, this source
+incarnation permanently loses its native context authority. GObject callbacks
+consume the error after setting that latch; later final dispatch and whole-view
+boundary reads fail closed. Restoring the final value or available memory cannot
+recover a missed transition. A fresh source incarnation is required. Injected
+reservation/read failures and the focus-clock ceiling verify this behavior and
+reservation cleanup.
+
+The 48-file exact vector trace is SHA-bound, and Rust replay verifies all five
+source captures, content versus record clocks, focus continuity and closure.
+The `gtk-native-focus-context.v1` diagnostic profile binds the accepted Session
+focus clock to the serialized source boundary; substituting that boundary clock
+fails the audit before presentation. This profile is cooperating-source evidence,
+not remote attestation. The probe uses semantic readiness, not Presented, and
+makes no TextComposition or preedit claim; it is the source-context prerequisite
+for the pending full visual/IME integration.
+
+```sh
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-native-context-empty --scenario native-context
+python3 fixtures/gtk/retain_native.py /tmp/rui-native-context-empty --name native-context
+cargo test -p rui-producer-sdk --test native_context_trace
+```
+
 ## Broker continuity across native source exit
 
 `GtkCommandHost::restart_source` is an explicitly trusted supervisor operation,

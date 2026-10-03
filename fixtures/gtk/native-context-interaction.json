@@ -1,0 +1,4099 @@
+{
+  "exporter_audit_scope": "Exact source geometry, closure/descriptors and named coverage gaps audited against decoded Rust state. Schema2 observations and source extraction origins retained for every publication; exporter Python pixel/draw/serialize traps active throughout native fixture. Native GTK local drawing is outside the probe boundary.",
+  "native_context": {
+    "commands": [
+      {
+        "action": "Focus",
+        "case": "native-entry-focus-context",
+        "command_seq": 1,
+        "decoded_client_state": {
+          "records": {
+            "1": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 2,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 3,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 4,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 9,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 10,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 26,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 1,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "10": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 10,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "11": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 12,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 11,
+                "label": "Menu popup",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "12": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 12,
+                "label": "Menu source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "13": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 13,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "14": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 15,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 14,
+                "label": "Controlled tooltip root",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "15": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 15,
+                "label": "Controlled native tooltip",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "16": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 17,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 25,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 16,
+                "label": "Native transient modal",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "17": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 17,
+                "label": "Modal entry",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": {
+                  "id": 24,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "19": {
+              "Session": {
+                "canvas": {
+                  "height": 600.0,
+                  "width": 720.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 17,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 7,
+                "focus_surface": {
+                  "id": 23,
+                  "kind": "Surface"
+                },
+                "id": 19,
+                "version": 2
+              }
+            },
+            "2": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 2,
+                "label": "Ordinary GTK controls \u2014 caf\u00e9 \u03a9",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "20": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": false,
+                "id": 20,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  24,
+                  117,
+                  117,
+                  238,
+                  62,
+                  75,
+                  117,
+                  167,
+                  80,
+                  231,
+                  112,
+                  153,
+                  203,
+                  73,
+                  174,
+                  72
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 1,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "21": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 58.0,
+                  "width": 145.0
+                },
+                "desktop_rect": {
+                  "height": 58.0,
+                  "width": 145.0,
+                  "x": 40.0,
+                  "y": 330.0
+                },
+                "focused": false,
+                "id": 21,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Popup",
+                "routing_token": [
+                  101,
+                  146,
+                  221,
+                  1,
+                  229,
+                  90,
+                  126,
+                  39,
+                  170,
+                  116,
+                  80,
+                  95,
+                  31,
+                  45,
+                  80,
+                  228
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 11,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    101,
+                    110,
+                    117,
+                    45,
+                    112,
+                    111,
+                    112,
+                    117,
+                    112,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 1,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "22": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 34.0,
+                  "width": 165.0
+                },
+                "desktop_rect": {
+                  "height": 34.0,
+                  "width": 165.0,
+                  "x": 300.0,
+                  "y": 300.0
+                },
+                "focused": false,
+                "id": 22,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Tooltip",
+                "routing_token": [
+                  184,
+                  160,
+                  176,
+                  57,
+                  162,
+                  246,
+                  62,
+                  83,
+                  196,
+                  197,
+                  240,
+                  184,
+                  247,
+                  185,
+                  244,
+                  59
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 14,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    116,
+                    111,
+                    111,
+                    108,
+                    116,
+                    105,
+                    112,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 2,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "23": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 110.0,
+                  "width": 320.0
+                },
+                "desktop_rect": {
+                  "height": 110.0,
+                  "width": 320.0,
+                  "x": 120.0,
+                  "y": 40.0
+                },
+                "focused": true,
+                "id": 23,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Toplevel",
+                "routing_token": [
+                  214,
+                  199,
+                  66,
+                  191,
+                  35,
+                  203,
+                  147,
+                  151,
+                  107,
+                  252,
+                  58,
+                  104,
+                  18,
+                  83,
+                  220,
+                  55
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 16,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    111,
+                    100,
+                    97,
+                    108,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 3,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "24": {
+              "Text": {
+                "content": "Modal scalar text: \ud834\udd1e e\u0301 \u05e9\u05dc\u05d5\u05dd",
+                "editable": true,
+                "id": 24,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 28
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "25": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 25,
+                "label": "Close native modal",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "26": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 26,
+                "label": "Retire native tooltip",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "3": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 3,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 13,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "4": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 4,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "5": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 5,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "6": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 6,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "7": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 7,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "8": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 5,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 6,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 7,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 5,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 6,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 7,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 8,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "9": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 9,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            }
+          },
+          "retired": [],
+          "revision": 2
+        },
+        "decoded_full_source": {
+          "exact_envelope_sha256": "ef3b1db5da57947c582763916b5cbaae8098cdc87fb8ba4114c55aeae5929f0e",
+          "native_capture_gaps": [],
+          "primitive_counts": {
+            "Border": 12,
+            "FillPath": 1,
+            "GlyphRun": 212,
+            "Group": 62,
+            "SolidRect": 31,
+            "StrokePath": 1
+          },
+          "resource_offers": [
+            {
+              "digest": "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 637,
+              "version": 1
+            },
+            {
+              "digest": "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 861,
+              "version": 1
+            },
+            {
+              "digest": "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1045,
+              "version": 1
+            },
+            {
+              "digest": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 799,
+              "version": 1
+            },
+            {
+              "digest": "1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 718,
+              "version": 1
+            },
+            {
+              "digest": "465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 230,
+              "version": 1
+            },
+            {
+              "digest": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 520,
+              "version": 1
+            },
+            {
+              "digest": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 163,
+              "version": 1
+            },
+            {
+              "digest": "4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 524,
+              "version": 1
+            },
+            {
+              "digest": "67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 228,
+              "version": 1
+            },
+            {
+              "digest": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 799,
+              "version": 1
+            },
+            {
+              "digest": "7302b6791f67f11a03b203f959d1fdac8e1e921d3dbaf66b6930fda96eb54b37",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 623,
+              "version": 1
+            },
+            {
+              "digest": "7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 346,
+              "version": 1
+            },
+            {
+              "digest": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 796,
+              "version": 1
+            },
+            {
+              "digest": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 781,
+              "version": 1
+            },
+            {
+              "digest": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1520,
+              "version": 1
+            },
+            {
+              "digest": "aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a",
+              "kind": 1,
+              "provenance": 1,
+              "total_bytes": 109,
+              "version": 1
+            },
+            {
+              "digest": "af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 884,
+              "version": 1
+            },
+            {
+              "digest": "b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1143,
+              "version": 1
+            },
+            {
+              "digest": "b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 992,
+              "version": 1
+            },
+            {
+              "digest": "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 978,
+              "version": 1
+            },
+            {
+              "digest": "cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 230,
+              "version": 1
+            },
+            {
+              "digest": "e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 162,
+              "version": 1
+            },
+            {
+              "digest": "e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 963,
+              "version": 1
+            },
+            {
+              "digest": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 475,
+              "version": 1
+            },
+            {
+              "digest": "eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 918,
+              "version": 1
+            },
+            {
+              "digest": "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1210,
+              "version": 1
+            },
+            {
+              "digest": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1466,
+              "version": 1
+            },
+            {
+              "digest": "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 609,
+              "version": 1
+            },
+            {
+              "digest": "52524fa6f715deec83953453ba1b627b959a2417dc99e3aa461bba8ab51607e8",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 861,
+              "version": 1
+            },
+            {
+              "digest": "4ad6e327dc85be1cfa4b296daa6ef1d5585f416e5d788e8b4de3d5ef3a177eb3",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 884,
+              "version": 1
+            },
+            {
+              "digest": "8e512df673be0cbc86214262607787432ecd7ab37ce2809bf803171664182526",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "8fd04a47850587b8c4517c2d1a5d6e17b02ad08cf2c5ac758548d68a7b15da0b",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 163,
+              "version": 1
+            },
+            {
+              "digest": "bee9d8dde2eb462ebb972d6b6d92a12367486c4c7b30343c84b8110c54c308ea",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 471,
+              "version": 1
+            },
+            {
+              "digest": "d550bf563826442b3fc467beb9b03576160235f3e8b2a825cdd5aaae304b4814",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 4411,
+              "version": 1
+            },
+            {
+              "digest": "e3b1a2f3fba416eb6d973c692ae6da8e5955e22ed9dea5039b6e07d54ac68942",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 359,
+              "version": 1
+            }
+          ],
+          "surfaces": [
+            {
+              "id": 20,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            },
+            {
+              "id": 21,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            },
+            {
+              "id": 22,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            },
+            {
+              "id": 23,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            }
+          ]
+        },
+        "exact_semantic_wire_hex": "0a1030b99c1554534e1790733726edf087551210010101010101010100000000000000011a100404040404040404040404040404040420012a1030b99c1554534e170000000000000001300138114205466f637573480150015a0208016200",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 212
+          },
+          "local_reference_draws": 4,
+          "node_decisions": {
+            "lowered": 107
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 12,
+            "clip-node": 2,
+            "color-node": 31,
+            "container-node": 21,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 21,
+            "transform-node": 18
+          },
+          "source_nodes_visited": 107,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 12,
+            "FillPath": 1,
+            "GlyphRun": 212,
+            "Group": 62,
+            "SolidRect": 31,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 319,
+          "vector_resource_bodies": 38
+        },
+        "native_callbacks": 2,
+        "native_dispatches": 1,
+        "observed_view_revision": 1,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": null
+        },
+        "published_revision": 2,
+        "rejection": null,
+        "source_commit": "30b99c1554534e1790733726edf08755:whole:18:2",
+        "status": "Applied",
+        "target_id": 17
+      },
+      {
+        "action": "Focus",
+        "case": "native-away-and-back-in-one-frame-rejects-old-focus-clock",
+        "command_seq": 2,
+        "decoded_client_state": {
+          "records": {
+            "1": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 2,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 3,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 4,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 9,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 10,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 26,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 1,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "10": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 10,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "11": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 12,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 11,
+                "label": "Menu popup",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "12": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 12,
+                "label": "Menu source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "13": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 13,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "14": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 15,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 14,
+                "label": "Controlled tooltip root",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "15": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 15,
+                "label": "Controlled native tooltip",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "16": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 17,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 25,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 16,
+                "label": "Native transient modal",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "17": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 17,
+                "label": "Modal entry",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": {
+                  "id": 24,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "19": {
+              "Session": {
+                "canvas": {
+                  "height": 600.0,
+                  "width": 720.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 17,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 7,
+                "focus_surface": {
+                  "id": 23,
+                  "kind": "Surface"
+                },
+                "id": 19,
+                "version": 2
+              }
+            },
+            "2": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 2,
+                "label": "Ordinary GTK controls \u2014 caf\u00e9 \u03a9",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "20": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": false,
+                "id": 20,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  24,
+                  117,
+                  117,
+                  238,
+                  62,
+                  75,
+                  117,
+                  167,
+                  80,
+                  231,
+                  112,
+                  153,
+                  203,
+                  73,
+                  174,
+                  72
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 1,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "21": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 58.0,
+                  "width": 145.0
+                },
+                "desktop_rect": {
+                  "height": 58.0,
+                  "width": 145.0,
+                  "x": 40.0,
+                  "y": 330.0
+                },
+                "focused": false,
+                "id": 21,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Popup",
+                "routing_token": [
+                  101,
+                  146,
+                  221,
+                  1,
+                  229,
+                  90,
+                  126,
+                  39,
+                  170,
+                  116,
+                  80,
+                  95,
+                  31,
+                  45,
+                  80,
+                  228
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 11,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    101,
+                    110,
+                    117,
+                    45,
+                    112,
+                    111,
+                    112,
+                    117,
+                    112,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 1,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "22": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 34.0,
+                  "width": 165.0
+                },
+                "desktop_rect": {
+                  "height": 34.0,
+                  "width": 165.0,
+                  "x": 300.0,
+                  "y": 300.0
+                },
+                "focused": false,
+                "id": 22,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Tooltip",
+                "routing_token": [
+                  184,
+                  160,
+                  176,
+                  57,
+                  162,
+                  246,
+                  62,
+                  83,
+                  196,
+                  197,
+                  240,
+                  184,
+                  247,
+                  185,
+                  244,
+                  59
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 14,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    116,
+                    111,
+                    111,
+                    108,
+                    116,
+                    105,
+                    112,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 2,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "23": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 110.0,
+                  "width": 320.0
+                },
+                "desktop_rect": {
+                  "height": 110.0,
+                  "width": 320.0,
+                  "x": 120.0,
+                  "y": 40.0
+                },
+                "focused": true,
+                "id": 23,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Toplevel",
+                "routing_token": [
+                  214,
+                  199,
+                  66,
+                  191,
+                  35,
+                  203,
+                  147,
+                  151,
+                  107,
+                  252,
+                  58,
+                  104,
+                  18,
+                  83,
+                  220,
+                  55
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 16,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    111,
+                    100,
+                    97,
+                    108,
+                    58,
+                    49,
+                    56,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 3,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "24": {
+              "Text": {
+                "content": "Modal scalar text: \ud834\udd1e e\u0301 \u05e9\u05dc\u05d5\u05dd",
+                "editable": true,
+                "id": 24,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 28
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "25": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 25,
+                "label": "Close native modal",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "26": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 26,
+                "label": "Retire native tooltip",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "3": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 3,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 13,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "4": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 4,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "5": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 5,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "6": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 6,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "7": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 7,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "8": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 5,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 6,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 7,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 5,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 6,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 7,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 8,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "9": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 9,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            }
+          },
+          "retired": [],
+          "revision": 2
+        },
+        "decoded_full_source": null,
+        "exact_semantic_wire_hex": "0a1030b99c1554534e1790733726edf087551210010101010101010100000000000000011a100404040404040404040404040404040420022a1030b99c1554534e170000000000000001300138114205466f637573480150025a04080120076200",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 212
+          },
+          "local_reference_draws": 4,
+          "node_decisions": {
+            "lowered": 107
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 12,
+            "clip-node": 2,
+            "color-node": 31,
+            "container-node": 21,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 21,
+            "transform-node": 18
+          },
+          "source_nodes_visited": 107,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 12,
+            "FillPath": 1,
+            "GlyphRun": 212,
+            "Group": 62,
+            "SolidRect": 31,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 319,
+          "vector_resource_bodies": 38
+        },
+        "native_callbacks": 4,
+        "native_dispatches": 1,
+        "observed_view_revision": 2,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": null
+        },
+        "published_revision": null,
+        "rejection": null,
+        "source_commit": null,
+        "status": "Failed",
+        "target_id": 17
+      },
+      {
+        "case": "exact-focus-context-failure-zero-redispatch",
+        "command_seq": 2,
+        "exact_semantic_wire_hex": "0a1030b99c1554534e1790733726edf087551210010101010101010100000000000000011a100404040404040404040404040404040420022a1030b99c1554534e170000000000000001300138114205466f637573480150025a04080120076200",
+        "native_callbacks": 4,
+        "native_dispatches": 1,
+        "received_native_counters_unchanged": true,
+        "retained_result_equal": true,
+        "status": "Failed"
+      },
+      {
+        "action": "SetSelection",
+        "case": "native-backward-selection-has-distinct-full-record-clock",
+        "command_seq": 3,
+        "decoded_client_state": {
+          "records": {
+            "1": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 2,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 3,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 4,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 9,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 10,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 26,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 1,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "10": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 10,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "11": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 12,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 11,
+                "label": "Menu popup",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "12": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 12,
+                "label": "Menu source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "13": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 13,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "14": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 15,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 14,
+                "label": "Controlled tooltip root",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "15": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 15,
+                "label": "Controlled native tooltip",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "16": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 17,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 25,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 16,
+                "label": "Native transient modal",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "17": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 17,
+                "label": "Modal entry",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": {
+                  "id": 24,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "19": {
+              "Session": {
+                "canvas": {
+                  "height": 600.0,
+                  "width": 720.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 17,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 9,
+                "focus_surface": {
+                  "id": 23,
+                  "kind": "Surface"
+                },
+                "id": 19,
+                "version": 4
+              }
+            },
+            "2": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 2,
+                "label": "Ordinary GTK controls \u2014 caf\u00e9 \u03a9",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "20": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": false,
+                "id": 20,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  192,
+                  237,
+                  27,
+                  228,
+                  59,
+                  86,
+                  115,
+                  228,
+                  253,
+                  40,
+                  218,
+                  198,
+                  72,
+                  48,
+                  243,
+                  192
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 1,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    50,
+                    52,
+                    58,
+                    52
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 4,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "21": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 58.0,
+                  "width": 145.0
+                },
+                "desktop_rect": {
+                  "height": 58.0,
+                  "width": 145.0,
+                  "x": 40.0,
+                  "y": 330.0
+                },
+                "focused": false,
+                "id": 21,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Popup",
+                "routing_token": [
+                  23,
+                  173,
+                  90,
+                  157,
+                  151,
+                  230,
+                  171,
+                  95,
+                  250,
+                  21,
+                  28,
+                  38,
+                  172,
+                  90,
+                  48,
+                  238
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 11,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    101,
+                    110,
+                    117,
+                    45,
+                    112,
+                    111,
+                    112,
+                    117,
+                    112,
+                    58,
+                    50,
+                    52,
+                    58,
+                    52
+                  ]
+                ],
+                "stacking_order": 1,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 4,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "22": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 34.0,
+                  "width": 165.0
+                },
+                "desktop_rect": {
+                  "height": 34.0,
+                  "width": 165.0,
+                  "x": 300.0,
+                  "y": 300.0
+                },
+                "focused": false,
+                "id": 22,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Tooltip",
+                "routing_token": [
+                  29,
+                  39,
+                  228,
+                  4,
+                  133,
+                  142,
+                  130,
+                  144,
+                  88,
+                  133,
+                  172,
+                  5,
+                  155,
+                  59,
+                  113,
+                  60
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 14,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    116,
+                    111,
+                    111,
+                    108,
+                    116,
+                    105,
+                    112,
+                    58,
+                    50,
+                    52,
+                    58,
+                    52
+                  ]
+                ],
+                "stacking_order": 2,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 4,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "23": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 110.0,
+                  "width": 320.0
+                },
+                "desktop_rect": {
+                  "height": 110.0,
+                  "width": 320.0,
+                  "x": 120.0,
+                  "y": 40.0
+                },
+                "focused": true,
+                "id": 23,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "opacity": 1.0,
+                "parent": {
+                  "id": 20,
+                  "kind": "Surface"
+                },
+                "role": "Toplevel",
+                "routing_token": [
+                  211,
+                  74,
+                  179,
+                  42,
+                  249,
+                  188,
+                  109,
+                  76,
+                  51,
+                  67,
+                  189,
+                  212,
+                  119,
+                  79,
+                  100,
+                  228
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 16,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    51,
+                    48,
+                    98,
+                    57,
+                    57,
+                    99,
+                    49,
+                    53,
+                    53,
+                    52,
+                    53,
+                    51,
+                    52,
+                    101,
+                    49,
+                    55,
+                    57,
+                    48,
+                    55,
+                    51,
+                    51,
+                    55,
+                    50,
+                    54,
+                    101,
+                    100,
+                    102,
+                    48,
+                    56,
+                    55,
+                    53,
+                    53,
+                    58,
+                    109,
+                    111,
+                    100,
+                    97,
+                    108,
+                    58,
+                    50,
+                    52,
+                    58,
+                    52
+                  ]
+                ],
+                "stacking_order": 3,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 4,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "24": {
+              "Text": {
+                "content": "Modal scalar text: \ud834\udd1e e\u0301 \u05e9\u05dc\u05d5\u05dd",
+                "editable": true,
+                "id": 24,
+                "selectable": true,
+                "selection": {
+                  "anchor": 8,
+                  "focus": 6
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 2
+              }
+            },
+            "25": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 25,
+                "label": "Close native modal",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "26": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 26,
+                "label": "Retire native tooltip",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "3": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 3,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 13,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "4": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 4,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "5": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 5,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "6": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 6,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "7": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 7,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "8": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 5,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 6,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 7,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 5,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 6,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 7,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 8,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "9": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 9,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            }
+          },
+          "retired": [],
+          "revision": 4
+        },
+        "decoded_full_source": {
+          "exact_envelope_sha256": "fc731705168b031ef571f4d4cfcb752a4d7ca98405505c0e4ad3c084e8f9bddd",
+          "native_capture_gaps": [],
+          "primitive_counts": {
+            "Border": 12,
+            "FillPath": 1,
+            "GlyphRun": 212,
+            "Group": 62,
+            "SolidRect": 31,
+            "StrokePath": 1
+          },
+          "resource_offers": [
+            {
+              "digest": "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 637,
+              "version": 1
+            },
+            {
+              "digest": "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 861,
+              "version": 1
+            },
+            {
+              "digest": "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1045,
+              "version": 1
+            },
+            {
+              "digest": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 799,
+              "version": 1
+            },
+            {
+              "digest": "1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 718,
+              "version": 1
+            },
+            {
+              "digest": "465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 230,
+              "version": 1
+            },
+            {
+              "digest": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 520,
+              "version": 1
+            },
+            {
+              "digest": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 163,
+              "version": 1
+            },
+            {
+              "digest": "4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 524,
+              "version": 1
+            },
+            {
+              "digest": "67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 228,
+              "version": 1
+            },
+            {
+              "digest": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 799,
+              "version": 1
+            },
+            {
+              "digest": "7302b6791f67f11a03b203f959d1fdac8e1e921d3dbaf66b6930fda96eb54b37",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 623,
+              "version": 1
+            },
+            {
+              "digest": "7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 346,
+              "version": 1
+            },
+            {
+              "digest": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 796,
+              "version": 1
+            },
+            {
+              "digest": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 781,
+              "version": 1
+            },
+            {
+              "digest": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1520,
+              "version": 1
+            },
+            {
+              "digest": "aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a",
+              "kind": 1,
+              "provenance": 1,
+              "total_bytes": 109,
+              "version": 1
+            },
+            {
+              "digest": "af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 884,
+              "version": 1
+            },
+            {
+              "digest": "b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1143,
+              "version": 1
+            },
+            {
+              "digest": "b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 992,
+              "version": 1
+            },
+            {
+              "digest": "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 978,
+              "version": 1
+            },
+            {
+              "digest": "cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 230,
+              "version": 1
+            },
+            {
+              "digest": "e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 162,
+              "version": 1
+            },
+            {
+              "digest": "e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 963,
+              "version": 1
+            },
+            {
+              "digest": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 475,
+              "version": 1
+            },
+            {
+              "digest": "eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 918,
+              "version": 1
+            },
+            {
+              "digest": "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1210,
+              "version": 1
+            },
+            {
+              "digest": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1466,
+              "version": 1
+            },
+            {
+              "digest": "c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 609,
+              "version": 1
+            },
+            {
+              "digest": "52524fa6f715deec83953453ba1b627b959a2417dc99e3aa461bba8ab51607e8",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 861,
+              "version": 1
+            },
+            {
+              "digest": "4ad6e327dc85be1cfa4b296daa6ef1d5585f416e5d788e8b4de3d5ef3a177eb3",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 884,
+              "version": 1
+            },
+            {
+              "digest": "8e512df673be0cbc86214262607787432ecd7ab37ce2809bf803171664182526",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "8fd04a47850587b8c4517c2d1a5d6e17b02ad08cf2c5ac758548d68a7b15da0b",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 163,
+              "version": 1
+            },
+            {
+              "digest": "bee9d8dde2eb462ebb972d6b6d92a12367486c4c7b30343c84b8110c54c308ea",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 471,
+              "version": 1
+            },
+            {
+              "digest": "d550bf563826442b3fc467beb9b03576160235f3e8b2a825cdd5aaae304b4814",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 4411,
+              "version": 1
+            },
+            {
+              "digest": "e3b1a2f3fba416eb6d973c692ae6da8e5955e22ed9dea5039b6e07d54ac68942",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 359,
+              "version": 1
+            }
+          ],
+          "surfaces": [
+            {
+              "id": 20,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            },
+            {
+              "id": 21,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            },
+            {
+              "id": 22,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            },
+            {
+              "id": 23,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            }
+          ]
+        },
+        "exact_semantic_wire_hex": "0a1030b99c1554534e1790733726edf087551210010101010101010100000000000000011a100404040404040404040404040404040420032a1030b99c1554534e17000000000000000130013811420c53657453656c656374696f6e480150035a04080110017a0408081006",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 212
+          },
+          "local_reference_draws": 4,
+          "node_decisions": {
+            "lowered": 107
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 12,
+            "clip-node": 2,
+            "color-node": 31,
+            "container-node": 21,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 21,
+            "transform-node": 18
+          },
+          "source_nodes_visited": 107,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 12,
+            "FillPath": 1,
+            "GlyphRun": 212,
+            "Group": 62,
+            "SolidRect": 31,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 319,
+          "vector_resource_bodies": 38
+        },
+        "native_callbacks": 4,
+        "native_dispatches": 2,
+        "observed_view_revision": 3,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": 1
+        },
+        "published_revision": 4,
+        "rejection": null,
+        "source_commit": "30b99c1554534e1790733726edf08755:whole:24:4",
+        "status": "Applied",
+        "target_id": 17
+      }
+    ],
+    "content_clock_after_selection_cycle": 1,
+    "focus_generation_after_native_cycle": 9,
+    "focus_generation_before_native_cycle": 7,
+    "host_reserved_bytes_before_drop": 143654912,
+    "native_callbacks": 4,
+    "native_dispatches": 2,
+    "retained_native_artifact_bytes": 4019534,
+    "text_record_after_selection_cycle": 4,
+    "text_record_before_selection_cycle": 2
+  },
+  "observer_scope": "Independent consumer instances of the same Rust reducer; independent Python implementation interop is separate evidence.",
+  "pinned_gtk": [
+    4,
+    22,
+    4
+  ],
+  "retained_exact_trace": "fixtures/gtk/native-context-golden",
+  "retained_trace_sha256": {
+    "native-context/0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24.rvp": "65bbf23d7747f2036a50972c7eadc643054ca8d356a7dd2127fc667ee15f5afc",
+    "native-context/02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c.rvp": "4d403f0d9e970475d7b2b57c10b5776bc2214fb4b32384c961406787f6d8d7e4",
+    "native-context/04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d.rvp": "58a265c32645b23932b1aeeda0720e264a55bda09f365ec5ae91166d69ac2df7",
+    "native-context/0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1.rvp": "2d3c588512169ae64ce5e660b91ca094c121b0f459502a6d7307f006424a071e",
+    "native-context/116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc.rvp": "ad53028bdf4cb935db25a714662419cc82def4132111535047eeaf5114919942",
+    "native-context/1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7.rvp": "ba33f3ce4925bf563524f0eb6258daf652871487d0243b949f11bcd2efae6bc3",
+    "native-context/465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762.rvp": "46ee48394624a5c74c47cd7dde5bdea8b65afca2d17c315f9065eb76a0f805a3",
+    "native-context/46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153.rvp": "aae7f325cd9bc1fea398b6bc33c4e09d3afabfe9448b3b684d757ad6e96754f1",
+    "native-context/499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5.rvp": "42a56ac68686b11f5fc8be936a7f3e89ad656d9f6c064f9b0fe738171f4cf900",
+    "native-context/4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2.rvp": "a37fb5fd6796a5100d82205d8d1ea90b9c999d0922433914216d901999ad04d8",
+    "native-context/4ad6e327dc85be1cfa4b296daa6ef1d5585f416e5d788e8b4de3d5ef3a177eb3.rvp": "030827f4eb62b1cd587f1a50f4009dc2951fb2518b5849716845cf2651c7d8a9",
+    "native-context/52524fa6f715deec83953453ba1b627b959a2417dc99e3aa461bba8ab51607e8.rvp": "02a0514afcb9a1b2ec3072772f6448998fa73c3f8fc66328732c6062ae171572",
+    "native-context/5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f.rvp": "fd820ffa2791d4d52db028cc7779b0ccf49bd6b98ef0a78c45731f258338be72",
+    "native-context/67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9.rvp": "66c967d019ed1052fb99cc05e61a34ec0d66823240b08cd09ed56eca3a829d90",
+    "native-context/725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746.rvp": "9287c14fbd950d2c6b9ded72fd4684de3d219e1f1b3f8593d7b81b584e48293e",
+    "native-context/7302b6791f67f11a03b203f959d1fdac8e1e921d3dbaf66b6930fda96eb54b37.rvp": "fcf6b0841217274e2c939238c6eae8a51458bebdc99b8ff789d46394527f58c6",
+    "native-context/7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197.rvp": "84c3ae1f4e8a0553fbacbdb1fef2251d39c30aef93302805bed473225fa0b017",
+    "native-context/8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce.rvp": "5a41d083c2ad08a9185d5e60e4ac9876f155e11f50d2fa31b15892b9d8886abb",
+    "native-context/8e512df673be0cbc86214262607787432ecd7ab37ce2809bf803171664182526.rvp": "4bbe44309bf189b3af903df190a27822fdb63c82adb2eb46efdaa7ce714fa68b",
+    "native-context/8fd04a47850587b8c4517c2d1a5d6e17b02ad08cf2c5ac758548d68a7b15da0b.rvp": "4dd2819af9e23acd82dd2c72d05b9fec46f40fced88eeebc3bb0cc4ef1ce6605",
+    "native-context/926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9.rvp": "95e15d72289ca011cd6d5f6289182768a797fb85ab225bc88670813d5fed2baa",
+    "native-context/a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372.rvp": "ad67386ca3253c3a7c0f8d599f62ba8f4882edf84569d56215969cfc66663dbd",
+    "native-context/aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a.rvp": "b3a7700bddd8b2b609ba58d74583776b38104c3fb2c26b63eb8ba24252404101",
+    "native-context/af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea.rvp": "9655f4729e35ec92e417ea8771b1b3a7665aefae9feb471bea0cd51e1847d9ac",
+    "native-context/b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e.rvp": "0e881223f09c50614867c5d65b4a2127534df6553a1be131c997ec6bd418f3ae",
+    "native-context/b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed.rvp": "39b71ae754474e852cd7e123ad9b0a268713556351a522341e6416c581ac31fd",
+    "native-context/b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381.rvp": "3bb119a73c86329ce75330905b478407a9520968630ab4d32070b338618578f4",
+    "native-context/bee9d8dde2eb462ebb972d6b6d92a12367486c4c7b30343c84b8110c54c308ea.rvp": "fed6d8ccc0f77a2689321df0819bd439e8e3c315939028bf5866498438a6dca5",
+    "native-context/c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b.rvp": "da2c699c10721e3bbe9d1c854b4c189a3dc37cd8c1bfb74fc1e7e280db0612d6",
+    "native-context/cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e.rvp": "0963b958dcb5b4bb6762ebd3325cb96a02773bb2a906b29419588942d4126254",
+    "native-context/d550bf563826442b3fc467beb9b03576160235f3e8b2a825cdd5aaae304b4814.rvp": "ede89e8d6549f7a3e23fffa3a3f1d33b9281123e85f1ea61b44f7c81f4956858",
+    "native-context/e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21.rvp": "1e3c3138caf503e3932c618bdd48bda44b20d43eb61e92df44e0323d55956cb3",
+    "native-context/e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19.rvp": "2caff6f4127db7e1a6e97f033584df04ac8891b740af2a8a85f0f24a8e9b3444",
+    "native-context/e3b1a2f3fba416eb6d973c692ae6da8e5955e22ed9dea5039b6e07d54ac68942.rvp": "6abd051602c93bbef0046b3ae25c6e0ead9134ea7ffe7fe5c835baed6dd46691",
+    "native-context/e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52.rvp": "a5d4bd6e2b53c07fd8c16d82ac7d1d1b6da4a07a1739580ec24c6ae684cbc7f0",
+    "native-context/eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d.rvp": "1bd531144e37f0af48f423a3bd900396d79c6a9bb5dfceabb4d25e9cecdf85a5",
+    "native-context/ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c.rvp": "70150843fc2c3f589b5e065f243d661cb5467bc4de45bc6e15bdcc91ac37d8b7",
+    "native-context/ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53.rvp": "83e4cd8063c4dfa9e6753d08e4d39b0bca8be20cf36dd36f22af2892f16e17bd",
+    "native-context/snapshot-01-000001.bin": "ba98b4db1240ce901fd8a0ea67221a29ee717e5175c3c5536f1607feeadbdfcd",
+    "native-context/snapshot-01-000001.json": "64e8fa454323aced99d72a61619874a017f3039295e3cf6e69941fbfbd519c84",
+    "native-context/snapshot-01-000002.bin": "ef3b1db5da57947c582763916b5cbaae8098cdc87fb8ba4114c55aeae5929f0e",
+    "native-context/snapshot-01-000002.json": "88201e1b039b14f4083247fa8fd43860bfc40e0457ebece008478fe386b61acf",
+    "native-context/snapshot-01-000003.bin": "9ed8923f4d6ff99a550446bea7e40d00a63b60c631feebb68552e9310a48a886",
+    "native-context/snapshot-01-000003.json": "db975fbf2eb4e74f143dd4cddf2e3156d1b7986a316b6ad63d117fec67175000",
+    "native-context/snapshot-01-000004.bin": "fc731705168b031ef571f4d4cfcb752a4d7ca98405505c0e4ad3c084e8f9bddd",
+    "native-context/snapshot-01-000004.json": "952aff6878301ef38e7b9a3a30d027d1649522239d4441c74a20347c53476b88",
+    "native-context/snapshot-01-000005.bin": "2928b107f86065f05f3aa4a092932b55fcd2ae2f2b94040ec65ef61b0cec131c",
+    "native-context/snapshot-01-000005.json": "28f3885815fce40e81f503699d00a1b0807aa82c44d58abd182bcf7a10bd3d17"
+  },
+  "scope": "actual core semantic admission and native focus/selection context guards; no TextComposition or Presented claim"
+}

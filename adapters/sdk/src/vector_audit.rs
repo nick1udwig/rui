@@ -248,6 +248,8 @@ impl CaptureArtifact {
             || session.focus.map(|r| r.id) != m["session"]["focus"].as_u64()
             || session.focus_surface.map(|r| r.id) != m["session"]["focus_surface"].as_u64()
             || Some(session.focus_generation) != m["session"]["focus_generation"].as_u64()
+            || (m["native_context_profile"] == "gtk-native-focus-context.v1"
+                && facts["focus_generation"].as_u64() != Some(session.focus_generation))
             || state
                 .records
                 .values()

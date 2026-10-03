@@ -8,6 +8,17 @@ class SourceRejected(ValueError):
     pass
 
 
+def invalidate_native_context(source):
+    # A swallowed GObject callback exception must never erase an ABA event.
+    # This latch belongs to this source incarnation; only replacement recovers.
+    source.native_context_unavailable = True
+
+
+def require_native_context(source):
+    if getattr(source, 'native_context_unavailable', False):
+        raise SourceRejected('native-context-observation-unavailable')
+
+
 class NativeAction:
     """Explicit source-owned Gio action in a registered menu surface."""
     def __init__(self, action, capture):
@@ -50,6 +61,32 @@ class NativeRegistry:
             widget.action.connect('notify::enabled', lambda *_: self.source.changed())
         else:
             widget.connect('notify::sensitive', lambda *_: self.source.changed())
+            if isinstance(widget, Gtk.Entry):
+                for signal in ('changed', 'notify::cursor-position', 'notify::selection-bound'):
+                    widget.connect(signal, lambda *_, k=key, owner=surface: self.observe_text(k, owner))
+
+    def observe_text(self, key, owner):
+        if getattr(self.source, 'native_context_unavailable', False):
+            return
+        if key not in self.source._semantics or owner not in self.surfaces:
+            return
+        capture = self.surfaces[owner]
+        if not capture.source_alive:
+            return
+        # Read every actual editable transition, rather than only the final
+        # frame. An edit/selection away and back still invalidates IME context.
+        budget = getattr(self.source, 'capture_budget', None)
+        scratch = None
+        try:
+            scratch = budget.reserve(16 << 20) if budget else None
+            self.source.semantics(capture.semantic_root, capture.frames)
+        except Exception:
+            # PyGObject may swallow callback exceptions. Losing even one
+            # transition makes every old editing context unsafe to dispatch.
+            invalidate_native_context(self.source)
+        finally:
+            if scratch:
+                scratch.close()
 
     def surface(self, key, capture, window=None):
         self.surfaces[key] = capture
@@ -68,9 +105,14 @@ class NativeRegistry:
         return None
 
     def focus_changed(self, *_):
-        for surface, capture in self.surfaces.items():
-            self.source.focus_changed(surface, self.focus(surface))
-            capture.queue_draw()
+        if getattr(self.source, 'native_context_unavailable', False):
+            return
+        try:
+            for surface, capture in self.surfaces.items():
+                self.source.focus_changed(surface, self.focus(surface))
+                capture.queue_draw()
+        except Exception:
+            invalidate_native_context(self.source)
 
     def retire(self, key):
         self.widgets.pop(key, None)
@@ -101,6 +143,7 @@ class NativeRegistry:
         The dispatcher separately re-reads actual relevant native fields/clocks.
         Raw input keeps the stricter route/frame check in resolve_event.
         """
+        require_native_context(self.source)
         if incarnation != self.source.identity:
             raise SourceRejected('retired-source-incarnation')
         for surface, capture in self.surfaces.items():
