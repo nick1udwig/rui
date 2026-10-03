@@ -4,7 +4,7 @@ This audit tracks every case from the unchanged historical `conformance.yaml`.
 It distinguishes accepted component evidence from required integration evidence.
 A row is not a completion claim: the final milestone decision requires checking
 the stated fixture and every expected outcome, including the remaining gate.
-Evidence below is committed through `aae0c4e`. Retained reconnect and isolated
+Evidence below is committed through `3234aaf`. Retained reconnect and isolated
 session backend work remain under review. The accepted native command bridge
 is a bounded private semantic fixture; it does not establish TLS/IME integration.
 
@@ -59,7 +59,7 @@ is a bounded private semantic fixture; it does not establish TLS/IME integration
 | INP-005 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Granted-region mapping component covered; actual libei/EIS with unequal logical and framebuffer dimensions remains. |
 | INP-006 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Physical namespace and no client repeat covered; host layout/repeat on actual backend remains. |
 | INP-007 | integration (P0) | No accepted injector integration. | Deny unenforceable app-only scope and prove isolated fully authorized session enforcement. |
-| TXT-001 | integration (P0) | [controlled.rs](../host-broker/tests/controlled.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Scalar edits, consecutive native caret insertions and backward native selection pass admitted GTK commands (`adapters/sdk/tests/native_trace.rs`); supplementary/combining/RTL native scenario remains. |
+| TXT-001 | integration (P0) | [controlled.rs](../host-broker/tests/controlled.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Actual GTK supplementary/combining/RTL replacements, backward and intra-cluster scalar selections, native carets, content clocks and exact retries pass (`adapters/sdk/tests/unicode_trace.rs`); retain native Unicode scenario in final suite. |
 | TXT-002 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [interaction.rs](../client-desktop/tests/interaction.rs) | Transient composition, context invalidation, native IM key-path probe and bounded causal FIFO (`client-desktop/tests/typing.rs`) covered; native causal typing/visible preedit and sticky input-limit feedback pass (`fixtures/render/native-corpus.json`, native IM probe); wire composition/native source integration remains. |
 | TXT-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [interaction.rs](../client-desktop/tests/interaction.rs) | Transient composition, context invalidation, native IM key-path probe and bounded causal FIFO (`client-desktop/tests/typing.rs`) covered; native causal typing/visible preedit and sticky input-limit feedback pass (`fixtures/render/native-corpus.json`, native IM probe); wire composition/native source integration remains. |
 | TXT-004 | integration (P0) | [pixels.rs](../client-desktop/tests/pixels.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Pinned source outlines, decoded glyph geometry, authorized host closures and real TLS resource delivery covered; native font/two-mirror presentation passes (`fixtures/render/native-corpus.json`); retain missing-font and cache recovery negatives in final suite. |
