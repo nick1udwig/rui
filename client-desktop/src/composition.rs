@@ -127,6 +127,13 @@ impl CompositionQueue {
     pub fn context(&self) -> Option<EditingContext> {
         self.origin
     }
+    pub fn is_active(&self) -> bool {
+        self.native_active.is_some()
+            || self.machine.active_id().is_some()
+            || self.receipt.is_some()
+            || self.expected.is_some()
+            || !self.events.is_empty()
+    }
     pub fn pending_count(&self) -> usize {
         self.events.len() + usize::from(self.receipt.is_some() || self.expected.is_some())
     }

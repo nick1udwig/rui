@@ -2,11 +2,13 @@
 use gtk4::{gdk, gio, glib, prelude::*};
 use rui_client_desktop::{
     desktop::{
-        gtk::{queue_text_commit, LocalFeedback},
+        composition_cleanup::CleanupOwner,
+        gtk::{queue_composition, queue_text_commit, LocalFeedback},
         native::NativeEditing,
-        Stamp, UiCommand,
+        Stamp, UiCommand, UiState,
     },
     interaction::EditingContext,
+    physical_dispatch::PhysicalControl,
     Viewport,
 };
 use rui_protocol_core::{model::TextRange, resources::MemoryBudget};
@@ -209,6 +211,111 @@ fn main() {
                         assert!(blocked.get());
                         assert_eq!(failures.get(), 1);
                         assert_eq!(rejection.text(), feedback.message().unwrap());
+                        // Actual GTK reset emits its original Cancel while the
+                        // bounded handoff is full. Preserve cleanup identity even
+                        // though reset has already invalidated LocalComposition.
+                        let (wire_tx, mut wire_rx) = tokio::sync::mpsc::channel(1);
+                        let (priority, priority_rx) = tokio::sync::watch::channel(None);
+                        let old_control = PhysicalControl {
+                            connection_generation: 1,
+                            grant_serial: 1,
+                        };
+                        let new_control = PhysicalControl {
+                            connection_generation: 1,
+                            grant_serial: 2,
+                        };
+                        let observed_owner = Rc::new(Cell::new(None));
+                        let mut cleanup = CleanupOwner::default();
+                        assert!(cleanup.remember(
+                            captured,
+                            UiState {
+                                editing: Some(captured),
+                                composition_control: Some(old_control),
+                                ..Default::default()
+                            }
+                        ));
+                        let mut new_owner = captured;
+                        new_owner.generation += 1;
+                        new_owner.lease = [9; 16];
+                        assert_eq!(cleanup.stop_for(Some(new_owner)), None);
+                        assert!(!cleanup.remember(
+                            captured,
+                            UiState {
+                                editing: Some(new_owner),
+                                composition_control: Some(new_control),
+                                ..Default::default()
+                            }
+                        ));
+                        assert_eq!(cleanup.stop_for(Some(captured)), Some(old_control));
+                        let wire_feedback = LocalFeedback::new(&rejection);
+                        let wire_native = {
+                            let budget = budget.clone();
+                            let feedback = wire_feedback.clone();
+                            let observed_owner = observed_owner.clone();
+                            NativeEditing::new_with_composition(
+                                &rejected_widget,
+                                &preedit,
+                                Rc::new(RefCell::new(Some(budget.clone()))),
+                                |_, _| panic!("wire mode must never use semantic fallback"),
+                                move |owner, id, stage| {
+                                    queue_composition(
+                                        &wire_tx,
+                                        &feedback,
+                                        Some(Stamp {
+                                            generation: 0,
+                                            serial: 1,
+                                            revision: 1,
+                                            viewport: Viewport::new(1, 1),
+                                            pixel_digest: [0; 32],
+                                            records_digest: None,
+                                        }),
+                                        owner,
+                                        id,
+                                        stage,
+                                        Some(&budget),
+                                    )
+                                },
+                                move |owner| {
+                                    observed_owner.set(owner);
+                                    if let Some(control) = cleanup.stop_for(owner) {
+                                        priority.send_replace(Some(control));
+                                    }
+                                },
+                            )
+                        };
+                        wire_native.set_wire_mode(true);
+                        wire_native.reset(Some(captured), true);
+                        wire_native.route_key(
+                            &keys,
+                            gdk::Key::a,
+                            gdk::ModifierType::empty(),
+                            |_| {},
+                        );
+                        let wire_ime = wire_native.ime().unwrap();
+                        wire_ime.emit_by_name::<()>("preedit-start", &[]);
+                        let mut replacement = captured;
+                        replacement.generation += 1;
+                        replacement.lease = [9; 16];
+                        wire_native.reset(Some(replacement), true);
+                        assert_eq!(observed_owner.get(), Some(captured));
+                        assert_eq!(*priority_rx.borrow(), Some(old_control));
+                        assert_ne!(*priority_rx.borrow(), Some(new_control));
+                        assert!(matches!(
+                            wire_rx.try_recv(),
+                            Ok(UiCommand::Composition { .. })
+                        ));
+                        assert!(
+                            wire_rx.try_recv().is_err(),
+                            "failed Cancel enqueues no replacement operation"
+                        );
+                        assert!(wire_feedback.message().is_some());
+                        wire_ime.emit_by_name::<()>("commit", &[&"OLD-WIRE-LATE"]);
+                        assert!(
+                            wire_rx.try_recv().is_err(),
+                            "retired wire IM cannot submit late commit"
+                        );
+                        wire_native.reset(None, false);
+                        rejection.set_text(feedback.message().unwrap());
                         let passed = passed.clone();
                         let app = app.clone();
                         let feedback = feedback.clone();
@@ -251,5 +358,5 @@ fn main() {
     });
     app.run_with_args::<&str>(&[]);
     assert!(final_result.get(), "native IME probe did not complete");
-    println!("native IME: ordinary key + visible Unicode preedit + retired callbacks after rearm + empty commit rejection + full-channel sticky rejection after paint passed");
+    println!("native IME: ordinary key + visible Unicode preedit + retired callbacks after rearm + empty commit rejection + full-channel sticky rejection after paint + reset failed-Cancel old-grant cleanup passed");
 }

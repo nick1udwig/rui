@@ -2,6 +2,7 @@
 //! receiver; local viewport changes never generate application commands.
 use crate::{
     command_queue::CommandQueue,
+    composition::{ClockPolicy, CompositionQueue, NativeStage, GTK_EDITABLE_CLOCK_PROFILE},
     interaction::{self, CommandBinding, EditingContext},
     physical_dispatch::{self, CapturedPhysicalInput, PhysicalControl},
     physical_input::PhysicalKeyOwner,
@@ -27,6 +28,7 @@ use std::{
 };
 use tokio::sync::{mpsc, watch};
 
+pub mod composition_cleanup;
 pub mod gtk;
 pub mod native;
 mod physical_callbacks;
@@ -77,6 +79,11 @@ pub struct DesktopObservation {
     pub render_notice: Option<&'static str>,
     pub control_revoked: bool,
     pub editing_target: Option<u64>,
+    pub composition: CompositionObservation,
+    pub wire_composition: bool,
+    /// Actual selected optional profile, recorded without handshake credentials.
+    pub gtk_composition_clock: bool,
+    pub preedit_visible: bool,
     pub typing_pending: usize,
     pub typing_notice: TypingNotice,
     pub notice_visible: bool,
@@ -90,6 +97,13 @@ pub struct DesktopObservation {
     pub last_action: Option<ActionObservation>,
     pub failure_class: Option<&'static str>,
     pub render_timing: RenderTimingObservation,
+}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CompositionObservation {
+    pub begins: u64,
+    pub updates: u64,
+    pub commits: u64,
+    pub cancels: u64,
 }
 /// Optional bounded scheduling counters. A tick is a render opportunity, while
 /// GTK after-paint remains the independent actual presentation callback.
@@ -202,6 +216,13 @@ pub enum UiCommand {
         text: String,
         _memory: MemoryReservation,
     },
+    Composition {
+        stamp: Stamp,
+        context: EditingContext,
+        id: [u8; 16],
+        operation: rui_protocol_core::commands::CompositionOperation,
+        _memory: MemoryReservation,
+    },
     SelectAll {
         stamp: Stamp,
     },
@@ -269,6 +290,8 @@ pub struct UiState {
     pub lifecycle: Lifecycle,
     pub editing: Option<EditingContext>,
     pub typing_notice: TypingNotice,
+    pub wire_composition: bool,
+    pub composition_control: Option<PhysicalControl>,
     pub raw_input: bool,
     pub physical_control: Option<PhysicalControl>,
     pub physical_keyboard: Option<PhysicalKeyOwner>,
@@ -286,6 +309,8 @@ impl Default for UiState {
             lifecycle: Lifecycle::Live,
             editing: None,
             typing_notice: TypingNotice::None,
+            wire_composition: false,
+            composition_control: None,
             raw_input: false,
             physical_control: None,
             physical_keyboard: None,
@@ -310,6 +335,8 @@ impl UiState {
             None => self.lifecycle = Lifecycle::Quit,
         }
         self.editing = None;
+        self.wire_composition = false;
+        self.composition_control = None;
         self.raw_input = false;
         self.physical_control = None;
         self.physical_keyboard = None;
@@ -324,11 +351,86 @@ impl UiState {
         }
         self.lifecycle == Lifecycle::Live
     }
+    pub fn input_control(&self) -> Option<PhysicalControl> {
+        self.physical_control.or(self.composition_control)
+    }
     pub fn accepts(&self, stamp: Stamp) -> bool {
         self.lifecycle == Lifecycle::Live && self.generation == stamp.generation
     }
 }
 
+fn retire_editing_owner(
+    typing: &mut crate::typing::TypingQueue,
+    composition: &mut CompositionQueue,
+    selected: &mut Option<u64>,
+    ui: &mut UiState,
+) -> Result<(), ()> {
+    typing.cancel();
+    composition.cancel();
+    *selected = None;
+    ui.editing = None;
+    ui.composition_control = None;
+    ui.editing_generation = ui.editing_generation.checked_add(1).ok_or(())?;
+    Ok(())
+}
+fn current_revocation(lease: Option<&Lease>, notice: &session::ControlRevoked) -> bool {
+    lease.is_some_and(|lease| {
+        lease.wire.lease_id == notice.lease_id && lease.wire.generation == notice.generation
+    })
+}
+fn composition_policy(client: &NetworkClient) -> ClockPolicy {
+    if client
+        .profiles
+        .iter()
+        .any(|profile| profile == GTK_EDITABLE_CLOCK_PROFILE)
+    {
+        ClockPolicy::GtkEditable4224
+    } else {
+        ClockPolicy::Strict
+    }
+}
+fn composition_wire(
+    command: rui_protocol_core::commands::TextCompositionCommand,
+) -> core::TextComposition {
+    use rui_protocol_core::commands::CompositionOperation as Operation;
+    let header = command.header;
+    core::TextComposition {
+        header: Some(core::CommandHeader {
+            epoch: header.epoch.to_vec(),
+            view_id: header.view_id.to_vec(),
+            client_instance_id: header.client_instance_id.to_vec(),
+            command_seq: header.command_seq,
+            control_lease_id: header.control_lease_id.to_vec(),
+            control_generation: header.control_generation,
+            observed_view_revision: header.observed_view_revision,
+        }),
+        target_id: command.target_id,
+        text_session_id: command.text_session_id.to_vec(),
+        focus_generation: command.focus_generation,
+        base_text_version: command.base_text_version,
+        operation: Some(match command.operation {
+            Operation::Begin(range) => {
+                core::text_composition::Operation::Begin(core::ScalarRange {
+                    start: range.start,
+                    end: range.end,
+                })
+            }
+            Operation::UpdatePreedit { text, selection } => {
+                core::text_composition::Operation::UpdatePreedit(core::Preedit {
+                    text,
+                    selection: Some(core::ScalarRange {
+                        start: selection.start,
+                        end: selection.end,
+                    }),
+                })
+            }
+            Operation::CommitText { text } => {
+                core::text_composition::Operation::CommitText(core::CommitText { text })
+            }
+            Operation::Cancel => core::text_composition::Operation::Cancel(core::EmptyArguments {}),
+        }),
+    }
+}
 struct Lease {
     wire: session::ControlGranted,
     _memory: MemoryReservation,
@@ -606,6 +708,7 @@ pub async fn worker_with_priority(
     let mut profiles = SessionConfig::default().supported_profiles;
     profiles.insert("glyph.outline-single.v1".into());
     profiles.insert(CURSOR_PROFILE.into());
+    profiles.insert(GTK_EDITABLE_CLOCK_PROFILE.into());
     let hello = ClientHello {
         client_instance_id: options.client_id,
         supported_versions: [1].into_iter().collect(),
@@ -711,6 +814,15 @@ pub async fn worker_with_priority(
             return;
         }
     };
+    let mut composition = match CompositionQueue::new(budget.clone(), composition_policy(&client)) {
+        Ok(queue) => queue,
+        Err(_) => {
+            ui_state.clear(Lifecycle::Closed);
+            ui.send_replace(ui_state);
+            return;
+        }
+    };
+    let mut composition_deadline = None::<tokio::time::Instant>;
     let mut pending_commands = match CommandQueue::new(
         client.epoch,
         budget.clone(),
@@ -745,7 +857,7 @@ pub async fn worker_with_priority(
                             .wire
                             .allowed_actions
                             .iter()
-                            .any(|a| a == "ReplaceText") =>
+                            .any(|a| a == "ReplaceText" || a == "TextComposition") =>
                 {
                     current
                         .wire
@@ -779,6 +891,8 @@ pub async fn worker_with_priority(
                 };
                 if !valid {
                     typing.cancel();
+                    composition.cancel();
+                    composition_deadline = None;
                     selected = None;
                     ui_state.typing_notice = TypingNotice::Cancelled;
                     ui_state.editing_generation = match ui_state.editing_generation.checked_add(1) {
@@ -791,8 +905,36 @@ pub async fn worker_with_priority(
                     );
                 }
             }
+            if composition.context().is_some() {
+                let valid = match (raw_editing, binding, client.receiver().state()) {
+                    (Some(_), Some(binding), Ok(state)) => {
+                        composition.observe(state, &binding).is_ok()
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    composition.cancel();
+                    ui_state.typing_notice = TypingNotice::Cancelled;
+                    safety_stopped = true;
+                    reconnect = true;
+                    status(&events, "Composition context changed; control stopped. Request fresh control after recovery.");
+                    break;
+                }
+            }
+            if composition.pending_count() == 0 {
+                composition_deadline = None;
+            }
+            if composition_deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline)
+            {
+                composition.cancel();
+                ui_state.typing_notice = TypingNotice::Rejected;
+                safety_stopped = true;
+                reconnect = true;
+                status(&events, "Composition was not confirmed; control stopped. Request fresh control after recovery.");
+                break;
+            }
             ui_state.editing = if selected.is_some() {
-                typing.context().or(raw_editing)
+                composition.context().or(typing.context()).or(raw_editing)
             } else {
                 None
             };
@@ -818,6 +960,18 @@ pub async fn worker_with_priority(
                     && d.text_owner == "HOST_PHYSICAL"
                     && d.key_namespace == "linux.evdev"
             });
+            ui_state.wire_composition = !host_physical
+                && granted("TextComposition")
+                && opened.as_ref().is_some_and(|view| {
+                    view.granted_input_modes
+                        .iter()
+                        .any(|mode| mode == "text.client.v1")
+                });
+            ui_state.composition_control = (ui_state.wire_composition && grant_serial > 0)
+                .then_some(PhysicalControl {
+                    connection_generation: ui_state.generation,
+                    grant_serial,
+                });
             ui_state.physical_control = (host_physical
                 && granted("RawInputBatch")
                 && grant_serial > 0)
@@ -881,7 +1035,10 @@ pub async fn worker_with_priority(
             }
             if let Some(observations) = &options.observations {
                 observations.send_modify(|o| {
-                    o.typing_pending = typing.pending_count();
+                    o.typing_pending = typing.pending_count() + composition.pending_count();
+                    o.wire_composition = ui_state.wire_composition;
+                    o.gtk_composition_clock =
+                        matches!(composition_policy(&client), ClockPolicy::GtkEditable4224);
                     o.has_control = lease.is_some();
                     o.input_ready = input_ready;
                     o.physical_ready = ui_state.physical_ready;
@@ -898,6 +1055,42 @@ pub async fn worker_with_priority(
                         ui_state.accepts(stamp) && stamp.revision == state.revision
                     })
                 {
+                    match composition.start(state, &binding, presented.map(|stamp| stamp.revision))
+                    {
+                        Ok(Some(prepared)) => {
+                            composition_deadline =
+                                Some(tokio::time::Instant::now() + Duration::from_secs(15));
+                            let wire = composition_wire(prepared.command);
+                            if let Err(error) = physical_io::guarded(
+                                submit_wire(
+                                    &mut client,
+                                    CommandFamily::TextComposition,
+                                    &wire,
+                                    &mut pending_commands,
+                                ),
+                                ui_state.input_control(),
+                                &mut priority,
+                                &mut safety_stopped,
+                            )
+                            .await
+                            {
+                                reconnect = recoverable(&error);
+                                break;
+                            }
+                            sequence = pending_commands.next_sequence();
+                            drop(prepared.memory);
+                            continue;
+                        }
+                        Ok(None) => {}
+                        Err(_) => {
+                            composition.cancel();
+                            ui_state.typing_notice = TypingNotice::Limit;
+                            safety_stopped = true;
+                            reconnect = true;
+                            status(&events, "Composition limit reached; control stopped. Request fresh control after recovery.");
+                            break;
+                        }
+                    }
                     match typing.start(sequence, state, &binding) {
                         Ok(Some(prepared)) => {
                             let domain = match interaction::captured_text_command(
@@ -909,6 +1102,8 @@ pub async fn worker_with_priority(
                                 Ok(command) => command,
                                 Err(_) => {
                                     typing.cancel();
+                                    composition.cancel();
+                                    composition_deadline = None;
                                     selected = None;
                                     ui_state.typing_notice = TypingNotice::Cancelled;
                                     status(&events, "Pending typing cancelled before dispatch.");
@@ -917,7 +1112,7 @@ pub async fn worker_with_priority(
                             };
                             if let Err(error) = physical_io::guarded(
                                 submit_semantic(&mut client, domain, &mut pending_commands),
-                                ui_state.physical_control,
+                                ui_state.input_control(),
                                 &mut priority,
                                 &mut safety_stopped,
                             )
@@ -932,6 +1127,8 @@ pub async fn worker_with_priority(
                         Ok(None) => {}
                         Err(_) => {
                             typing.cancel();
+                            composition.cancel();
+                            composition_deadline = None;
                             selected = None;
                             ui_state.typing_notice = TypingNotice::Limit;
                             status(
@@ -945,10 +1142,10 @@ pub async fn worker_with_priority(
             }
             tokio::select! {
                 biased;
-                changed=priority.changed(), if ui_state.physical_control.is_some() || priority.has_changed().is_ok()=>{
-                    if ui_state.physical_control.is_some() && (changed.is_err() || *priority.borrow_and_update()==ui_state.physical_control) {
+                changed=priority.changed(), if ui_state.input_control().is_some() || priority.has_changed().is_ok()=>{
+                    if ui_state.input_control().is_some() && (changed.is_err() || *priority.borrow_and_update()==ui_state.input_control()) {
                         safety_stopped=true;reconnect=true;
-                        status(&events,"Physical input stopped; request fresh control after recovery.");break;
+                        status(&events,"Input stopped; request fresh control after recovery.");break;
                     }
                 },
                 _=shutdown.changed()=>{ui_state.clear(Lifecycle::Quit);break;},
@@ -973,10 +1170,10 @@ pub async fn worker_with_priority(
                     if let Some(observations)=&options.observations {observations.send_modify(|o|o.render_timing=render_timing);}
                 },
                 _=ping.tick()=>{
-                    if let Err(error)=physical_io::guarded(client.send(session::Kind::Ping,&session::Ping{nonce:serial}),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                    if let Err(error)=physical_io::guarded(client.send(session::Kind::Ping,&session::Ping{nonce:serial}),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                     if let Some(current)=&lease {
                         let Some(request)=request_id(&mut requests) else {break;};
-                        if let Err(error)=physical_io::guarded(client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                        if let Err(error)=physical_io::guarded(client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                     }
                 },
                 changed=viewport.changed()=>{if changed.is_err() {break;}dirty=true;},
@@ -989,25 +1186,50 @@ pub async fn worker_with_priority(
                         let charge=2048+granted.allowed_actions.capacity()*std::mem::size_of::<String>()+granted.allowed_actions.iter().map(String::capacity).sum::<usize>()+granted.lease_id.capacity()+granted.request_id.capacity();
                         match budget.reserve(charge) {Ok(memory)=>{
                             let fresh=lease.as_ref().is_none_or(|old|old.wire.lease_id!=granted.lease_id||old.wire.generation!=granted.generation);
-                            if fresh {grant_serial=match grant_serial.checked_add(1){Some(v)=>v,None=>break};physical.clear();ui_state.physical_notice=None;safety_stopped=false;}
+                            if fresh {
+                                grant_serial=match grant_serial.checked_add(1){Some(v)=>v,None=>break};
+                                physical.clear();
+                                if retire_editing_owner(&mut typing,&mut composition,&mut selected,&mut ui_state).is_err() {break;}
+                                composition_deadline=None;ui_state.physical_notice=None;safety_stopped=false;
+                            }
                             lease=Some(Lease{wire:granted,_memory:memory});status(&events,"Control granted.");if options.smoke_frames.is_some_and(|n|presented_frames>=n) {ui_state.clear(Lifecycle::Quit);break;}},Err(_)=>break}
                     },
-                    Ok(ClientEvent::ControlRevoked(_))=>{physical.clear();lease=None;selected=None;if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=true);}status(&events,"Observing; control released.");},
+                    Ok(ClientEvent::ControlRevoked(notice))=>{
+                        if current_revocation(lease.as_ref(),&notice) {
+                            physical.clear();
+                            if retire_editing_owner(&mut typing,&mut composition,&mut selected,&mut ui_state).is_err() {break;}
+                            composition_deadline=None;lease=None;
+                            if let Some(observations)=&options.observations {observations.send_modify(|o|o.control_revoked=true);}
+                            status(&events,"Observing; control released.");
+                        }
+                    },
                     Ok(ClientEvent::CommandResult(result))=>{
                         pending_commands.complete(result.command_seq);
                         if physical.result(result.command_seq,&result.status).is_some_and(|control|Some(control)==ui_state.physical_control) {
                             safety_stopped=true;reconnect=true;
                             status(&events,"Physical dispatch rejected or unconfirmed; request fresh control after recovery.");break;
                         }
+                        match composition.result(result.command_seq, &result.status, &result.source_commit, result.resulting_view_revision) {
+                            Ok(true) => {
+                                composition_deadline = if composition.pending_count() > 0 { Some(tokio::time::Instant::now() + Duration::from_secs(15)) } else { None };
+                            }
+                            Ok(false) => {}
+                            Err(_) => {
+                                composition.cancel(); ui_state.typing_notice=TypingNotice::Rejected;
+                                safety_stopped=true; reconnect=true;
+                                status(&events,"Composition rejected or unconfirmed; control stopped. Request fresh control after recovery.");
+                                break;
+                            }
+                        }
                         if typing.result(result.command_seq,&result.status,&result.source_commit,result.resulting_view_revision).is_err() {
-                            typing.cancel();selected=None;
+                            typing.cancel();composition.cancel();composition_deadline=None;selected=None;
                             ui_state.typing_notice=TypingNotice::Rejected;
                             ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(v)=>v,None=>break};
                             status(&events,"Remote text edit rejected or unconfirmed; pending input cancelled.");
                         } else {status(&events,if result.status=="Applied" || result.status=="APPLIED" {"Remote action applied."} else {"Remote action completed or rejected."});}
                     },
                 Ok(ClientEvent::ResetRequired(_))=>{
-                    pending=None;issued=None;issued_routing=None;presented=None;presented_routing=None;lease=None;selected=None;typing.cancel();
+                    pending=None;issued=None;issued_routing=None;presented=None;presented_routing=None;lease=None;selected=None;typing.cancel();composition.cancel();composition_deadline=None;
                     ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
                     dirty=false;awaiting_resources=false;
                     status(&events,"Retained history expired; waiting for the coherent checkpoint.");
@@ -1023,30 +1245,53 @@ pub async fn worker_with_priority(
                         UiCommand::Reconnect=>{reconnect=true;break;},
                         UiCommand::LoseResources=>{
                             if awaiting_resources {status(&events,"Wait for the current publication before dropping its cache.");continue;}
-                            let old_physical=ui_state.physical_control;
-                            typing.cancel();selected=None;presented=None;presented_routing=None;issued=None;issued_routing=None;pending=None;
+                            let old_physical=ui_state.input_control();
+                            typing.cancel();composition.cancel();composition_deadline=None;selected=None;presented=None;presented_routing=None;issued=None;issued_routing=None;pending=None;
                             ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
                             if let Err(error)=physical_io::guarded(client.resource_cache_lost(),old_physical,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             awaiting_resources= !client.receiver().resources_ready().unwrap_or(false);dirty= !awaiting_resources;
                             status(&events,"Cache cleared; waiting for verified resources and a new frame.");
                         },
-                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}},
+                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}},
                         UiCommand::Release=>{
-                            typing.cancel();selected=None;physical.clear();
+                            typing.cancel();composition.cancel();composition_deadline=None;selected=None;physical.clear();
                             if let Some(current)=lease.take() {
                                 let Some(request)=request_id(&mut requests) else {break;};
-                                if let Err(error)=physical_io::guarded(client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                                if let Err(error)=physical_io::guarded(client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             }
                         },
                         UiCommand::Presented(stamp)=>{
                             if !ui_state.accepts(stamp) {continue;}
                             if !awaiting_resources && ui_state.accepts(stamp) && issued.is_some_and(|s:Stamp|s.serial==stamp.serial && s.revision==stamp.revision)
                                 && client.receiver().state().is_ok_and(|s|s.revision==stamp.revision) {
-                                if let Err(error)=physical_io::guarded(client.presented(stamp.revision),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                                if let Err(error)=physical_io::guarded(client.presented(stamp.revision),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                                 presented=Some(stamp);presented_routing=issued_routing.clone();presented_frames+=1;status(&events,"Displayed.");
-                                if automatic_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}}
+                                if automatic_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=physical_io::guarded(client.acquire_control(request),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}}
                                 if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!automatic_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
                             } else if !awaiting_resources {dirty=true;}
+                        },
+                        UiCommand::Composition { stamp, context, id, operation, _memory } => {
+                            if !ui_state.accepts(stamp) { continue; }
+                            let Some(binding) = binding else { continue; };
+                            if !composition_cleanup::owns_binding(context,&binding) { continue; }
+                            let cancel = matches!(&operation, rui_protocol_core::commands::CompositionOperation::Cancel);
+                            if !ui_state.accepts(stamp) || !ui_state.wire_composition || (!cancel && (ui_state.editing != Some(context) || selected != Some(context.target))) {
+                                safety_stopped=true; reconnect=true; ui_state.typing_notice=TypingNotice::Cancelled;
+                                status(&events,"Composition owner changed; control stopped. Request fresh control after recovery."); break;
+                            }
+                            let state = match client.receiver().state() { Ok(state) => state, Err(_) => continue };
+                            let stage = match &operation {
+                                rui_protocol_core::commands::CompositionOperation::Begin(_) => NativeStage::Begin,
+                                rui_protocol_core::commands::CompositionOperation::UpdatePreedit { text, selection } => NativeStage::Update { text, selection: *selection },
+                                rui_protocol_core::commands::CompositionOperation::CommitText { text } => NativeStage::Commit(text),
+                                rui_protocol_core::commands::CompositionOperation::Cancel => NativeStage::Cancel,
+                            };
+                            if composition.accept(context,id,stage,state,&binding).is_err() {
+                                composition.cancel(); ui_state.typing_notice=TypingNotice::Limit;
+                                safety_stopped=true; reconnect=true;
+                                status(&events,"Composition could not be queued; control stopped. Request fresh control after recovery."); break;
+                            }
+                            ui_state.typing_notice=TypingNotice::None;
                         },
                         UiCommand::Physical(captured)=>{
                             if Some(captured.control)!=ui_state.physical_control {continue;}
@@ -1058,7 +1303,7 @@ pub async fn worker_with_priority(
                             } else {None};
                             let Some(prepared)=prepared else {safety_stopped=true;reconnect=true;status(&events,"Physical input route or readiness changed; request fresh control after recovery.");break;};
                             if physical.before_send(sequence,prepared.owner,&prepared.event).is_err() {safety_stopped=true;reconnect=true;status(&events,"Physical input limit reached; request fresh control after recovery.");break;}
-                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,&prepared.wire,&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,&prepared.wire,&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {
                                 if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}
                                 // An ambiguous physical send requires a manual new grant.
                                 safety_stopped=true;reconnect=recoverable(&error);break;
@@ -1074,27 +1319,33 @@ pub async fn worker_with_priority(
                             let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
                             let prepared=match stroke.into_command(state,binding,DeviceScope{seat:&device.seat_id,device:&device.device_id,key_namespace:&device.key_namespace,input_mode:&device.input_mode,text_owner:&device.text_owner}) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Canvas stroke cancelled: source route, geometry, or device changed.");continue;}};
                             if let Some(observations)=&options.observations {if let Some(events_digest)=prepared.event_digest() {observations.send_modify(|o|o.last_stroke=Some(StrokeObservation{command_sequence:sequence,event_count:prepared.wire().events.len(),events_digest}));}}
-                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,prepared.wire(),&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,prepared.wire(),&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             sequence=pending_commands.next_sequence();
                         },
                         UiCommand::ResizeSource{stamp,target,width,height}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_resize!=Some(target) {status(&events,"Source resize context changed; wait for its latest frame.");continue;}
                             let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
                             let prepared=match source_controls::resize_command(state,target,width,height,binding,&budget) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Source size or focused surface is unavailable.");continue;}};
-                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::Resize,prepared.wire(),&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::Resize,prepared.wire(),&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             sequence=pending_commands.next_sequence();
                         },
                         UiCommand::ScrollSource{stamp,target,x,y}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_scroll!=Some(target) {status(&events,"Select the latest remote scroll target first.");continue;}
                             let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
                             let domain=match interaction::command(state,target,"ScrollTo",Arguments::Scroll{x,y},binding) {Ok(domain)=>domain,Err(_)=>{status(&events,"Remote scroll action or context is unavailable.");continue;}};
-                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             sequence=pending_commands.next_sequence();
                         },
                         input=>{
                             let stamp=match &input {UiCommand::Click{stamp,..}|UiCommand::Commit{stamp,..}|UiCommand::SelectAll{stamp}=>*stamp,_=>unreachable!()};
                             if !ui_state.accepts(stamp) {continue;}
-                            if matches!(&input,UiCommand::Click{..}|UiCommand::SelectAll{..}) {ui_state.typing_notice=if typing.cancel()>0{TypingNotice::Cancelled}else{TypingNotice::None};if matches!(&input,UiCommand::Click{..}) {selected=None;}ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(n)=>n,None=>break};}
+                            if matches!(&input,UiCommand::Click{..}|UiCommand::SelectAll{..}) {
+                                if composition.is_active() {
+                                    composition.cancel();safety_stopped=true;reconnect=true;ui_state.typing_notice=TypingNotice::Cancelled;
+                                    status(&events,"Composition cancelled before changing target. Request fresh control after recovery.");break;
+                                }
+                                composition.cancel();composition_deadline=None;
+                                ui_state.typing_notice=if typing.cancel()>0{TypingNotice::Cancelled}else{TypingNotice::None};if matches!(&input,UiCommand::Click{..}) {selected=None;}ui_state.editing_generation=match ui_state.editing_generation.checked_add(1){Some(n)=>n,None=>break};}
                             if !ui_state.accepts(stamp) || presented.is_none() || (!matches!(&input,UiCommand::Commit{..}) && (awaiting_resources || !presented.is_some_and(|p|p.serial==stamp.serial) || !client.receiver().state().is_ok_and(|s|s.revision==stamp.revision))) {status(&events,"View changed; wait for the latest frame.");continue;}
                             let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
                             let target=match input {
@@ -1112,9 +1363,13 @@ pub async fn worker_with_priority(
                                     } else {status(&events,if node.actions.iter().any(|a|a.id=="ScrollTo"){ "Remote scroll target selected; enter its absolute scroll position." }else{ "Text target selected; type to edit or Ctrl+A to select all." });continue;}
                                 },
                                 UiCommand::Commit{text,_memory,context,..}=>{
+                                    if ui_state.wire_composition {
+                                        safety_stopped=true;reconnect=true;ui_state.typing_notice=TypingNotice::Cancelled;
+                                        status(&events,"Text ownership changed; control stopped. Request fresh control after recovery.");break;
+                                    }
                                     if ui_state.editing != Some(context) || selected != Some(context.target) {ui_state.typing_notice=TypingNotice::Cancelled;status(&events,"Editing context changed; composition cancelled.");continue;}
                                     let Some(binding)=command_binding(&client,options.client_id,lease.as_ref(),sequence) else {continue;};
-                                    if typing.accept(context,text,_memory,state,&binding).is_err() {typing.cancel();selected=None;ui_state.typing_notice=TypingNotice::Limit;status(&events,"Typing queue full or context changed; pending input cancelled.");}else{ui_state.typing_notice=TypingNotice::None;}
+                                    if typing.accept(context,text,_memory,state,&binding).is_err() {typing.cancel();composition.cancel();composition_deadline=None;selected=None;ui_state.typing_notice=TypingNotice::Limit;status(&events,"Typing queue full or context changed; pending input cancelled.");}else{ui_state.typing_notice=TypingNotice::None;}
                                     continue;
                                 },
                                 UiCommand::SelectAll{..}=>{let Some(reference)=node.text else {continue;};let Some(Record::Text(model))=state.records.get(&reference.id) else {continue;};let Some(content)=&model.content else {continue;};("SetSelection",Arguments::Selection{anchor:0,focus:content.chars().count() as u64})},
@@ -1124,7 +1379,7 @@ pub async fn worker_with_priority(
                             if !current.wire.allowed_actions.iter().any(|a|a==action) {status(&events,"This action is not granted.");continue;}
                             let lease_id: [u8;16]=match current.wire.lease_id.as_slice().try_into() {Ok(id)=>id,Err(_)=>break};
                             let domain=match interaction::command(state,target,action,args,CommandBinding{epoch:client.epoch,view:client.view_id,client:options.client_id,lease:lease_id,generation:current.wire.generation,sequence}) {Ok(c)=>c,Err(_)=>{status(&events,"Remote target or editing context is unavailable.");continue;}};
-                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.physical_control,&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
+                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
                         },
                     }
                 },
@@ -1132,7 +1387,7 @@ pub async fn worker_with_priority(
         }
         if safety_stopped {
             ui_state.physical_notice =
-                Some("Physical control stopped. Request fresh control after recovery.");
+                Some("Input control stopped. Request fresh control after recovery.");
             automatic_control = false;
         }
         physical.clear();
@@ -1147,6 +1402,7 @@ pub async fn worker_with_priority(
         lease = None;
         selected = None;
         typing.cancel();
+        composition.cancel();
         drop(opened.take());
         ui_state.clear(Lifecycle::Suspended);
         ui_state.typing_notice = TypingNotice::Cancelled;
@@ -1209,6 +1465,11 @@ pub async fn worker_with_priority(
             Ok(queue) => queue,
             Err(_) => break 'connection,
         };
+        composition = match CompositionQueue::new(budget.clone(), composition_policy(&client)) {
+            Ok(queue) => queue,
+            Err(_) => break 'connection,
+        };
+        composition_deadline = None;
         pending = Some(UiEvent::Ready(budget.clone()));
         dirty = recovery_applied;
         awaiting_resources = false;
@@ -1241,6 +1502,199 @@ pub async fn worker_with_priority(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn editing_fixture() -> State {
+        let mut state = State {
+            revision: 1,
+            records: Default::default(),
+            retired: Default::default(),
+        };
+        state.records.insert(
+            20,
+            Record::Semantic(SemanticNode {
+                id: 20,
+                version: 1,
+                role: SemanticRole::TextField,
+                label: None,
+                description: None,
+                value: None,
+                states: Default::default(),
+                children: vec![],
+                relations: vec![],
+                actions: vec![Action {
+                    id: "ReplaceText".into(),
+                    schema_version: 1,
+                }],
+                text: Some(ObjectRef {
+                    kind: ObjectKind::Text,
+                    id: 40,
+                }),
+                collection: None,
+                bindings: vec![],
+                semantic_group: None,
+                reading_order: None,
+                sensitivity: Sensitivity::Public,
+                completeness: Completeness::Full,
+            }),
+        );
+        state.records.insert(
+            40,
+            Record::Text(TextModel {
+                id: 40,
+                version: 1,
+                text_version: 1,
+                status: TextStatus::Available,
+                content: Some("Aé".into()),
+                selection: Some(TextRange {
+                    anchor: 2,
+                    focus: 2,
+                }),
+                editable: true,
+                selectable: true,
+            }),
+        );
+        state.records.insert(
+            50,
+            Record::Session(SessionState {
+                id: 50,
+                version: 1,
+                canvas: Rect {
+                    x: 0.,
+                    y: 0.,
+                    width: 20.,
+                    height: 20.,
+                },
+                cursor: None,
+                focus: Some(ObjectRef {
+                    kind: ObjectKind::Semantic,
+                    id: 20,
+                }),
+                focus_surface: None,
+                focus_generation: 1,
+            }),
+        );
+        state
+    }
+    #[test]
+    fn fresh_grant_retires_local_editing_but_preserves_exact_ambiguous_commands() {
+        let budget = MemoryBudget::new(1 << 20);
+        let state = editing_fixture();
+        let old = CommandBinding {
+            epoch: [1; 16],
+            view: [2; 16],
+            client: [3; 16],
+            lease: [4; 16],
+            generation: 1,
+            sequence: 1,
+        };
+        let fresh = CommandBinding {
+            lease: [9; 16],
+            generation: 2,
+            sequence: 2,
+            ..old
+        };
+        let owner = interaction::editing_context(&state, 20, &old).unwrap();
+        let mut typing = crate::typing::TypingQueue::new(budget.clone()).unwrap();
+        typing
+            .accept(
+                owner,
+                "x".into(),
+                budget.reserve(2048).unwrap(),
+                &state,
+                &old,
+            )
+            .unwrap();
+        assert!(typing.start(2, &state, &old).unwrap().is_some());
+        let mut composition = CompositionQueue::new(budget.clone(), ClockPolicy::Strict).unwrap();
+        composition
+            .accept(owner, [1; 16], NativeStage::Begin, &state, &old)
+            .unwrap();
+        let prepared = composition
+            .start(&state, &old, Some(state.revision))
+            .unwrap()
+            .unwrap();
+        let wire = composition_wire(prepared.command);
+        let mut exact = CommandQueue::new(old.epoch, budget.clone(), 4096).unwrap();
+        exact
+            .encode(
+                CommandFamily::TextComposition,
+                wire.encoded_len(),
+                |bytes| wire.encode(bytes).map_err(|_| ()),
+            )
+            .unwrap();
+        let retained = exact.latest().unwrap().bytes().to_vec();
+        let mut selected = Some(owner.target);
+        let mut ui = UiState {
+            editing: Some(owner),
+            editing_generation: 7,
+            composition_control: Some(PhysicalControl {
+                connection_generation: 1,
+                grant_serial: 1,
+            }),
+            ..Default::default()
+        };
+        assert!(composition.is_active());
+        retire_editing_owner(&mut typing, &mut composition, &mut selected, &mut ui).unwrap();
+        assert_eq!(typing.context(), None);
+        assert_eq!(typing.pending_count(), 0);
+        assert_eq!(composition.context(), None);
+        assert_eq!(composition.pending_count(), 0);
+        assert!(!composition.is_active());
+        assert_eq!(selected, None);
+        assert_eq!(ui.editing, None);
+        assert_eq!(ui.composition_control, None);
+        assert_eq!(ui.editing_generation, 8);
+        assert!(!composition.observe(&state, &fresh).unwrap());
+        assert!(!composition_cleanup::owns_binding(owner, &fresh));
+        assert_eq!(exact.latest().unwrap().bytes(), retained);
+        assert_eq!(exact.next_sequence(), 2);
+        // A late result may settle the retained exact request, but cannot
+        // reinstall its retired local IM owner or invalidate the fresh grant.
+        assert!(!composition.result(1, "Dispatched", "", None).unwrap());
+        let fresh_owner = interaction::editing_context(&state, 20, &fresh).unwrap();
+        assert!(composition_cleanup::owns_binding(fresh_owner, &fresh));
+        composition
+            .accept(fresh_owner, [2; 16], NativeStage::Begin, &state, &fresh)
+            .unwrap();
+        let fresh_command = composition
+            .start(&state, &fresh, Some(state.revision))
+            .unwrap()
+            .unwrap();
+        assert_eq!(fresh_command.command.header.control_lease_id, fresh.lease);
+        assert_eq!(
+            fresh_command.command.header.control_generation,
+            fresh.generation
+        );
+        assert_eq!(exact.latest().unwrap().bytes(), retained);
+        drop(fresh_command);
+        drop(prepared.memory);
+        drop(exact);
+        drop(composition);
+        drop(typing);
+        assert_eq!(budget.used(), 0);
+    }
+    #[test]
+    fn delayed_revocation_cannot_cancel_a_new_grant() {
+        let budget = MemoryBudget::new(4096);
+        let lease = Lease {
+            wire: session::ControlGranted {
+                lease_id: vec![9; 16],
+                generation: 2,
+                ..Default::default()
+            },
+            _memory: budget.reserve(2048).unwrap(),
+        };
+        let mut notice = session::ControlRevoked {
+            lease_id: vec![4; 16],
+            generation: 1,
+            reason: "old grant".into(),
+        };
+        assert!(!current_revocation(Some(&lease), &notice));
+        notice.lease_id = lease.wire.lease_id.clone();
+        assert!(!current_revocation(Some(&lease), &notice));
+        notice.generation = lease.wire.generation;
+        assert!(current_revocation(Some(&lease), &notice));
+        assert!(!current_revocation(None, &notice));
+    }
     #[test]
     fn lifecycle_watch_survives_full_frame_queue_and_is_terminal() {
         let (tx, rx) = std::sync::mpsc::sync_channel(1);

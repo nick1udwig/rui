@@ -67,7 +67,7 @@ impl PhysicalCallbacks {
                     grant_serial: owner.grant_serial,
                 })
                 .or(state.pointer_control)
-                .or(ui.physical_control)
+                .or(ui.input_control())
         };
         if let Some(control) = old {
             self.stop(control);

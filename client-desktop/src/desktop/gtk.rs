@@ -217,6 +217,75 @@ pub fn queue_text_commit(
     false
 }
 
+/// Native stage handoff reserves the complete retained UTF-8 capacity before
+/// allocating. Failure is sticky and the caller stops source authority through
+/// the separate priority lane, even if this ordinary FIFO is saturated.
+pub fn queue_composition(
+    sender: &tokio::sync::mpsc::Sender<UiCommand>,
+    feedback: &LocalFeedback,
+    stamp: Option<Stamp>,
+    context: EditingContext,
+    id: [u8; 16],
+    stage: crate::composition::NativeStage<'_>,
+    budget: Option<&MemoryBudget>,
+) -> bool {
+    use crate::composition::{NativeStage, MAX_COMPOSITION_BYTES};
+    use rui_protocol_core::commands::CompositionOperation;
+    if feedback.message().is_some() {
+        feedback.restore();
+        return false;
+    }
+    let text = match &stage {
+        NativeStage::Update { text, .. } | NativeStage::Commit(text) => *text,
+        _ => "",
+    };
+    if text.len() <= MAX_COMPOSITION_BYTES && !text.contains('\0') {
+        if let (Some(stamp), Some(budget)) = (stamp, budget) {
+            if let Ok(mut memory) = budget.reserve(text.len() + 2048) {
+                let mut owned = String::new();
+                if owned.try_reserve_exact(text.len()).is_ok() {
+                    owned.push_str(text);
+                    if memory.resize(owned.capacity() + 2048).is_ok() {
+                        let operation = match stage {
+                            NativeStage::Begin => {
+                                CompositionOperation::Begin(rui_protocol_core::input::ScalarRange {
+                                    start: context.selection.anchor.min(context.selection.focus),
+                                    end: context.selection.anchor.max(context.selection.focus),
+                                })
+                            }
+                            NativeStage::Update { selection, .. } => {
+                                CompositionOperation::UpdatePreedit {
+                                    text: owned,
+                                    selection,
+                                }
+                            }
+                            NativeStage::Commit(_) => {
+                                CompositionOperation::CommitText { text: owned }
+                            }
+                            NativeStage::Cancel => CompositionOperation::Cancel,
+                        };
+                        if sender
+                            .try_send(UiCommand::Composition {
+                                stamp,
+                                context,
+                                id,
+                                operation,
+                                _memory: memory,
+                            })
+                            .is_ok()
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    feedback.reject(
+        "Composition could not be queued within the local limit. Request fresh control to resume.",
+    );
+    false
+}
 /// Arms the original remote context before native IM filtering may emit a
 /// synchronous commit. Exposed for the isolated native signal-order probe.
 pub fn filter_text_key(
@@ -326,7 +395,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 let priority = priority_tx.clone();
                 let current = ui_rx.clone();
                 app.connect_shutdown(move |_| {
-                    if let Some(control) = current.borrow().physical_control {
+                    if let Some(control) = current.borrow().input_control() {
                         priority.send_replace(Some(control));
                     }
                     shutdown.send_replace(true);
@@ -430,25 +499,67 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             window.set_child(Some(&column));
             let budget = Rc::new(RefCell::new(None::<MemoryBudget>));
             let physical =
-                super::physical_callbacks::PhysicalCallbacks::new(command_tx.clone(), priority_tx);
+                super::physical_callbacks::PhysicalCallbacks::new(command_tx.clone(), priority_tx.clone());
             let native = {
-                let budget = budget.clone();
-                let weak_canvas = canvas.downgrade();
-                let sender = command_tx.clone();
-                let feedback = feedback.clone();
-                super::native::NativeEditing::new(
-                    &canvas,
-                    &preedit,
-                    budget.clone(),
-                    move |context, text| {
-                        queue_text_commit(
-                            &sender,
-                            &feedback,
-                            weak_canvas.upgrade().and_then(|c| c.imp().stamp.get()),
-                            context,
-                            text,
-                            budget.borrow().as_ref(),
-                        )
+                let fallback_budget = budget.clone();
+                let fallback_canvas = canvas.downgrade();
+                let fallback_sender = command_tx.clone();
+                let fallback_feedback = feedback.clone();
+                let wire_budget = budget.clone();
+                let wire_canvas = canvas.downgrade();
+                let wire_sender = command_tx.clone();
+                let wire_feedback = feedback.clone();
+                let wire_ui = ui_rx.clone();
+                let wire_observations = observations.clone();
+                let cleanup_owner = Rc::new(Cell::new(super::composition_cleanup::CleanupOwner::default()));
+                let wire_cleanup = cleanup_owner.clone();
+                let failure_cleanup = cleanup_owner.clone();
+                let failure_feedback = feedback.clone();
+                let failure_priority = priority_tx.clone();
+                super::native::NativeEditing::new_with_composition(
+                    &canvas, &preedit, budget.clone(),
+                    move |context, text| queue_text_commit(
+                        &fallback_sender, &fallback_feedback,
+                        fallback_canvas.upgrade().and_then(|canvas| canvas.imp().stamp.get()),
+                        context, text, fallback_budget.borrow().as_ref(),
+                    ),
+                    move |context, id, stage| {
+                        if matches!(&stage, crate::composition::NativeStage::Begin) {
+                            let mut cleanup = wire_cleanup.get();
+                            cleanup.remember(context,*wire_ui.borrow());
+                            wire_cleanup.set(cleanup);
+                        }
+                        let kind = match &stage {
+                            crate::composition::NativeStage::Begin => 0,
+                            crate::composition::NativeStage::Update { .. } => 1,
+                            crate::composition::NativeStage::Commit(_) => 2,
+                            crate::composition::NativeStage::Cancel => 3,
+                        };
+                        let accepted = queue_composition(
+                            &wire_sender, &wire_feedback,
+                            wire_canvas.upgrade().and_then(|canvas| canvas.imp().stamp.get()),
+                            context, id, stage, wire_budget.borrow().as_ref(),
+                        );
+                        if accepted {
+                            if let Some(observations) = &wire_observations {
+                                observations.send_modify(|observation| {
+                                    let count = match kind {
+                                        0 => &mut observation.composition.begins,
+                                        1 => &mut observation.composition.updates,
+                                        2 => &mut observation.composition.commits,
+                                        _ => &mut observation.composition.cancels,
+                                    };
+                                    *count = count.saturating_add(1);
+                                });
+                            }
+                        }
+                        accepted
+                    },
+                    move |owner| {
+                        failure_feedback.reject("Composition cancelled. Request fresh control to resume.");
+                        if let Some(control) = failure_cleanup.get().stop_for(owner) {
+                            failure_priority.send_replace(Some(control));
+                        }
                     },
                 )
             };
@@ -544,7 +655,10 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             for (button, cache_loss) in [(&reconnect, false), (&clear_cache, true)] {
                 let sender = command_tx.clone();
                 let label = label.clone();
+                let physical = physical.clone();
+                let state = ui_rx.clone();
                 button.connect_clicked(move |_| {
+                    physical.stop_current(*state.borrow());
                     enqueue(
                         &sender,
                         if cache_loss {
@@ -947,6 +1061,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                                     return glib::Propagation::Stop;
                                 }
                                 if sender.capacity() == 0 {
+                                    if let Some(control) = current.composition_control { physical.stop(control); }
                                     feedback.reject("Typing queue is full; this key was not accepted. Select the target to resume.");
                                     native.reset(None, true);
                                     return glib::Propagation::Stop;
@@ -978,6 +1093,8 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                                         tx.send_replace(v);
                                     }
                                     Shortcut::ReleaseControl => {
+                                        physical.stop_current(current);
+                                        native.reset(None, true);
                                         enqueue(&sender, UiCommand::Release, &label);
                                     }
                                     Shortcut::AcquireControl => {
@@ -1211,11 +1328,16 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                         "Source readiness changed; the unsubmitted canvas stroke was cancelled.",
                     );
                 }
+                if let Some(observations) = &observations {
+                    observations.send_modify(|observation| observation.preedit_visible = !preedit.text().is_empty());
+                }
                 if current.editing != old.editing
                     || current.editing_generation != old.editing_generation
                     || current.generation != old.generation
                     || current.lifecycle != old.lifecycle
+                    || current.wire_composition != old.wire_composition
                 {
+                    native.set_wire_mode(current.wire_composition);
                     if current.editing_generation != old.editing_generation {
                         click_pending.set(false);
                     }
