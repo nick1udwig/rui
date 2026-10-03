@@ -36,6 +36,8 @@ type Result<T> = std::result::Result<T, Error>;
 const CONTROLLER: &str = "RUI native GTK source controller";
 const OBSERVER: &str = "RUI native GTK source observer";
 const CEILING: usize = 128 << 10;
+#[path = "corpus_support/composition.rs"]
+mod composition_probe;
 #[path = "corpus_support/trace.rs"]
 mod trace;
 
@@ -53,10 +55,16 @@ fn approve(pairing: &mut PairingAuthority, id: u8, control: bool) -> Result<Cred
                 can_view: true,
                 can_control: control,
                 actions: if control {
-                    ["Activate", "Focus", "ReplaceText", "SetSelection"]
-                        .into_iter()
-                        .map(str::to_owned)
-                        .collect()
+                    [
+                        "Activate",
+                        "Focus",
+                        "ReplaceText",
+                        "SetSelection",
+                        "TextComposition",
+                    ]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
                 } else {
                     BTreeSet::new()
                 },
@@ -188,6 +196,48 @@ fn retain(path: &Path, directory: &Path) -> Result<PathBuf> {
 struct Compared {
     proof: Value,
     close: Option<Point>,
+    editable: Option<Point>,
+}
+fn semantic_point(
+    state: &rui_protocol_core::model::State,
+    label: &str,
+    displayed: DisplayedObservation,
+) -> Option<Point> {
+    state
+        .records
+        .values()
+        .find_map(|record| match record {
+            Record::Semantic(node) if node.label.as_deref() == Some(label) => Some(node.id),
+            _ => None,
+        })
+        .and_then(|target| {
+            state.records.values().find_map(|record| match record {
+                Record::Binding(binding) if binding.semantics.iter().any(|r| r.id == target) => {
+                    let Record::Surface(surface) = state.records.get(&binding.surface.id)? else {
+                        return None;
+                    };
+                    let rect = binding.interaction_region?;
+                    let point = Point {
+                        x: rect.x + rect.width / 2.0,
+                        y: rect.y + rect.height / 2.0,
+                    };
+                    let m = surface.transform;
+                    let desktop = Point {
+                        x: surface.desktop_rect.x + m.xx * point.x + m.xy * point.y + m.tx,
+                        y: surface.desktop_rect.y + m.yx * point.x + m.yy * point.y + m.ty,
+                    };
+                    Some(Point {
+                        x: displayed.canvas_origin.x
+                            + (desktop.x - displayed.stamp.viewport.origin.x)
+                                * displayed.stamp.viewport.scale,
+                        y: displayed.canvas_origin.y
+                            + (desktop.y - displayed.stamp.viewport.origin.y)
+                                * displayed.stamp.viewport.scale,
+                    })
+                }
+                _ => None,
+            })
+        })
 }
 async fn compare(
     path: &Path,
@@ -252,46 +302,12 @@ async fn compare(
     renderer
         .render_view(state, Viewport::new(width, height), &receiver)?
         .write_pam(&mut File::create(&pam)?)?;
-    let close = state
-        .records
-        .values()
-        .find_map(|record| match record {
-            Record::Semantic(node) if node.label.as_deref() == Some("Close native modal") => {
-                Some(node.id)
-            }
-            _ => None,
-        })
-        .and_then(|target| {
-            state.records.values().find_map(|record| match record {
-                Record::Binding(binding) if binding.semantics.iter().any(|r| r.id == target) => {
-                    let Record::Surface(surface) = state.records.get(&binding.surface.id)? else {
-                        return None;
-                    };
-                    let rect = binding.interaction_region?;
-                    let point = Point {
-                        x: rect.x + rect.width / 2.0,
-                        y: rect.y + rect.height / 2.0,
-                    };
-                    let m = surface.transform;
-                    let desktop = Point {
-                        x: surface.desktop_rect.x + m.xx * point.x + m.xy * point.y + m.tx,
-                        y: surface.desktop_rect.y + m.yx * point.x + m.yy * point.y + m.ty,
-                    };
-                    Some(Point {
-                        x: displayed.canvas_origin.x
-                            + (desktop.x - displayed.stamp.viewport.origin.x)
-                                * displayed.stamp.viewport.scale,
-                        y: displayed.canvas_origin.y
-                            + (desktop.y - displayed.stamp.viewport.origin.y)
-                                * displayed.stamp.viewport.scale,
-                    })
-                }
-                _ => None,
-            })
-        });
+    let close = semantic_point(state, "Close native modal", displayed);
+    let editable = semantic_point(state, "Modal entry", displayed);
     let stamp = displayed.stamp;
     Ok(Compared {
         close,
+        editable,
         proof: json!({
             "native_capture":path.file_name().unwrap().to_string_lossy(),"source_commit":artifact.manifest()["capture_token"],
             "view_revision":revision,"frame_serial":stamp.serial,"record_count":state.records.len(),
@@ -332,6 +348,7 @@ async fn drive(
     observations: &[watch::Receiver<DesktopObservation>],
     diagnostics: &Diagnostics,
     budget: &MemoryBudget,
+    composition: bool,
 ) -> Result<Value> {
     for observation in observations {
         wait(observation, |o| o.displayed.is_some()).await?;
@@ -367,6 +384,18 @@ async fn drive(
     let initial = retain(&latest(source)?, &vector)?;
     let controller = compare(&initial, &vector, &observations[0], budget).await?;
     let observer = compare(&initial, &vector, &observations[1], budget).await?;
+    if composition {
+        return composition_probe::drive(
+            root,
+            directory,
+            source,
+            observations,
+            diagnostics,
+            budget,
+            (controller, observer),
+        )
+        .await;
+    }
     let close = controller
         .close
         .ok_or("published modal close region absent")?;
@@ -401,6 +430,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     {
         return Err("authenticated private harness display required".into());
     }
+    let composition = std::env::args().nth(2).as_deref() == Some("composition");
     let directory = PathBuf::from(
         std::env::args()
             .nth(1)
@@ -501,6 +531,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                         &observations,
                         &diagnostics,
                         &budget,
+                        composition,
                     )
                     .await;
                     stop.send_replace(true);

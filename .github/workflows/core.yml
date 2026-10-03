@@ -40,3 +40,6 @@ jobs:
       - run: python3 -m conformance.network_audit fixtures/gtk/mirror-golden/controller.trace.jsonl --replay target/debug/examples/replay --expected fixtures/gtk/mirror-controller.audit.json
       - run: python3 -m conformance.network_audit fixtures/gtk/mirror-golden/observer.trace.jsonl --replay target/debug/examples/replay --expected fixtures/gtk/mirror-observer.audit.json
       - run: python3 -m conformance.indexed_network_audit fixtures/gtk/composition-golden/commit/protocol-final/index.json --replay target/debug/examples/replay --expected fixtures/gtk/composition-commit.audit.json
+      - run: python3 -m unittest fixtures.gtk.test_composition_trace
+      - run: python3 -m conformance.network_audit fixtures/gtk/desktop-composition-golden/controller.trace.jsonl --replay target/debug/examples/replay --expected fixtures/gtk/desktop-composition-controller.audit.json
+      - run: python3 -m conformance.network_audit fixtures/gtk/desktop-composition-golden/observer.trace.jsonl --replay target/debug/examples/replay --expected fixtures/gtk/desktop-composition-observer.audit.json

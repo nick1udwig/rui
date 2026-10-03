@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "sha256": "f155b7f9aaca16c1752bc1bab3bdcaece2caafdbbe948d991c0c8fff7766f4be",
+  "interrupted_publications": 0,
+  "incomplete_resource_transfers": 0,
+  "unrequested_resource_offers": 0,
+  "segments": 1,
+  "packets": 212,
+  "exact_packet_bytes": 288124,
+  "verified_resource_transfers": 38,
+  "verified_vector_bytes": 28160,
+  "complete_publications": 6,
+  "readiness_acknowledgements": 6,
+  "presented_acknowledgements": 7,
+  "closed_prefixes": 1,
+  "record_kinds": [
+    "Binding",
+    "Scene",
+    "Semantic",
+    "Session",
+    "Surface",
+    "Text"
+  ],
+  "scene_primitives": [
+    "Border",
+    "FillPath",
+    "GlyphRun",
+    "Group",
+    "SolidRect",
+    "StrokePath"
+  ]
+}

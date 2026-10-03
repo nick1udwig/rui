@@ -13,6 +13,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from fixtures.gtk.compare import CRITERIA, bounded_read, native_glyph_geometry, pixels
+from fixtures.gtk.composition_trace import verify_controller
 
 
 def run_private(xvfb, command):
@@ -25,7 +26,7 @@ def run_private(xvfb, command):
         config = Path(runtime) / 'bus.conf'
         config.write_text(f'<busconfig><type>session</type><listen>unix:tmpdir={runtime}</listen><auth>EXTERNAL</auth><policy context="default"><allow user="{os.getuid()}"/><allow own="*"/><allow send_destination="*"/><allow receive_sender="*"/></policy></busconfig>')
         env = os.environ.copy()
-        env.update(XDG_RUNTIME_DIR=runtime, GSK_RENDERER='cairo', GTK_A11Y='none', GSETTINGS_BACKEND='memory', GDK_BACKEND='x11', DISPLAY=displays[0], XAUTHORITY=authorities[0], GIO_USE_VFS='local', GTK_USE_PORTAL='0', RUI_ISOLATED_DISPLAY='1', RUI_GTK_SOURCE_DISPLAY=displays[1], RUI_GTK_SOURCE_XAUTHORITY=authorities[1])
+        env.update(XDG_RUNTIME_DIR=runtime, GSK_RENDERER='cairo', GTK_IM_MODULE='simple', GTK_A11Y='none', GSETTINGS_BACKEND='memory', GDK_BACKEND='x11', DISPLAY=displays[0], XAUTHORITY=authorities[0], GIO_USE_VFS='local', GTK_USE_PORTAL='0', RUI_ISOLATED_DISPLAY='1', RUI_GTK_SOURCE_DISPLAY=displays[1], RUI_GTK_SOURCE_XAUTHORITY=authorities[1])
         env.pop('WAYLAND_DISPLAY', None)
         servers = []
         child = None
@@ -76,12 +77,15 @@ def main():
     parser.add_argument('--xvfb', required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--probe', type=Path, default=Path('target/release/examples/gtk_source_probe'))
+    parser.add_argument('--scenario', choices=('mirror', 'composition'), default='mirror')
     args = parser.parse_args()
     if args.output.exists() and any(args.output.iterdir()):
         raise ValueError('fresh owned output directory required')
-    stdout = run_private(args.xvfb, [str(args.probe.resolve()), str(args.output)])
+    stdout = run_private(args.xvfb, [str(args.probe.resolve()), str(args.output), args.scenario])
     report_path = args.output / 'interaction.json'
     report = json.loads(bounded_read(report_path, 65536))
+    if args.scenario == 'composition':
+        report['wire_composition_trace'] = verify_controller(args.output / 'controller.trace.jsonl')
     vector = args.output / 'source-vector'
     references = []
     for path in sorted(vector.glob('whole-*.json')):
@@ -93,7 +97,7 @@ def main():
         if not comparison['pixels']['passed']:
             raise ValueError('actual native source reference differs beyond declared backend tolerance')
         references.append(comparison)
-    if len(references) != 2 or report['host_memory_after_disposal'] != 0:
+    if len(references) != (5 if args.scenario == 'composition' else 2) or report['host_memory_after_disposal'] != 0:
         raise ValueError('missing native initial/resulting capture or leaked owner memory')
     report['native_reference_comparison'] = {'criteria': CRITERIA, 'captures': references,
         'scope': 'Exact native same-node local diagnostic composition versus verified source projection; actual after-paint mirror texture digest equals this projection over opaque white.'}
@@ -115,10 +119,16 @@ def main():
         'fixtures/gtk/corpus.py', 'fixtures/gtk/whole_view.py',
         'fixtures/gtk/whole_native_source.py', 'fixtures/gtk/compare.py',
         'fixtures/gtk/mirror_check.py', 'fixtures/gtk/place_windows.py',
+        'fixtures/gtk/composition_trace.py',
         'fixtures/render/native_events.py', 'client-desktop/Cargo.toml',
         'client-desktop/examples/gtk_source_probe.rs',
         'client-desktop/examples/corpus_support/trace.rs',
         'client-desktop/src/desktop.rs', 'client-desktop/src/desktop/gtk.rs',
+        'client-desktop/src/desktop/native.rs', 'client-desktop/src/composition.rs',
+        'client-desktop/src/desktop/composition_cleanup.rs',
+        'client-desktop/src/desktop/physical_callbacks.rs',
+        'client-desktop/examples/corpus_support/composition.rs',
+        'adapters/sdk/src/gtk_composition.rs', 'adapters/gtk4/composition.py',
         'client-desktop/src/interaction.rs', 'client-desktop/src/renderer.rs',
         'transport/src/client.rs', 'transport/src/server.rs',
         'transport/src/source_delivery.rs', 'transport/src/producer.rs',
@@ -135,10 +145,10 @@ def main():
         'source_display': 'separate authenticated private Xvfb1280x1024',
         'mirror_display': 'authenticated private Xvfb2300x1100; two disjoint1024x640 canvases',
         'session_bus': 'owned EXTERNAL bus with no service search directories',
-        'backend': 'GDK x11; GSK cairo; GIO local; portals/a11y autoactivation disabled',
+        'backend': 'GTK IM simple (isolated test pin); GDK x11; GSK cairo; GIO local; portals/a11y autoactivation disabled',
     }
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-    print(json.dumps({'actual_after_paint_frames': 4, 'native_captures': len(references),
+    print(json.dumps({'actual_after_paint_frames': 10 if args.scenario == 'composition' else 4, 'native_captures': len(references),
                       'interior_bad_pixels': sum(c['pixels']['interior_bad_pixels'] for c in references),
                       'native_glyphs': sum(c['geometry']['glyphs_checked'] for c in references),
                       'host_memory_after_disposal': report['host_memory_after_disposal']}, sort_keys=True))
