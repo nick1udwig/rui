@@ -1,0 +1,244 @@
+{
+  "binding": {
+    "epoch": "5aa3dfe4ff7b478a845d2bbeb689542a",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "00000000000000000000000000000006"
+  },
+  "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+  "capture_duration_ns": 673276,
+  "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:5:5",
+  "envelope_sha256": "27d455d2e9be7192769d873004f0db0698178532a29d4f05421c261663295da0",
+  "exporter_counters": {
+    "decline_reasons": {
+      "unsupported-gl-shader-node": 1
+    },
+    "geometry_extractions": {},
+    "local_reference_draws": 1,
+    "node_decisions": {
+      "declined": 1,
+      "lowered": 2
+    },
+    "schema": 2,
+    "source_node_types": {
+      "color-node": 1,
+      "container-node": 1,
+      "gl-shader-node": 1
+    },
+    "source_nodes_visited": 3,
+    "unsupported_subtrees": 1,
+    "vector_primitive_types": {
+      "Group": 2,
+      "SolidRect": 1
+    },
+    "vector_records_emitted": 3,
+    "vector_resource_bodies": 0
+  },
+  "fallback_probe": {
+    "allowed_outside_export_calls": {
+      "RenderNode.draw": 5
+    },
+    "forbidden_export_calls": {},
+    "negative_controls_tripped": {
+      "ImageSurface": 1,
+      "Texture.download": 1
+    },
+    "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+  },
+  "focused": false,
+  "gaps": [
+    {
+      "bounds": [
+        20.0,
+        20.0,
+        160.0,
+        100.0
+      ],
+      "node_type": "gl-shader-node",
+      "path": "root/1",
+      "reason": "unsupported-gl-shader-node"
+    }
+  ],
+  "geometry_resource_origins": {},
+  "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font",
+  "gsk_node_bounds": [
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        200.0,
+        140.0
+      ],
+      "path": "root",
+      "type": "container-node"
+    },
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        200.0,
+        140.0
+      ],
+      "path": "root/0",
+      "type": "color-node"
+    },
+    {
+      "bounds": [
+        20.0,
+        20.0,
+        160.0,
+        100.0
+      ],
+      "path": "root/1",
+      "type": "gl-shader-node"
+    }
+  ],
+  "gsk_node_counts": {
+    "color-node": 1,
+    "container-node": 1,
+    "gl-shader-node": 1
+  },
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "local_reference": {
+    "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB",
+    "height": 140,
+    "scope": "local-comparison-only-never-wire",
+    "sha256": "3c099a75fdb1c3597495666ad766b0c13ccc866291f78d30540aac9dabcc0226",
+    "stride": 800,
+    "width": 200
+  },
+  "mapped": true,
+  "protocol_handoff": {
+    "envelope_bytes": 897,
+    "resource_bytes": 0,
+    "resource_kind_counts": {
+      "1": 0,
+      "2": 0
+    }
+  },
+  "resource_offers": [],
+  "resources": [],
+  "revision": 5,
+  "routing_token": "3e1eb533314f93e9e7074b7b5fea5f2c",
+  "scene": [
+    {
+      "children": [],
+      "clip": null,
+      "id": 3,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1
+        ],
+        "rect": [
+          0.0,
+          0.0,
+          200.0,
+          140.0
+        ],
+        "type": "SolidRect"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 5
+    },
+    {
+      "children": [],
+      "clip": null,
+      "id": 4,
+      "opacity": 1,
+      "primitive": {
+        "type": "Group"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 5
+    },
+    {
+      "children": [
+        3,
+        4
+      ],
+      "clip": null,
+      "id": 5,
+      "opacity": 1,
+      "primitive": {
+        "type": "Group"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 5
+    }
+  ],
+  "scene_root": 5,
+  "semantic_root": 1,
+  "semantics": [
+    {
+      "actions": [],
+      "children": [
+        2
+      ],
+      "id": 1,
+      "identity": "negative-root",
+      "label": "Explicit no-fallback negative corpus",
+      "role": 1,
+      "version": 1
+    },
+    {
+      "actions": [],
+      "children": [],
+      "id": 2,
+      "identity": "source-region",
+      "label": "shader-node",
+      "role": 9,
+      "version": 5
+    }
+  ],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      200,
+      140
+    ],
+    "focus": null,
+    "focus_generation": 1,
+    "focus_surface": null,
+    "id": 7,
+    "version": 5
+  },
+  "size": [
+    200,
+    140
+  ],
+  "source_glyph_evidence": [],
+  "source_revision": 5,
+  "surface_id": 6,
+  "surface_key": "negative-content",
+  "surface_role": 1,
+  "uses_glyph_outline": false
+}

@@ -31,6 +31,33 @@ fn actual_native_trace_integrity_clocks_effects_and_partial_coverage_replay() {
     let report: Value =
         serde_json::from_slice(&fs::read(fixture.join("native-interaction.json")).unwrap())
             .unwrap();
+    let actual_files: std::collections::BTreeSet<_> = [
+        "semantic",
+        "escaped-text",
+        "pipe-loss",
+        "pipe-stall",
+        "uncorrelated-capture",
+        "delayed-expiry",
+    ]
+    .into_iter()
+    .flat_map(|scenario| {
+        fs::read_dir(root.join(scenario))
+            .unwrap()
+            .map(move |entry| {
+                format!(
+                    "{scenario}/{}",
+                    entry.unwrap().file_name().to_string_lossy()
+                )
+            })
+    })
+    .collect();
+    let declared_files: std::collections::BTreeSet<_> = report["retained_trace_sha256"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    assert_eq!(actual_files, declared_files);
     for (name, digest) in report["retained_trace_sha256"].as_object().unwrap() {
         let actual = format!("{:x}", Sha256::digest(fs::read(root.join(name)).unwrap()));
         assert_eq!(
@@ -52,6 +79,7 @@ fn actual_native_trace_integrity_clocks_effects_and_partial_coverage_replay() {
     }
     assert_eq!(report["delayed_expiry"]["native_dispatches"], 0);
     let mut captures = 0;
+    let mut source_tokens = std::collections::BTreeSet::new();
     for scenario in [
         "semantic",
         "escaped-text",
@@ -74,6 +102,12 @@ fn actual_native_trace_integrity_clocks_effects_and_partial_coverage_replay() {
         let mut saw_stable_text = false;
         for path in files {
             let artifact = CaptureArtifact::read(&path).unwrap();
+            source_tokens.insert(
+                artifact.manifest()["capture_token"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            );
             let bytes = fs::read(path.with_extension("bin")).unwrap();
             assert_eq!(
                 format!("{:x}", Sha256::digest(&bytes)),
@@ -81,6 +115,7 @@ fn actual_native_trace_integrity_clocks_effects_and_partial_coverage_replay() {
             );
             artifact.apply_trusted_fixture(&mut receiver).unwrap();
             artifact.verify_native_glyph_evidence(&receiver).unwrap();
+            artifact.verify_vector_audit(&receiver).unwrap();
             assert!(receiver.resources_ready().unwrap());
             assert!(receiver.presented_revision().unwrap().is_none());
             if artifact.manifest()["destroyed"] == true {
@@ -147,4 +182,52 @@ fn actual_native_trace_integrity_clocks_effects_and_partial_coverage_replay() {
         assert_eq!(receiver.memory_used(), 0);
     }
     assert!(captures >= 40);
+    let mut commands = 0;
+    let mut exact_commands = std::collections::BTreeMap::new();
+    for scenario in [
+        "semantic",
+        "escaped_text",
+        "pipe_loss",
+        "pipe_stall",
+        "uncorrelated_capture",
+        "delayed_expiry",
+    ] {
+        for entry in report[scenario]["commands"].as_array().unwrap() {
+            let Some(exact) = entry["exact_semantic_wire_hex"].as_str() else {
+                continue;
+            };
+            assert!(exact.len() <= 128 << 10);
+            let bytes: Vec<_> = exact
+                .as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|b| u8::from_str_radix(std::str::from_utf8(b).unwrap(), 16).unwrap())
+                .collect();
+            let command = rui_protocol_core::commands::decode_command(&bytes).unwrap();
+            let key = (
+                command.client_instance_id,
+                command.view_id,
+                command.command_seq,
+            );
+            if let Some(action) = entry["action"].as_str() {
+                assert_eq!(command.action_id, action);
+                assert_eq!(command.target_id, entry["target_id"].as_u64().unwrap());
+            } else {
+                assert_eq!(entry["retained_result_equal"], true);
+                assert_eq!(exact_commands.get(&key), Some(&bytes));
+            }
+            exact_commands.insert(key, bytes);
+            assert_eq!(command.command_seq, entry["command_seq"].as_u64().unwrap());
+            if entry["status"] == "Applied" && entry["action"].is_string() {
+                assert!(source_tokens.contains(entry["source_commit"].as_str().unwrap()));
+                assert!(
+                    entry["published_revision"].as_u64().unwrap()
+                        > entry["observed_view_revision"].as_u64().unwrap()
+                );
+            }
+            commands += 1;
+        }
+    }
+    assert!(commands >= 40);
 }

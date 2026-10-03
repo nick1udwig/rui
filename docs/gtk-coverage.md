@@ -361,14 +361,62 @@ outside this protocol budget. The driver verifies host reservations release on
 drop, including after UNKNOWN outcomes.
 
 Each run writes exact full-source Protobuf publications and native manifests
-alongside a decoded interaction report. Exporter visited/resource/gap counts and
-local-reference draws describe actual paths. Currently zero raster,
-raster-to-vector and remote-reshape fields are policy assertions about available
-exporter paths; they do not establish complete fallback instrumentation or PIX
-acceptance. Actual source photo/texture and effect/Cairo/shader/blur negative
-captures, a full decoded interaction trace audit, supplementary/combining/RTL
-text, wire composition/IME ownership and combined transient-surface projection
-remain required for M3. AT-SPI was not used to infer coherence.
+alongside a decoded interaction report. The refreshed `native-golden` trace has
+47 source publications across six incarnations, including unrelated visual
+refreshes and terminal source destruction, in 273 hash-bound `.bin/.json/.rvp`
+files (6,399,812 bytes). Its 61 command/retry entries retain exact admitted peer
+bytes. Tests decode these bytes, check exact retry equality, bind Applied tokens
+to actual source captures and replay every publication through the core.
+The main scenario still records 32 dispatches and 37 native callbacks.
+
+New schema2 counters record actual node visits/types, lowering/rejection decisions,
+decline reasons, emitted vector types and geometry-body extraction attempts.
+Local reference draw counts increment after native drawing. Resources record
+actual native glyph-outline or GSK fill/stroke extraction origins and node paths;
+the SDK handoff counts bytes and body kinds actually written. The Rust audit
+compares every decoded scene primitive and common field with this source evidence,
+checks the exact live resource closure/descriptors and coverage reasons, and
+checks native glyph geometry. Handoff kind counts agree with actual decoded
+offers, and unsupported gap paths/types/bounds agree with native census metadata;
+those bounds are diagnostic metadata, not an additional wire region feature.
+Geometry, unsupported-gap and pixel-to-vector-origin substitutions fail, as do
+missing schema2 scenes and mismatched kind counts. Historical foundation manifests retain the old asserted-zero
+fields; the CLI labels their limited check `historical-glyph-only`.
+
+The actual negative corpus in `negative-report.json` submits the same source node
+to GTK and export for an original photograph, an independent synthetic memory
+texture, a native Cairo drawing, blur and GLShader, with a native fill path
+positive control. The first five yield named unsupported subtree gaps, an empty
+Group for that region, and Partial visual coverage. Only the native path control
+offers a vector resource. The source-only original NASA PIA19400 JPEG is unchanged,
+47,634 bytes, SHA-256
+`cfb90122fb690c0661002606310bd20d5b236f2b628994494aa23503a2ad50be`.
+Credit: NASA/JPL-Caltech/MSSS/Texas A&M Univ.; provenance and NASA usage guidance
+are in [the asset note](../fixtures/gtk/assets/README.md). The synthetic texture
+is a separate case. The JPEG never enters a protocol envelope or resource cache.
+Source photograph/texture pixels are actually drawn in the local reference;
+numeric color-presence measurements and the reference hash are report metadata,
+while BGRA/PNG bytes remain local outputs excluded from the retained vector trace.
+The pinned Cairo backend renders the GLShaderNode as GTK's pink placeholder;
+this proves actual shader-node rejection, without claiming GLSL execution.
+[GTK shader constructor behavior](https://docs.gtk.org/gsk4/ctor.GLShaderNode.new.html).
+
+The test-only probe is active during every source export in both negative and
+admitted native runs. It traps exporter Python texture download/save, render-node
+draw/serialization and color/large Cairo image-surface construction. A one-pixel
+A8 glyph-path context is allowed. Deliberate download and image-surface controls
+each trip once; the six negative exports attempt no forbidden calls, and six
+local reference draws are observed outside export. Source extraction origins and
+the decoded geometry comparison address raster-to-vector laundering beyond a
+resource-kind whitelist. This observation boundary covers the cooperating Python
+exporter, not native GTK internals or arbitrary malicious producers. Each stored
+native source manifest carries the probe observations; no asserted forbidden-zero
+counters are used for this new evidence.
+
+These are measured negative and full-trace checks for this bounded private fixture,
+not a whole-milestone claim. Supplementary/combining/RTL text, wire composition/IME
+ownership, combined transient-surface projection and the persistent/network
+producer path remain required for M3. AT-SPI was not used to infer coherence.
 
 The alternate GTK 4.22.4 Broadway harness repeatedly aborted while repainting a
 native popup at `gdk/broadway/broadway-output.c:456`,

@@ -1,0 +1,396 @@
+{
+  "cases": [
+    {
+      "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:1:1",
+      "case": "original-photo",
+      "exporter_counters": {
+        "decline_reasons": {
+          "unsupported-texture-node": 1
+        },
+        "geometry_extractions": {},
+        "local_reference_draws": 1,
+        "node_decisions": {
+          "declined": 1,
+          "lowered": 2
+        },
+        "schema": 2,
+        "source_node_types": {
+          "color-node": 1,
+          "container-node": 1,
+          "texture-node": 1
+        },
+        "source_nodes_visited": 3,
+        "unsupported_subtrees": 1,
+        "vector_primitive_types": {
+          "Group": 2,
+          "SolidRect": 1
+        },
+        "vector_records_emitted": 3,
+        "vector_resource_bodies": 0
+      },
+      "gaps": [
+        {
+          "bounds": [
+            20.0,
+            20.0,
+            160.0,
+            100.0
+          ],
+          "node_type": "texture-node",
+          "path": "root/1",
+          "reason": "unsupported-texture-node"
+        }
+      ],
+      "label": "negative-content-0001",
+      "local_reference": {
+        "distinct_region_colors": 3805,
+        "nonwhite_region_pixels": 16000,
+        "scope": "local-reference-only-never-wire",
+        "sha256": "533925f71ebb6276c4119045c6dbcb29a6a3d25b35335d9d49e017b8fc0cac4c"
+      },
+      "probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 1
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      }
+    },
+    {
+      "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:2:2",
+      "case": "memory-texture",
+      "exporter_counters": {
+        "decline_reasons": {
+          "unsupported-texture-node": 1
+        },
+        "geometry_extractions": {},
+        "local_reference_draws": 1,
+        "node_decisions": {
+          "declined": 1,
+          "lowered": 2
+        },
+        "schema": 2,
+        "source_node_types": {
+          "color-node": 1,
+          "container-node": 1,
+          "texture-node": 1
+        },
+        "source_nodes_visited": 3,
+        "unsupported_subtrees": 1,
+        "vector_primitive_types": {
+          "Group": 2,
+          "SolidRect": 1
+        },
+        "vector_records_emitted": 3,
+        "vector_resource_bodies": 0
+      },
+      "gaps": [
+        {
+          "bounds": [
+            20.0,
+            20.0,
+            160.0,
+            100.0
+          ],
+          "node_type": "texture-node",
+          "path": "root/1",
+          "reason": "unsupported-texture-node"
+        }
+      ],
+      "label": "negative-content-0002",
+      "local_reference": {
+        "distinct_region_colors": 81,
+        "nonwhite_region_pixels": 16000,
+        "scope": "local-reference-only-never-wire",
+        "sha256": "9ea36d3a6bfac557046a617461bc6370ecfdd644d6b5e55f4c468712779a588c"
+      },
+      "probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 2
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      }
+    },
+    {
+      "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:3:3",
+      "case": "cairo-region",
+      "exporter_counters": {
+        "decline_reasons": {
+          "unsupported-cairo-node": 1
+        },
+        "geometry_extractions": {},
+        "local_reference_draws": 1,
+        "node_decisions": {
+          "declined": 1,
+          "lowered": 2
+        },
+        "schema": 2,
+        "source_node_types": {
+          "cairo-node": 1,
+          "color-node": 1,
+          "container-node": 1
+        },
+        "source_nodes_visited": 3,
+        "unsupported_subtrees": 1,
+        "vector_primitive_types": {
+          "Group": 2,
+          "SolidRect": 1
+        },
+        "vector_records_emitted": 3,
+        "vector_resource_bodies": 0
+      },
+      "gaps": [
+        {
+          "bounds": [
+            20.0,
+            20.0,
+            160.0,
+            100.0
+          ],
+          "node_type": "cairo-node",
+          "path": "root/1",
+          "reason": "unsupported-cairo-node"
+        }
+      ],
+      "label": "negative-content-0003",
+      "local_reference": {
+        "distinct_region_colors": 123,
+        "nonwhite_region_pixels": 7842,
+        "scope": "local-reference-only-never-wire",
+        "sha256": "97304aad0f3f7b2785cd4308bcd52167270d46f550f2df3451d34edecf4dba2f"
+      },
+      "probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 3
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      }
+    },
+    {
+      "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:4:4",
+      "case": "blur-effect",
+      "exporter_counters": {
+        "decline_reasons": {
+          "unsupported-blur-node": 1
+        },
+        "geometry_extractions": {},
+        "local_reference_draws": 1,
+        "node_decisions": {
+          "declined": 1,
+          "lowered": 2
+        },
+        "schema": 2,
+        "source_node_types": {
+          "blur-node": 1,
+          "color-node": 1,
+          "container-node": 1
+        },
+        "source_nodes_visited": 3,
+        "unsupported_subtrees": 1,
+        "vector_primitive_types": {
+          "Group": 2,
+          "SolidRect": 1
+        },
+        "vector_records_emitted": 3,
+        "vector_resource_bodies": 0
+      },
+      "gaps": [
+        {
+          "bounds": [
+            12.0,
+            12.0,
+            176.0,
+            116.0
+          ],
+          "node_type": "blur-node",
+          "path": "root/1",
+          "reason": "unsupported-blur-node"
+        }
+      ],
+      "label": "negative-content-0004",
+      "local_reference": {
+        "distinct_region_colors": 54,
+        "nonwhite_region_pixels": 16000,
+        "scope": "local-reference-only-never-wire",
+        "sha256": "260a43cfe50131b8d0bed7c58fcaa738d0251a1fb067c5deb7a97632e36b5cb0"
+      },
+      "probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 4
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      }
+    },
+    {
+      "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:5:5",
+      "case": "shader-node",
+      "exporter_counters": {
+        "decline_reasons": {
+          "unsupported-gl-shader-node": 1
+        },
+        "geometry_extractions": {},
+        "local_reference_draws": 1,
+        "node_decisions": {
+          "declined": 1,
+          "lowered": 2
+        },
+        "schema": 2,
+        "source_node_types": {
+          "color-node": 1,
+          "container-node": 1,
+          "gl-shader-node": 1
+        },
+        "source_nodes_visited": 3,
+        "unsupported_subtrees": 1,
+        "vector_primitive_types": {
+          "Group": 2,
+          "SolidRect": 1
+        },
+        "vector_records_emitted": 3,
+        "vector_resource_bodies": 0
+      },
+      "gaps": [
+        {
+          "bounds": [
+            20.0,
+            20.0,
+            160.0,
+            100.0
+          ],
+          "node_type": "gl-shader-node",
+          "path": "root/1",
+          "reason": "unsupported-gl-shader-node"
+        }
+      ],
+      "label": "negative-content-0005",
+      "local_reference": {
+        "distinct_region_colors": 1,
+        "nonwhite_region_pixels": 16000,
+        "scope": "local-reference-only-never-wire",
+        "sha256": "3c099a75fdb1c3597495666ad766b0c13ccc866291f78d30540aac9dabcc0226"
+      },
+      "probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 5
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      }
+    },
+    {
+      "capture_token": "5aa3dfe4ff7b478a845d2bbeb689542a:negative-content:6:6",
+      "case": "native-vector-control",
+      "exporter_counters": {
+        "decline_reasons": {},
+        "geometry_extractions": {
+          "gsk-fill-path": 1
+        },
+        "local_reference_draws": 1,
+        "node_decisions": {
+          "lowered": 3
+        },
+        "schema": 2,
+        "source_node_types": {
+          "color-node": 1,
+          "container-node": 1,
+          "fill-node": 1
+        },
+        "source_nodes_visited": 3,
+        "unsupported_subtrees": 0,
+        "vector_primitive_types": {
+          "FillPath": 1,
+          "Group": 1,
+          "SolidRect": 1
+        },
+        "vector_records_emitted": 3,
+        "vector_resource_bodies": 1
+      },
+      "gaps": [],
+      "label": "negative-content-0006",
+      "local_reference": {
+        "distinct_region_colors": 148,
+        "nonwhite_region_pixels": 7958,
+        "scope": "local-reference-only-never-wire",
+        "sha256": "3c6c9a2125398ee62ed0fedf54212c5e84700439d00ebc26fe0d76ec4eb6bbd7"
+      },
+      "probe": {
+        "allowed_outside_export_calls": {
+          "RenderNode.draw": 6
+        },
+        "forbidden_export_calls": {},
+        "negative_controls_tripped": {
+          "ImageSurface": 1,
+          "Texture.download": 1
+        },
+        "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+      }
+    }
+  ],
+  "fallback_probe": {
+    "allowed_outside_export_calls": {
+      "RenderNode.draw": 6
+    },
+    "forbidden_export_calls": {},
+    "negative_controls_tripped": {
+      "ImageSurface": 1,
+      "Texture.download": 1
+    },
+    "scope": "exporter-Python-API-only-native-local-rendering-excluded"
+  },
+  "pin": {
+    "cairo": "1.18.4",
+    "gtk": "4.22.4",
+    "local_backend": "cairo"
+  },
+  "retained_trace_sha256": {
+    "b0940f931f04b8fd4bc3b8b8c834da76b33dc9fefa836a0a264e38a211c29f97.rvp": "4dae09f1b8059520ddfa620441370bd4dc4b6eaffd61aecf5b31f0d429d13826",
+    "negative-content-0001.bin": "1abdc6a8012efa93c88ecedf47e76dcc0e9dd49244ed601053e19e3ff84e738a",
+    "negative-content-0001.json": "38ac51aac27dd382555d9d042bd02c5043cf702c73aa915e50f393b411a0309b",
+    "negative-content-0002.bin": "e0e9ff4a54129bb210d73dea036ab941190ad39d4396e7b5e5018292bc3669c5",
+    "negative-content-0002.json": "59cc8eb493a06a2bf366703766405d42824d51b790d87315b114a9acc908bc26",
+    "negative-content-0003.bin": "45bf73e1b7242bb3518560ed96f15c827ed102aea00f489f39d51a53277bc216",
+    "negative-content-0003.json": "490b8f3798d5f58dfc7e2f1d2b88f9c7428ce857b76954bd402788cb8cb83e07",
+    "negative-content-0004.bin": "2e436199ea67593582222e1a449f636f10bf7fb52aa48d8784f2a16c2b29ee89",
+    "negative-content-0004.json": "1b886ba0004039ded6d0ce53d7078619da68a73780414713ddef0f0c02c13034",
+    "negative-content-0005.bin": "27d455d2e9be7192769d873004f0db0698178532a29d4f05421c261663295da0",
+    "negative-content-0005.json": "0e0aaa6a72255a4eeb8e953a48fc7b8070ea31dd0785b01118054b1d097610f5",
+    "negative-content-0006.bin": "53c337856c2d9aec6408b82852d28eb60e65afac78c07890dbd0c8e1aa62b577",
+    "negative-content-0006.json": "1e3f39cb68d56da934b8c828ca524376cbff168ab329c8ea71e8722fa9f51699"
+  },
+  "scope": "actual-snapshot-vfunc-same-node-append",
+  "shader_scope": "actual-node-declined-native-Cairo-pink-placeholder-no-GLSL-execution-claim",
+  "source_photo": {
+    "bytes": 47634,
+    "credit": "NASA/JPL-Caltech/MSSS/Texas A&M Univ.",
+    "file": "assets/PIA19400.jpg",
+    "native_texture_size": [
+      1344,
+      1080
+    ],
+    "sha256": "cfb90122fb690c0661002606310bd20d5b236f2b628994494aa23503a2ad50be",
+    "source": "https://science.nasa.gov/photojournal/sunset-in-mars-gale-crater/"
+  }
+}

@@ -13,7 +13,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     artifact
         .apply_trusted_fixture(&mut receiver)
         .map_err(|e| format!("capture application: {e}"))?;
-    artifact.verify_native_glyph_evidence(&receiver)?;
+    if artifact.manifest()["exporter_counters"]["schema"].as_u64() == Some(2)
+        || artifact.manifest()["scene"].is_array()
+    {
+        artifact.verify_vector_audit(&receiver)?;
+    } else {
+        // Historical foundation artifacts predate the complete vector audit.
+        artifact.verify_native_glyph_evidence(&receiver)?;
+    }
     let width = artifact.manifest()["size"][0]
         .as_u64()
         .ok_or("missing width")?

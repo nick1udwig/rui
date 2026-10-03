@@ -133,6 +133,29 @@ class Exporter:
         self.glyph_evidence = []
         self.visited = 0
         self.depth = 0
+        self.node_types = Counter()
+        self.decisions = Counter()
+        self.decline_reasons = Counter()
+        self.extractions = Counter()
+        self.resource_origins = {}
+        self.local_reference_draws = 0
+
+    def counters(self):
+        """Observed operations, including attempts later rolled back.
+
+        No asserted zero raster/conversion fields: source rejection probes and
+        the decoded artifact audit establish the bounded no-fallback evidence.
+        """
+        return {"schema": 2, "source_nodes_visited": self.visited,
+                "source_node_types": dict(sorted(self.node_types.items())),
+                "node_decisions": dict(sorted(self.decisions.items())),
+                "decline_reasons": dict(sorted(self.decline_reasons.items())),
+                "geometry_extractions": dict(sorted(self.extractions.items())),
+                "vector_records_emitted": len(self.scene),
+                "vector_primitive_types": dict(sorted(Counter(record["primitive"]["type"] for record in self.scene).items())),
+                "vector_resource_bodies": len(self.resources),
+                "unsupported_subtrees": len(self.gaps),
+                "local_reference_draws": self.local_reference_draws}
 
     def record(self, key, primitive, children=(), transform=None, clip=None):
         if len(self.scene) >= 20_000:
@@ -141,17 +164,22 @@ class Exporter:
         self.scene.append({"id": identifier, "version": self.revision, "children": list(children), "primitive": primitive, "transform": transform or [1, 0, 0, 1, 0, 0], "clip": clip, "opacity": 1})
         return identifier
 
-    def resource(self, commands, glyph=False):
+    def resource(self, commands, origin, path, glyph=False):
+        if origin not in ("native-pango-glyph-outline", "gsk-fill-path", "gsk-stroke-path"):
+            raise Unsupported("unrecognized-geometry-source")
+        self.extractions[origin] += 1
         resource = path_resource(commands, glyph)
         total = sum(len(item["body"]) for item in self.source.resources.values())
         if resource["digest"] not in self.source.resources and total + len(resource["body"]) > 32 << 20:
             raise Unsupported("source-resource-ceiling")
         self.source.resources[resource["digest"]] = resource
         self.resources.add(resource["digest"])
+        self.resource_origins.setdefault(resource["digest"], set()).add((origin, path))
         return resource["digest"]
 
     def export(self, node, path="root"):
         self.visited += 1
+        self.node_types[node.get_node_type().value_nick] += 1
         if self.visited > MAX_NODES:
             raise Unsupported("source-node-ceiling")
         previous_count = len(self.scene)
@@ -165,8 +193,12 @@ class Exporter:
             if self.depth >= 127:
                 raise Unsupported("source-depth-ceiling")
             self.depth += 1
-            return self.supported(node, path)
+            result = self.supported(node, path)
+            self.decisions["lowered"] += 1
+            return result
         except Unsupported as error:
+            self.decisions["declined"] += 1
+            self.decline_reasons[str(error)] += 1
             del self.scene[previous_count:]
             self.resources = previous_resources
             self.uses_glyph_outline = previous_glyphs
@@ -227,7 +259,7 @@ class Exporter:
                     context.glyph_path([(glyph, 0, 0)])
                     commands = cairo_commands(context.copy_path(), size)
                     if commands:
-                        digest = self.resource(commands, glyph=True)
+                        digest = self.resource(commands, "native-pango-glyph-outline", path, glyph=True)
                         position = [offset.x + advance + x_offset / Pango.SCALE, offset.y + y_offset / Pango.SCALE]
                         identifier = self.record(path + "/glyph/" + str(index), {"type": "GlyphRun", "resource": digest, "size": size, "glyph_ids": [0], "positions": [position], "color": paint})
                         children.append(identifier)
@@ -239,7 +271,7 @@ class Exporter:
             child = node.get_child()
             if not isinstance(child, Gsk.ColorNode):
                 raise Unsupported("nonuniform-path-paint")
-            digest = self.resource(gsk_commands(node.get_path()))
+            digest = self.resource(gsk_commands(node.get_path()), "gsk-fill-path", path)
             return self.record(path, {"type": "FillPath", "resource": digest, "fill_rule": 1 if int(node.get_fill_rule()) == 0 else 2, "color": color(child.get_color())})
         if isinstance(node, Gsk.StrokeNode):
             child = node.get_child()
@@ -255,7 +287,7 @@ class Exporter:
             dash_offset = stroke.get_dash_offset()
             if dash_offset < 0 or (period and dash_offset >= period) or (not period and dash_offset != 0):
                 raise Unsupported("unnormalized-stroke-dash-offset")
-            digest = self.resource(gsk_commands(node.get_path()))
+            digest = self.resource(gsk_commands(node.get_path()), "gsk-stroke-path", path)
             return self.record(path, {"type": "StrokePath", "resource": digest, "color": color(child.get_color()), "width": stroke.get_line_width(), "cap": cap, "join": join, "miter_limit": stroke.get_miter_limit() if join == 1 else 1, "dash_lengths": dashes, "dash_offset": dash_offset})
         # In particular, sRGB gradients, shadows, Cairo/texture content, masks,
         # blends and nontrivial opacity never become hidden raster fallbacks.
@@ -265,18 +297,18 @@ class Exporter:
 def census(node):
     counts = Counter()
     bounds = []
-    def visit(current, depth=0):
+    def visit(current, depth=0, path="root"):
         name = current.get_node_type().value_nick
         counts[name] += 1
-        bounds.append({"type": name, "bounds": rect(current.get_bounds())})
+        bounds.append({"type": name, "path": path, "bounds": rect(current.get_bounds())})
         if depth == 127:
             bounds[-1]["truncated"] = "source-depth-ceiling"
             return
-        for child in current.get_children() or []:
+        for index, child in enumerate(current.get_children() or []):
             if sum(counts.values()) >= MAX_NODES:
                 bounds[-1]["truncated"] = "source-node-ceiling"
                 break
-            visit(child, depth + 1)
+            visit(child, depth + 1, path + ("/" + str(index) if isinstance(current, Gsk.ContainerNode) else "/child"))
     visit(node)
     return dict(sorted(counts.items())), bounds
 
@@ -303,6 +335,7 @@ class CaptureMixin:
         self.source_alive = True
         self.source_mapped = False
         self.last_frame = None
+        self.export_probe = None  # optional local diagnostic callback, never wire
 
     def source_boundary(self):
         if not self.source_alive:
@@ -331,10 +364,7 @@ class CaptureMixin:
         frame["source_glyph_evidence"] = exporter.glyph_evidence
         if getattr(self, 'command_cause', None) is not None:
             frame['command_cause'] = self.command_cause
-        frame["exporter_counters"] = {"source_nodes_visited": exporter.visited,
-            "vector_resource_bodies": len(exporter.resources), "unsupported_subtrees": len(exporter.gaps),
-            "wire_raster_bodies": 0, "raster_to_vector_conversions": 0,
-            "remote_font_reshaping": 0, "local_reference_draws": 1}
+        frame["geometry_resource_origins"] = {digest: [{"origin": origin, "node_path": path} for origin, path in sorted(exporter.resource_origins[digest])] for digest in sorted(exporter.resources)}
         frame["session"] = self.source.session(self.surface_key, self.frames, frame["size"], {record["id"] for record in semantics})
         frame["focused"] = frame["session"]["focus"] is not None
         frame["mapped"] = True
@@ -353,9 +383,13 @@ class CaptureMixin:
             raise RuntimeError("local diagnostic pixel ceiling")
         reference = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
         node.draw(cairo.Context(reference))
+        exporter.local_reference_draws += 1
         reference.flush()
         raw = bytes(reference.get_data())
         frame["local_reference"] = {"width": width, "height": height, "stride": reference.get_stride(), "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB", "sha256": hashlib.sha256(raw).hexdigest(), "scope": "local-comparison-only-never-wire"}
+        frame["exporter_counters"] = exporter.counters()
+        if self.export_probe:
+            frame["fallback_probe"] = self.export_probe()
         label = self.source.write(self.output, frame)
         reference.write_to_png(str(self.output / (label + ".local.png")))
         (self.output / (label + ".local.bgra")).write_bytes(raw)
@@ -385,9 +419,7 @@ class CaptureMixin:
                  "semantic_root": None if destroyed else self.source.identifier("semantic:" + self.semantic_root),
                  "scene": exporter.scene, "semantics": semantics, "resources": [], "gaps": [],
                  "source_glyph_evidence": [], "uses_glyph_outline": False,
-                 "exporter_counters": {"source_nodes_visited": 0, "vector_resource_bodies": 0,
-                    "unsupported_subtrees": 0, "wire_raster_bodies": 0, "raster_to_vector_conversions": 0,
-                    "remote_font_reshaping": 0, "local_reference_draws": 0},
+                 "exporter_counters": exporter.counters(), "geometry_resource_origins": {},
                  "gsk_node_counts": {}, "gsk_node_bounds": [], "capture_duration_ns": 0}
         frame.pop("local_reference", None)
         frame["session"] = self.source.session(self.surface_key, self.frames, frame["size"], set(), mapped=False)

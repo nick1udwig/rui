@@ -417,10 +417,16 @@ class CoherentSource:
         resources = []
         for digest in frame["resources"]:
             resource = self.resources[digest]
+            if resource["kind"] not in (1, 2) or resource["provenance"] != resource["kind"] or not resource["body"].startswith(b"RVP1"):
+                raise ValueError("SDK geometry-only resource handoff")
             (output / (digest + ".rvp")).write_bytes(resource["body"])
             resources.append({key: value for key, value in resource.items() if key != "body"})
         frame["binding"] = binding
         frame["envelope_sha256"] = hashlib.sha256(envelope).hexdigest()
+        if frame.get("exporter_counters", {}).get("schema") == 2:
+            frame["protocol_handoff"] = {"envelope_bytes": len(envelope),
+                "resource_bytes": sum(item["total_bytes"] for item in resources),
+                "resource_kind_counts": {str(kind): sum(item["kind"] == kind for item in resources) for kind in (1, 2)}}
         summary = {**frame, "resource_offers": resources}
         metadata = json.dumps(summary, indent=2, sort_keys=True) + "\n"
         if len(metadata.encode()) > MAX_MANIFEST_BYTES:

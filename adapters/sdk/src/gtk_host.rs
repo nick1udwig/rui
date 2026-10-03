@@ -3,8 +3,8 @@
 //! to this host and its source; it accepts only commands this ledger admitted.
 //! This slice projects public semantics only, with no visual resources/readiness.
 use crate::{
-    bounded_read, manifest_preflight, CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES,
-    MAX_MANIFEST_ALLOCATION,
+    CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES, MAX_MANIFEST_ALLOCATION, bounded_read,
+    manifest_preflight,
 };
 use prost::Message;
 use rui_protocol_core::commands::{
@@ -831,7 +831,7 @@ fn install_capture(
 }
 
 fn verify_capture(capture: &NativeCapture, source: &ViewReceiver) -> Result<(), GtkHostError> {
-    capture.artifact.verify_native_glyph_evidence(source)?;
+    capture.artifact.verify_vector_audit(source)?;
     let manifest = capture.artifact.manifest();
     let state = source.state().map_err(CaptureError::from)?;
     if manifest["revision"].as_u64() != Some(state.revision) {
@@ -1141,7 +1141,7 @@ mod tests {
     #[test]
     fn capture_token_must_match_actual_installed_wire_source_evidence() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/gtk/golden/main-content-0001.json");
+            .join("../../fixtures/gtk/native-golden/semantic/snapshot-000001.json");
         let artifact = CaptureArtifact::read(path).unwrap();
         let mut source = artifact.receiver().unwrap();
         artifact.apply_trusted_fixture(&mut source).unwrap();
@@ -1189,15 +1189,21 @@ mod tests {
                 0,
             )
             .unwrap();
-        assert!(sessions
-            .authorize_projection(&negotiated.client, negotiated.view_id)
-            .is_ok());
+        assert!(
+            sessions
+                .authorize_projection(&negotiated.client, negotiated.view_id)
+                .is_ok()
+        );
         assert!(consumer_for_view(&mut sessions, &negotiated, 0).is_err());
-        assert!(sessions
-            .authorize_projection(&negotiated.client, negotiated.view_id)
-            .is_err());
-        assert!(sessions
-            .acquire_control(&negotiated.client, negotiated.view_id, [4; 16], 0)
-            .is_err());
+        assert!(
+            sessions
+                .authorize_projection(&negotiated.client, negotiated.view_id)
+                .is_err()
+        );
+        assert!(
+            sessions
+                .acquire_control(&negotiated.client, negotiated.view_id, [4; 16], 0)
+                .is_err()
+        );
     }
 }

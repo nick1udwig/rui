@@ -20,6 +20,17 @@ including glyph count, identities, resources, sizes and exact source placements.
 This diagnostic check prevents omitted or shifted glyphs from passing an edge
 pixel tolerance; it does not authenticate manifest provenance.
 
+Fresh captures also expose `verify_vector_audit`, which checks every decoded
+scene's primitive/geometry and common fields against the full source manifest,
+the exact resource closure and geometry-only descriptors, source extraction
+origins/census paths and named coverage gaps. Handoff kind counts must equal
+decoded offers; gap type/path/bounds must match the native census metadata.
+It includes the glyph check.
+`GtkCommandHost` requires this audit before admitting a source capture. Schema2
+contains observed exporter operation counts, not asserted zero fallback fields.
+The replay CLI labels early foundation manifests without full scene evidence
+`historical-glyph-only`; this limited path is separate from the fresh source gate.
+
 ```sh
 python3 -m unittest adapters.sdk.test_producer
 cargo test -p rui-producer-sdk --locked
@@ -75,3 +86,27 @@ The integration driver uses a private authenticated Xvfb display and a private
 from peer command bytes. The output contains exact full-source snapshots,
 manifests and a decoded interaction report. These finite test trace copies are
 separate from the native source's bounded current/pending artifact ownership.
+
+The no-fallback negative corpus submits actual photograph/texture, Cairo, blur
+and GLShader nodes, plus a native path control. It records Partial coverage with
+specific unsupported reasons. The original NASA JPEG has an exact hash and
+credit in [assets/README.md](../../fixtures/gtk/assets/README.md) and never becomes
+a resource. The shader uses the pinned native Cairo pink placeholder; this
+establishes source-node rejection, not successful GLSL execution. Pixel images
+are local diagnostics, excluded from the retained `.bin/.json/.rvp` trace.
+
+```sh
+python3 fixtures/gtk/negative_check.py --xvfb /path/to/Xvfb --output /tmp/rui-gtk-negatives-empty
+python3 -m unittest fixtures.gtk.test_negatives
+cargo run -p rui-producer-sdk --bin replay_capture -- fixtures/gtk/negative-golden
+```
+
+The test-only `FallbackProbe` traps exporter Python calls to texture download or
+image save, node draw/serialization, and color/large Cairo image surfaces. A
+one-pixel A8 context for native glyph path extraction is allowed. Deliberate
+download/image-surface calls prove that the traps fire. Native GTK internals and
+local drawing outside source export are excluded. The complete consumed native
+trace is refreshed with those probes active, including unrelated refreshes and
+source destruction; exact peer commands/retries and all retained publications
+are decoded and hash-bound in tests. This is bounded cooperating fixture
+evidence, not provenance attestation for arbitrary producers or full M3 closure.
