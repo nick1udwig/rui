@@ -103,3 +103,10 @@ the native scenario supplies those source and callback assertions separately.
 The auditor excludes credentials and never accepts handshake packets. Inputs
 are capped at 128 MiB, 32 segments, 32,768 records, 1 MiB packets, 4 MiB
 publications/resources and 512 verified resource identities per scope.
+
+The retained `fixtures/render/native-broad.json.*.trace.jsonl` exports contain
+54 complete publication prefixes across controller and observer scopes, including
+all six record kinds. Their companion `native-broad.*.audit.json` summaries bind
+exact hashes and counts; `--expected SUMMARY` verifies those during CI replay.
+The native report separately binds actual source effects, complete record/pixel
+equality, callback timing and the source files used in that run.

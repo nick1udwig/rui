@@ -28,5 +28,7 @@ effect but before its reply, link cuts during presentation/control, retained
 resume, cache reacquisition and rejection of delayed UI callbacks. Queue tests
 check reserve-before-encode, bounds, exact bytes and atomic budget rebind; library
 tests check lifecycle generation handling. These worker tests explicitly simulate
-presentation callbacks. Actual GTK after-paint recovery, broader native controls
-and action-to-Presented measurements remain separate integration gates.
+presentation callbacks. The separate [native broad scenario](desktop-controls.md)
+now verifies actual GTK after-paint recovery and cache reacquisition in two mirrors.
+Its delayed-first-publication regression also prevents a dirty viewport from
+producing revision-zero frames or premature automatic control acquisition.

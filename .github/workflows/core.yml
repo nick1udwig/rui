@@ -32,3 +32,5 @@ jobs:
       - run: python3 -m unittest conformance.test_full_reference
       - run: python3 -m unittest conformance.test_network_audit
       - run: python3 -m conformance.full_interop
+      - run: python3 -m conformance.network_audit fixtures/render/native-broad.json.controller.trace.jsonl --replay target/debug/examples/replay --expected fixtures/render/native-broad.controller.audit.json
+      - run: python3 -m conformance.network_audit fixtures/render/native-broad.json.observer.trace.jsonl --replay target/debug/examples/replay --expected fixtures/render/native-broad.observer.audit.json

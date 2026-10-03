@@ -278,8 +278,12 @@ def main():
     parser.add_argument('trace', type=Path)
     parser.add_argument('--replay', type=Path, required=True)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--expected', type=Path, help='exact retained audit summary for deterministic replay')
     args = parser.parse_args()
     result = audit(args.trace, args.replay)
+    if args.expected:
+        if args.expected.stat().st_size > 65536 or json.loads(args.expected.read_text()) != result:
+            raise ValueError('retained network audit summary differs')
     encoded = json.dumps(result, indent=2) + '\n'
     if args.output:
         args.output.write_text(encoded)
