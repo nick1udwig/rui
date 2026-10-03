@@ -5,6 +5,17 @@ bindings and source surfaces from the published view. Source resize targets the
 focused mapped toplevel; the toolbar sends an explicit authorized ResizeRequest.
 Selecting an advertised ScrollTo target enables an absolute source scroll value.
 Observer pan, zoom and window size continue to affect only that observer.
+The optional `--scale=VALUE` starts a mirror at a finite local scale between
+0.125 and 8 (default 1). Requesting control focuses the canvas so subsequent
+physical keys reach its input controller.
+
+If rendering or texture allocation exceeds the shared client budget, the mirror
+publishes a suspended state and a persistent visible explanation. A previous
+frame cannot authorize input after that failure. Reducing the local viewport
+can produce a fresh valid frame and clear the rendering notice. Root's five
+actual TLS recovery tests include a float-frame allocation that succeeds while
+the simultaneous RGBA allocation fails, followed by smaller-viewport recovery;
+strict all-target Clippy and formatting also pass.
 
 Canvas drawing requires one advertised compatible pointer device and a current
 lease and Presented frame. A stroke retains up to 64 samples, including press and

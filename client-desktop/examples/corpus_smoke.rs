@@ -1346,6 +1346,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     credential,
                     client_id: [61 + index as u8; 16],
                     view_selection: ViewSelection::Fixture,
+                    initial_scale: 1.0,
                     auto_control: index == 0,
                     smoke_frames: None,
                     title: if index == 0 { CONTROLLER } else { OBSERVER },

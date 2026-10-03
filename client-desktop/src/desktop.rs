@@ -56,6 +56,8 @@ pub struct Options {
     pub credential: Credential,
     pub client_id: [u8; 16],
     pub view_selection: ViewSelection,
+    /// Local display scale only. It never resizes the authoritative source.
+    pub initial_scale: f64,
     pub auto_control: bool,
     pub smoke_frames: Option<u64>,
     pub title: &'static str,
@@ -72,6 +74,7 @@ pub struct DesktopObservation {
     pub input_ready: bool,
     pub physical_ready: bool,
     pub physical_notice: Option<&'static str>,
+    pub render_notice: Option<&'static str>,
     pub control_revoked: bool,
     pub editing_target: Option<u64>,
     pub typing_pending: usize,
@@ -267,6 +270,7 @@ pub struct UiState {
     pub physical_keyboard: Option<PhysicalKeyOwner>,
     pub physical_ready: bool,
     pub physical_notice: Option<&'static str>,
+    pub render_notice: Option<&'static str>,
     pub source_resize: Option<ResizeTarget>,
     pub source_scroll: Option<u64>,
 }
@@ -283,6 +287,7 @@ impl Default for UiState {
             physical_keyboard: None,
             physical_ready: false,
             physical_notice: None,
+            render_notice: None,
             source_resize: None,
             source_scroll: None,
         }
@@ -307,6 +312,7 @@ impl UiState {
         self.physical_ready = false;
         self.source_resize = None;
         self.source_scroll = None;
+        self.render_notice = None;
     }
     pub fn resume(&mut self) -> bool {
         if self.lifecycle == Lifecycle::Suspended {
@@ -874,6 +880,7 @@ pub async fn worker_with_priority(
                     o.input_ready = input_ready;
                     o.physical_ready = ui_state.physical_ready;
                     o.physical_notice = ui_state.physical_notice;
+                    o.render_notice = ui_state.render_notice;
                 });
             }
             if !deliver(&events, &mut pending) {
@@ -946,12 +953,12 @@ pub async fn worker_with_priority(
                     if dirty && !awaiting_resources && pending.is_none() && client.receiver().resources_ready().unwrap_or(false) {
                         let work_start=std::time::Instant::now();
                         let v=*viewport.borrow();
-                        match client.receiver().state().map_err(|_|()).and_then(|state|renderer.render_view(state,v,client.receiver()).map_err(|_|())) {
+                        match client.receiver().state().map_err(|_|crate::RenderError::Invalid).and_then(|state|renderer.render_view(state,v,client.receiver())) {
                             Ok(frame)=>match frame.into_rgba8_over(Color{red:1.0,green:1.0,blue:1.0,alpha:1.0}) {
-                                Ok(pixels)=>{if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);let routing=client.receiver().state().ok().and_then(|state|physical_dispatch::PresentedRouting::capture(state,&budget).ok());pending=Some(UiEvent::Frame{stamp,pixels,routing});dirty=false;},
-                                Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Display allocation limit reached.");dirty=false;},
+                                Ok(pixels)=>{ui_state.render_notice=None;if !ui_state.resume() {break;}ui.send_replace(ui_state);serial=match serial.checked_add(1) {Some(v)=>v,None=>break};let pixel_digest=if options.observations.is_some(){Sha256::digest(pixels.as_ref()).into()}else{[0;32]};let records_digest=if options.observations.is_some(){client.receiver().state().ok().and_then(records_digest)}else{None};let stamp=Stamp{generation:ui_state.generation,serial,revision:pixels.revision,viewport:pixels.viewport,pixel_digest,records_digest};issued=Some(stamp);let routing=client.receiver().state().ok().and_then(|state|physical_dispatch::PresentedRouting::capture(state,&budget).ok());pending=Some(UiEvent::Frame{stamp,pixels,routing});dirty=false;},
+                                Err(_)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some("display-memory"));}pending=None;ui_state.clear(Lifecycle::Suspended);ui_state.render_notice=Some("Display allocation limit reached. Reduce the local viewport size.");ui.send_replace(ui_state);status(&events,"Display allocation limit reached.");dirty=false;},
                             },
-                            Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
+                            Err(error)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(match error {crate::RenderError::Memory(_)=>"render-memory",crate::RenderError::Limit(_)=>"render-limit",crate::RenderError::IncompleteSurface(_)=>"render-coverage",crate::RenderError::UnsupportedCursor=>"render-cursor",_=>"render"}));}pending=None;ui_state.clear(Lifecycle::Suspended);ui_state.render_notice=Some("Scene cannot be rendered within this profile and its limits.");ui.send_replace(ui_state);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
                         }
                         let elapsed=work_start.elapsed();render_timing.rendered_frames=render_timing.rendered_frames.saturating_add(1);
                         render_timing.max_work_us=render_timing.max_work_us.max(elapsed.as_micros().min(u128::from(u64::MAX)) as u64);

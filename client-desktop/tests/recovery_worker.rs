@@ -109,6 +109,7 @@ struct Worker {
     observed: watch::Receiver<DesktopObservation>,
     shutdown: watch::Sender<bool>,
     viewport: watch::Sender<Viewport>,
+    budget: Option<rui_protocol_core::resources::MemoryBudget>,
     task: tokio::task::JoinHandle<()>,
 }
 impl Worker {
@@ -137,6 +138,7 @@ impl Worker {
             credential,
             client_id: [3; 16],
             view_selection: desktop::ViewSelection::Fixture,
+            initial_scale: 1.0,
             auto_control,
             smoke_frames: None,
             title: "worker test",
@@ -163,6 +165,7 @@ impl Worker {
             observed,
             shutdown,
             viewport,
+            budget: None,
             task,
         }
     }
@@ -184,7 +187,10 @@ impl Worker {
                         return stamp;
                     }
                 }
-                Ok(UiEvent::Ready(budget)) => assert!(budget.used() <= budget.limit()),
+                Ok(UiEvent::Ready(budget)) => {
+                    assert!(budget.used() <= budget.limit());
+                    self.budget = Some(budget);
+                }
                 Ok(UiEvent::Status(_)) | Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => panic!("worker closed before frame"),
             }
@@ -219,6 +225,76 @@ impl Worker {
             .unwrap()
             .unwrap();
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+async fn rgba_allocation_failure_publishes_suspension_and_can_recover_at_smaller_viewport() {
+    use rui_host_broker::{ControlledHost, HostConfig};
+    use rui_transport::{pairing::PairingAuthority, HostIdentity, ServerConfig};
+    let mut pairing = PairingAuthority::new(1).unwrap();
+    let request = pairing.request_local_pairing([3; 16]).unwrap();
+    let credential = pairing
+        .approve_local(request.request_id, auth(3, false))
+        .unwrap();
+    let server = ServerHandle::bind(
+        SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        HostIdentity::from_der(
+            include_bytes!("../../transport/tests/data/localhost.der").to_vec(),
+            include_bytes!("../../transport/tests/data/localhost-key.der").to_vec(),
+        )
+        .unwrap(),
+        ControlledHost::new(HostConfig::default(), "private test-only value".into()).unwrap(),
+        Arc::new(std::sync::Mutex::new(pairing)),
+        ServerConfig::default(),
+    )
+    .await
+    .unwrap();
+    let mut worker = Worker::start_with_control(server.address, credential, false);
+    let first = worker.frame(0, 1).await;
+    let budget = worker
+        .budget
+        .as_ref()
+        .expect("Ready precedes Frame")
+        .clone();
+    // A600×400 linear float frame fits in8MiB; the simultaneously retained
+    // RGBA texture cannot. The real shared view budget must refuse that peak.
+    let held = budget
+        .reserve(budget.limit() - budget.used() - (8 << 20))
+        .unwrap();
+    worker.viewport.send_replace(Viewport::new(600, 400));
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if worker.ui.borrow().lifecycle == Lifecycle::Suspended {
+                break;
+            }
+            match worker.events.try_recv() {
+                Ok(UiEvent::Frame { .. }) => panic!("frame escaped failing texture allocation"),
+                Ok(_) | Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => panic!("allocation failure closed worker"),
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        worker.observed.borrow().failure_class,
+        Some("display-memory")
+    );
+    assert!(!worker.ui.borrow().accepts(first));
+    assert_eq!(
+        worker.ui.borrow().render_notice,
+        Some("Display allocation limit reached. Reduce the local viewport size.")
+    );
+    assert!(!worker.observed.borrow().has_control);
+    assert!(budget.used() <= budget.limit());
+    worker.viewport.send_replace(Viewport::new(100, 100));
+    let recovered = worker.frame(first.generation + 1, 1).await;
+    assert!(worker.ui.borrow().accepts(recovered));
+    assert_eq!(worker.ui.borrow().render_notice, None);
+    drop(held);
+    worker.stop().await;
+    server.shutdown().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 3)]

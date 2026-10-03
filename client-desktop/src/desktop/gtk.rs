@@ -294,6 +294,11 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
 /// Multiple independently authenticated mirrors in one GTK test process. Each
 /// retains its own actor, receiver, ledger, viewport, IM instance and window.
 pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>> {
+    if options.iter().any(|option| {
+        !option.initial_scale.is_finite() || !(0.125..=8.0).contains(&option.initial_scale)
+    }) {
+        return Err("initial local display scale must be finite and between 0.125 and 8".into());
+    }
     if options.is_empty() || options.len() > 8 {
         return Err("mirror window count exceeds local limit".into());
     }
@@ -327,7 +332,9 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                     shutdown.send_replace(true);
                 });
             }
-            let view = Rc::new(Cell::new(Viewport::new(640, 480)));
+            let mut initial_viewport=Viewport::new(640,480);
+            initial_viewport.scale=options.initial_scale;
+            let view = Rc::new(Cell::new(initial_viewport));
             let (viewport_tx, viewport_rx) = watch::channel(view.get());
             std::thread::spawn(move || {
                 let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -509,7 +516,13 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
             }
             let sender = command_tx.clone();
             let status = label.clone();
+            let control_canvas = canvas.downgrade();
             acquire.connect_clicked(move |_| {
+                // Establish the local input focus before the authority request;
+                // otherwise subsequent physical keys stay on the toolbar.
+                if let Some(canvas) = control_canvas.upgrade() {
+                    canvas.grab_focus();
+                }
                 enqueue(&sender, UiCommand::Acquire, &status);
             });
             {
@@ -1259,6 +1272,9 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                 }
                 feedback.restore();
                 canvas_feedback.restore();
+                if let Some(message) = current.render_notice {
+                    label.set_text(message);
+                }
                 if let Some(message) = current.physical_notice {
                     label.set_text(message);
                 }
