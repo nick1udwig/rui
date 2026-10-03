@@ -12,7 +12,7 @@ import tempfile
 import time
 
 
-def type_probe(display, authority):
+def type_probe(display, authority, physical=False):
     x = ctypes.CDLL(ctypes.util.find_library('X11'))
     xtst = ctypes.CDLL(ctypes.util.find_library('Xtst'))
     x.XOpenDisplay.argtypes = [ctypes.c_char_p]
@@ -46,7 +46,8 @@ def type_probe(display, authority):
             name = ctypes.c_void_p()
             if x.XFetchName(connection, window, ctypes.byref(name)) and name.value:
                 try:
-                    if ctypes.string_at(name.value) == b'RUI native IME probe':
+                    expected = b'RUI physical key probe' if physical else b'RUI native IME probe'
+                    if ctypes.string_at(name.value) == expected:
                         return window
                 finally:
                     x.XFree(name)
@@ -79,6 +80,14 @@ def type_probe(display, authority):
                 raise RuntimeError('private native key injection failed')
             x.XFlush(connection)
             time.sleep(.02)
+        if physical:
+            event('y', 1); event('y', 0)
+            event('Shift_L', 1); event('y', 1)
+            # Let the actual private X server emit repeat opportunities. The
+            # GTK client must forward only the original physical down/up.
+            time.sleep(1.2)
+            event('y', 0); event('Shift_L', 0)
+            return
         event('a', 1); event('a', 0)
         event('Control_L', 1); event('Shift_L', 1); event('u', 1); event('u', 0)
         event('Shift_L', 0); event('Control_L', 0)
@@ -91,7 +100,7 @@ def type_probe(display, authority):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--xvfb', default=shutil.which('Xvfb'))
-    parser.add_argument('--probe', choices=['ime', 'mirror', 'corpus'], required=True)
+    parser.add_argument('--probe', choices=['ime', 'physical', 'mirror', 'corpus'], required=True)
     parser.add_argument('--target-dir', type=Path, default=Path('target/debug'))
     parser.add_argument('--report', type=Path, help='optional corpus proof JSON output')
     args = parser.parse_args()
@@ -116,6 +125,7 @@ def main():
                     raise RuntimeError('private Xvfb exited: ' + log.read(8192))
                 binary = args.target_dir / 'examples' / {
                     'ime': 'native_ime_probe',
+                    'physical': 'native_physical_probe',
                     'mirror': 'desktop_smoke',
                     'corpus': 'corpus_smoke',
                 }[args.probe]
@@ -125,8 +135,8 @@ def main():
                 elif args.probe == 'corpus' and args.report:
                     command.append(str(args.report.absolute()))
                 child = subprocess.Popen(command, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                if args.probe == 'ime':
-                    type_probe(display, authority)
+                if args.probe in ('ime', 'physical'):
+                    type_probe(display, authority, physical=args.probe == 'physical')
                 stdout, stderr = child.communicate(timeout=300 if args.probe == 'corpus' else 30)
                 if child.returncode:
                     raise RuntimeError(f'native probe failed: {stdout}\n{stderr}')

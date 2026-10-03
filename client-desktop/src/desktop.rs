@@ -27,6 +27,7 @@ use tokio::sync::{mpsc, watch};
 
 pub mod gtk;
 pub mod native;
+pub mod physical_native;
 
 pub struct Options {
     pub address: SocketAddr,

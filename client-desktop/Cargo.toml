@@ -16,6 +16,10 @@ name = "native_ime_probe"
 required-features = ["desktop"]
 
 [[example]]
+name = "native_physical_probe"
+required-features = ["desktop"]
+
+[[example]]
 name = "desktop_smoke"
 required-features = ["desktop"]
 
@@ -33,6 +37,10 @@ gtk4 = { version = "=0.9.7", optional = true }
 rui-transport = { path = "../transport", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }
 prost = { version = "0.13", optional = true }
+
+[build-dependencies]
+cc = "1"
+pkg-config = "0.3"
 
 [dev-dependencies]
 prost = "0.13"

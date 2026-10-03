@@ -336,3 +336,24 @@ commands each. Missing/colored glyphs and unsupported forms fail explicitly,
 without echoing the request. Source semantic Unicode acceptance must remain
 independent: producers may keep valid text and report truthful Partial/
 Unsupported visual coverage. This helper is not complete Unicode font coverage.
+
+## Native physical-key capture
+
+The Linux desktop build additionally requires `gtk4-x11` and X11 development
+headers. Its names-only XKB query maps actual physical key positions to Linux
+evdev identities; translated symbols never determine the code. Each release
+retains its original press identity. Capture holds at most 128 keys, suppresses
+client autorepeat and retains a cleanup obligation when authority changes.
+Unknown positions or backends fail explicitly. A pinned GDK Wayland keycode
+conversion is provided; the accepted native probe covers private X11 only.
+
+```sh
+cargo build -p rui-client-desktop --features desktop --example native_physical_probe --locked
+python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe physical
+```
+
+Root review passed three component tests, strict desktop Clippy and this actual
+GTK 4.22.4 private-X11 probe: physical Y and Shift presses/releases keep evdev
+identities 21 and 42, and real server autorepeat produces no duplicate down.
+This verifies local capture. Remote HOST_PHYSICAL delivery, native source effects
+and two-mirror presentation remain separate integration gates.

@@ -5,6 +5,7 @@ mod cursor;
 pub mod desktop;
 pub mod interaction;
 mod path;
+pub mod physical_input;
 pub mod renderer;
 pub mod source_controls;
 pub mod typing;

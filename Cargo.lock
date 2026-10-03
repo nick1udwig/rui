@@ -907,7 +907,9 @@ name = "rui-client-desktop"
 version = "0.1.0"
 dependencies = [
  "cairo-rs",
+ "cc",
  "gtk4",
+ "pkg-config",
  "prost",
  "rui-host-broker",
  "rui-producer-sdk",
