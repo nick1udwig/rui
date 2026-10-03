@@ -143,6 +143,59 @@ fn actual_presentation_marker_is_bound_and_cleared_without_fabrication() {
         .presented_revision(&session.client, session.view_id)
         .is_err());
 }
+#[test]
+fn trusted_confirmed_releases_bypass_readiness_but_never_clear_another_owner() {
+    let mut broker = broker();
+    let a = connect(&mut broker, 3, "alice", true);
+    let b = connect(&mut broker, 4, "bob", true);
+    usable(&mut broker, &a, 1);
+    usable(&mut broker, &b, 1);
+    let old = broker
+        .acquire_control(&a.client, a.view_id, [1; 16], 0)
+        .unwrap();
+    let key = PhysicalKey {
+        namespace: "linux.evdev".into(),
+        code: 30,
+    };
+    broker.record_key(&old, key.clone(), true, 0).unwrap();
+    broker.record_button(&old, 1, true, 0).unwrap();
+    broker.record_touch(&old, 9, true, 0).unwrap();
+    broker.mark_resources_missing(&a.client, a.view_id).unwrap();
+    assert!(broker.record_key(&old, key.clone(), false, 1).is_err());
+    let mut wrong = old.clone();
+    wrong.client.principal = "other".into();
+    assert!(broker.confirm_key_released(&wrong, &key, 1).is_err());
+    wrong = old.clone();
+    wrong.view_id = [99; 16];
+    assert!(broker.confirm_button_released(&wrong, 1, 1).is_err());
+    broker.confirm_key_released(&old, &key, 1).unwrap();
+    broker.confirm_button_released(&old, 1, 1).unwrap();
+    broker.confirm_touch_released(&old, 9, 1).unwrap();
+    assert_eq!(broker.presented_revision(&a.client, a.view_id), Ok(None));
+    assert_eq!(broker.current_lease(1).unwrap().lease_id, old.lease_id);
+    broker.local_activity(2);
+    let cleanup = broker.take_cleanup().unwrap();
+    assert!(cleanup.keys.is_empty() && cleanup.buttons.is_empty() && cleanup.touches.is_empty());
+    let new = broker
+        .acquire_control(&b.client, b.view_id, [2; 16], 3)
+        .unwrap();
+    broker.record_key(&new, key.clone(), true, 3).unwrap();
+    broker.record_button(&new, 1, true, 3).unwrap();
+    broker.record_touch(&new, 9, true, 3).unwrap();
+    assert!(broker.confirm_key_released(&old, &key, 3).is_err());
+    assert!(broker.confirm_button_released(&old, 1, 3).is_err());
+    assert!(broker.confirm_touch_released(&old, 9, 3).is_err());
+    // Guessing a new generation does not make the old client its owner.
+    wrong = old.clone();
+    wrong.lease_id = new.lease_id;
+    wrong.generation = new.generation;
+    assert!(broker.confirm_key_released(&wrong, &key, 3).is_err());
+    broker.local_activity(4);
+    let cleanup = broker.take_cleanup().unwrap();
+    assert_eq!(cleanup.keys, vec![key]);
+    assert_eq!(cleanup.buttons, vec![1]);
+    assert_eq!(cleanup.touches, vec![9]);
+}
 fn command(session: &NegotiatedSession, lease: &ControlLease) -> SemanticCommand {
     SemanticCommand {
         epoch: session.epoch,

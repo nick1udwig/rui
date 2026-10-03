@@ -1675,4 +1675,53 @@ impl SessionBroker {
         self.tick(now);
         self.active.as_ref().map(|a| a.lease.clone())
     }
+    fn confirm_release_owner(
+        &mut self,
+        lease: &ControlLease,
+        now: u64,
+    ) -> Result<(), SessionError> {
+        self.tick(now);
+        self.connection(&lease.client, lease.view_id)?;
+        let active = self.active.as_ref().ok_or(SessionError::StaleControl)?;
+        if active.lease.lease_id != lease.lease_id
+            || active.lease.generation != lease.generation
+            || active.lease.client != lease.client
+            || active.lease.view_id != lease.view_id
+        {
+            return Err(SessionError::StaleControl);
+        }
+        Ok(())
+    }
+    /// Trusted adapter confirms actual neutralization. Release-only: exact
+    /// active ownership is mandatory even when resources/presentation are lost.
+    pub fn confirm_key_released(
+        &mut self,
+        lease: &ControlLease,
+        key: &PhysicalKey,
+        now: u64,
+    ) -> Result<(), SessionError> {
+        self.confirm_release_owner(lease, now)?;
+        self.active.as_mut().unwrap().keys.remove(key);
+        Ok(())
+    }
+    pub fn confirm_button_released(
+        &mut self,
+        lease: &ControlLease,
+        button: u32,
+        now: u64,
+    ) -> Result<(), SessionError> {
+        self.confirm_release_owner(lease, now)?;
+        self.active.as_mut().unwrap().buttons.remove(&button);
+        Ok(())
+    }
+    pub fn confirm_touch_released(
+        &mut self,
+        lease: &ControlLease,
+        touch: u64,
+        now: u64,
+    ) -> Result<(), SessionError> {
+        self.confirm_release_owner(lease, now)?;
+        self.active.as_mut().unwrap().touches.remove(&touch);
+        Ok(())
+    }
 }
