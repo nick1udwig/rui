@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import struct
 import subprocess
+import threading
 
 from .full_reference import FullReplica
 from .reference import fields, one, many, number
@@ -117,28 +118,47 @@ def captures(corpora=CORPORA):
 def compare(replay, publications):
     if not publications:
         raise ValueError('empty transcript')
-    requests = ''.join(json.dumps({key: item[key] for key in ('kind', 'hex', 'available')}) + '\n' for item in publications)
-    result = subprocess.run([str(replay), '--full-state'], input=requests, text=True, capture_output=True, check=True, timeout=60)
-    answers = result.stdout.splitlines()
-    if len(answers) != len(publications):
-        raise ValueError('Rust prefix count differs')
     replica = FullReplica()
     primitives, record_kinds = set(), set()
-    for item, answer in zip(publications, answers):
-        expected = replica.apply(item['kind'], bytes.fromhex(item['hex']))
-        actual = json.loads(answer)
-        if not actual['accepted']:
-            raise ValueError('Rust rejected ' + item.get('file', 'network capture'))
-        if actual['state'] != expected:
-            mismatches = [identity for identity in expected['records']
-                          if expected['records'][identity] != actual['state']['records'].get(identity)]
-            raise ValueError(f"independent retained state differs at {item.get('file', 'network capture')}: {mismatches[:8]}")
-        for wrapper in expected['records'].values():
-            kind, record = next(iter(wrapper.items()))
-            record_kinds.add(kind)
-            if kind == 'Scene':
-                value = record['primitive']
-                primitives.add(value if isinstance(value, str) else next(iter(value)))
+    process = subprocess.Popen([str(replay), '--full-state'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL)
+    deadline = threading.Timer(60, process.kill)
+    deadline.start()
+    try:
+        for item in publications:
+            request = json.dumps({key: item[key] for key in ('kind', 'hex', 'available')}).encode() + b'\n'
+            process.stdin.write(request)
+            process.stdin.flush()
+            # Read and compare one bounded state at a time. Retaining every
+            # expanded state would multiply a small delta trace by tree size.
+            answer = process.stdout.readline((64 << 20) + 1)
+            if not answer or len(answer) > 64 << 20 or not answer.endswith(b'\n'):
+                raise ValueError('Rust prefix output unavailable or exceeds ceiling')
+            expected = replica.apply(item['kind'], bytes.fromhex(item['hex']))
+            actual = json.loads(answer)
+            if not actual['accepted']:
+                raise ValueError('Rust rejected ' + item.get('file', 'network capture'))
+            if actual['state'] != expected:
+                mismatches = [identity for identity in expected['records']
+                              if expected['records'][identity] != actual['state']['records'].get(identity)]
+                raise ValueError(f"independent retained state differs at {item.get('file', 'network capture')}: {mismatches[:8]}")
+            for wrapper in expected['records'].values():
+                kind, record = next(iter(wrapper.items()))
+                record_kinds.add(kind)
+                if kind == 'Scene':
+                    value = record['primitive']
+                    primitives.add(value if isinstance(value, str) else next(iter(value)))
+        process.stdin.close()
+        if process.stdout.read(1) or process.wait(timeout=2):
+            raise ValueError('Rust prefix count or exit status differs')
+    finally:
+        deadline.cancel()
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=2)
+        process.stdout.close()
+        if not process.stdin.closed:
+            process.stdin.close()
     return len(publications), record_kinds, primitives
 
 
