@@ -427,3 +427,99 @@ async fn spoofed_fresh_request_preserves_offline_history_and_changed_limits_mint
         assert_eq!(budget.used(), 0);
     }
 }
+
+#[tokio::test]
+#[ignore = "explicit pinned native trusted diagnostic scope/approval gate"]
+async fn named_diagnostic_capture_requires_current_approved_scope_and_retains_its_charge() {
+    let budget = MemoryBudget::new(128 << 20);
+    let owner = owner(budget.clone());
+    let port = NativeProducerPort::new(owner.port()).unwrap();
+    let request = request(3);
+    let Request::Connect { lifetime, .. } = &request else {
+        panic!()
+    };
+    let approval = lifetime.clone();
+    let received = port.transact(request).await.unwrap();
+    let Reply::Connected(connection) = received.value() else {
+        panic!()
+    };
+    let connection = connection.clone();
+    drop(received);
+    ready(&port, &connection).await;
+    let client = connection.session().client.client_instance_id;
+    let view = connection.session().view_id;
+    let capture = port.projected_source(client, view).await.unwrap();
+    assert_eq!(
+        capture.state(),
+        port.projected_capture(&connection).await.unwrap().state()
+    );
+    assert!(port.projected_source([99; 16], view).await.is_err());
+    assert!(port.projected_source(client, [99; 16]).await.is_err());
+    approval.revoke();
+    assert!(port.projected_source(client, view).await.is_err());
+    port.shutdown();
+    port.flush_lifecycle(0).await.unwrap();
+    drop(connection);
+    drop(port);
+    drop(owner);
+    assert!(budget.used() > 0);
+    assert!(budget.reserve(budget.limit() - budget.used() + 1).is_err());
+    drop(capture);
+    assert_eq!(budget.used(), 0);
+}
+
+#[tokio::test]
+#[ignore = "explicit pinned native retained-reducer checkpoint gate"]
+async fn unchanged_source_reset_advances_publication_without_inventing_source_effects() {
+    let budget = MemoryBudget::new(128 << 20);
+    let owner = owner(budget.clone());
+    let port = NativeProducerPort::new(owner.port()).unwrap();
+    let first = connect(&port, 3).await;
+    ready(&port, &first).await;
+    let before = port.projected_capture(&first).await.unwrap();
+    let view = first.session().view_id;
+    port.disconnect(&first);
+    port.flush_lifecycle(0).await.unwrap();
+    let second = connect(&port, 3).await;
+    assert_eq!(second.session().view_id, view);
+    assert!(matches!(
+        second.session().resume,
+        ResumeDisposition::FreshSnapshot
+    ));
+    let received = call(
+        &port,
+        &second,
+        Operation::Open {
+            selection: "session".into(),
+            mirror_canvas_policy: "host-canvas".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let Reply::Opened {
+        checkpoint: Some(bytes),
+        ..
+    } = received.value()
+    else {
+        panic!()
+    };
+    let envelope = pb::Envelope::decode(bytes.as_ref()).unwrap();
+    let snapshot = pb::Snapshot::decode(envelope.payload.as_slice()).unwrap();
+    let after = port.projected_capture(&second).await.unwrap();
+    assert_eq!(snapshot.revision, before.state().revision + 1);
+    assert_eq!(after.state().revision, snapshot.revision);
+    assert_eq!(after.source_revision(), before.source_revision());
+    assert_eq!(snapshot.records, before.records());
+    assert_eq!(after.state().records, before.state().records);
+    assert_eq!(after.state().retired, before.state().retired);
+    port.disconnect(&second);
+    port.flush_lifecycle(0).await.unwrap();
+    drop(received);
+    drop(after);
+    drop(before);
+    drop(first);
+    drop(second);
+    drop(port);
+    drop(owner);
+    assert_eq!(budget.used(), 0);
+}

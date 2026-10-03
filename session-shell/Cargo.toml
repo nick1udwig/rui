@@ -7,6 +7,7 @@ edition.workspace = true
 native-eis = ["dep:sha2", "dep:prost"]
 source-window = ["native-eis", "dep:gtk4", "dep:rui-client-desktop"]
 transport = ["native-eis", "dep:rui-transport", "dep:tokio"]
+native-mirrors = ["source-window", "transport", "rui-client-desktop/desktop"]
 
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }
@@ -29,3 +30,7 @@ required-features = ["native-eis"]
 [[example]]
 name = "source_window_probe"
 required-features = ["source-window"]
+
+[[example]]
+name = "native_session_smoke"
+required-features = ["native-mirrors"]

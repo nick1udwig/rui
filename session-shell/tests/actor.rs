@@ -446,3 +446,105 @@ fn owner_startup_error_joins_native_thread_and_releases_all_reservations() {
     assert!(Owner::spawn(grant, "de", vec![invalid], budget.clone()).is_err());
     assert_eq!(budget.used(), 0);
 }
+
+#[test]
+#[ignore = "explicit pinned native producer-only source-edit validation gate"]
+fn producer_source_edits_validate_before_mutation_and_preserve_published_identity() {
+    use rui_session_shell::actor::SourceEdit;
+    let budget = MemoryBudget::new(128 << 20);
+    let owner = owner(budget.clone());
+    let port = owner.port();
+    let connection = connect(&port, 3, false);
+    let before = port
+        .source_capture(&connection)
+        .unwrap()
+        .wait(Duration::from_secs(2))
+        .unwrap();
+    let Response::Source(source) = before.value() else {
+        panic!()
+    };
+    let surface = source
+        .state()
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Surface(s) => Some(s),
+            _ => None,
+        })
+        .unwrap();
+    let mut invalid = window();
+    invalid.content_size.width = -1.;
+    let mut orphan = window();
+    orphan.parent = Some(u64::MAX);
+    let mut singular = window().transform;
+    singular.xx = 0.;
+    for change in [
+        SourceEdit::Open(invalid),
+        SourceEdit::Open(orphan),
+        SourceEdit::Close(u64::MAX),
+        SourceEdit::Focus(u64::MAX),
+        SourceEdit::Map {
+            surface: u64::MAX,
+            mapped: false,
+        },
+        SourceEdit::Configure {
+            surface: surface.id,
+            desktop_rect: window().desktop_rect,
+            content_size: window().content_size,
+            transform: singular,
+            stacking_order: 4,
+        },
+    ] {
+        assert!(port
+            .source_edit(change)
+            .unwrap()
+            .wait(Duration::from_secs(2))
+            .is_err());
+        let after = port
+            .source_capture(&connection)
+            .unwrap()
+            .wait(Duration::from_secs(2))
+            .unwrap();
+        let Response::Source(after) = after.value() else {
+            panic!()
+        };
+        assert_eq!(
+            source.state(),
+            after.state(),
+            "failed source edit changed clock, route or graph"
+        );
+    }
+    let mut spec = window();
+    spec.desktop_rect.x = 20.;
+    port.source_edit(SourceEdit::Configure {
+        surface: surface.id,
+        desktop_rect: spec.desktop_rect,
+        content_size: spec.content_size,
+        transform: spec.transform,
+        stacking_order: spec.stacking_order,
+    })
+    .unwrap()
+    .wait(Duration::from_secs(2))
+    .unwrap();
+    let after_received = port
+        .source_capture(&connection)
+        .unwrap()
+        .wait(Duration::from_secs(2))
+        .unwrap();
+    let Response::Source(after) = after_received.value() else {
+        panic!()
+    };
+    let Some(Record::Surface(moved)) = after.state().records.get(&surface.id) else {
+        panic!()
+    };
+    assert_eq!(moved.desktop_rect.x, 20.);
+    assert_ne!(moved.routing_token, surface.routing_token);
+    assert!(after.state().revision > source.state().revision);
+    assert_eq!(after.state().records.len(), source.state().records.len());
+    drop(after_received);
+    drop(before);
+    drop(connection);
+    drop(port);
+    drop(owner);
+    assert_eq!(budget.used(), 0);
+}

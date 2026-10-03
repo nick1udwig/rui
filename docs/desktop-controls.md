@@ -88,3 +88,19 @@ recovery tests, strict all-target Clippy and formatting. The new tests cover
 visual-only progression and reject changed routing at either comparison boundary,
 wrong connection identity and future paint revisions. The same-native-source,
 two-mirror physical session gate is assessed separately.
+
+The [native session baseline](../fixtures/session-shell/native-session.json)
+uses two actual TLS mirrors and their native EIS source on an authenticated
+private display. Both actual after-paint record digests and complete viewport
+pixels match direct authoritative captures. A physical US Y key produces German
+host z with host repeat and exactly one native press/release pair. Pointer and
+vector cursor use distinct logical, granted EIS and framebuffer geometry. Native
+popup, tooltip, modal, configure and local takeover changes converge; all shared
+parent charges return to zero after disposal. Negative routing and held-input
+cleanup variants are assessed separately.
+
+```sh
+cargo build --offline --locked -p rui-session-shell --features native-mirrors --example native_session_smoke
+python3 fixtures/session-shell/native_session.py --xvfb /path/to/Xvfb \
+  --target-dir target/debug --report /tmp/rui-native-session.json
+```

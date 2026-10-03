@@ -203,7 +203,12 @@ checkpoint, retained publication, history/outbound entry, attachment and escaped
 socket reservation owns a charge against its view and the same aggregate parent.
 Those charges outlive owner shutdown until the last allocation handle drops.
 The owner retains its metadata/ledger allowance until covered maps are destroyed.
-Views have a 16 MiB local ceiling, 1 MiB publication/history ceilings, 64 history
+Native-only views have a 16 MiB local ceiling. Transport-native views have a
+32 MiB ceiling so a normal bounded GTK viewport can retain its linear float
+frame while constructing a charged RGBA texture and socket writer buffers. All
+charges still belong to the same aggregate parent budget; increasing the
+per-view ceiling does not allocate an independent pool. Both profiles retain
+1 MiB publication/history ceilings, 64 history
 entries and 512 KiB outbound queues. The ledger has at most 4096 identities,
 8 MiB retained exact command bodies and 512 retained outcomes. Native/backend/
 topology charges remain those above. This is a conservative explicit allocation
@@ -302,8 +307,11 @@ cargo test -p rui-session-shell --features transport --offline --locked -- --ign
 cargo clippy -p rui-session-shell --features source-window,transport --all-targets --offline --locked -- -D warnings
 ```
 
-The port unit/native tests use explicit trusted receipt fixtures. Actual TLS
-two-mirror presentation, native mirror physical callbacks and the final native
-scope/cleanup scenario remain M4 integration work. This raw-input laboratory
-does not advertise host IME or source ResizeRequest support. The controlled M2
-source-resize and recovery results have separate accepted evidence.
+The port unit/native tests use explicit trusted receipt fixtures. The optional
+`native-mirrors` example now passes actual TLS/two-mirror presentation and native
+physical callbacks against the same source owner, with exact records/pixels,
+host layout/repeat, unequal coordinate mapping, topology/cursor and local takeover.
+See `fixtures/session-shell/native-session.json`; negative routing, held-input
+cleanup and the remaining authorization matrix are still M4 work. Host IME and remote source resize are unsupported by this
+`raw.host.v1` port and are not advertised. Controlled-host resize and broader
+M2 controls are assessed separately from this isolated native backend.

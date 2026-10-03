@@ -10,7 +10,8 @@ Evidence includes the accepted isolated native input foundation and coherent
 whole-view GTK capture. The same GTK source now serves two real TLS clients with
 exact command/source evidence and native lifecycle fencing; its recorded complete
 vector trace passes independent replay. Actual GTK mirror after-paint and wire IME
-remain open, as does the full native session physical-input integration.
+remain open. The native session baseline now passes actual TLS/two-mirror input;
+its negative routing, held-input cleanup and authorization matrix remains open.
 
 | Case | Layer | Accepted evidence | Remaining gate or final-suite obligation |
 | --- | --- | --- | --- |
@@ -60,8 +61,8 @@ remain open, as does the full native session physical-input integration.
 | INP-002 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Actual native shell move/occlusion/modal guards pass (`session-shell/tests/native.rs`, `tests/topology.rs`); retain full transport/native GUI integration. |
 | INP-003 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Actual GTK stroke callbacks cross constrained 32 KiB/s TLS; all captured samples match the authoritative source trace including order/time/coordinates/button state. Overflow and Escape visibly reject without partial dispatch (`fixtures/render/native-broad.json`); retain final suite. |
 | INP-004 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [session.rs](../protocol-core/tests/session.rs) | Conservative cleanup and ownership covered; native disconnect/expiry/revoke release variants remain. |
-| INP-005 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Actual fd-only EIS mapping uses distinct logical canvas, offset grant, scale and framebuffer (`fixtures/session-shell/native-source.json`); network/native mirror integration remains. |
-| INP-006 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Actual host German XKB versus US client assumption, native physical input and host repeat pass; readiness loss stops repeats with matched releases/STOP (`session-shell/tests/native.rs`); full transport integration remains. |
+| INP-005 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Accepted actual TLS/two-mirror native mapping: logical200×120, offset EIS600×240 region, framebuffer1000×700 and physical scale2; controller local scale1.5. Actual native pointer and vector cursor agree within1e-4 (`fixtures/session-shell/native-session.json`); retain final suite. |
+| INP-006 | integration (P0) | [input.rs](../protocol-core/tests/input.rs) | Accepted actual US physical Y capture through TLS to the German host: native z repeat, exactly two native press/release frames, no duplicate client repeat/text, zero held keys and no repeats after release (`fixtures/session-shell/native-session.json`); retain final suite. |
 | INP-007 | integration (P0) | [session-shell-profile.md](../spec/session-shell-profile.md) | Actual fd-only native backend denies app-only scope and confines injection to its explicitly owned whole session; retain integrated network authorization audit. |
 | TXT-001 | integration (P0) | [controlled.rs](../host-broker/tests/controlled.rs); [gtk_capture.rs](../adapters/sdk/tests/gtk_capture.rs) | Actual GTK supplementary/combining/RTL replacements, backward and intra-cluster scalar selections, native carets, content clocks and exact retries pass (`adapters/sdk/tests/unicode_trace.rs`); retain native Unicode scenario in final suite. |
 | TXT-002 | integration (P0) | [input.rs](../protocol-core/tests/input.rs); [interaction.rs](../client-desktop/tests/interaction.rs) | Transient composition, context invalidation, native IM key-path probe and bounded causal FIFO (`client-desktop/tests/typing.rs`) covered; native causal typing/visible preedit and sticky input-limit feedback pass (`fixtures/render/native-corpus.json`, native IM probe); wire composition/native source integration remains. |

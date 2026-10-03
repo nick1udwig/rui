@@ -57,6 +57,31 @@ impl NativeProducerPort {
             _ => Err(TransportError::Protocol),
         }
     }
+    /// Trusted source-owner diagnostic capability. The server's current view
+    /// must still be connected and approved. This is not a wire API and cannot
+    /// admit commands or synthesize receipt/presentation evidence.
+    pub async fn projected_source(
+        &self,
+        client: Id,
+        view: Id,
+    ) -> Result<ProjectedCapture, TransportError> {
+        let _admitted = self
+            .0
+            .admission
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| TransportError::Limit)?;
+        let pending = self
+            .0
+            .host
+            .request(128 << 10, || Operation::ProjectedSource { client, view })
+            .map_err(error)?;
+        let received = receive(pending).await?;
+        match received.value {
+            Response::Projected(capture) => Ok(capture),
+            _ => Err(TransportError::Protocol),
+        }
+    }
     fn native_connection<'a>(
         &self,
         connection: &'a port::Connection,
@@ -224,6 +249,36 @@ pub(super) struct Context<'a> {
     pub now: u64,
 }
 impl NativeViews {
+    pub(super) fn capture_named(
+        &self,
+        client: Id,
+        view_id: Id,
+        budget: &MemoryBudget,
+        broker: &SessionBroker,
+        priority: &Priority,
+    ) -> Result<ProjectedCapture, ShellError> {
+        let (index, view) = self
+            .views
+            .iter()
+            .enumerate()
+            .find_map(|(index, view)| {
+                view.as_ref()
+                    .filter(|v| v.stamp.client == client && v.stamp.view == view_id)
+                    .map(|v| (index, v))
+            })
+            .ok_or(ShellError::Scope)?;
+        if priority.current.lock().map_err(|_| ShellError::Scope)?[index] != Some(view.stamp)
+            || !view.lifetime.is_authorized()
+        {
+            return Err(ShellError::Scope);
+        }
+        broker.authorize_projection(&view.client, view_id)?;
+        let memory = broker.reserve_view_memory(&view.client, view_id, 2 << 20)?;
+        let mut capture =
+            projection::copy(view.capture.as_ref().ok_or(ShellError::Scope)?, budget)?;
+        capture.charge_view(memory);
+        Ok(capture)
+    }
     pub(super) fn synchronize(
         &mut self,
         broker: &mut SessionBroker,
@@ -765,6 +820,20 @@ fn snapshot(
     let (mut capture, _) =
         projection::next_with_limits(&source, view.capture.as_ref(), ctx.budget, &view.limits)
             .map_err(error)?;
+    if view
+        .capture
+        .as_ref()
+        .is_some_and(|old| old.state.revision == capture.state.revision)
+    {
+        // A reset checkpoint has a new exact publication body. Do not collide
+        // with a retained transaction digest at the current revision, even if
+        // source fields did not change since the last publication.
+        capture.state.revision = capture
+            .state
+            .revision
+            .checked_add(1)
+            .ok_or(TransportError::Limit)?;
+    }
     capture.charge_view(view_memory);
     let _staging = ctx
         .budget

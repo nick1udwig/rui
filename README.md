@@ -14,8 +14,9 @@ vector renderer, a GTK desktop mirror with causal typing and visible preedit, an
 a cooperating GTK snapshot producer with guarded native semantic commands.
 The pure protocol core and controlled two-mirror milestone are accepted for the
 declared corpus, including broad controls, native recovery and direct-source
-record/pixel comparisons. Real GTK composition and native session input over TLS
-remain active work; the acceptance record states the scope of each result.
+record/pixel comparisons. Native session input now passes an actual TLS/two-mirror
+baseline; its remaining negative cases and real GTK composition remain active
+work. The acceptance record states the scope of each result.
 
 ## Development
 

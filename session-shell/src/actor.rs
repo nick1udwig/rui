@@ -9,7 +9,7 @@ use prost::Message;
 use rui_protocol_core::wire::proto as pb;
 use rui_protocol_core::{
     commands::{AuthenticatedClient, CommandLedger, CommandResult, Id, LedgerLimits},
-    model::Point,
+    model::{Affine, Point, Rect, Size},
     resources::{MemoryBudget, MemoryReservation},
     session::{
         ClientHello, ControlLease, NegotiatedSession, ResumeDisposition, SessionBroker,
@@ -106,6 +106,7 @@ pub enum Response {
     Done,
     Status(OwnerStatus),
     Diagnostics(OwnerDiagnostics),
+    SurfaceOpened(u64),
 }
 #[derive(Clone, Debug)]
 pub struct OwnerDiagnostics {
@@ -256,10 +257,16 @@ enum Operation {
     Projected {
         connection: Connection,
     },
+    #[cfg(feature = "transport")]
+    ProjectedSource {
+        client: Id,
+        view: Id,
+    },
     Negotiate {
         auth: VerifiedAuthorization,
         hello: Box<ClientHello>,
     },
+    SourceEdit(SourceEdit),
     Capture {
         connection: Option<Connection>,
     },
@@ -334,6 +341,24 @@ impl AuthorityIdentity {
 pub enum LocalEvent {
     Key { code: u32, pressed: bool },
     Pointer { desktop: Point, press: bool },
+}
+/// Trusted producer policy changes on the same authoritative native topology.
+/// This capability is not exposed as a wire command or application-only grant.
+pub enum SourceEdit {
+    Open(WindowSpec),
+    Close(u64),
+    Focus(u64),
+    Map {
+        surface: u64,
+        mapped: bool,
+    },
+    Configure {
+        surface: u64,
+        desktop_rect: Rect,
+        content_size: Size,
+        transform: Affine,
+        stacking_order: i64,
+    },
 }
 #[derive(Clone)]
 pub struct LocalDevicePort {
@@ -493,6 +518,9 @@ impl HostPort {
             auth: auth.clone(),
             hello: Box::new(hello.clone()),
         })
+    }
+    pub fn source_edit(&self, edit: SourceEdit) -> Result<Pending, ShellError> {
+        self.request(4096, || Operation::SourceEdit(edit))
     }
     /// Independent direct-source records, not publication replay. Private
     /// source-window capability uses this too; network authorization is added
@@ -681,7 +709,12 @@ impl Owner {
                         // View allocations independently retain the shared
                         // parent charge; keep socket work locally bounded too.
                         config.max_clients = 4;
-                        config.receiver_limits.view_memory_bytes = 16 << 20;
+                        // A native mirror retains linear float pixels while
+                        // preparing its charged RGBA texture. Thirty-two MiB
+                        // admits the normal bounded GTK viewport plus transport
+                        // writer headroom; the shared owner budget still caps
+                        // all producer views together.
+                        config.receiver_limits.view_memory_bytes = 32 << 20;
                     }
                     config.supported_profiles.insert("cursor.vector.v1".into());
                     config.required_profiles.insert("cursor.vector.v1".into());
@@ -875,6 +908,52 @@ impl Owner {
                                     Operation::Projected { connection } => Response::Projected(
                                         transport.capture(&connection, &owner_budget, &broker)?,
                                     ),
+                                    #[cfg(feature = "transport")]
+                                    Operation::ProjectedSource { client, view } => {
+                                        Response::Projected(transport.capture_named(
+                                            client,
+                                            view,
+                                            &owner_budget,
+                                            &broker,
+                                            &owner_priority,
+                                        )?)
+                                    }
+                                    Operation::SourceEdit(edit) => {
+                                        let topology = backend.topology_mut();
+                                        match edit {
+                                            SourceEdit::Open(spec) => {
+                                                Response::SurfaceOpened(topology.open(spec)?)
+                                            }
+                                            SourceEdit::Close(id) => {
+                                                topology.close(id)?;
+                                                Response::Done
+                                            }
+                                            SourceEdit::Focus(id) => {
+                                                topology.focus(id)?;
+                                                Response::Done
+                                            }
+                                            SourceEdit::Map { surface, mapped } => {
+                                                topology.set_mapped(surface, mapped)?;
+                                                Response::Done
+                                            }
+                                            SourceEdit::Configure {
+                                                surface,
+                                                desktop_rect,
+                                                content_size,
+                                                transform,
+                                                stacking_order,
+                                            } => {
+                                                topology.configure(
+                                                    surface,
+                                                    desktop_rect,
+                                                    content_size,
+                                                    transform,
+                                                    stacking_order,
+                                                )?;
+                                                Response::Done
+                                            }
+                                        }
+                                    }
                                     Operation::Negotiate { mut auth, hello } => {
                                         auth.permissions.actions.retain(|a| a == "RawInputBatch");
                                         let next_slot = slots.len();
