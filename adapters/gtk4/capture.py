@@ -389,6 +389,8 @@ class CaptureMixin:
         counts, region_bounds = census(node)
         frame = {"revision": self.frames, "source_revision": source_revision, "surface_key": self.surface_key, "surface_id": self.source.identifier("surface:" + self.surface_key), "surface_role": self.role, "size": [self.get_width(), self.get_height()], "capture_token": token, "capture_boundary": "actual-snapshot-vfunc-same-node-append", "scene_root": scene_root, "semantic_root": self.source.identifier("semantic:" + self.semantic_root), "semantics": semantics, "scene": exporter.scene, "gaps": exporter.gaps, "resources": sorted(exporter.resources), "uses_glyph_outline": exporter.uses_glyph_outline, "gsk_node_counts": counts, "gsk_node_bounds": region_bounds, "capture_duration_ns": time.monotonic_ns() - started, "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font", "gtk_version": list(PINNED_GTK)}
         frame["source_glyph_evidence"] = exporter.glyph_evidence
+        if hasattr(self.source, "private_generation"):
+            frame["source_generation"] = self.source.private_generation
         if nonce is not None:
             frame["capture_barrier_nonce"] = nonce
         if getattr(self, 'command_cause', None) is not None:

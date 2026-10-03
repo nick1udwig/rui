@@ -22,6 +22,11 @@ def main():
     app = Gtk.Application(application_id='org.rui.GtkAdmittedSource')
     with FallbackProbe() as probe:
         def activate(app):
+            # The private source socket, rather than a mapped window, owns this
+            # bounded process. Retiring the last surface must still allow the
+            # host to consume/acknowledge its lifecycle snapshot. Pipe HUP and
+            # the dispatcher watchdog explicitly quit the application.
+            app.hold()
             app.corpus = Corpus(app, args.output, 'strict', timed_actions=False)
             app.corpus.capture.export_probe = probe.report
             app.corpus.popup_capture.export_probe = probe.report

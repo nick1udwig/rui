@@ -356,7 +356,7 @@ current or pending artifact, 17 MiB transient body/descriptor scratch, 19 MiB
 projection/command scratch, and two 8 MiB pools per client, at most four clients.
 Pending metadata/body scratch is reserved before native execution; projection
 scratch can coexist with command scratch. The maximum conservative reservation
-is 252 MiB. Sparse node costs and retained String/Vec spare capacity are included
+is now 256 MiB, including a 4 MiB broker identity namespace allowance. Sparse node costs and retained String/Vec spare capacity are included
 by artifact/core preflights or these allowances. Native GTK application memory is
 outside this protocol budget. The driver verifies host reservations release on
 drop, including after UNKNOWN outcomes.
@@ -517,10 +517,65 @@ cargo test -p rui-producer-sdk --test whole_trace
 This whole-view slice uses native cooperating fixture lifecycle callbacks.
 Common-ledger remote actions are established separately by the native semantic
 bridge; the whole-view barrier is not yet connected to that command/transport path.
-Wire composition/IME ownership, persistent source crash/restart with broker and
-ledger continuity, and the persistent/network producer path remain required for
+Wire composition/IME ownership and the persistent/network producer path remain required for
 M3. AT-SPI was not used to infer coherence. These are component measurements,
 not a whole-milestone claim.
+
+## Broker continuity across native source exit
+
+`GtkCommandHost::restart_source` is an explicitly trusted supervisor operation,
+not a peer command. The controlled run in `restart-interaction.json` keeps the
+same host PID, broker epoch, negotiated client/view and common command ledger
+while an actual native source callback runs and its process receives SIGKILL
+before a causal capture/reply. The result is UNKNOWN, with a local callback
+receipt identifying the deliberate ambiguity. An exact retry while the source
+is absent, after replacement, and after failed replacement starts returns the
+same retained outcome and performs no new native dispatch.
+
+Source exit revokes control, closes the full private receiver and its resource
+cache (memory zero), and publishes a newer Session-only state: no app records,
+focus, focus surface or cursor. Already connected observers and an observer
+joining during absence consume that state. Replacement has a fresh source UUID
+and private generation, fresh public app IDs, and a surviving broker Session ID.
+The public revision advances 1→2 unavailable→3 replacement→4 native effect→5 idle
+exit; source-local captures retain their original revisions and source identity.
+All formerly exposed app IDs retire. A fresh sequence against an old target is
+rejected; an admitted request carrying a delayed private generation fails at the
+GTK guard with zero dispatches; an action against the new target reaches actual
+GTK callbacks and its own generation-bound causal capture.
+
+The finite evidence retains 41 exact `.bin`, `.json` and `.rvp` files, including
+five authorized public Protobuf snapshots under one epoch and three full private
+captures under two source incarnations. SHA-256 inventory in the report covers
+every file. Rust replay verifies one continuous receiver's retirement, stable
+Session, monotonic public/focus clocks, cleared focus and stripped semantic-only
+resource closure, then checks each private capture's glyph geometry/vector audit
+and the new action's exact source token. Pixel diagnostics remain local and are
+excluded from this protocol trace. Consumers acknowledge semantic readiness and
+never Presented.
+
+Source identities are bounded to 4096 live records and 8192 issued public IDs,
+including Session and all retired app/scene IDs. Four replacement attempts are
+permitted; failed starts count. Namespace staging is atomic and charged with both
+sparse map copies and the lifetime set inside the 4 MiB allowance. Dedicated
+source artifact directories are emptied on replacement/drop, after current
+capture ownership has moved; disposal permits at most 16384 regular files and
+128 MiB. Actual failed starts preserve unavailable revision and existing views,
+and final host drop returns all reservations to zero. The native process still
+has a 30-second fixture watchdog, so these measurements establish a controlled
+broker-preserving restart component rather than persistent network operation.
+The private native source explicitly holds its Gtk.Application while the socket
+is owned: destroying the last window cannot race the host's lifecycle
+acknowledgement. The actual baseline gives GTK a main-loop opportunity to finish
+last-window shutdown, verifies the source process remains alive, then consumes
+retirement and rejects a late old-target command. Pipe closure/watchdog still
+quit the held application.
+
+```sh
+cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb --output /tmp/rui-gtk-restart-empty --scenario restart
+cargo test -p rui-producer-sdk --test restart_trace
+```
 
 The alternate GTK 4.22.4 Broadway harness repeatedly aborted while repainting a
 native popup at `gdk/broadway/broadway-output.c:456`,

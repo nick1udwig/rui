@@ -72,7 +72,45 @@ become the retained core result. Pipe loss/deadline after possible native
 execution, or a fresh capture without that cause, becomes UNKNOWN and revokes
 control. Exact retries return the retained result without another native call.
 The process has a 30-second watchdog: this is a bounded fixture, not a persistent
-network host. Raw input, wire composition/IME and resize are unsupported here.
+network host. Its private socket owns an explicit application hold, so retiring
+the last native window can still publish and acknowledge lifecycle state; pipe
+closure and the watchdog quit the held application. Raw input, wire
+composition/IME and resize are unsupported here.
+
+Trusted supervisors can replace an exited source with `restart_source` while
+keeping the broker epoch, negotiated views and common ledger. Source absence
+publishes a newer Session-only snapshot with no focus or cursor, revokes control
+and closes the private receiver/cache. Existing and newly joining semantic
+clients can consume that unavailable state. Replacement receives a fresh private
+incarnation and generation; every app ID is mapped into a never-reused public
+namespace while the broker Session ID survives. Native text/model clocks remain
+source-owned; public publication and focus clocks remain monotonic. Every private
+reply, capture and command cause is bound to its source generation. Exact old
+UNKNOWN retries use the retained ledger outcome and cannot terminate a new source.
+
+This fixture admits four replacement attempts, including failed starts, at most
+4096 live source record IDs and 8192 issued public IDs including retired IDs.
+The two sparse identity maps and lifetime set (including staged copies) reserve
+4 MiB within the existing 256 MiB aggregate host ceiling. Rejected projections
+leave dispatch mappings unchanged. Dedicated source directories are purged after
+replacement and on drop; current/promised artifacts remain subject to the native
+128 MiB retention ceiling, with at most 16384 files during disposal. These limits
+describe protocol retention, separately from native GTK application memory.
+
+```sh
+python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb --output /tmp/rui-gtk-restart-empty --scenario restart
+cargo test -p rui-producer-sdk --test restart_trace
+```
+
+`restart-interaction.json` binds 41 exact files in `restart-golden/`: five public
+snapshots under one broker epoch and three full private source captures with their
+vector bodies. The source really executes a callback and receives SIGKILL before
+reply/capture; the broker remains alive and retains UNKNOWN. The driver exercises
+retries before/after replacement, old public targets, a delayed old private
+generation, a successful new native action, idle source exit and bounded failed
+starts. Replay verifies retirement, stable Session/focus clocks and exact causal
+evidence. The source still has its 30-second fixture watchdog; this does not yet
+establish persistent/network operation or visual/IME readiness.
 
 ```sh
 cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check --locked

@@ -56,6 +56,10 @@ def decode_request(body):
 class NativeDispatcher:
     def __init__(self, corpus, *, fixture_hooks=False):
         self.corpus = corpus
+        self.source_generation = int(os.environ.get("RUI_PRIVATE_SOURCE_GENERATION", "1"))
+        if not 1 <= self.source_generation <= 5:
+            raise ValueError("private-source-generation-ceiling")
+        corpus.source.private_generation = self.source_generation
         self.fixture_hooks = fixture_hooks
         self.buffer = bytearray(MAX_REQUEST + 4)
         self.used = 0
@@ -90,7 +94,7 @@ class NativeDispatcher:
         return False
 
     def reply(self, request_id, status, *, artifact=None, reason=None):
-        body = json.dumps({'request_id': request_id, 'status': status, 'artifact': artifact,
+        body = json.dumps({'request_id': request_id, 'source_generation': self.source_generation, 'status': status, 'artifact': artifact,
                            'reason': reason, 'native_dispatches': self.native_dispatches,
                            'native_callbacks': self.native_callbacks}, separators=(',', ':')).encode()
         if len(body) > MAX_REPLY:
@@ -190,7 +194,9 @@ class NativeDispatcher:
                 self.race_next = 'visual'
             elif operation == 'race-model':
                 self.race_next = 'model'
-            elif operation in ('lose-after-dispatch', 'stall-after-dispatch', 'uncorrelated-capture'):
+            elif operation == 'race-source-generation':
+                self.race_next = 'source-generation'
+            elif operation in ('lose-after-dispatch', 'stall-after-dispatch', 'uncorrelated-capture', 'crash-after-dispatch'):
                 self.fail_after_dispatch = operation
             elif operation == 'delay-until-expired':
                 self.delay_until_expired = True
@@ -213,6 +219,11 @@ class NativeDispatcher:
         if kind != 'semantic':
             raise ValueError('unsupported-private-operation')
         guard = request['guard']
+        if self.race_next == 'source-generation':
+            # Trusted negative-control hook injects a delayed old-source guard
+            # after core admission, at the final serialized native boundary.
+            guard['source_generation'] = self.source_generation - 1
+            self.race_next = None
         if self.delay_until_expired:
             self.delay_until_expired = False
             delay = max(1, (guard['deadline_ns'] - time.monotonic_ns()) // 1_000_000 + 50)
@@ -233,6 +244,8 @@ class NativeDispatcher:
             self.corpus.unmaterialize_row()
             self.race_next = None
         try:
+            if guard['source_generation'] != self.source_generation:
+                raise SourceRejected('retired-private-source-generation')
             if self.control != (guard['lease_id'], guard['control_generation'], guard['deadline_ns']):
                 raise SourceRejected('retired-native-control-generation')
             if time.monotonic_ns() >= guard['deadline_ns']:
@@ -274,7 +287,7 @@ class NativeDispatcher:
         # Every prior check and the native calls share this GTK main-loop turn.
         # No peer callback/crawl can replace the source object between them.
         self.native_dispatches += 1
-        capture.command_cause = {'private_request_id': request_id, 'authority_gate': 'core-ledger-admitted'}
+        capture.command_cause = {'private_request_id': request_id, 'source_generation': self.source_generation, 'authority_gate': 'core-ledger-admitted'}
         self.pending = (request_id, 'applied')
         try:
             self.apply_native(key, widget, action, arguments)
@@ -293,6 +306,11 @@ class NativeDispatcher:
                 self.corpus.capture.queue_draw()
                 return
             self.pending = None
+            if self.fail_after_dispatch == 'crash-after-dispatch':
+                # Deliberate isolated process-loss fault, after an actual native
+                # callback and before any causal capture acknowledgement.
+                import signal
+                os.kill(os.getpid(), signal.SIGKILL)
             if self.fail_after_dispatch == 'lose-after-dispatch':
                 os.close(0)
                 self.corpus.app.quit()

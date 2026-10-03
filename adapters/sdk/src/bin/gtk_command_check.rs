@@ -85,7 +85,11 @@ fn authorization(principal: &str, control: bool) -> VerifiedAuthorization {
 fn retain_capture(host: &GtkCommandHost, directory: &Path) -> Result<()> {
     let source = host.source_artifact_for_diagnostics();
     let manifest = host.source_capture_for_diagnostics();
-    let name = format!("snapshot-{:06}", manifest["revision"].as_u64().unwrap());
+    let name = format!(
+        "snapshot-{:02}-{:06}",
+        manifest["source_generation"].as_u64().unwrap(),
+        manifest["revision"].as_u64().unwrap()
+    );
     let bytes = fs::read(source.with_extension("bin"))?;
     assert!(bytes.len() <= 1 << 20);
     fs::write(directory.join(format!("{name}.bin")), bytes)?;
@@ -107,6 +111,22 @@ fn retain_capture(host: &GtkCommandHost, directory: &Path) -> Result<()> {
     assert!(bytes <= 64 << 20, "fixed interaction trace quota");
     Ok(())
 }
+fn retain_public(
+    host: &GtkCommandHost,
+    client: &AuthenticatedClient,
+    directory: &Path,
+) -> Result<()> {
+    if let Some(bytes) = host.pending_publication(client)? {
+        assert!(bytes.len() <= 1 << 20);
+        let envelope = p::Envelope::decode(bytes)?;
+        let snapshot = p::Snapshot::decode(envelope.payload.as_slice())?;
+        fs::write(
+            directory.join(format!("public-{:06}.bin", snapshot.revision)),
+            bytes,
+        )?;
+    }
+    Ok(())
+}
 struct Fixture {
     host: GtkCommandHost,
     session: NegotiatedSession,
@@ -117,6 +137,7 @@ struct Fixture {
     trace: Vec<Value>,
     directory: PathBuf,
     trace_directory: PathBuf,
+    record_public: bool,
 }
 impl Fixture {
     fn new(root: &Path, name: &str) -> Result<Self> {
@@ -138,6 +159,9 @@ impl Fixture {
             hello(4, ReceiverLimits::default()),
             clock.elapsed().as_millis() as u64,
         )?;
+        if name == "restart" {
+            retain_public(&host, &session.client, &trace_directory)?;
+        }
         host.consume_semantics(&session.client)?;
         let lease =
             host.acquire_control(&session.client, [8; 16], clock.elapsed().as_millis() as u64)?;
@@ -160,6 +184,7 @@ impl Fixture {
             trace: Vec::new(),
             directory,
             trace_directory,
+            record_public: name == "restart",
         })
     }
     fn now(&self) -> u64 {
@@ -220,6 +245,9 @@ impl Fixture {
         clients.push(self.session.client.clone());
         for client in clients {
             if self.host.pending_publication(&client)?.is_some() {
+                if self.record_public && client == self.session.client {
+                    retain_public(&self.host, &client, &self.trace_directory)?;
+                }
                 self.host.consume_semantics(&client)?;
             }
         }
@@ -276,7 +304,7 @@ impl Fixture {
             );
             assert_eq!(
                 evidence.resulting_view_revision(),
-                manifest["revision"].as_u64()
+                Some(self.host.publication_revision())
             );
             assert_eq!(
                 manifest["command_cause"]["authority_gate"],
@@ -618,6 +646,11 @@ fn positive_and_races(root: &Path) -> Result<Value> {
     assert_eq!(r.rejection, Some(Rejection::MissingTarget));
     let c = f.command(entry, "Focus", none());
     f.host.trusted_fixture_mutation(Mutation::DestroySurface)?;
+    // Give GTK a main-loop opportunity to finish last-window shutdown. The
+    // private pipe still owns the held application until lifecycle consumption
+    // and late-event rejection complete; mapped windows do not own its lifetime.
+    std::thread::sleep(Duration::from_millis(25));
+    assert!(!f.host.poll_source(f.now())?);
     f.consume()?;
     assert!(
         f.state()
@@ -684,10 +717,7 @@ fn fault(root: &Path, name: &str, operation: Mutation) -> Result<Value> {
     );
     let fresh = f.command(button, "Activate", none());
     let rejected = f.submit("fresh-command-after-unknown", &fresh, Status::Rejected)?;
-    assert!(matches!(
-        rejected.rejection,
-        Some(Rejection::NoControl | Rejection::StaleControl)
-    ));
+    assert_eq!(rejected.rejection, Some(Rejection::Unauthorized));
     let budget = f.host.memory_budget();
     let trace = json!({"commands":f.trace,"local_negative_control_receipt":receipt});
     drop(f.host);
@@ -709,6 +739,208 @@ fn expiry(root: &Path) -> Result<Value> {
     assert_eq!(receipt["reason"], "lease-expired-at-native-dispatch");
     f.finish()
 }
+fn restart(root: &Path) -> Result<Value> {
+    let mut f = Fixture::new(root, "restart")?;
+    let host_pid = std::process::id();
+    let epoch = f.host.epoch();
+    let first_native_pid = f.host.native_pid();
+    let first_incarnation = f.host.source_capture_for_diagnostics()["binding"]["epoch"].clone();
+    let first_ids: Vec<_> = f.state().records.keys().copied().collect();
+    let session_id = f
+        .state()
+        .records
+        .values()
+        .find_map(|r| {
+            if let Record::Session(s) = r {
+                Some(s.id)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let old_button = named(f.state(), "Activate source action");
+    let observer = f.host.negotiate(
+        authorization("restart-observer", false),
+        hello(5, ReceiverLimits::default()),
+        f.now(),
+    )?;
+    f.host.consume_semantics(&observer.client)?;
+    f.observers.push(observer.client);
+    let mut old_command = f.command(old_button, "Activate", none());
+    let original_command = old_command.clone();
+    f.host
+        .trusted_fixture_mutation(Mutation::CrashAfterDispatch)?;
+    let outcome = f.submit(
+        "actual-sigkill-after-native-effect",
+        &old_command,
+        Status::OutcomeUnknown,
+    )?;
+    assert_eq!(f.host.last_source_signal(), Some(libc::SIGKILL));
+    assert_eq!(
+        f.host.source_memory_used(),
+        0,
+        "dead source resources and pending capture are closed"
+    );
+    let receipt: Value =
+        serde_json::from_slice(&fs::read(f.directory.join("native-fault-receipt.json"))?)?;
+    assert_eq!(receipt["native_dispatches"], 1);
+    assert!(receipt["native_callbacks"].as_u64().unwrap() > 0);
+    // Exact retries remain available while the process is absent.
+    f.retry(
+        "same-unknown-while-source-unavailable",
+        &old_command,
+        &outcome,
+    )?;
+    let offline_observer = f.host.negotiate(
+        authorization("unavailable-observer", false),
+        hello(6, ReceiverLimits::default()),
+        f.now(),
+    )?;
+    f.observers.push(offline_observer.client);
+    f.consume()?;
+    assert_eq!(f.state().records.len(), 1);
+    let Record::Session(unavailable) = &f.state().records[&session_id] else {
+        panic!("stable session")
+    };
+    assert!(unavailable.focus.is_none());
+    let unavailable_revision = f.state().revision;
+    let unavailable_state = serde_json::to_value(f.state())?;
+    let replacement_directory = root.join("replacement");
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut command = Command::new("python3");
+    command
+        .arg(repository.join("fixtures/gtk/native_source.py"))
+        .arg("--output")
+        .arg(&replacement_directory)
+        .arg("--fixture-hooks");
+    f.host
+        .restart_source(command, &replacement_directory, f.now())?;
+    assert_eq!(
+        fs::read_dir(&f.directory)?.count(),
+        0,
+        "old source artifact ownership disposed"
+    );
+    assert_eq!(std::process::id(), host_pid);
+    assert_eq!(f.host.epoch(), epoch);
+    assert_eq!(f.session.epoch, epoch);
+    assert_ne!(f.host.native_pid(), first_native_pid);
+    assert_ne!(
+        f.host.source_capture_for_diagnostics()["binding"]["epoch"],
+        first_incarnation
+    );
+    assert_eq!(f.host.source_generation(), 2);
+    f.consume()?;
+    let new_revision = f.state().revision;
+    assert!(new_revision > unavailable_revision);
+    assert!(f.state().records.contains_key(&session_id));
+    for id in first_ids.iter().filter(|id| **id != session_id) {
+        assert!(!f.state().records.contains_key(id));
+        assert!(f.state().retired.contains(id));
+    }
+    let new_button = named(f.state(), "Activate source action");
+    assert_ne!(new_button, old_button);
+    let counts = f.host.diagnostics();
+    f.retry(
+        "same-precrash-unknown-after-new-source",
+        &old_command,
+        &outcome,
+    )
+    .map_err(|error| format!("restart exact retry: {error}"))?;
+    assert_eq!(f.host.diagnostics(), counts);
+    f.lease = f
+        .host
+        .acquire_control(&f.session.client, [9; 16], f.now())
+        .map_err(|error| format!("restart new lease: {error}"))?;
+    // A new sequence under fresh control cannot address an old app identity.
+    f.sequence += 1;
+    old_command.command_seq = f.sequence;
+    old_command.control_lease_id = f.lease.lease_id.to_vec();
+    old_command.control_generation = f.lease.generation;
+    old_command.observed_view_revision = new_revision;
+    let rejected = f.submit(
+        "old-target-under-fresh-control",
+        &old_command,
+        Status::Rejected,
+    )?;
+    assert_eq!(rejected.rejection, Some(Rejection::MissingTarget));
+    f.host
+        .trusted_fixture_mutation(Mutation::RaceSourceGeneration)?;
+    let stale_private = f.command(new_button, "Activate", none());
+    let stale_result = f.submit(
+        "retired-private-source-generation-at-native-guard",
+        &stale_private,
+        Status::Failed,
+    )?;
+    f.retry(
+        "exact-failed-old-generation-retry",
+        &stale_private,
+        &stale_result,
+    )?;
+    let activate = f.command(new_button, "Activate", none());
+    f.submit("new-incarnation-native-action", &activate, Status::Applied)?;
+    assert!(f.state().records.values().any(
+        |r| matches!(r, Record::Semantic(s) if s.label.as_deref()==Some("Source action applied"))
+    ));
+    let final_state = serde_json::to_value(f.state())?;
+    let final_incarnation = f.host.source_capture_for_diagnostics()["binding"]["epoch"].clone();
+    let final_pid = f.host.native_pid();
+    let final_generation = f.host.source_generation();
+    // An idle source exit is observed by the supervisor without a peer command.
+    // SAFETY: this PID is the still-owned live source child of this fixture.
+    assert_eq!(unsafe { libc::kill(final_pid as i32, libc::SIGKILL) }, 0);
+    let exit_deadline = Instant::now() + Duration::from_millis(500);
+    while !f.host.poll_source(f.now())? {
+        assert!(Instant::now() < exit_deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(f.host.source_memory_used(), 0);
+    f.consume()?;
+    let idle_exit_state = serde_json::to_value(f.state())?;
+    assert_eq!(f.state().records.len(), 1);
+    assert!(f.state().revision > final_state["revision"].as_u64().unwrap());
+    let before_failed_starts = f.state().revision;
+    assert!(f.host.refresh_source().is_err());
+    assert_eq!(f.host.publication_revision(), before_failed_starts);
+    assert!(f.host.pending_publication(&f.session.client)?.is_none());
+    for attempt in 3..=5 {
+        let bad = Command::new("/nonexistent/rui-controlled-source");
+        assert!(
+            f.host
+                .restart_source(bad, root.join(format!("failed-start-{attempt}")), f.now())
+                .is_err()
+        );
+        assert_eq!(f.host.source_generation(), attempt);
+        assert_eq!(f.host.epoch(), epoch);
+        assert_eq!(f.host.publication_revision(), before_failed_starts);
+    }
+    assert!(
+        f.host
+            .restart_source(
+                Command::new("/nonexistent/rui-controlled-source"),
+                root.join("restart-limit"),
+                f.now()
+            )
+            .is_err()
+    );
+    f.retry(
+        "same-unknown-after-failed-starts",
+        &original_command,
+        &outcome,
+    )?;
+    let commands = f.trace.clone();
+    let budget = f.host.memory_budget();
+    drop(f.host);
+    assert_eq!(budget.used(), 0);
+    Ok(
+        json!({"broker_pid":host_pid,"broker_epoch":hex(&epoch),"first_native_pid":first_native_pid,
+        "replacement_native_pid":final_pid,"first_incarnation":first_incarnation,"replacement_incarnation":final_incarnation,
+        "source_generation":final_generation,"native_exit_signal":libc::SIGKILL,"old_target":old_button,"new_target":new_button,
+        "old_public_ids":first_ids,"stable_session_id":session_id,"unavailable_state":unavailable_state,
+        "final_state":final_state,"idle_exit_state":idle_exit_state,"failed_start_attempts":3,
+        "commands":commands,"post_dispatch_receipt":receipt,"host_budget_after_drop":budget.used()}),
+    )
+}
+
 fn unicode(root: &Path) -> Result<Value> {
     let mut f = Fixture::new(root, "unicode")?;
     let observer = f.host.negotiate(
@@ -812,7 +1044,9 @@ fn main() -> Result<()> {
             .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
     );
     fs::create_dir_all(&root)?;
-    let report = if std::env::args().nth(2).as_deref() == Some("unicode") {
+    let report = if std::env::args().nth(2).as_deref() == Some("restart") {
+        json!({"scope":"same broker/common ledger survives disposable native GTK SIGKILL/restart; semantic-only consumers, no wire IME or Presented claim","restart":restart(&root)?})
+    } else if std::env::args().nth(2).as_deref() == Some("unicode") {
         json!({"scope":"actual core admission and native GTK Unicode callbacks; private isolated fixture; semantic-only observers; no wire IME or Presented claim","unicode":unicode(&root)?})
     } else {
         json!({"scope":"bounded30s private cooperating GTK fixture; one real core ledger; semantic-only clients; no TLS, raw/IME or Presented claim","semantic":positive_and_races(&root)?,"escaped_text":escaped_text(&root)?,"pipe_loss":fault(&root,"pipe-loss",Mutation::LoseAfterDispatch)?,"pipe_stall":fault(&root,"pipe-stall",Mutation::StallAfterDispatch)?,"uncorrelated_capture":fault(&root,"uncorrelated-capture",Mutation::UncorrelatedCapture)?,"delayed_expiry":expiry(&root)?})

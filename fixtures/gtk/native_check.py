@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--xvfb', required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--case', '--scenario', choices=['semantic', 'unicode'], default='semantic')
+    parser.add_argument('--case', '--scenario', choices=['semantic', 'unicode', 'restart'], default='semantic')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='rui-gtk-native-display-') as runtime:
         display = ':' + str(1100 + os.getpid() % 20_000)
@@ -29,8 +29,8 @@ def main():
                     log.seek(0)
                     raise RuntimeError(log.read())
                 command = ['dbus-run-session', '--', 'target/debug/gtk_command_check', str(args.output)]
-                if args.case == 'unicode':
-                    command.append('unicode')
+                if args.case != 'semantic':
+                    command.append(args.case)
                 result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=60)
                 if result.returncode or 'Traceback' in result.stderr:
                     raise RuntimeError(result.stdout + result.stderr)

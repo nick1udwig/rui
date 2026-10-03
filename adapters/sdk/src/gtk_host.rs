@@ -2,6 +2,7 @@
 //! The caller authenticates principals. The inherited native socket is private
 //! to this host and its source; it accepts only commands this ledger admitted.
 //! This slice projects public semantics only, with no visual resources/readiness.
+use crate::source_identity::SourceIdentities;
 use crate::{
     CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES, MAX_MANIFEST_ALLOCATION, bounded_read,
     manifest_preflight,
@@ -73,6 +74,7 @@ pub struct NativeDiagnostics {
 #[serde(deny_unknown_fields)]
 struct Reply {
     request_id: u64,
+    source_generation: u64,
     status: String,
     artifact: Option<String>,
     reason: Option<String>,
@@ -90,6 +92,7 @@ struct NativePipe {
     budget: MemoryBudget,
     _working: MemoryReservation,
     next_request: u64,
+    source_generation: u64,
     failed: bool,
     diagnostics: NativeDiagnostics,
 }
@@ -98,9 +101,32 @@ impl Drop for NativePipe {
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         let _ = self.child.kill();
         let _ = self.child.wait();
+        let _ = self.purge_artifacts();
     }
 }
 impl NativePipe {
+    fn purge_artifacts(&self) -> Result<(), GtkHostError> {
+        // This dedicated directory was empty before spawning our owned source.
+        // Walk without retaining an uncharged file inventory. No nested paths
+        // or symlinks are accepted from the cooperating source.
+        let mut count = 0usize;
+        let mut bytes = 0u64;
+        for entry in std::fs::read_dir(&self.directory)? {
+            let entry = entry?;
+            count += 1;
+            let metadata = entry.metadata()?;
+            bytes = bytes
+                .checked_add(metadata.len())
+                .ok_or(GtkHostError::Unsupported)?;
+            if count > 16384 || bytes > 128 << 20 || !entry.file_type()?.is_file() {
+                return Err(GtkHostError::Unsupported);
+            }
+        }
+        for entry in std::fs::read_dir(&self.directory)? {
+            std::fs::remove_file(entry?.path())?;
+        }
+        Ok(())
+    }
     fn acknowledge_capture(&mut self, capture: &NativeCapture) -> Result<(), GtkHostError> {
         #[derive(Serialize)]
         struct Consumed<'a> {
@@ -128,12 +154,17 @@ impl NativePipe {
         mut command: ProcessCommand,
         directory: PathBuf,
         budget: MemoryBudget,
+        source_generation: u64,
     ) -> Result<(Self, NativeCapture), GtkHostError> {
         // Covers encoded request, read buffer, decoded bounded reply and spare
         // serde containers throughout the one permitted round trip.
         let working = budget.reserve(1 << 20)?;
         let (socket, child_socket) = UnixStream::pair()?;
         command
+            .env(
+                "RUI_PRIVATE_SOURCE_GENERATION",
+                source_generation.to_string(),
+            )
             .stdin(Stdio::from(OwnedFd::from(child_socket)))
             .stdout(Stdio::null());
         let child = command.spawn()?;
@@ -144,6 +175,7 @@ impl NativePipe {
             budget,
             _working: working,
             next_request: 1,
+            source_generation,
             failed: false,
             diagnostics: NativeDiagnostics::default(),
         };
@@ -175,8 +207,12 @@ impl NativePipe {
         }
         // Pending and current captures have separate reservations. Reserve
         // before the bounded reader/serde allocates any capture metadata.
+        let artifact = CaptureArtifact::read(self.directory.join(name))?;
+        if artifact.manifest()["source_generation"].as_u64() != Some(self.source_generation) {
+            return Err(GtkHostError::NativePipe);
+        }
         Ok(NativeCapture {
-            artifact: CaptureArtifact::read(self.directory.join(name))?,
+            artifact,
             _memory: memory,
         })
     }
@@ -224,6 +260,7 @@ impl NativePipe {
         manifest_preflight(&bytes)?;
         let reply: Reply = serde_json::from_slice(&bytes).map_err(|_| GtkHostError::NativePipe)?;
         if reply.request_id != request
+            || reply.source_generation != self.source_generation
             || reply
                 .reason
                 .as_ref()
@@ -265,6 +302,7 @@ impl NativePipe {
 
 #[derive(Serialize)]
 struct SourceGuard {
+    source_generation: u64,
     incarnation: String,
     surface_id: u64,
     target_id: u64,
@@ -319,6 +357,15 @@ pub struct GtkCommandHost {
     ledger: CommandLedger,
     views: BTreeMap<Id, View>,
     native_lease: Option<(ControlLease, u64)>,
+    broker_epoch: Id,
+    source_incarnations: BTreeSet<Id>,
+    public_revision: u64,
+    source_offset: u64,
+    source_alive: bool,
+    identities: SourceIdentities,
+    _identity_memory: MemoryReservation,
+    last_canvas: Option<pb::Rect>,
+    last_source_signal: Option<i32>,
     _source_memory: MemoryReservation,
     _ledger_memory: MemoryReservation,
 }
@@ -332,6 +379,8 @@ impl GtkCommandHost {
         let budget = MemoryBudget::new(256 << 20);
         let source_memory = budget.reserve(SOURCE_MEMORY)?;
         let ledger_memory = budget.reserve(4 << 20)?;
+        // Two sparse live maps plus issued/retired identity retention.
+        let identity_memory = budget.reserve(4 << 20)?;
         if artifact_directory.as_ref().exists()
             && std::fs::read_dir(artifact_directory.as_ref())?
                 .next()
@@ -339,8 +388,12 @@ impl GtkCommandHost {
         {
             return Err(GtkHostError::Unsupported);
         }
-        let (mut pipe, capture) =
-            NativePipe::spawn(command, artifact_directory.as_ref().to_path_buf(), budget)?;
+        let (mut pipe, capture) = NativePipe::spawn(
+            command,
+            artifact_directory.as_ref().to_path_buf(),
+            budget,
+            1,
+        )?;
         let mut source = ViewReceiver::new(
             capture.artifact.context(),
             ReceiverLimits {
@@ -377,7 +430,7 @@ impl GtkCommandHost {
                 ..LedgerLimits::default()
             },
         )?;
-        Ok(Self {
+        let mut host = Self {
             pipe,
             capture,
             source,
@@ -385,10 +438,143 @@ impl GtkCommandHost {
             ledger,
             views: BTreeMap::new(),
             native_lease: None,
+            broker_epoch: context.scope.epoch,
+            source_incarnations: [context.scope.epoch].into_iter().collect(),
+            public_revision: 0,
+            source_offset: 0,
+            source_alive: true,
+            identities: SourceIdentities::new(),
+            _identity_memory: identity_memory,
+            last_canvas: None,
+            last_source_signal: None,
             _source_memory: source_memory,
             _ledger_memory: ledger_memory,
-        })
+        };
+        host.publish_all()?;
+        Ok(host)
     }
+    /// Trusted source supervisor operation; never decoded from peer commands.
+    /// The broker epoch, negotiated views and common ledger survive replacement.
+    pub fn restart_source(
+        &mut self,
+        command: ProcessCommand,
+        directory: impl AsRef<Path>,
+        now: u64,
+    ) -> Result<(), GtkHostError> {
+        if self.identities.generation() >= 5 {
+            return Err(GtkHostError::Unsupported);
+        }
+        if directory.as_ref().exists() && std::fs::read_dir(directory.as_ref())?.next().is_some() {
+            return Err(GtkHostError::Unsupported);
+        }
+        std::fs::create_dir_all(directory.as_ref())?;
+        let replacement_directory = directory.as_ref().canonicalize()?;
+        let old_directory = self.pipe.directory.canonicalize()?;
+        if replacement_directory.starts_with(&old_directory)
+            || old_directory.starts_with(&replacement_directory)
+        {
+            return Err(GtkHostError::Unsupported);
+        }
+        self.mark_source_unavailable(now)?;
+        self.identities.reset()?;
+        let (mut pipe, capture) = NativePipe::spawn(
+            command,
+            replacement_directory,
+            self.pipe.budget.clone(),
+            self.identities.generation(),
+        )?;
+        if self
+            .source_incarnations
+            .contains(&capture.artifact.context().scope.epoch)
+        {
+            return Err(GtkHostError::Unsupported);
+        }
+        let mut source = ViewReceiver::new(
+            capture.artifact.context(),
+            ReceiverLimits {
+                view_memory_bytes: SOURCE_MEMORY,
+                ..ReceiverLimits::default()
+            },
+            ReceiverConfig {
+                single_glyph_outlines: true,
+                ..ReceiverConfig::default()
+            },
+        )
+        .map_err(CaptureError::from)?;
+        install_capture(&capture, &mut source, &pipe)?;
+        pipe.acknowledge_capture(&capture)?;
+        self.pipe.purge_artifacts()?;
+        self.source_incarnations
+            .insert(capture.artifact.context().scope.epoch);
+        self.source_offset = self.public_revision;
+        self.pipe = pipe;
+        self.capture = capture;
+        self.source = source;
+        self.source_alive = true;
+        if let Err(error) = self.publish_all() {
+            self.mark_source_unavailable(now)?;
+            return Err(error);
+        }
+        Ok(())
+    }
+    /// Supervisor tick detects source exit even without a peer command.
+    pub fn poll_source(&mut self, now: u64) -> Result<bool, GtkHostError> {
+        if self.source_alive && self.pipe.child.try_wait()?.is_some() {
+            self.mark_source_unavailable(now)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+    fn mark_source_unavailable(&mut self, now: u64) -> Result<(), GtkHostError> {
+        if !self.source_alive {
+            return Ok(());
+        }
+        self.source_alive = false;
+        self.pipe.failed = true;
+        self.sessions.revoke_control(now);
+        self.native_lease = None;
+        let _ = self.pipe.socket.shutdown(std::net::Shutdown::Both);
+        let _ = self.pipe.child.kill();
+        use std::os::unix::process::ExitStatusExt;
+        self.last_source_signal = self
+            .pipe
+            .child
+            .wait()
+            .ok()
+            .and_then(|status| status.signal());
+        // This semantic-only adapter never owns physical held input or IME.
+        // The disposable process has exited; no native transient owner survives.
+        while self.sessions.take_cleanup().is_some() {}
+        let canvas = self.last_canvas.ok_or(GtkHostError::Unsupported)?;
+        self.source.close();
+        self.public_revision = self
+            .public_revision
+            .checked_add(1)
+            .ok_or(GtkHostError::Unsupported)?;
+        let snapshot = self.identities.unavailable(self.public_revision, canvas)?;
+        let _working = self.pipe.budget.reserve(PROJECT_MEMORY)?;
+        publish_snapshot(snapshot, 4096, &mut self.sessions, &mut self.views)
+    }
+    #[cfg(feature = "gtk-fixture-hooks")]
+    pub fn native_pid(&self) -> u32 {
+        self.pipe.child.id()
+    }
+    #[cfg(feature = "gtk-fixture-hooks")]
+    pub fn source_generation(&self) -> u64 {
+        self.identities.generation()
+    }
+    pub fn publication_revision(&self) -> u64 {
+        self.public_revision
+    }
+    #[cfg(feature = "gtk-fixture-hooks")]
+    pub fn last_source_signal(&self) -> Option<i32> {
+        self.last_source_signal
+    }
+    #[cfg(feature = "gtk-fixture-hooks")]
+    pub fn source_memory_used(&self) -> usize {
+        self.source.memory_used()
+    }
+
     pub fn diagnostics(&self) -> NativeDiagnostics {
         self.pipe.diagnostics
     }
@@ -404,7 +590,7 @@ impl GtkCommandHost {
         Ok(self.view(client)?.publication.as_deref())
     }
     pub fn epoch(&self) -> Id {
-        self.capture.artifact.context().scope.epoch
+        self.broker_epoch
     }
     #[cfg(feature = "gtk-fixture-hooks")]
     pub fn source_capture_for_diagnostics(&self) -> &serde_json::Value {
@@ -466,7 +652,13 @@ impl GtkCommandHost {
                 _memory: memory,
             },
         );
-        self.publish_all()?;
+        if let Err(error) = self.publish_all() {
+            self.views.remove(&negotiated.client.client_instance_id);
+            let _ = self
+                .sessions
+                .invalidate_authorization(&negotiated.client, now);
+            return Err(error);
+        }
         self.view(&negotiated.client)?;
         Ok(negotiated)
     }
@@ -504,10 +696,7 @@ impl GtkCommandHost {
         let bytes = view.publication.take().ok_or(GtkHostError::Unsupported)?;
         let revision = match view
             .consumer
-            .receive_envelope(
-                (self.source.state().map_err(CaptureError::from)?.revision as u128).to_be_bytes(),
-                &bytes,
-            )
+            .receive_envelope((self.public_revision as u128).to_be_bytes(), &bytes)
             .map_err(CaptureError::from)?
         {
             ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
@@ -536,7 +725,7 @@ impl GtkCommandHost {
         request: Id,
         now: u64,
     ) -> Result<ControlLease, GtkHostError> {
-        if self.pipe.failed {
+        if self.pipe.failed || !self.source_alive {
             return Err(GtkHostError::NativePipe);
         }
         let view = self.view(client)?.negotiated.view_id;
@@ -576,8 +765,7 @@ impl GtkCommandHost {
             deadline_ns,
         });
         if !reply.is_ok_and(|reply| reply.status == "control") {
-            self.sessions.revoke_control(now);
-            self.native_lease = None;
+            self.mark_source_unavailable(now)?;
             return Err(GtkHostError::NativePipe);
         }
         self.native_lease = Some((lease.clone(), deadline_ns));
@@ -606,27 +794,64 @@ impl GtkCommandHost {
         Ok(())
     }
     fn publish_all(&mut self) -> Result<(), GtkHostError> {
+        if !self.source_alive {
+            let snapshot = self.identities.unavailable(
+                self.public_revision,
+                self.last_canvas.ok_or(GtkHostError::Unsupported)?,
+            )?;
+            let _working = self.pipe.budget.reserve(PROJECT_MEMORY)?;
+            return publish_snapshot(snapshot, 4096, &mut self.sessions, &mut self.views);
+        }
+        self.last_canvas = self
+            .source
+            .state()
+            .map_err(CaptureError::from)?
+            .records
+            .values()
+            .find_map(|r| {
+                if let Record::Session(s) = r {
+                    Some(pb::Rect {
+                        x: s.canvas.x,
+                        y: s.canvas.y,
+                        width: s.canvas.width,
+                        height: s.canvas.height,
+                    })
+                } else {
+                    None
+                }
+            });
         publish(
             &self.capture,
             &self.source,
             &self.pipe,
             &mut self.sessions,
             &mut self.views,
+            Projection {
+                identities: &mut self.identities,
+                offset: self.source_offset,
+                revision: &mut self.public_revision,
+            },
         )
     }
     pub fn refresh_source(&mut self) -> Result<(), GtkHostError> {
-        let reply = self.pipe.request(&CaptureRequest {
-            request_id: self.pipe.next_request,
-            kind: "capture",
-        })?;
-        if reply.status != "capture" {
-            return Err(GtkHostError::NativePipe);
+        let result = (|| {
+            let reply = self.pipe.request(&CaptureRequest {
+                request_id: self.pipe.next_request,
+                kind: "capture",
+            })?;
+            if reply.status != "capture" {
+                return Err(GtkHostError::NativePipe);
+            }
+            let capture = self.pipe.capture(reply)?;
+            install_capture(&capture, &mut self.source, &self.pipe)?;
+            self.capture = capture;
+            self.publish_all()?;
+            self.pipe.acknowledge_capture(&self.capture)
+        })();
+        if result.is_err() {
+            self.mark_source_unavailable(0)?;
         }
-        let capture = self.pipe.capture(reply)?;
-        install_capture(&capture, &mut self.source, &self.pipe)?;
-        self.capture = capture;
-        self.publish_all()?;
-        self.pipe.acknowledge_capture(&self.capture)
+        result
     }
     /// Exact peer bytes enter the one shared ledger. Native write is private to
     /// its admitted callback; retries return retained outcomes without a pipe call.
@@ -638,12 +863,27 @@ impl GtkCommandHost {
         now: u64,
     ) -> Result<CommandResult, GtkHostError> {
         let _working = self.pipe.budget.reserve(PROJECT_MEMORY)?;
-        let authority = authority(&self.source, self.view(client)?.negotiated.view_id)?;
+        self.poll_source(now)?;
+        let view_id = self.view(client)?.negotiated.view_id;
+        let authority = if self.source_alive {
+            Some(public_authority(
+                &self.source,
+                view_id,
+                &self.identities,
+                self.public_revision,
+            )?)
+        } else {
+            None
+        };
         let pipe = &mut self.pipe;
         let capture = &mut self.capture;
         let source = &mut self.source;
         let views = &mut self.views;
+        let identities = &mut self.identities;
+        let public_revision = &mut self.public_revision;
+        let source_offset = self.source_offset;
         let native_deadline = self.native_lease.as_ref().map(|(_, deadline)| *deadline);
+        let mut attempted_native_dispatch = false;
         let result = self.ledger.submit_controlled_with_session(
             &mut self.sessions,
             client,
@@ -654,6 +894,7 @@ impl GtkCommandHost {
                 let Command::Semantic(command) = command else {
                     return Err(Rejection::UnsupportedAction);
                 };
+                let authority = authority.as_ref().ok_or(Rejection::MissingTarget)?;
                 authority.validate(command)?;
                 let owns_model = authority
                     .targets
@@ -686,14 +927,17 @@ impl GtkCommandHost {
                     .budget
                     .reserve(CAPTURE_WORKING_MEMORY)
                     .map_err(|_| DispatchFailure::Failed)?;
+                let authority = authority.as_ref().ok_or(DispatchFailure::Failed)?;
                 let request = native_command(
                     &capture.artifact,
-                    &authority,
+                    authority,
                     command,
                     pipe.next_request,
                     native_deadline.ok_or(DispatchFailure::Failed)?,
+                    identities,
                 )
                 .map_err(|_| DispatchFailure::Failed)?;
+                attempted_native_dispatch = true;
                 let reply = pipe
                     .request(&request)
                     .map_err(|_| DispatchFailure::OutcomeUnknown)?;
@@ -714,6 +958,8 @@ impl GtkCommandHost {
                 if next.artifact.context() != capture.artifact.context()
                     || manifest["command_cause"]["private_request_id"].as_u64()
                         != Some(request.request_id)
+                    || manifest["command_cause"]["source_generation"].as_u64()
+                        != Some(identities.generation())
                     || manifest["command_cause"]["authority_gate"].as_str()
                         != Some("core-ledger-admitted")
                     || manifest["revision"]
@@ -727,14 +973,22 @@ impl GtkCommandHost {
                     .map_err(|_| DispatchFailure::OutcomeUnknown)?;
                 verify_capture(&next, source).map_err(|_| DispatchFailure::OutcomeUnknown)?;
                 *capture = next;
-                publish(capture, source, pipe, sessions, views)
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?;
+                publish(
+                    capture,
+                    source,
+                    pipe,
+                    sessions,
+                    views,
+                    Projection {
+                        identities: &mut *identities,
+                        offset: source_offset,
+                        revision: &mut *public_revision,
+                    },
+                )
+                .map_err(|_| DispatchFailure::OutcomeUnknown)?;
                 pipe.acknowledge_capture(capture)
                     .map_err(|_| DispatchFailure::OutcomeUnknown)?;
-                let revision = source
-                    .state()
-                    .map_err(|_| DispatchFailure::OutcomeUnknown)?
-                    .revision;
+                let revision = *public_revision;
                 let token = capture.artifact.manifest()["capture_token"]
                     .as_str()
                     .ok_or(DispatchFailure::OutcomeUnknown)?
@@ -748,9 +1002,10 @@ impl GtkCommandHost {
                 Ok(DispatchOutcome::Applied(evidence))
             },
         )?;
-        if result.status == rui_protocol_core::commands::CommandStatus::OutcomeUnknown {
-            self.pipe.failed = true;
-            self.sessions.revoke_control(now);
+        if attempted_native_dispatch
+            && result.status == rui_protocol_core::commands::CommandStatus::OutcomeUnknown
+        {
+            self.mark_source_unavailable(now)?;
         }
         Ok(result)
     }
@@ -764,6 +1019,7 @@ pub enum FixtureMutation {
     RaceDestroy,
     RaceVisual,
     RaceModel,
+    RaceSourceGeneration,
     DisableButton,
     EnableButton,
     DestroySurface,
@@ -771,6 +1027,7 @@ pub enum FixtureMutation {
     StallAfterDispatch,
     DelayUntilExpired,
     UncorrelatedCapture,
+    CrashAfterDispatch,
 }
 #[cfg(feature = "gtk-fixture-hooks")]
 impl FixtureMutation {
@@ -780,6 +1037,7 @@ impl FixtureMutation {
             Self::RaceDestroy => "race-destroy",
             Self::RaceVisual => "race-visual",
             Self::RaceModel => "race-model",
+            Self::RaceSourceGeneration => "race-source-generation",
             Self::DisableButton => "disable-button",
             Self::EnableButton => "enable-button",
             Self::DestroySurface => "destroy-surface",
@@ -787,6 +1045,7 @@ impl FixtureMutation {
             Self::StallAfterDispatch => "stall-after-dispatch",
             Self::DelayUntilExpired => "delay-until-expired",
             Self::UncorrelatedCapture => "uncorrelated-capture",
+            Self::CrashAfterDispatch => "crash-after-dispatch",
         }
     }
 }
@@ -946,12 +1205,33 @@ fn authority(source: &ViewReceiver, view: Id) -> Result<SemanticAuthority, GtkHo
     })
 }
 
+fn public_authority(
+    source: &ViewReceiver,
+    view: Id,
+    identities: &SourceIdentities,
+    revision: u64,
+) -> Result<SemanticAuthority, GtkHostError> {
+    let raw = authority(source, view)?;
+    let mut targets = BTreeMap::new();
+    for (id, mut target) in raw.targets {
+        target.focus_generation = Some(identities.focus_generation);
+        targets.insert(identities.public_id(id)?, target);
+    }
+    Ok(SemanticAuthority {
+        view_id: view,
+        current_view_revision: revision,
+        allowed_actions: raw.allowed_actions,
+        targets,
+    })
+}
+
 fn native_command<'a>(
     artifact: &CaptureArtifact,
     authority: &SemanticAuthority,
     command: &'a SemanticCommand,
     request_id: u64,
     deadline_ns: u64,
+    identities: &SourceIdentities,
 ) -> Result<NativeCommand<'a>, GtkHostError> {
     let target = authority
         .targets
@@ -959,6 +1239,7 @@ fn native_command<'a>(
         .ok_or(GtkHostError::Unsupported)?;
     let manifest = artifact.manifest();
     let guard = SourceGuard {
+        source_generation: identities.generation(),
         incarnation: manifest["binding"]["epoch"]
             .as_str()
             .ok_or(GtkHostError::Unsupported)?
@@ -966,11 +1247,19 @@ fn native_command<'a>(
         surface_id: manifest["surface_id"]
             .as_u64()
             .ok_or(GtkHostError::Unsupported)?,
-        target_id: command.target_id,
+        target_id: identities.private_id(command.target_id)?,
         target_version: target.target_version,
         text_version: command.preconditions.text_version,
         model_version: command.preconditions.model_version,
-        focus_generation: command.preconditions.focus_generation,
+        focus_generation: command
+            .preconditions
+            .focus_generation
+            .map(|_| {
+                manifest["session"]["focus_generation"]
+                    .as_u64()
+                    .ok_or(GtkHostError::Unsupported)
+            })
+            .transpose()?,
         lease_id: command
             .control_lease_id
             .iter()
@@ -1023,13 +1312,24 @@ fn monotonic_ns() -> Result<u64, GtkHostError> {
         .ok_or(GtkHostError::Unsupported)
 }
 
+struct Projection<'a> {
+    identities: &'a mut SourceIdentities,
+    offset: u64,
+    revision: &'a mut u64,
+}
 fn publish(
     capture: &NativeCapture,
     source: &ViewReceiver,
     pipe: &NativePipe,
     sessions: &mut SessionBroker,
     views: &mut BTreeMap<Id, View>,
+    projection: Projection<'_>,
 ) -> Result<(), GtkHostError> {
+    let Projection {
+        identities,
+        offset: source_offset,
+        revision: public_revision,
+    } = projection;
     if source.state().map_err(CaptureError::from)?.records.values().any(|record| matches!(record, Record::Semantic(node) if node.sensitivity != Sensitivity::Public)) {
         // This fixture has no generic redaction policy. Never send non-public
         // source semantics through the deliberately public projection.
@@ -1049,6 +1349,8 @@ fn publish(
     let envelope = wire::decode_envelope(&bytes, &limits).map_err(|_| GtkHostError::Unsupported)?;
     let mut snapshot =
         wire::decode_snapshot(&envelope.payload, &limits).map_err(|_| GtkHostError::Unsupported)?;
+    identities.project(&mut snapshot, source_offset)?;
+    *public_revision = snapshot.revision;
     snapshot
         .records
         .retain_mut(|record| match record.record.as_mut() {
@@ -1071,16 +1373,29 @@ fn publish(
             }
             _ => false,
         });
+    publish_snapshot(
+        snapshot,
+        source
+            .state()
+            .map_err(CaptureError::from)?
+            .estimated_bytes(),
+        sessions,
+        views,
+    )
+}
+
+fn publish_snapshot(
+    mut snapshot: pb::Snapshot,
+    decoded: usize,
+    sessions: &mut SessionBroker,
+    views: &mut BTreeMap<Id, View>,
+) -> Result<(), GtkHostError> {
     snapshot.required_resources.clear();
     snapshot.required_features = vec![
         "semantics.core.v1".into(),
         "semantics.only.v1".into(),
         "content.no-raster.v1".into(),
     ];
-    let decoded = source
-        .state()
-        .map_err(CaptureError::from)?
-        .estimated_bytes();
     views.retain(|_, view| {
         if view.published_revision == snapshot.revision {
             return true;
@@ -1137,6 +1452,49 @@ fn publish(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_reply_rejects_delayed_source_generation_before_accepting_diagnostics() {
+        for (generation, accepted) in [(1, false), (2, true)] {
+            let budget = MemoryBudget::new(1 << 20);
+            let directory = std::env::temp_dir().join(format!(
+                "rui-private-reply-{}-{generation}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&directory).unwrap();
+            let (socket, mut peer) = UnixStream::pair().unwrap();
+            let child = ProcessCommand::new("true").spawn().unwrap();
+            let mut pipe = NativePipe {
+                child,
+                socket,
+                directory: directory.clone(),
+                budget: budget.clone(),
+                _working: budget.reserve(1 << 20).unwrap(),
+                next_request: 7,
+                source_generation: 2,
+                failed: false,
+                diagnostics: NativeDiagnostics::default(),
+            };
+            let body = serde_json::json!({"request_id":7,"source_generation":generation,"status":"control",
+                "artifact":null,"reason":null,"native_dispatches":9,"native_callbacks":10}).to_string();
+            let writer = std::thread::spawn(move || {
+                peer.write_all(&(body.len() as u32).to_be_bytes()).unwrap();
+                peer.write_all(body.as_bytes()).unwrap();
+            });
+            assert_eq!(
+                pipe.read_reply(7, Instant::now() + TIMEOUT).is_ok(),
+                accepted
+            );
+            assert_eq!(
+                pipe.diagnostics.native_dispatches,
+                if accepted { 9 } else { 0 }
+            );
+            writer.join().unwrap();
+            drop(pipe);
+            assert_eq!(budget.used(), 0);
+            std::fs::remove_dir(directory).unwrap();
+        }
+    }
 
     #[test]
     fn capture_token_must_match_actual_installed_wire_source_evidence() {

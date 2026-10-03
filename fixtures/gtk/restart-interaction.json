@@ -1,0 +1,3159 @@
+{
+  "exporter_audit_scope": "Exact source geometry, closure/descriptors and named coverage gaps audited against decoded Rust state. Schema2 observations and source extraction origins retained for every publication; exporter Python pixel/draw/serialize traps active throughout native fixture. Native GTK local drawing is outside the probe boundary.",
+  "observer_scope": "Independent consumer instances of the same Rust reducer; independent Python implementation interop is separate evidence.",
+  "pinned_gtk": [
+    4,
+    22,
+    4
+  ],
+  "restart": {
+    "broker_epoch": "c1bb5c4da70b433c9786bac8bc73a30f",
+    "broker_pid": 3233993,
+    "commands": [
+      {
+        "action": "Activate",
+        "case": "actual-sigkill-after-native-effect",
+        "command_seq": 1,
+        "decoded_client_state": {
+          "records": {
+            "1": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 2,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 3,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 4,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 8,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 9,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 10,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 1,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "10": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 10,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "13": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 13,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "164": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": true,
+                "id": 164,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  64,
+                  82,
+                  15,
+                  167,
+                  45,
+                  101,
+                  172,
+                  225,
+                  226,
+                  207,
+                  73,
+                  147,
+                  78,
+                  175,
+                  10,
+                  220
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 1,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    99,
+                    49,
+                    98,
+                    98,
+                    53,
+                    99,
+                    52,
+                    100,
+                    97,
+                    55,
+                    48,
+                    98,
+                    52,
+                    51,
+                    51,
+                    99,
+                    57,
+                    55,
+                    56,
+                    54,
+                    98,
+                    97,
+                    99,
+                    56,
+                    98,
+                    99,
+                    55,
+                    51,
+                    97,
+                    51,
+                    48,
+                    102,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    51,
+                    58,
+                    49
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 1,
+                "visual_coverage": "Unsupported"
+              }
+            },
+            "165": {
+              "Session": {
+                "canvas": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 3,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 2,
+                "focus_surface": {
+                  "id": 164,
+                  "kind": "Surface"
+                },
+                "id": 165,
+                "version": 1
+              }
+            },
+            "2": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 2,
+                "label": "Ordinary GTK controls \u2014 caf\u00e9 \u03a9",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "3": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 3,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 13,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "4": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 4,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "5": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 5,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "6": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 6,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "7": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 7,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "8": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 5,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 6,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 7,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 5,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 6,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 7,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 8,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "9": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 9,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            }
+          },
+          "retired": [],
+          "revision": 1
+        },
+        "decoded_full_source": null,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420012a10c1bb5c4da70b433c00000000000000013001380442084163746976617465480150015a0208016200",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 94
+          },
+          "local_reference_draws": 1,
+          "node_decisions": {
+            "lowered": 56
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 16,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 11
+          },
+          "source_nodes_visited": 56,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 5,
+            "FillPath": 1,
+            "GlyphRun": 94,
+            "Group": 33,
+            "SolidRect": 16,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 150,
+          "vector_resource_bodies": 29
+        },
+        "native_callbacks": 0,
+        "native_dispatches": 0,
+        "observed_view_revision": 1,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": null
+        },
+        "published_revision": null,
+        "rejection": null,
+        "source_commit": null,
+        "status": "OutcomeUnknown",
+        "target_id": 4
+      },
+      {
+        "case": "same-unknown-while-source-unavailable",
+        "command_seq": 1,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420012a10c1bb5c4da70b433c00000000000000013001380442084163746976617465480150015a0208016200",
+        "native_callbacks": 0,
+        "native_dispatches": 0,
+        "received_native_counters_unchanged": true,
+        "retained_result_equal": true,
+        "status": "OutcomeUnknown"
+      },
+      {
+        "case": "same-precrash-unknown-after-new-source",
+        "command_seq": 1,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420012a10c1bb5c4da70b433c00000000000000013001380442084163746976617465480150015a0208016200",
+        "native_callbacks": 0,
+        "native_dispatches": 0,
+        "received_native_counters_unchanged": true,
+        "retained_result_equal": true,
+        "status": "OutcomeUnknown"
+      },
+      {
+        "action": "Activate",
+        "case": "old-target-under-fresh-control",
+        "command_seq": 2,
+        "decoded_client_state": {
+          "records": {
+            "165": {
+              "Session": {
+                "canvas": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 168,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 4,
+                "focus_surface": {
+                  "id": 327,
+                  "kind": "Surface"
+                },
+                "id": 165,
+                "version": 3
+              }
+            },
+            "166": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 167,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 168,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 169,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 173,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 174,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 175,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 166,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "167": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 167,
+                "label": "Ordinary GTK controls \u2014 caf\u00e9 \u03a9",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "168": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 168,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 176,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "169": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 169,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "170": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 170,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "171": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 171,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "172": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 172,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "173": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 170,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 171,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 172,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 170,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 171,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 172,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 173,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "174": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 174,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "175": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 175,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "176": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 176,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "327": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": true,
+                "id": 327,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  41,
+                  42,
+                  92,
+                  97,
+                  235,
+                  85,
+                  71,
+                  185,
+                  175,
+                  21,
+                  219,
+                  13,
+                  167,
+                  181,
+                  240,
+                  236
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 166,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    50,
+                    98,
+                    49,
+                    97,
+                    55,
+                    49,
+                    49,
+                    55,
+                    50,
+                    101,
+                    48,
+                    48,
+                    52,
+                    50,
+                    51,
+                    50,
+                    57,
+                    57,
+                    49,
+                    102,
+                    102,
+                    54,
+                    57,
+                    100,
+                    49,
+                    49,
+                    48,
+                    57,
+                    49,
+                    57,
+                    101,
+                    101,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    51,
+                    58,
+                    49
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 1,
+                "visual_coverage": "Unsupported"
+              }
+            }
+          },
+          "retired": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            13,
+            164
+          ],
+          "revision": 3
+        },
+        "decoded_full_source": null,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420022a10c1bb5c4da70b433c00000000000000023002380442084163746976617465480150035a0208016200",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 94
+          },
+          "local_reference_draws": 1,
+          "node_decisions": {
+            "lowered": 56
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 16,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 11
+          },
+          "source_nodes_visited": 56,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 5,
+            "FillPath": 1,
+            "GlyphRun": 94,
+            "Group": 33,
+            "SolidRect": 16,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 150,
+          "vector_resource_bodies": 29
+        },
+        "native_callbacks": 0,
+        "native_dispatches": 0,
+        "observed_view_revision": 3,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": null
+        },
+        "published_revision": null,
+        "rejection": "MissingTarget",
+        "source_commit": null,
+        "status": "Rejected",
+        "target_id": 4
+      },
+      {
+        "action": "Activate",
+        "case": "retired-private-source-generation-at-native-guard",
+        "command_seq": 3,
+        "decoded_client_state": {
+          "records": {
+            "165": {
+              "Session": {
+                "canvas": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 168,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 4,
+                "focus_surface": {
+                  "id": 327,
+                  "kind": "Surface"
+                },
+                "id": 165,
+                "version": 3
+              }
+            },
+            "166": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 167,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 168,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 169,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 173,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 174,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 175,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 166,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "167": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 167,
+                "label": "Ordinary GTK controls \u2014 caf\u00e9 \u03a9",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "168": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 168,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 176,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "169": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 169,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "170": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 170,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "171": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 171,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "172": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 172,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "173": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 170,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 171,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 172,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 170,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 171,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 172,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 173,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "174": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 174,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "175": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 175,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "176": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 176,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "327": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": true,
+                "id": 327,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  41,
+                  42,
+                  92,
+                  97,
+                  235,
+                  85,
+                  71,
+                  185,
+                  175,
+                  21,
+                  219,
+                  13,
+                  167,
+                  181,
+                  240,
+                  236
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 166,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    50,
+                    98,
+                    49,
+                    97,
+                    55,
+                    49,
+                    49,
+                    55,
+                    50,
+                    101,
+                    48,
+                    48,
+                    52,
+                    50,
+                    51,
+                    50,
+                    57,
+                    57,
+                    49,
+                    102,
+                    102,
+                    54,
+                    57,
+                    100,
+                    49,
+                    49,
+                    48,
+                    57,
+                    49,
+                    57,
+                    101,
+                    101,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    51,
+                    58,
+                    49
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 1,
+                "visual_coverage": "Unsupported"
+              }
+            }
+          },
+          "retired": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            13,
+            164
+          ],
+          "revision": 3
+        },
+        "decoded_full_source": null,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420032a10c1bb5c4da70b433c0000000000000002300238a90142084163746976617465480150035a0208016200",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 94
+          },
+          "local_reference_draws": 1,
+          "node_decisions": {
+            "lowered": 56
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 16,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 9,
+            "transform-node": 11
+          },
+          "source_nodes_visited": 56,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 5,
+            "FillPath": 1,
+            "GlyphRun": 94,
+            "Group": 33,
+            "SolidRect": 16,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 150,
+          "vector_resource_bodies": 29
+        },
+        "native_callbacks": 0,
+        "native_dispatches": 0,
+        "observed_view_revision": 3,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": null
+        },
+        "published_revision": null,
+        "rejection": null,
+        "source_commit": null,
+        "status": "Failed",
+        "target_id": 169
+      },
+      {
+        "case": "exact-failed-old-generation-retry",
+        "command_seq": 3,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420032a10c1bb5c4da70b433c0000000000000002300238a90142084163746976617465480150035a0208016200",
+        "native_callbacks": 0,
+        "native_dispatches": 0,
+        "received_native_counters_unchanged": true,
+        "retained_result_equal": true,
+        "status": "Failed"
+      },
+      {
+        "action": "Activate",
+        "case": "new-incarnation-native-action",
+        "command_seq": 4,
+        "decoded_client_state": {
+          "records": {
+            "165": {
+              "Session": {
+                "canvas": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "cursor": null,
+                "focus": {
+                  "id": 168,
+                  "kind": "Semantic"
+                },
+                "focus_generation": 4,
+                "focus_surface": {
+                  "id": 327,
+                  "kind": "Surface"
+                },
+                "id": 165,
+                "version": 4
+              }
+            },
+            "166": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 167,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 168,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 169,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 173,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 174,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 175,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 166,
+                "label": "GTK corpus",
+                "reading_order": null,
+                "relations": [],
+                "role": "Root",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "167": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 167,
+                "label": "Source action applied",
+                "reading_order": null,
+                "relations": [],
+                "role": "Label",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 2
+              }
+            },
+            "168": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ReplaceText",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "SetSelection",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 168,
+                "label": "Editable text",
+                "reading_order": null,
+                "relations": [],
+                "role": "TextField",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False",
+                  "ReadOnly": "False"
+                },
+                "text": {
+                  "id": 176,
+                  "kind": "Text"
+                },
+                "value": null,
+                "version": 1
+              }
+            },
+            "169": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 169,
+                "label": "Activate source action",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Disabled": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "170": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 170,
+                "label": "Alpha",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "171": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 171,
+                "label": "Beta",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "172": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  },
+                  {
+                    "id": "Focus",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 172,
+                "label": "Gamma",
+                "reading_order": null,
+                "relations": [],
+                "role": "ListItem",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {
+                  "Selected": "False"
+                },
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "173": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "ScrollTo",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [
+                  {
+                    "id": 170,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 171,
+                    "kind": "Semantic"
+                  },
+                  {
+                    "id": 172,
+                    "kind": "Semantic"
+                  }
+                ],
+                "collection": {
+                  "items": [
+                    {
+                      "id": 170,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 171,
+                      "kind": "Semantic"
+                    },
+                    {
+                      "id": 172,
+                      "kind": "Semantic"
+                    }
+                  ],
+                  "materialization": "Full",
+                  "selected_items": [],
+                  "total_count": 3,
+                  "version": 1
+                },
+                "completeness": "Full",
+                "description": null,
+                "id": 173,
+                "label": "Stable-ID list",
+                "reading_order": null,
+                "relations": [],
+                "role": "List",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "174": {
+              "Semantic": {
+                "actions": [],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 174,
+                "label": "Source-authored vector canvas",
+                "reading_order": null,
+                "relations": [],
+                "role": "CustomCanvas",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "175": {
+              "Semantic": {
+                "actions": [
+                  {
+                    "id": "Activate",
+                    "schema_version": 1
+                  }
+                ],
+                "bindings": [],
+                "children": [],
+                "collection": null,
+                "completeness": "Full",
+                "description": null,
+                "id": 175,
+                "label": "Ordinary GTK menu",
+                "reading_order": null,
+                "relations": [],
+                "role": "Button",
+                "semantic_group": null,
+                "sensitivity": "Public",
+                "states": {},
+                "text": null,
+                "value": null,
+                "version": 1
+              }
+            },
+            "176": {
+              "Text": {
+                "content": "source text",
+                "editable": true,
+                "id": 176,
+                "selectable": true,
+                "selection": {
+                  "anchor": 0,
+                  "focus": 11
+                },
+                "status": "Available",
+                "text_version": 1,
+                "version": 1
+              }
+            },
+            "327": {
+              "Surface": {
+                "capture_consistency": "Coherent",
+                "clip": null,
+                "content_size": {
+                  "height": 540.0,
+                  "width": 520.0
+                },
+                "desktop_rect": {
+                  "height": 540.0,
+                  "width": 520.0,
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "focused": true,
+                "id": 327,
+                "input_region": [],
+                "mapped": true,
+                "modal_for": null,
+                "opacity": 1.0,
+                "parent": null,
+                "role": "Toplevel",
+                "routing_token": [
+                  235,
+                  92,
+                  164,
+                  231,
+                  223,
+                  89,
+                  155,
+                  70,
+                  86,
+                  239,
+                  133,
+                  117,
+                  241,
+                  87,
+                  173,
+                  32
+                ],
+                "scene_root": null,
+                "semantic_coverage": "Rich",
+                "semantic_root": {
+                  "id": 166,
+                  "kind": "Semantic"
+                },
+                "source_capture_tokens": [
+                  [
+                    50,
+                    98,
+                    49,
+                    97,
+                    55,
+                    49,
+                    49,
+                    55,
+                    50,
+                    101,
+                    48,
+                    48,
+                    52,
+                    50,
+                    51,
+                    50,
+                    57,
+                    57,
+                    49,
+                    102,
+                    102,
+                    54,
+                    57,
+                    100,
+                    49,
+                    49,
+                    48,
+                    57,
+                    49,
+                    57,
+                    101,
+                    101,
+                    58,
+                    109,
+                    97,
+                    105,
+                    110,
+                    45,
+                    99,
+                    111,
+                    110,
+                    116,
+                    101,
+                    110,
+                    116,
+                    58,
+                    52,
+                    58,
+                    50
+                  ]
+                ],
+                "stacking_order": 0,
+                "transform": {
+                  "tx": 0.0,
+                  "ty": 0.0,
+                  "xx": 1.0,
+                  "xy": 0.0,
+                  "yx": 0.0,
+                  "yy": 1.0
+                },
+                "unsupported_features": [
+                  "semantic-only-projection"
+                ],
+                "version": 2,
+                "visual_coverage": "Unsupported"
+              }
+            }
+          },
+          "retired": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            13,
+            164
+          ],
+          "revision": 4
+        },
+        "decoded_full_source": {
+          "exact_envelope_sha256": "588099d67966ec558a18cbfa80977072f7fb2689ec09ff3630e424b79584cdfb",
+          "native_capture_gaps": [],
+          "primitive_counts": {
+            "Border": 5,
+            "FillPath": 1,
+            "GlyphRun": 88,
+            "Group": 32,
+            "SolidRect": 16,
+            "StrokePath": 1
+          },
+          "resource_offers": [
+            {
+              "digest": "0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 637,
+              "version": 1
+            },
+            {
+              "digest": "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 94,
+              "version": 1
+            },
+            {
+              "digest": "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 861,
+              "version": 1
+            },
+            {
+              "digest": "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1045,
+              "version": 1
+            },
+            {
+              "digest": "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 799,
+              "version": 1
+            },
+            {
+              "digest": "1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 718,
+              "version": 1
+            },
+            {
+              "digest": "465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 230,
+              "version": 1
+            },
+            {
+              "digest": "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 520,
+              "version": 1
+            },
+            {
+              "digest": "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 163,
+              "version": 1
+            },
+            {
+              "digest": "67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 228,
+              "version": 1
+            },
+            {
+              "digest": "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 799,
+              "version": 1
+            },
+            {
+              "digest": "7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 346,
+              "version": 1
+            },
+            {
+              "digest": "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 796,
+              "version": 1
+            },
+            {
+              "digest": "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 781,
+              "version": 1
+            },
+            {
+              "digest": "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1520,
+              "version": 1
+            },
+            {
+              "digest": "aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a",
+              "kind": 1,
+              "provenance": 1,
+              "total_bytes": 109,
+              "version": 1
+            },
+            {
+              "digest": "b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1143,
+              "version": 1
+            },
+            {
+              "digest": "b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 992,
+              "version": 1
+            },
+            {
+              "digest": "b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 978,
+              "version": 1
+            },
+            {
+              "digest": "b8643cd2e00b0ec1205734f3b2740b3f2a376c7eaf60d5c5ed9dc18e27e89432",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1645,
+              "version": 1
+            },
+            {
+              "digest": "cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 230,
+              "version": 1
+            },
+            {
+              "digest": "e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 162,
+              "version": 1
+            },
+            {
+              "digest": "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 475,
+              "version": 1
+            },
+            {
+              "digest": "eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 918,
+              "version": 1
+            },
+            {
+              "digest": "ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1210,
+              "version": 1
+            },
+            {
+              "digest": "ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53",
+              "kind": 2,
+              "provenance": 2,
+              "total_bytes": 1466,
+              "version": 1
+            }
+          ],
+          "surfaces": [
+            {
+              "id": 164,
+              "mapped": true,
+              "unsupported_features": [],
+              "visual_coverage": 1
+            }
+          ]
+        },
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420042a10c1bb5c4da70b433c0000000000000002300238a90142084163746976617465480150035a0208016200",
+        "exporter_counters": {
+          "decline_reasons": {},
+          "geometry_extractions": {
+            "gsk-fill-path": 1,
+            "gsk-stroke-path": 1,
+            "native-pango-glyph-outline": 88
+          },
+          "local_reference_draws": 1,
+          "node_decisions": {
+            "lowered": 55
+          },
+          "schema": 2,
+          "source_node_types": {
+            "border-node": 5,
+            "clip-node": 1,
+            "color-node": 16,
+            "container-node": 12,
+            "fill-node": 1,
+            "stroke-node": 1,
+            "text-node": 8,
+            "transform-node": 11
+          },
+          "source_nodes_visited": 55,
+          "unsupported_subtrees": 0,
+          "vector_primitive_types": {
+            "Border": 5,
+            "FillPath": 1,
+            "GlyphRun": 88,
+            "Group": 32,
+            "SolidRect": 16,
+            "StrokePath": 1
+          },
+          "vector_records_emitted": 143,
+          "vector_resource_bodies": 26
+        },
+        "native_callbacks": 1,
+        "native_dispatches": 1,
+        "observed_view_revision": 3,
+        "preconditions": {
+          "model": null,
+          "target": 1,
+          "text": null
+        },
+        "published_revision": 4,
+        "rejection": null,
+        "source_commit": "2b1a71172e004232991ff69d110919ee:main-content:4:2",
+        "status": "Applied",
+        "target_id": 169
+      },
+      {
+        "case": "same-unknown-after-failed-starts",
+        "command_seq": 1,
+        "exact_semantic_wire_hex": "0a10c1bb5c4da70b433c9786bac8bc73a30f1210010101010101010100000000000000011a100404040404040404040404040404040420012a10c1bb5c4da70b433c00000000000000013001380442084163746976617465480150015a0208016200",
+        "native_callbacks": 1,
+        "native_dispatches": 1,
+        "received_native_counters_unchanged": true,
+        "retained_result_equal": true,
+        "status": "OutcomeUnknown"
+      }
+    ],
+    "failed_start_attempts": 3,
+    "final_state": {
+      "records": {
+        "165": {
+          "Session": {
+            "canvas": {
+              "height": 540.0,
+              "width": 520.0,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "cursor": null,
+            "focus": {
+              "id": 168,
+              "kind": "Semantic"
+            },
+            "focus_generation": 4,
+            "focus_surface": {
+              "id": 327,
+              "kind": "Surface"
+            },
+            "id": 165,
+            "version": 4
+          }
+        },
+        "166": {
+          "Semantic": {
+            "actions": [],
+            "bindings": [],
+            "children": [
+              {
+                "id": 167,
+                "kind": "Semantic"
+              },
+              {
+                "id": 168,
+                "kind": "Semantic"
+              },
+              {
+                "id": 169,
+                "kind": "Semantic"
+              },
+              {
+                "id": 173,
+                "kind": "Semantic"
+              },
+              {
+                "id": 174,
+                "kind": "Semantic"
+              },
+              {
+                "id": 175,
+                "kind": "Semantic"
+              }
+            ],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 166,
+            "label": "GTK corpus",
+            "reading_order": null,
+            "relations": [],
+            "role": "Root",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {},
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "167": {
+          "Semantic": {
+            "actions": [],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 167,
+            "label": "Source action applied",
+            "reading_order": null,
+            "relations": [],
+            "role": "Label",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {},
+            "text": null,
+            "value": null,
+            "version": 2
+          }
+        },
+        "168": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "ReplaceText",
+                "schema_version": 1
+              },
+              {
+                "id": "SetSelection",
+                "schema_version": 1
+              },
+              {
+                "id": "Focus",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 168,
+            "label": "Editable text",
+            "reading_order": null,
+            "relations": [],
+            "role": "TextField",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {
+              "Disabled": "False",
+              "ReadOnly": "False"
+            },
+            "text": {
+              "id": 176,
+              "kind": "Text"
+            },
+            "value": null,
+            "version": 1
+          }
+        },
+        "169": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "Activate",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 169,
+            "label": "Activate source action",
+            "reading_order": null,
+            "relations": [],
+            "role": "Button",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {
+              "Disabled": "False"
+            },
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "170": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "Activate",
+                "schema_version": 1
+              },
+              {
+                "id": "Focus",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 170,
+            "label": "Alpha",
+            "reading_order": null,
+            "relations": [],
+            "role": "ListItem",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {
+              "Selected": "False"
+            },
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "171": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "Activate",
+                "schema_version": 1
+              },
+              {
+                "id": "Focus",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 171,
+            "label": "Beta",
+            "reading_order": null,
+            "relations": [],
+            "role": "ListItem",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {
+              "Selected": "False"
+            },
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "172": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "Activate",
+                "schema_version": 1
+              },
+              {
+                "id": "Focus",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 172,
+            "label": "Gamma",
+            "reading_order": null,
+            "relations": [],
+            "role": "ListItem",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {
+              "Selected": "False"
+            },
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "173": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "ScrollTo",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [
+              {
+                "id": 170,
+                "kind": "Semantic"
+              },
+              {
+                "id": 171,
+                "kind": "Semantic"
+              },
+              {
+                "id": 172,
+                "kind": "Semantic"
+              }
+            ],
+            "collection": {
+              "items": [
+                {
+                  "id": 170,
+                  "kind": "Semantic"
+                },
+                {
+                  "id": 171,
+                  "kind": "Semantic"
+                },
+                {
+                  "id": 172,
+                  "kind": "Semantic"
+                }
+              ],
+              "materialization": "Full",
+              "selected_items": [],
+              "total_count": 3,
+              "version": 1
+            },
+            "completeness": "Full",
+            "description": null,
+            "id": 173,
+            "label": "Stable-ID list",
+            "reading_order": null,
+            "relations": [],
+            "role": "List",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {},
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "174": {
+          "Semantic": {
+            "actions": [],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 174,
+            "label": "Source-authored vector canvas",
+            "reading_order": null,
+            "relations": [],
+            "role": "CustomCanvas",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {},
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "175": {
+          "Semantic": {
+            "actions": [
+              {
+                "id": "Activate",
+                "schema_version": 1
+              }
+            ],
+            "bindings": [],
+            "children": [],
+            "collection": null,
+            "completeness": "Full",
+            "description": null,
+            "id": 175,
+            "label": "Ordinary GTK menu",
+            "reading_order": null,
+            "relations": [],
+            "role": "Button",
+            "semantic_group": null,
+            "sensitivity": "Public",
+            "states": {},
+            "text": null,
+            "value": null,
+            "version": 1
+          }
+        },
+        "176": {
+          "Text": {
+            "content": "source text",
+            "editable": true,
+            "id": 176,
+            "selectable": true,
+            "selection": {
+              "anchor": 0,
+              "focus": 11
+            },
+            "status": "Available",
+            "text_version": 1,
+            "version": 1
+          }
+        },
+        "327": {
+          "Surface": {
+            "capture_consistency": "Coherent",
+            "clip": null,
+            "content_size": {
+              "height": 540.0,
+              "width": 520.0
+            },
+            "desktop_rect": {
+              "height": 540.0,
+              "width": 520.0,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "focused": true,
+            "id": 327,
+            "input_region": [],
+            "mapped": true,
+            "modal_for": null,
+            "opacity": 1.0,
+            "parent": null,
+            "role": "Toplevel",
+            "routing_token": [
+              235,
+              92,
+              164,
+              231,
+              223,
+              89,
+              155,
+              70,
+              86,
+              239,
+              133,
+              117,
+              241,
+              87,
+              173,
+              32
+            ],
+            "scene_root": null,
+            "semantic_coverage": "Rich",
+            "semantic_root": {
+              "id": 166,
+              "kind": "Semantic"
+            },
+            "source_capture_tokens": [
+              [
+                50,
+                98,
+                49,
+                97,
+                55,
+                49,
+                49,
+                55,
+                50,
+                101,
+                48,
+                48,
+                52,
+                50,
+                51,
+                50,
+                57,
+                57,
+                49,
+                102,
+                102,
+                54,
+                57,
+                100,
+                49,
+                49,
+                48,
+                57,
+                49,
+                57,
+                101,
+                101,
+                58,
+                109,
+                97,
+                105,
+                110,
+                45,
+                99,
+                111,
+                110,
+                116,
+                101,
+                110,
+                116,
+                58,
+                52,
+                58,
+                50
+              ]
+            ],
+            "stacking_order": 0,
+            "transform": {
+              "tx": 0.0,
+              "ty": 0.0,
+              "xx": 1.0,
+              "xy": 0.0,
+              "yx": 0.0,
+              "yy": 1.0
+            },
+            "unsupported_features": [
+              "semantic-only-projection"
+            ],
+            "version": 2,
+            "visual_coverage": "Unsupported"
+          }
+        }
+      },
+      "retired": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        13,
+        164
+      ],
+      "revision": 4
+    },
+    "first_incarnation": "c1bb5c4da70b433c9786bac8bc73a30f",
+    "first_native_pid": 3233994,
+    "host_budget_after_drop": 0,
+    "idle_exit_state": {
+      "records": {
+        "165": {
+          "Session": {
+            "canvas": {
+              "height": 540.0,
+              "width": 520.0,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "cursor": null,
+            "focus": null,
+            "focus_generation": 5,
+            "focus_surface": null,
+            "id": 165,
+            "version": 5
+          }
+        }
+      },
+      "retired": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        13,
+        164,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        327
+      ],
+      "revision": 5
+    },
+    "native_exit_signal": 9,
+    "new_target": 169,
+    "old_public_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      13,
+      164,
+      165
+    ],
+    "old_target": 4,
+    "post_dispatch_receipt": {
+      "fault": "crash-after-dispatch",
+      "native_callbacks": 1,
+      "native_dispatches": 1,
+      "scope": "local-negative-control-never-applied-evidence"
+    },
+    "replacement_incarnation": "2b1a71172e004232991ff69d110919ee",
+    "replacement_native_pid": 3234200,
+    "source_generation": 2,
+    "stable_session_id": 165,
+    "unavailable_state": {
+      "records": {
+        "165": {
+          "Session": {
+            "canvas": {
+              "height": 540.0,
+              "width": 520.0,
+              "x": 0.0,
+              "y": 0.0
+            },
+            "cursor": null,
+            "focus": null,
+            "focus_generation": 3,
+            "focus_surface": null,
+            "id": 165,
+            "version": 2
+          }
+        }
+      },
+      "retired": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        13,
+        164
+      ],
+      "revision": 2
+    }
+  },
+  "retained_exact_trace": "fixtures/gtk/restart-golden",
+  "retained_trace_sha256": {
+    "restart/0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24.rvp": "65bbf23d7747f2036a50972c7eadc643054ca8d356a7dd2127fc667ee15f5afc",
+    "restart/02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c.rvp": "4d403f0d9e970475d7b2b57c10b5776bc2214fb4b32384c961406787f6d8d7e4",
+    "restart/04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d.rvp": "58a265c32645b23932b1aeeda0720e264a55bda09f365ec5ae91166d69ac2df7",
+    "restart/0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1.rvp": "2d3c588512169ae64ce5e660b91ca094c121b0f459502a6d7307f006424a071e",
+    "restart/116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc.rvp": "ad53028bdf4cb935db25a714662419cc82def4132111535047eeaf5114919942",
+    "restart/1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7.rvp": "ba33f3ce4925bf563524f0eb6258daf652871487d0243b949f11bcd2efae6bc3",
+    "restart/465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762.rvp": "46ee48394624a5c74c47cd7dde5bdea8b65afca2d17c315f9065eb76a0f805a3",
+    "restart/46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153.rvp": "aae7f325cd9bc1fea398b6bc33c4e09d3afabfe9448b3b684d757ad6e96754f1",
+    "restart/499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5.rvp": "42a56ac68686b11f5fc8be936a7f3e89ad656d9f6c064f9b0fe738171f4cf900",
+    "restart/4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2.rvp": "a37fb5fd6796a5100d82205d8d1ea90b9c999d0922433914216d901999ad04d8",
+    "restart/5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f.rvp": "fd820ffa2791d4d52db028cc7779b0ccf49bd6b98ef0a78c45731f258338be72",
+    "restart/67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9.rvp": "66c967d019ed1052fb99cc05e61a34ec0d66823240b08cd09ed56eca3a829d90",
+    "restart/725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746.rvp": "9287c14fbd950d2c6b9ded72fd4684de3d219e1f1b3f8593d7b81b584e48293e",
+    "restart/7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197.rvp": "84c3ae1f4e8a0553fbacbdb1fef2251d39c30aef93302805bed473225fa0b017",
+    "restart/8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce.rvp": "5a41d083c2ad08a9185d5e60e4ac9876f155e11f50d2fa31b15892b9d8886abb",
+    "restart/926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9.rvp": "95e15d72289ca011cd6d5f6289182768a797fb85ab225bc88670813d5fed2baa",
+    "restart/a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372.rvp": "ad67386ca3253c3a7c0f8d599f62ba8f4882edf84569d56215969cfc66663dbd",
+    "restart/aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a.rvp": "b3a7700bddd8b2b609ba58d74583776b38104c3fb2c26b63eb8ba24252404101",
+    "restart/af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea.rvp": "9655f4729e35ec92e417ea8771b1b3a7665aefae9feb471bea0cd51e1847d9ac",
+    "restart/b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e.rvp": "0e881223f09c50614867c5d65b4a2127534df6553a1be131c997ec6bd418f3ae",
+    "restart/b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed.rvp": "39b71ae754474e852cd7e123ad9b0a268713556351a522341e6416c581ac31fd",
+    "restart/b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381.rvp": "3bb119a73c86329ce75330905b478407a9520968630ab4d32070b338618578f4",
+    "restart/b8643cd2e00b0ec1205734f3b2740b3f2a376c7eaf60d5c5ed9dc18e27e89432.rvp": "7836a70aab98f1667ba42b7e9f9f1d0b9ea66e26985565d4e64b12763f058ce6",
+    "restart/cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e.rvp": "0963b958dcb5b4bb6762ebd3325cb96a02773bb2a906b29419588942d4126254",
+    "restart/e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21.rvp": "1e3c3138caf503e3932c618bdd48bda44b20d43eb61e92df44e0323d55956cb3",
+    "restart/e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19.rvp": "2caff6f4127db7e1a6e97f033584df04ac8891b740af2a8a85f0f24a8e9b3444",
+    "restart/e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52.rvp": "a5d4bd6e2b53c07fd8c16d82ac7d1d1b6da4a07a1739580ec24c6ae684cbc7f0",
+    "restart/eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d.rvp": "1bd531144e37f0af48f423a3bd900396d79c6a9bb5dfceabb4d25e9cecdf85a5",
+    "restart/ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c.rvp": "70150843fc2c3f589b5e065f243d661cb5467bc4de45bc6e15bdcc91ac37d8b7",
+    "restart/ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53.rvp": "83e4cd8063c4dfa9e6753d08e4d39b0bca8be20cf36dd36f22af2892f16e17bd",
+    "restart/public-000001.bin": "c80a6973c4620932a4292e427b1799f859e72b0a2454b6af8f1dffeaa78a91a5",
+    "restart/public-000002.bin": "31162b71f033bbfa3cc0d7e080bd7ee20b34aef543fc04e39c50dd5d201053b0",
+    "restart/public-000003.bin": "f7a481cffda981bea2f73cabc4f697120aa0f0ddf1ed78ffe2fa960ce30f5a29",
+    "restart/public-000004.bin": "1c36a57c1253f30d204ce4d5640fae3b46f44fe079138b66ee20e158ccedb8ea",
+    "restart/public-000005.bin": "e8b7fa831ca8b03333c7c07160b7630158c0152173ffe5ff45079b6aad438549",
+    "restart/snapshot-01-000001.bin": "634b8ad1750110de76ce474b18caa99c3ec7bae55216b3124ca0faaa7ad2bdd4",
+    "restart/snapshot-01-000001.json": "d5be99b69197dfcaddf61e07d92aa1db7a0895587d35b869fe9c6a09f9fa5a56",
+    "restart/snapshot-02-000001.bin": "0c7fcc5eaca30f805d5574019ca2d066f91326347ce6d29253c47e21e24ed839",
+    "restart/snapshot-02-000001.json": "cfd5875f3c41580a98676c2a4e66d93e3fb9948c90ac83f40659f8af16e93bff",
+    "restart/snapshot-02-000002.bin": "588099d67966ec558a18cbfa80977072f7fb2689ec09ff3630e424b79584cdfb",
+    "restart/snapshot-02-000002.json": "ee45dbf1f9b26b1ab5c5e134e3bf644319f46794d7afe3eab50c859a53587517"
+  },
+  "scope": "same broker/common ledger survives disposable native GTK SIGKILL/restart; semantic-only consumers, no wire IME or Presented claim"
+}
