@@ -989,8 +989,10 @@ async fn drive(
     compare(server, 61, &observations[0]).await?;
     compare(server, 62, &observations[1]).await?;
     keys(root, CONTROLLER, &["+Control_L", "Escape", "-Control_L"])?;
-    eprintln!("native corpus: Python stable-item selection");
+    eprintln!("native corpus: Python button, Unicode text and stable-item selection");
     wait(&observations[0], |o| o.control_revoked && !o.has_control).await?;
+    let before_python = server.host.lock().await.diagnostics();
+    let python_text = "Python AéΩ";
     let output = Command::new("/usr/bin/python3")
         .arg(root.join("conformance/semantic_client.py"))
         .args([
@@ -1002,6 +1004,12 @@ async fn drive(
             directory.join("63.credential").to_str().unwrap(),
             "--instance",
             &"3f".repeat(16),
+            "--activate-label",
+            "Increment",
+            "--replace-label",
+            "Public text",
+            "--replacement",
+            python_text,
             "--select-item-label",
             "Item 2",
         ])
@@ -1009,13 +1017,68 @@ async fn drive(
         .output()?;
     if !output.status.success() {
         return Err(format!(
-            "independent Python item selection failed: {}",
+            "independent Python semantic scenario failed: {}",
             String::from_utf8_lossy(&output.stderr[..output.stderr.len().min(4096)])
         )
         .into());
     }
-    compare(server, 61, &observations[0]).await?;
-    compare(server, 62, &observations[1]).await?;
+    if output.stdout.len() > 4096 {
+        return Err("independent Python report ceiling".into());
+    }
+    let python_report: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(python_report["presented_acknowledgements"], 0);
+    let results = python_report["command_results"]
+        .as_array()
+        .ok_or("independent Python command results absent")?;
+    assert_eq!(results.len(), 3);
+    for (index, result) in results.iter().enumerate() {
+        assert_eq!(result["sequence"], index + 1);
+        assert_eq!(result["status"], "Applied");
+        assert!(result["source_commit"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()));
+        assert!(result["revision"].as_u64().is_some_and(|r| r > 0));
+    }
+    let python_controller = compare(server, 61, &observations[0]).await?;
+    let python_observer = compare(server, 62, &observations[1]).await?;
+    for frame in [&python_controller, &python_observer] {
+        let Some(Record::Text(text)) = frame.source.state().records.get(&PUBLIC_TEXT_MODEL_ID)
+        else {
+            return Err("public text source model absent".into());
+        };
+        assert_eq!(text.content.as_deref(), Some(python_text));
+        let cursor = python_text.chars().count() as u64;
+        assert_eq!(
+            text.selection,
+            Some(TextRange {
+                anchor: cursor,
+                focus: cursor
+            })
+        );
+        let collection = semantic(frame.source.state(), LIST_ID)?
+            .collection
+            .as_ref()
+            .ok_or("stable source collection absent")?;
+        assert_eq!(collection.selected_items.len(), 1);
+        assert_eq!(collection.selected_items[0].id, ITEM_IDS[1]);
+    }
+    let after_python = server.host.lock().await.diagnostics();
+    assert_eq!(after_python.counter, before_python.counter + 1);
+    assert_eq!(
+        after_python.consumed_commands,
+        before_python.consumed_commands + 3
+    );
+    assert_eq!(after_python.source_commit, before_python.source_commit + 3);
+    let python_proof = serde_json::json!({
+        "semantic_client": python_report,
+        "source_effects": {"counter_increments":1,"consumed_commands":3,"source_commits":3,
+            "button_exact_retry":"same APPLIED result; no second source effect",
+            "public_text":"Unicode scalar replacement; exact source content and collapsed selection checked",
+            "stable_item":"published Item 2 ID selected"},
+        "controller":python_controller.proof(),
+        "observer":python_observer.proof(),
+    });
+    drop((python_controller, python_observer));
     keys(root, CONTROLLER, &["+Control_L", "F2", "-Control_L"])?;
     eprintln!("native corpus: broker takeover and cancellation");
     wait(&observations[0], |o| o.has_control && o.input_ready).await?;
@@ -1130,13 +1193,15 @@ async fn drive(
             "result":"passed",
             "scope":"private Xvfb; shared GTK process; two independent TLS clients; GTK after-paint opportunity, not physical scanout",
             "checks":["full-session-source-reference","observer-viewport-isolation","rapid-six-character-typing",
-                "repeat-focused-target","native-unicode-preedit-commit","independent-python-stable-item",
+                "repeat-focused-target","native-unicode-preedit-commit","independent-python-button-exact-retry",
+                "independent-python-unicode-text","independent-python-stable-item",
                 "checkbox-typed-value","stable-list-select-reorder","absolute-source-scroll","popup-modal-tooltip-retirement",
                 "constrained-link-every-captured-canvas-sample","visible-overflow-and-escape-cancellation","explicit-source-resize",
                 "actual-resource-cache-loss-two-views","retained-reconnect-fresh-after-paint-and-control",
                 "broker-triggered-pending-cancellation-after-paint"],
             "hardware":{"cpu":hardware,"kernel":String::from_utf8(Command::new("uname").arg("-sr").output()?.stdout)?.trim(),"GTK":format!("{}.{}.{}",gtk4::major_version(),gtk4::minor_version(),gtk4::micro_version())},
             "canvas_and_controls":broad,"action_to_after_paint":latencies.proof(),
+            "independent_python":python_proof,
             "build_profile":if cfg!(debug_assertions){"debug"}else{"release"},
             "source_file_fingerprints":source_hashes(root)?,
             "render_opportunity_timing":{"controller":timing(*observations[0].borrow()),"observer":timing(*observations[1].borrow())},
@@ -1192,7 +1257,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             actions: if id == 62 {
                                 Default::default()
                             } else if id == 63 {
-                                ["Activate".into()].into_iter().collect()
+                                ["Activate", "ReplaceText"]
+                                    .into_iter()
+                                    .map(str::to_owned)
+                                    .collect()
                             } else {
                                 [
                                     "Activate",
