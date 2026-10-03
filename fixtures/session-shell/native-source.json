@@ -1,0 +1,40 @@
+{
+  "scope": "isolated-owned-fd-only-session",
+  "authority_fixture": "trusted test readiness; no native mirror Presented claim",
+  "local_input_origin": "trusted shell handler; native local-device capture pending",
+  "libei": "1.6.0",
+  "libeis": "1.6.0",
+  "xkbcommon": "1.13.2",
+  "keymap_sha256": "bfe9411505eff4e1583be93e3d7ea87a6ae0fa78f93bd9fc9e940f3e36cae4bc",
+  "host_layout": "de",
+  "client_layout_assumption": "us",
+  "physical_evdev_code": 21,
+  "repeat_delay_ms": 400,
+  "repeat_interval_ms": 40,
+  "logical_region": [
+    0,
+    0,
+    200,
+    120
+  ],
+  "native_grant": [
+    40,
+    80,
+    600,
+    240
+  ],
+  "framebuffer": [
+    1000,
+    700
+  ],
+  "scale": 2,
+  "source_revision": 21,
+  "source_records": 25,
+  "retired_ids": 12,
+  "native_frames_applied": 4,
+  "native_frames_cancelled": 1,
+  "source_snapshot_sha256": "91f2ed42296150bb4600eac43ae3c702a7d7cc2ddced11082b059d0691168df3",
+  "render_rgba8_sha256": "910e540978ba63f779cb50016330f95c4091d115ec95b708f04b97e965631581",
+  "accounted_bytes": 8246756,
+  "memory_limit_bytes": 134217728
+}

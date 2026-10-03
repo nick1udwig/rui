@@ -957,6 +957,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rui-session-shell"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "rui-client-desktop",
+ "rui-protocol-core",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "rui-transport"
 version = "0.1.0"
 dependencies = [

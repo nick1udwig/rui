@@ -1,5 +1,5 @@
 [workspace]
-members = ["protocol-core", "host-broker", "transport", "client-desktop", "adapters/sdk"]
+members = ["protocol-core", "host-broker", "transport", "client-desktop", "adapters/sdk", "session-shell"]
 resolver = "2"
 
 [workspace.package]
