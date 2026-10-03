@@ -105,6 +105,22 @@ The auditor excludes credentials and never accepts handshake packets. Inputs
 are capped at 128 MiB, 32 segments, 32,768 records, 1 MiB packets, 4 MiB
 publications/resources and 512 verified resource identities per scope.
 
+`indexed_network_audit.py` adapts a bounded `index.json` plus exact `packet-*.bin`
+files to this same auditor. It verifies indexed lengths, hashes and per-scope
+sequences before conversion, preserving every packet byte and direction.
+Interleaved connections are grouped by scope; this makes no claim about ordering
+between connections. Its segment boundaries mean the end of each retained
+prefix, not an observed socket close. The result binds both the original index
+and the converted trace hashes. Relative path escapes and symbolic-link packet
+files are rejected. Each index can contain only one connection per scope. A
+same-scope reconnect needs a separate index: without recorder identities the
+adapter rejects sequence resets instead of guessing a connection boundary.
+
+```sh
+python3 -m conformance.indexed_network_audit /tmp/native/protocol/full/index.json \
+  --replay target/debug/examples/replay --output /tmp/indexed-audit.json
+```
+
 The retained `fixtures/render/native-broad.json.*.trace.jsonl` exports contain
 54 complete publication prefixes across controller and observer scopes, including
 all six record kinds. Their companion `native-broad.*.audit.json` summaries bind
