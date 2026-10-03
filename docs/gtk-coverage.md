@@ -4,7 +4,8 @@ This foundation demonstrates an actual GTK content snapshot boundary, a
 vector-only Protobuf publication accepted by the Rust receiver, and a local
 native-versus-replay comparison of the full constrained corpus. It measures a
 small ordinary-control corpus under GTK 4.22.4. It is not a generic GTK desktop
-adapter, a combined multi-surface session producer or completed M3 interaction.
+adapter, a persistent network producer or completed M3 interaction. A controlled
+whole-view transaction slice is measured separately below.
 
 ## Source boundary and identity
 
@@ -47,8 +48,8 @@ Recreating the same source key starts a fresh Surface/view and per-view Session
 identity; the old capture cannot publish again. Capture bookkeeping is committed
 before observer callbacks, including synchronous unmap/destruction callbacks.
 Source guards reject old incarnations, routes, clocks and destroyed objects.
-These are source checks, not command authentication. Combining current main and
-popup projections remains required. The private command fixture also publishes
+These are source checks, not command authentication. These historical standalone
+artifacts remain separate from the controlled whole-view transactions below. The private command fixture also publishes
 actual main-content destruction and rejects later events to those identities.
 
 ## Pinned measured environment
@@ -435,10 +436,91 @@ sequence and backward RTL direction; the existing backward-ASCII native scenario
 also passes. GTK positions are character offsets, not byte offsets.
 [GTK scalar range API](https://docs.gtk.org/gtk4/method.Editable.select_region.html).
 
-These are measured negative, trace and native Unicode checks for this bounded
-private fixture, not a whole-milestone claim. Wire composition/IME ownership,
-combined transient-surface projection and the persistent/network producer path
-remain required for M3. AT-SPI was not used to infer coherence.
+## Controlled whole-view source transaction
+
+`whole_view.py` registers four actual native surfaces: the ordinary main content,
+`Gtk.PopoverMenu`, a cooperating `Gtk.Popover` with Tooltip role, and a real
+transient modal `Gtk.Window`. The tooltip is explicitly controlled source
+content; it is not GTK's inferred internal tooltip implementation. Surface
+placement and stacking are issued by this source for its isolated 720×600 canvas,
+not sampled from a window manager. Native parent/transient relationships, mapping,
+content sizes and modality are checked against registered objects.
+
+A GTK-thread source actor starts one bounded transaction and reserves all fresh
+candidate slots before requesting native snapshots. Each mapped registered
+surface must execute its actual snapshot callback after the barrier begins. Its
+same immutable node is appended to GTK and exported under that nonce. The actor
+re-reads native topology, typed Semantic/Text/Collection payloads and clocks,
+registered focus context and source revision before capture and final commit.
+Changes discard the entire candidate union and restart; the producer never
+combines unrelated latest frames. Strict CSS and GTK settings disable animation,
+transitions and caret blinking, and the fixture has no uncontrolled visual timer.
+This coherence argument applies to these cooperating static widgets, not arbitrary
+animated native content. Unmapped surfaces receive explicit empty lifecycle
+Groups; destroyed surfaces and their semantic ownership trees are removed.
+
+The actual run published five complete whole-view snapshots. After retaining the
+first candidate of nonce2, the fixture changed the heading and destroyed the
+native tooltip. That candidate was discarded; nonce4 committed fresh main,
+menu and modal captures at the new source boundary. Later native menu/modal
+unmap, menu remap and menu destruction produce the expected mapped set. Menu
+surface/semantic identities survive unmap/remap and retire at destruction.
+One aggregate Session carries native registered focus, modality and the source
+canvas. Unregistered native focus is reported as absent, never guessed.
+
+`whole-interaction.json` binds 47 retained `.bin/.json/.rvp` files under
+`whole-golden/` to their SHA-256 hashes. The Rust replay feeds all five exact
+publications through one receiver, checks retired identities, disjoint ownership,
+focus/modality, stable unrelated text clocks, exact vector/glyph closure and
+absence of any stale interrupted token. The audit ties decoded Session focus to
+the source boundary's surface/semantic mapping, validates native modality and
+all decoded surface geometry. Altered nonce, membership, geometry, boundary focus,
+modality, animation policy and explicit dependencies absent from source scenes
+fail. No Presented acknowledgement is fabricated by replay.
+
+The local reference independently draws each exact submitted node through native
+GSK/Cairo and composes those diagnostics under the same declared source-owned
+placement/stacking. This is a local diagnostic composition, not a desktop
+screenshot; PNG/BGRA bytes stay outside envelopes, resources and retained vector
+trace. All five decoded `render_view` outputs passed the existing criteria:
+zero bad interior pixels, viewport mean RGB error ≤0.468, edge mean RGB error
+≤3.609, and native glyph bounds error ≤1.56×10⁻¹⁵ source pixels. The comparison
+checks 653 glyph instances across the five views. Existing omission/shift negative
+controls remain required; full-source decoded geometry is checked before rendering.
+
+The producer capture quota is 256 MiB, separate from native GTK application
+memory and the receiver budget. Conservative charges cover fixed coordinator
+metadata, retained per-surface frames, all candidates, boundary reads, exporter
+scratch, encoding and the union resource file ownership. The measured peak is
+235,982,499 bytes; cancellation/disposal drops candidates, frame slots and all
+reservations to zero. Bounds are four surfaces, 4096 resources, 32 MiB union bodies,
+1 MiB manifests/envelopes, at most four restarts and a three-second barrier deadline.
+A native timer cancels a pending barrier even if no snapshot callback arrives.
+The finite fixture directory has a separate 64 MiB/256-file quota covering vector
+and local raster diagnostics. Unit regressions cover quota failure after actual
+native node append, immediate cancellation, deadline without frames, descriptor
+conflicts, failed handoff and synchronous restart inside candidate/request callbacks;
+stale tickets cannot release new reservations. Consumer handoff is serialized and
+cannot reenter a source mutation.
+
+```sh
+python3 fixtures/gtk/whole_check.py --xvfb /tmp/rui-xvfb/usr/bin/Xvfb \
+  --output /tmp/rui-gtk-whole
+cargo build --release -p rui-client-desktop --example render_capture
+python3 fixtures/gtk/compare.py /tmp/rui-gtk-whole --whole-view \
+  --output /tmp/rui-gtk-whole/whole-pixels.json
+python3 fixtures/gtk/retain_whole.py /tmp/rui-gtk-whole
+python3 -m unittest fixtures.gtk.test_transaction
+cargo test -p rui-producer-sdk --test whole_trace
+```
+
+This whole-view slice uses native cooperating fixture lifecycle callbacks.
+Common-ledger remote actions are established separately by the native semantic
+bridge; the whole-view barrier is not yet connected to that command/transport path.
+Wire composition/IME ownership, persistent source crash/restart with broker and
+ledger continuity, and the persistent/network producer path remain required for
+M3. AT-SPI was not used to infer coherence. These are component measurements,
+not a whole-milestone claim.
 
 The alternate GTK 4.22.4 Broadway harness repeatedly aborted while repainting a
 native popup at `gdk/broadway/broadway-output.c:456`,

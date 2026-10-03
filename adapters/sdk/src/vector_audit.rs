@@ -101,6 +101,165 @@ fn same_json(a: &Value, b: &Value) -> bool {
 }
 
 impl CaptureArtifact {
+    /// Check whole-view source barrier evidence against every decoded surface.
+    /// This remains diagnostic cooperating-source evidence, not attestation.
+    fn verify_whole_view(&self, receiver: &ViewReceiver) -> Result<(), CaptureError> {
+        use rui_protocol_core::model::{CaptureConsistency, SurfaceRole};
+        let m = self.manifest();
+        let state = receiver.state()?;
+        let surfaces = m["surfaces"].as_array().ok_or(CaptureError::Invalid)?;
+        let nonce = m["capture_barrier_nonce"]
+            .as_u64()
+            .ok_or(CaptureError::Invalid)?;
+        let facts = &m["source_boundary_facts"];
+        let topology = facts["surfaces"].as_object().ok_or(CaptureError::Invalid)?;
+        if m["capture_boundary"] != "source-thread-all-registered-surfaces-fresh-snapshot-barrier"
+            || facts["incarnation"] != m["binding"]["epoch"]
+            || facts["source_revision"] != m["source_revision"]
+            || topology.len() > 4
+            || topology.is_empty()
+            || facts["visual_policy"]["animations"] != false
+            || facts["visual_policy"]["cursor_blink"] != false
+            || facts["visual_policy"]["controlled_static_canvas"] != true
+        {
+            return Err(CaptureError::Invalid);
+        }
+        let mut seen = BTreeSet::new();
+        for source in surfaces {
+            let key = source["surface_key"]
+                .as_str()
+                .ok_or(CaptureError::Invalid)?;
+            let f = topology.get(key).ok_or(CaptureError::Invalid)?;
+            let id = source["surface_id"].as_u64().ok_or(CaptureError::Invalid)?;
+            let Some(Record::Surface(actual)) = state.records.get(&id) else {
+                return Err(CaptureError::Invalid);
+            };
+            let role = match actual.role {
+                SurfaceRole::Toplevel => 1,
+                SurfaceRole::Popup => 2,
+                SurfaceRole::Tooltip => 3,
+                SurfaceRole::Shell => 4,
+            };
+            if !seen.insert(id)
+                || f["alive"] != true
+                || f["native_parent_matches"] != true
+                || f["surface_id"] != id
+                || source["capture_barrier_nonce"].as_u64() != Some(nonce)
+                || source["revision"].as_u64() != Some(state.revision)
+                || source["surface_role"] != role
+                || source["mapped"] != actual.mapped
+                || source["mapped"] != f["mapped"]
+                || source["focused"] != actual.focused
+                || source["stacking_order"].as_i64() != Some(actual.stacking_order)
+                || source["stacking_order"] != f["stacking_order"]
+                || !same_json(
+                    &source["origin"],
+                    &json!([actual.desktop_rect.x, actual.desktop_rect.y]),
+                )
+                || source["origin"] != f["origin"]
+                || !same_json(
+                    &source["size"],
+                    &json!([actual.content_size.width, actual.content_size.height]),
+                )
+                || source["size"] != f["size"]
+                || actual.desktop_rect.width != actual.content_size.width
+                || actual.desktop_rect.height != actual.content_size.height
+                || actual.transform
+                    != (rui_protocol_core::model::Affine {
+                        xx: 1.0,
+                        yx: 0.0,
+                        xy: 0.0,
+                        yy: 1.0,
+                        tx: 0.0,
+                        ty: 0.0,
+                    })
+                || actual.opacity != 1.0
+                || actual.clip.is_some()
+                || !actual.input_region.is_empty()
+                || actual.parent.map(|r| r.id) != f["parent"].as_u64()
+                || actual.modal_for.map(|r| r.id) != f["modal_for"].as_u64()
+                || f["native_modal"].as_bool().is_none()
+                || actual.modal_for.is_some() != (actual.mapped && f["native_modal"] == true)
+                || actual
+                    .modal_for
+                    .is_some_and(|r| Some(r.id) != actual.parent.map(|r| r.id))
+                || actual.scene_root.map(|r| r.id) != source["scene_root"].as_u64()
+                || actual.semantic_root.map(|r| r.id) != f["semantic_root"].as_u64()
+                || actual.capture_consistency != CaptureConsistency::Coherent
+                || actual.source_capture_tokens.len() != 1
+                || actual.source_capture_tokens[0]
+                    != source["capture_token"]
+                        .as_str()
+                        .ok_or(CaptureError::Invalid)?
+                        .as_bytes()
+                || (actual.mapped
+                    && source["capture_boundary"] != "actual-snapshot-vfunc-same-node-append")
+                || (!actual.mapped && source["capture_boundary"] != "source-lifecycle-state")
+            {
+                return Err(CaptureError::Invalid);
+            }
+            if !actual.mapped {
+                let root = actual.scene_root.ok_or(CaptureError::Invalid)?;
+                let Some(Record::Scene(scene)) = state.records.get(&root.id) else {
+                    return Err(CaptureError::Invalid);
+                };
+                if !matches!(scene.primitive, Primitive::Group) || !scene.children.is_empty() {
+                    return Err(CaptureError::Invalid);
+                }
+            }
+        }
+        if seen.len() != topology.values().filter(|f| f["alive"] == true).count()
+            || seen.len()
+                != state
+                    .records
+                    .values()
+                    .filter(|r| matches!(r, Record::Surface(_)))
+                    .count()
+        {
+            return Err(CaptureError::Invalid);
+        }
+        let session_id = m["session"]["id"].as_u64().ok_or(CaptureError::Invalid)?;
+        let Some(Record::Session(session)) = state.records.get(&session_id) else {
+            return Err(CaptureError::Invalid);
+        };
+        let (boundary_focus, boundary_surface) = if facts["focus"].is_null() {
+            (None, None)
+        } else {
+            let focus = facts["focus"].as_array().ok_or(CaptureError::Invalid)?;
+            if focus.len() != 2 {
+                return Err(CaptureError::Invalid);
+            }
+            let key = focus[0].as_str().ok_or(CaptureError::Invalid)?;
+            let surface = topology.get(key).ok_or(CaptureError::Invalid)?;
+            if surface["alive"] != true || surface["mapped"] != true {
+                return Err(CaptureError::Invalid);
+            }
+            (
+                Some(focus[1].as_u64().ok_or(CaptureError::Invalid)?),
+                Some(
+                    surface["surface_id"]
+                        .as_u64()
+                        .ok_or(CaptureError::Invalid)?,
+                ),
+            )
+        };
+        if session.focus.map(|r| r.id) != boundary_focus
+            || session.focus_surface.map(|r| r.id) != boundary_surface
+            || session.focus.map(|r| r.id) != m["session"]["focus"].as_u64()
+            || session.focus_surface.map(|r| r.id) != m["session"]["focus_surface"].as_u64()
+            || Some(session.focus_generation) != m["session"]["focus_generation"].as_u64()
+            || state
+                .records
+                .values()
+                .filter(|r| matches!(r, Record::Session(_)))
+                .count()
+                != 1
+        {
+            return Err(CaptureError::Invalid);
+        }
+        Ok(())
+    }
+
     /// Compare exact decoded scenes, closure and coverage to source evidence.
     /// Schema1 historical captures are auditable but lack observed origin events.
     pub fn verify_vector_audit(
@@ -118,6 +277,7 @@ impl CaptureArtifact {
             return Err(CaptureError::Invalid);
         }
         let mut seen = BTreeSet::new();
+        let mut scene_resources = BTreeSet::new();
         let mut counts = BTreeMap::new();
         for source in scenes {
             let id = source["id"].as_u64().ok_or(CaptureError::Invalid)?;
@@ -127,6 +287,9 @@ impl CaptureArtifact {
             let a = scene.transform;
             let children: Vec<_> = scene.children.iter().map(|r| r.id).collect();
             let p = primitive(&scene.primitive)?;
+            if let Some(resource) = p.get("resource") {
+                scene_resources.insert(hex::<32>(resource)?);
+            }
             if !seen.insert(id)
                 || source["version"].as_u64() != Some(scene.version)
                 || !same_json(&source["primitive"], &p)
@@ -140,6 +303,7 @@ impl CaptureArtifact {
                     &scene.clip.map(rectangle).unwrap_or(Value::Null),
                 )
                 || source["opacity"].as_f64() != Some(scene.opacity)
+                || !scene.resources.is_empty()
             {
                 return Err(CaptureError::Invalid);
             }
@@ -161,9 +325,23 @@ impl CaptureArtifact {
             .as_array()
             .ok_or(CaptureError::Invalid)?;
         let declared: BTreeSet<_> = listed.iter().map(hex::<32>).collect::<Result<_, _>>()?;
-        if declared != closure || declared.len() != listed.len() || offers.len() != closure.len() {
+        if declared != closure
+            || closure != scene_resources
+            || declared.len() != listed.len()
+            || offers.len() != closure.len()
+        {
             return Err(CaptureError::Invalid);
         }
+        let surfaces = manifest.get("surfaces").and_then(Value::as_array);
+        if surfaces.is_some_and(|surfaces| surfaces.is_empty() || surfaces.len() > 4) {
+            return Err(CaptureError::Invalid);
+        }
+        let local_draws = surfaces.map_or(u64::from(manifest["mapped"] == true), |surfaces| {
+            surfaces
+                .iter()
+                .filter(|surface| surface["mapped"] == true)
+                .count() as u64
+        });
         let schema2 = manifest["exporter_counters"]["schema"] == 2;
         let mut resource_bytes = 0u64;
         let mut kind_counts = BTreeMap::from([("1", 0usize), ("2", 0usize)]);
@@ -254,8 +432,7 @@ impl CaptureArtifact {
                 || sum_counts(&c["source_node_types"])? != visited
                 || sum_counts(&c["node_decisions"])? > visited
                 || sum_counts(&c["decline_reasons"])? != gaps.len() as u64
-                || c["local_reference_draws"].as_u64()
-                    != Some(u64::from(manifest["mapped"] == true))
+                || c["local_reference_draws"].as_u64() != Some(local_draws)
                 || manifest["protocol_handoff"]["envelope_bytes"].as_u64()
                     != Some(std::fs::metadata(self.path.with_extension("bin"))?.len())
             {
@@ -286,13 +463,12 @@ impl CaptureArtifact {
                 }
             }
         }
-        if manifest["destroyed"] != true {
-            let id = manifest["surface_id"]
-                .as_u64()
-                .ok_or(CaptureError::Invalid)?;
+        let check_coverage = |source: &Value| -> Result<(), CaptureError> {
+            let id = source["surface_id"].as_u64().ok_or(CaptureError::Invalid)?;
             let Some(Record::Surface(surface)) = state.records.get(&id) else {
                 return Err(CaptureError::Invalid);
             };
+            let gaps = source["gaps"].as_array().ok_or(CaptureError::Invalid)?;
             let reasons: BTreeSet<_> = gaps
                 .iter()
                 .map(|g| g["reason"].as_str().ok_or(CaptureError::Invalid))
@@ -312,6 +488,15 @@ impl CaptureArtifact {
             {
                 return Err(CaptureError::Invalid);
             }
+            Ok(())
+        };
+        if let Some(surfaces) = surfaces {
+            self.verify_whole_view(receiver)?;
+            for surface in surfaces {
+                check_coverage(surface)?;
+            }
+        } else if manifest["destroyed"] != true {
+            check_coverage(manifest)?;
         }
         self.verify_native_glyph_evidence(receiver)?;
         Ok(VectorAudit {

@@ -176,6 +176,13 @@ def encode_surface(frame: dict) -> bytes:
     data = scalar(1, frame["surface_id"]) + scalar(2, frame["revision"]) + scalar(3, frame.get("surface_role", 1))
     data += blob(5, doubles([*frame.get("origin", [0, 0]), *frame["size"]])) + blob(6, doubles(frame["size"]))
     data += blob(7, doubles([1, 0, 0, 1, 0, 0])) + double(9, 1) + scalar(11, frame.get("mapped", True)) + scalar(12, frame.get("focused", False))
+    stacking = frame.get("stacking_order", 0)
+    if not -(1 << 63) <= stacking < 1 << 63:
+        raise ValueError("stacking order ceiling")
+    if stacking:
+        data += scalar(10, (stacking << 1) ^ (stacking >> 63))
+    if frame.get("modal_for"):
+        data += blob(13, ref(1, frame["modal_for"]))
     if frame.get("parent_surface"):
         data += blob(4, ref(1, frame["parent_surface"]["surface_id"]))
     if frame.get("scene_root"):
@@ -193,8 +200,8 @@ def encode_surface(frame: dict) -> bytes:
 
 
 def encode_snapshot(frame: dict, binding: dict) -> bytes:
-    records = [] if frame.get("destroyed") else [encode_surface(frame)]
-    if frame.get("parent_surface"):
+    records = ([encode_surface(surface) for surface in frame["surfaces"]] if "surfaces" in frame else [] if frame.get("destroyed") else [encode_surface(frame)])
+    if "surfaces" not in frame and frame.get("parent_surface"):
         records.append(encode_surface({**frame["parent_surface"], "revision": frame["revision"], "capture_token": frame["capture_token"], "gaps": [{"reason": "parent-topology-only"}]}))
     records += [encode_scene(record) for record in frame["scene"]]
     records += [encode_semantic(record) for record in frame["semantics"]]
@@ -232,6 +239,7 @@ class CoherentSource:
         self._semantics = {}
         self._frames = {}
         self.resources = {}
+        self.artifact_quota = None  # optional explicitly owned fixture directory
         self._scene_ids = {}
         self._models = {}
         self._model_sizes = {}
@@ -408,6 +416,12 @@ class CoherentSource:
                 result.append(node)
         return result
 
+    def write_artifact(self, output: Path, name: str, body: bytes):
+        if self.artifact_quota is not None:
+            self.artifact_quota.write(output / name, body)
+        else:
+            (output / name).write_bytes(body)
+
     def write(self, output: Path, frame: dict):
         output.mkdir(parents=True, exist_ok=True)
         binding = {"session_id": "01" * 16, "epoch": self.identity, "view_id": f"{frame['surface_id']:032x}"}
@@ -419,7 +433,7 @@ class CoherentSource:
             resource = self.resources[digest]
             if resource["kind"] not in (1, 2) or resource["provenance"] != resource["kind"] or not resource["body"].startswith(b"RVP1"):
                 raise ValueError("SDK geometry-only resource handoff")
-            (output / (digest + ".rvp")).write_bytes(resource["body"])
+            self.write_artifact(output, digest + ".rvp", resource["body"])
             resources.append({key: value for key, value in resource.items() if key != "body"})
         frame["binding"] = binding
         frame["envelope_sha256"] = hashlib.sha256(envelope).hexdigest()
@@ -427,12 +441,13 @@ class CoherentSource:
             frame["protocol_handoff"] = {"envelope_bytes": len(envelope),
                 "resource_bytes": sum(item["total_bytes"] for item in resources),
                 "resource_kind_counts": {str(kind): sum(item["kind"] == kind for item in resources) for kind in (1, 2)}}
-        summary = {**frame, "resource_offers": resources}
+        frame["resource_offers"] = resources
+        summary = dict(frame)
         metadata = json.dumps(summary, indent=2, sort_keys=True) + "\n"
         if len(metadata.encode()) > MAX_MANIFEST_BYTES:
             raise ValueError('capture manifest ceiling')
-        (output / (label + ".bin")).write_bytes(envelope)
-        (output / (label + ".json")).write_text(metadata)
+        self.write_artifact(output, label + ".bin", envelope)
+        self.write_artifact(output, label + ".json", metadata.encode())
         # The artifact is the consumer handoff. No source memory cache or hidden
         # in-flight history retains old bodies after the exact files are written.
         self.resources.clear()

@@ -124,7 +124,11 @@ impl CaptureArtifact {
         let manifest: Value = serde_json::from_slice(&bytes)?;
         if !matches!(
             manifest["capture_boundary"].as_str(),
-            Some("actual-snapshot-vfunc-same-node-append" | "source-lifecycle-signal")
+            Some(
+                "actual-snapshot-vfunc-same-node-append"
+                    | "source-lifecycle-signal"
+                    | "source-thread-all-registered-surfaces-fresh-snapshot-barrier"
+            )
         ) || manifest["gtk_version"] != serde_json::json!([4, 22, 4])
         {
             return Err(CaptureError::Invalid);

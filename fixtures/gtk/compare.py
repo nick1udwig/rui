@@ -136,29 +136,32 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('directory', type=Path)
     parser.add_argument('--renderer', type=Path, default=Path('target/release/examples/render_capture'))
+    parser.add_argument('--whole-view', action='store_true', help='compare explicitly captured source-owned whole-view transactions')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     results = []
     with tempfile.TemporaryDirectory(prefix='rui-gtk-compare-') as temporary:
         for path in sorted(args.directory.glob('*.json')):
-            if path.name == 'corpus-summary.json':
+            if path.name in ('corpus-summary.json', 'whole-report.json') or (args.whole_view and not path.stem.startswith('whole-')):
                 continue
             manifest = json.loads(bounded_read(path, 1 << 20))
             if not manifest.get('mapped', True) or manifest.get('destroyed'):
                 continue
-            if manifest['gaps'] or manifest['capture_boundary'] != 'actual-snapshot-vfunc-same-node-append':
+            boundary = ('source-thread-all-registered-surfaces-fresh-snapshot-barrier' if args.whole_view else 'actual-snapshot-vfunc-same-node-append')
+            if manifest['gaps'] or manifest['capture_boundary'] != boundary:
                 raise ValueError('visual comparison requires every selected source snapshot complete')
             if hashlib.sha256(bounded_read(path.with_suffix('.bin'), 1 << 20)).hexdigest() != manifest['envelope_sha256']:
                 raise ValueError('exact scene envelope differs from source diagnostic manifest')
             pam = Path(temporary) / (path.stem + '.pam')
-            render = subprocess.run([str(args.renderer.resolve()), str(path), str(pam), '--scene'], capture_output=True, text=True, check=True, timeout=30)
+            command = [str(args.renderer.resolve()), str(path), str(pam)] + ([] if args.whole_view else ['--scene'])
+            render = subprocess.run(command, capture_output=True, text=True, check=True, timeout=30)
             result = {'capture': path.name, 'envelope_sha256': manifest['envelope_sha256'], 'local_reference_sha256': manifest['local_reference']['sha256'], 'renderer': render.stderr.strip(), 'geometry': native_glyph_geometry(manifest, args.directory), 'pixels': pixels(manifest, args.directory, pam)}
             results.append(result)
             print(path.name, 'pass' if result['pixels']['passed'] else 'FAIL', flush=True)
     if not results:
         raise ValueError('no actual mapped source snapshots were compared')
     calibration = {'initial_viewport_mean_max_rgb_error': 3.0, 'initial_exceeded_captures': [{'capture': result['capture'], 'measured': result['pixels']['viewport_mean_max_rgb_error']} for result in results if result['pixels']['viewport_mean_max_rgb_error'] > 3], 'rationale': 'Compact popup has higher source-edge density; calibrated viewport bound4 plus independent edge-mean bound8, retaining zero bad interior pixels and native geometry checks.'}
-    report = {'criteria': CRITERIA, 'calibration': calibration, 'captures': results, 'passed': all(result['pixels']['passed'] for result in results)}
+    report = {'scope': 'source-owned isolated surface composition' if args.whole_view else 'registered native surface subtree', 'criteria': CRITERIA, 'calibration': calibration, 'captures': results, 'passed': all(result['pixels']['passed'] for result in results)}
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     if not report['passed']:
         raise SystemExit('GTK pixel comparison exceeds declared criteria')

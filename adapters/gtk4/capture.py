@@ -6,6 +6,7 @@ import ctypes
 import ctypes.util
 import hashlib
 import math
+import io
 import re
 import time
 
@@ -336,6 +337,7 @@ class CaptureMixin:
         self.source_mapped = False
         self.last_frame = None
         self.export_probe = None  # optional local diagnostic callback, never wire
+        self.capture_transaction = None  # trusted serialized source actor only
 
     def source_boundary(self):
         if not self.source_alive:
@@ -345,11 +347,36 @@ class CaptureMixin:
         return self.source.source_revision
 
     def capture_node(self, submitted_snapshot, node, source_revision, started):
+        transaction = self.capture_transaction
+        if transaction is None:
+            return self._capture_node(submitted_snapshot, node, source_revision, started)
+        # Native GTK still submits its exact immutable node when no publication
+        # is requested. Only fresh callbacks with a reserved barrier ticket may
+        # allocate exporter state or contribute to a whole-view publication.
+        if node is not None:
+            submitted_snapshot.append_node(node)
+        ticket = transaction.acquire(self.surface_key)
+        if node is None or ticket is None:
+            return
+        scratch = None
+        try:
+            scratch = transaction.budget.reserve(80 << 20)
+            frame = self._capture_node(submitted_snapshot, node, source_revision, started, append=False, nonce=ticket.nonce)
+        except Exception:
+            transaction.cancel("native-capture-failed")
+            raise
+        finally:
+            if scratch is not None:
+                scratch.close()
+        transaction.submit(ticket, self, frame, frame["resource_offers"])
+
+    def _capture_node(self, submitted_snapshot, node, source_revision, started, *, append=True, nonce=None):
         if node is None:
             return
         # Critical boundary: the very same immutable GskRenderNode object
         # becomes the actual local snapshot child. No WidgetPaintable sampling.
-        submitted_snapshot.append_node(node)
+        if append:
+            submitted_snapshot.append_node(node)
         self.source_mapped = True
         self.frames += 1
         semantics = self.source.semantics(self.semantic_root, self.frames)
@@ -362,6 +389,8 @@ class CaptureMixin:
         counts, region_bounds = census(node)
         frame = {"revision": self.frames, "source_revision": source_revision, "surface_key": self.surface_key, "surface_id": self.source.identifier("surface:" + self.surface_key), "surface_role": self.role, "size": [self.get_width(), self.get_height()], "capture_token": token, "capture_boundary": "actual-snapshot-vfunc-same-node-append", "scene_root": scene_root, "semantic_root": self.source.identifier("semantic:" + self.semantic_root), "semantics": semantics, "scene": exporter.scene, "gaps": exporter.gaps, "resources": sorted(exporter.resources), "uses_glyph_outline": exporter.uses_glyph_outline, "gsk_node_counts": counts, "gsk_node_bounds": region_bounds, "capture_duration_ns": time.monotonic_ns() - started, "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font", "gtk_version": list(PINNED_GTK)}
         frame["source_glyph_evidence"] = exporter.glyph_evidence
+        if nonce is not None:
+            frame["capture_barrier_nonce"] = nonce
         if getattr(self, 'command_cause', None) is not None:
             frame['command_cause'] = self.command_cause
         frame["geometry_resource_origins"] = {digest: [{"origin": origin, "node_path": path} for origin, path in sorted(exporter.resource_origins[digest])] for digest in sorted(exporter.resources)}
@@ -391,8 +420,10 @@ class CaptureMixin:
         if self.export_probe:
             frame["fallback_probe"] = self.export_probe()
         label = self.source.write(self.output, frame)
-        reference.write_to_png(str(self.output / (label + ".local.png")))
-        (self.output / (label + ".local.bgra")).write_bytes(raw)
+        png = io.BytesIO()
+        reference.write_to_png(png)
+        self.source.write_artifact(self.output, label + ".local.png", png.getvalue())
+        self.source.write_artifact(self.output, label + ".local.bgra", raw)
         self.captures.append({"label": label, "source_revision": source_revision, "counts": counts, "gaps": frame["gaps"]})
         # Publish bookkeeping before an observer can synchronously unmap or
         # destroy the native source. Such a lifecycle publication owns the new
@@ -400,6 +431,7 @@ class CaptureMixin:
         self.last_frame = frame
         if self.on_capture:
             self.on_capture(self, frame)
+        return frame
 
     def publish_lifecycle(self, destroyed=False):
         """Source-issued lifecycle evidence; no synthetic visual frame claim."""
@@ -429,6 +461,8 @@ class CaptureMixin:
             self.source_alive = False
             self.source.unregister(self.semantic_root)
             self.source.retire_surface(self.surface_key)
+        if self.capture_transaction and self.capture_transaction.active:
+            self.capture_transaction.invalidate("native-surface-lifecycle-changed")
         if self.on_capture:
             self.on_capture(self, frame)
 
@@ -439,6 +473,8 @@ class CaptureMixin:
             self.source_alive = False
             self.source.unregister(self.semantic_root)
             self.source.retire_surface(self.surface_key)
+            if self.capture_transaction and self.capture_transaction.active:
+                self.capture_transaction.invalidate("native-surface-retired-before-first-frame")
             return
         self.publish_lifecycle(destroyed=True)
 
