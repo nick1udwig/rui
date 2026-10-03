@@ -4,23 +4,26 @@ use rui_client_desktop::{
     *,
 };
 use rui_host_broker::{
-    ControlledHost, HostConfig, NativeSourceFontProvider, SourceCapture, PUBLIC_TEXT_ID,
-    PUBLIC_TEXT_MODEL_ID,
+    ControlledHost, HostConfig, NativeSourceFontProvider, SourceCapture, CANVAS_ID, CHECKBOX_ID,
+    ITEM_IDS, LIST_ID, MODAL_TOGGLE_ID, POPUP_TOGGLE_ID, PUBLIC_TEXT_ID, PUBLIC_TEXT_MODEL_ID,
+    REORDER_ID, TOOLTIP_TOGGLE_ID,
 };
 use rui_protocol_core::{
     commands::AuthenticatedClient,
     model::*,
-    resources::MemoryBudget,
+    resources::{MemoryBudget, ResourceContext, ResourceScope},
     session::{Permissions, VerifiedAuthorization},
+    transcript::{RecordingPolicy, TranscriptLimits},
 };
 use rui_transport::{
+    diagnostics::Diagnostics,
     pairing::{Credential, PairingAuthority},
     HostIdentity, ServerConfig, ServerHandle,
 };
 use sha2::{Digest, Sha256};
 use std::{
     fs::{File, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -28,9 +31,180 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::watch;
+#[path = "corpus_support/relay.rs"]
+mod relay;
+#[path = "corpus_support/trace.rs"]
+mod trace;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 const CONTROLLER: &str = "RUI corpus controller";
 const OBSERVER: &str = "RUI corpus observer";
+fn viewport_tuple(v: Viewport) -> (u32, u32, f64, f64, f64) {
+    (v.width, v.height, v.origin.x, v.origin.y, v.scale)
+}
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+fn source_hashes(root: &Path) -> Result<serde_json::Value, Error> {
+    let mut result = serde_json::Map::new();
+    for name in [
+        "client-desktop/src/desktop.rs",
+        "client-desktop/src/desktop/gtk.rs",
+        "client-desktop/src/source_controls.rs",
+        "client-desktop/src/interaction.rs",
+        "client-desktop/src/command_queue.rs",
+        "client-desktop/examples/corpus_smoke.rs",
+        "client-desktop/examples/corpus_support/trace.rs",
+        "client-desktop/examples/corpus_support/relay.rs",
+        "fixtures/render/native_events.py",
+        "fixtures/render/native_font.py",
+        "host-broker/src/source_input.rs",
+        "host-broker/src/corpus.rs",
+        "protocol-core/src/commands.rs",
+        "protocol-core/src/session.rs",
+        "protocol-core/src/receiver.rs",
+        "transport/src/client.rs",
+        "transport/src/server.rs",
+        "transport/src/source_delivery.rs",
+    ] {
+        let mut file = File::open(root.join(name))?;
+        let mut buffer = [0u8; 4096];
+        let mut bytes = 0usize;
+        let mut hash = Sha256::new();
+        loop {
+            let n = file.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            bytes = bytes
+                .checked_add(n)
+                .filter(|n| *n <= 1024 * 1024)
+                .ok_or("source fingerprint file ceiling")?;
+            hash.update(&buffer[..n]);
+        }
+        result.insert(
+            name.into(),
+            serde_json::json!({"sha256":hex(&hash.finalize()),"bytes":bytes}),
+        );
+    }
+    Ok(serde_json::Value::Object(result))
+}
+fn context(
+    id: u8,
+    observation: &watch::Receiver<DesktopObservation>,
+) -> Result<ResourceContext, Error> {
+    let binding = observation
+        .borrow()
+        .binding
+        .ok_or("native trace binding unavailable")?;
+    let digest = Sha256::digest(format!("native-corpus-{id}"));
+    Ok(ResourceContext {
+        scope: ResourceScope {
+            session_id: [0; 16],
+            epoch: binding.epoch,
+            principal_id: digest[..16].try_into().unwrap(),
+        },
+        view_id: binding.view,
+    })
+}
+fn export_trace(
+    trace: &mut trace::Trace,
+    diagnostics: &Diagnostics,
+    id: u8,
+    observation: &watch::Receiver<DesktopObservation>,
+) -> Result<(), Error> {
+    let expected = context(id, observation)?;
+    let scope = diagnostics
+        .scopes()?
+        .into_iter()
+        .find(|c| {
+            c.view_id == expected.view_id
+                && c.scope.epoch == expected.scope.epoch
+                && c.scope.principal_id == expected.scope.principal_id
+        })
+        .ok_or("native trace scope unavailable")?;
+    trace.export(diagnostics, scope)
+}
+struct Latencies {
+    samples: Vec<(&'static str, i64, i64, i64, i64)>,
+    _memory: rui_protocol_core::resources::MemoryReservation,
+}
+impl Latencies {
+    fn new(budget: &MemoryBudget) -> Result<Self, Error> {
+        let memory = budget.reserve(32 * 1024)?;
+        let mut samples = Vec::new();
+        samples.try_reserve_exact(128)?;
+        Ok(Self {
+            samples,
+            _memory: memory,
+        })
+    }
+    fn record(
+        &mut self,
+        label: &'static str,
+        start: i64,
+        controller: &ComparedFrame,
+        observer: &ComparedFrame,
+    ) -> Result<(), Error> {
+        if self.samples.len() == 128 {
+            return Err("native latency sample ceiling".into());
+        }
+        let c = controller.displayed.after_paint_time_us - start;
+        let o = observer.displayed.after_paint_time_us - start;
+        if c < 0 || o < 0 {
+            return Err("native sample did not reach a causal after-paint".into());
+        }
+        self.samples.push((
+            label,
+            c,
+            o,
+            controller.displayed.refresh_interval_us,
+            observer.displayed.refresh_interval_us,
+        ));
+        Ok(())
+    }
+    fn proof(&self) -> serde_json::Value {
+        let distribution = |observer: bool| {
+            let mut sorted = [0i64; 128];
+            for (i, s) in self.samples.iter().enumerate() {
+                sorted[i] = if observer { s.2 } else { s.1 };
+            }
+            sorted[..self.samples.len()].sort_unstable();
+            let percentile = |p: usize| {
+                if self.samples.is_empty() {
+                    0
+                } else {
+                    sorted[(self.samples.len() * p).div_ceil(100).saturating_sub(1)]
+                }
+            };
+            let known = self
+                .samples
+                .iter()
+                .filter(|s| if observer { s.4 > 0 } else { s.3 > 0 })
+                .count();
+            let over = self
+                .samples
+                .iter()
+                .filter(|s| {
+                    if observer {
+                        s.4 > 0 && s.2 > s.4
+                    } else {
+                        s.3 > 0 && s.1 > s.3
+                    }
+                })
+                .count();
+            serde_json::json!({"count":self.samples.len(),"p50_us":percentile(50),"p95_us":percentile(95),"p99_us":percentile(99),
+                "samples_with_reported_refresh_interval":known,"over_one_reported_frame_interval":over})
+        };
+        serde_json::json!({"clock":"GLib monotonic microseconds","start":"actual GTK input callback before enqueue; canvas starts at release/submission callback; includes constrained network, source capture, resource verification, CPU render and actual GTK after-paint",
+            "finish":"actual GTK after-paint callback for causal view revision; no physical scanout claim","configured_render_opportunity_hz":60,
+            "controller":distribution(false),"observer":distribution(true),
+            "warmup":"initial full resource delivery, viewport changes and native typing/Python scenario precede measured broader controls",
+            "successful_sample_count":self.samples.len(),"failed_source_actions":0,"source_action_timeouts":0,
+            "excluded_expected_rejections":["overflow before submission","Escape before submission"],
+            "samples":self.samples.iter().map(|(action,c,o,ci,oi)|serde_json::json!({"action":action,"controller_us":c,"observer_us":o,
+                "controller_reported_refresh_interval_us":ci,"observer_reported_refresh_interval_us":oi})).collect::<Vec<_>>()})
+    }
+}
 struct PrivateFiles(PathBuf);
 impl Drop for PrivateFiles {
     fn drop(&mut self) {
@@ -64,6 +238,10 @@ impl ComparedFrame {
             "mirror_records_sha256":digest(&stamp.records_digest.unwrap()),
             "direct_source_rgba_sha256":digest(&self.pixels),
             "after_paint_rgba_sha256":digest(&stamp.pixel_digest),
+            "actual_frame_clock":{"frame_time_us":self.displayed.frame_time_us,
+                "refresh_interval_us":self.displayed.refresh_interval_us,
+                "predicted_presentation_us":self.displayed.predicted_presentation_us,
+                "after_paint_us":self.displayed.after_paint_time_us},
         })
     }
 }
@@ -187,7 +365,7 @@ async fn click(
     id: u8,
     observation: &watch::Receiver<DesktopObservation>,
     target: u64,
-) -> Result<(), Error> {
+) -> Result<i64, Error> {
     let compared = compare(server, id, observation).await?;
     let source = compared.source;
     let displayed = compared.displayed;
@@ -224,13 +402,14 @@ async fn click(
     let viewport = displayed.stamp.viewport;
     let px = displayed.canvas_origin.x + (desktop.x - viewport.origin.x) * viewport.scale;
     let py = displayed.canvas_origin.y + (desktop.y - viewport.origin.y) * viewport.scale;
+    let start = gtk4::glib::monotonic_time();
     native(
         root,
         if id == 61 { CONTROLLER } else { OBSERVER },
         "click",
         &[px.to_string(), py.to_string()],
     )?;
-    Ok(())
+    Ok(start)
 }
 async fn resize_canvas(
     root: &Path,
@@ -280,13 +459,425 @@ async fn text_converged(
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
 }
+async fn changed(
+    server: &ServerHandle,
+    observations: &[watch::Receiver<DesktopObservation>],
+    before: u64,
+    label: &'static str,
+    start: i64,
+    latencies: &mut Latencies,
+) -> Result<[ComparedFrame; 2], Error> {
+    wait(&observations[0], |o| {
+        o.has_control && o.input_ready && o.displayed.is_some_and(|d| d.stamp.revision > before)
+    })
+    .await?;
+    let controller = compare(server, 61, &observations[0]).await?;
+    let observer = compare(server, 62, &observations[1]).await?;
+    let action = observations[0]
+        .borrow()
+        .last_action
+        .ok_or("actual GUI input callback observation absent")?;
+    if action.started_us < start || action.observed_revision != before {
+        return Err("native callback is not bound to this causal source action".into());
+    }
+    latencies.record(label, action.started_us, &controller, &observer)?;
+    Ok([controller, observer])
+}
+fn semantic(state: &State, id: u64) -> Result<&SemanticNode, Error> {
+    match state.records.get(&id) {
+        Some(Record::Semantic(n)) => Ok(n),
+        _ => Err("expected source semantic record absent".into()),
+    }
+}
+fn local_click(root: &Path, title: &str, point: Point) -> Result<i64, Error> {
+    let start = gtk4::glib::monotonic_time();
+    native(
+        root,
+        title,
+        "click",
+        &[point.x.to_string(), point.y.to_string()],
+    )?;
+    Ok(start)
+}
+fn spin(root: &Path, point: Point, value: u32) -> Result<(), Error> {
+    local_click(root, CONTROLLER, point)?;
+    let mut names = vec!["+Control_L".to_owned(), "a".into(), "-Control_L".into()];
+    names.extend(value.to_string().chars().map(|c| c.to_string()));
+    names.push("Tab".into());
+    native(root, CONTROLLER, "keys", &names)
+}
+fn surface_point(
+    source: &SourceCapture,
+    displayed: DisplayedObservation,
+    target: u64,
+    offset: Point,
+) -> Result<Point, Error> {
+    let binding = source
+        .state()
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Binding(b) if b.semantics.iter().any(|r| r.id == target) => Some(b),
+            _ => None,
+        })
+        .ok_or("source canvas binding absent")?;
+    let region = binding
+        .interaction_region
+        .ok_or("source canvas input region absent")?;
+    let Some(Record::Surface(surface)) = source.state().records.get(&binding.surface.id) else {
+        return Err("source canvas surface absent".into());
+    };
+    let (x, y) = (region.x + offset.x, region.y + offset.y);
+    let m = surface.transform;
+    let desktop = Point {
+        x: surface.desktop_rect.x + m.xx * x + m.xy * y + m.tx,
+        y: surface.desktop_rect.y + m.yx * x + m.yy * y + m.ty,
+    };
+    let viewport = displayed.stamp.viewport;
+    Ok(Point {
+        x: displayed.canvas_origin.x + (desktop.x - viewport.origin.x) * viewport.scale,
+        y: displayed.canvas_origin.y + (desktop.y - viewport.origin.y) * viewport.scale,
+    })
+}
+async fn broad_controls(
+    server: &ServerHandle,
+    root: &Path,
+    observations: &[watch::Receiver<DesktopObservation>],
+    latencies: &mut Latencies,
+) -> Result<serde_json::Value, Error> {
+    eprintln!("native corpus: checkbox, stable reorder, scroll and transient source controls");
+    for value in [true, false] {
+        let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+        let start = click(root, server, 61, &observations[0], CHECKBOX_ID).await?;
+        let frames = changed(server, observations, before, "checkbox", start, latencies).await?;
+        assert_eq!(
+            semantic(frames[0].source.state(), CHECKBOX_ID)?.value,
+            Some(TypedValue::Boolean(value))
+        );
+    }
+    let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+    let start = click(root, server, 61, &observations[0], ITEM_IDS[2]).await?;
+    let frames = changed(
+        server,
+        observations,
+        before,
+        "stable-item-select",
+        start,
+        latencies,
+    )
+    .await?;
+    assert_eq!(
+        semantic(frames[0].source.state(), LIST_ID)?
+            .collection
+            .as_ref()
+            .unwrap()
+            .selected_items
+            .iter()
+            .map(|r| r.id)
+            .collect::<Vec<_>>(),
+        vec![ITEM_IDS[2]]
+    );
+    let ids = semantic(frames[0].source.state(), LIST_ID)?
+        .collection
+        .as_ref()
+        .unwrap()
+        .items
+        .clone();
+    drop(frames);
+    let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+    let start = click(root, server, 61, &observations[0], REORDER_ID).await?;
+    let frames = changed(
+        server,
+        observations,
+        before,
+        "stable-item-reorder",
+        start,
+        latencies,
+    )
+    .await?;
+    let mut reordered = ids.clone();
+    reordered.rotate_left(1);
+    let collection = semantic(frames[0].source.state(), LIST_ID)?
+        .collection
+        .as_ref()
+        .unwrap();
+    assert_eq!(collection.items, reordered);
+    assert_eq!(
+        collection
+            .selected_items
+            .iter()
+            .map(|r| r.id)
+            .collect::<Vec<_>>(),
+        vec![ITEM_IDS[2]]
+    );
+    drop(frames);
+    click(root, server, 61, &observations[0], LIST_ID).await?;
+    let controls = observations[0]
+        .borrow()
+        .local_controls
+        .ok_or("native source controls unavailable")?;
+    spin(root, controls.scroll_y, 60)?;
+    let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+    let start = local_click(root, CONTROLLER, controls.scroll)?;
+    let frames = changed(
+        server,
+        observations,
+        before,
+        "absolute-source-scroll",
+        start,
+        latencies,
+    )
+    .await?;
+    let clipped = frames[0]
+        .source
+        .state()
+        .records
+        .values()
+        .filter(|r| matches!(r,Record::Scene(n) if n.clip.is_some()))
+        .count();
+    assert!(clipped >= 3, "source list rows must remain clipped");
+    drop(frames);
+    // Restore materialized list visibility before later independent selection.
+    click(root, server, 61, &observations[0], LIST_ID).await?;
+    spin(root, controls.scroll_y, 0)?;
+    let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+    let start = local_click(root, CONTROLLER, controls.scroll)?;
+    drop(
+        changed(
+            server,
+            observations,
+            before,
+            "source-scroll-restore",
+            start,
+            latencies,
+        )
+        .await?,
+    );
+    let mut retired = Vec::with_capacity(3);
+    for (toggle, kind) in [
+        (POPUP_TOGGLE_ID, "popup"),
+        (MODAL_TOGGLE_ID, "modal"),
+        (TOOLTIP_TOGGLE_ID, "tooltip"),
+    ] {
+        let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+        let start = click(root, server, 61, &observations[0], toggle).await?;
+        let frames = changed(server, observations, before, kind, start, latencies).await?;
+        let transient = frames[0]
+            .source
+            .state()
+            .records
+            .values()
+            .find_map(|r| match r {
+                Record::Surface(s) if s.parent.is_some() => Some(s),
+                _ => None,
+            })
+            .ok_or("source transient absent")?;
+        let id = transient.id;
+        assert!(!retired.contains(&id));
+        let dismiss = if kind == "tooltip" {
+            toggle
+        } else {
+            transient
+                .semantic_root
+                .ok_or("transient semantic root absent")?
+                .id
+        };
+        drop(frames);
+        let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+        let start = click(root, server, 61, &observations[0], dismiss).await?;
+        let frames = changed(
+            server,
+            observations,
+            before,
+            "transient-dismiss",
+            start,
+            latencies,
+        )
+        .await?;
+        assert!(!frames[0].source.state().records.contains_key(&id));
+        retired.push(id);
+    }
+    eprintln!("native corpus: bounded constrained-link canvas ordering and visible rejection");
+    let source = compare(server, 61, &observations[0]).await?;
+    let before = source.displayed.stamp.revision;
+    let mut coordinates = Vec::with_capacity(24);
+    for i in 0..12 {
+        let p = surface_point(
+            &source.source,
+            source.displayed,
+            CANVAS_ID,
+            Point {
+                x: 20.0 + i as f64 * 3.0,
+                y: 60.0 + f64::from(i % 4) * 3.0,
+            },
+        )?;
+        coordinates.extend([p.x.to_string(), p.y.to_string()]);
+    }
+    drop(source);
+    let start = gtk4::glib::monotonic_time();
+    native(root, CONTROLLER, "drag", &coordinates)?;
+    let frames = changed(
+        server,
+        observations,
+        before,
+        "ordered-source-canvas",
+        start,
+        latencies,
+    )
+    .await?;
+    let stroke = observations[0]
+        .borrow()
+        .last_stroke
+        .ok_or("native canvas command was not observed")?;
+    assert!(stroke.event_count >= 4 && stroke.event_count <= source_controls::MAX_STROKE_POINTS);
+    let binding = observations[0].borrow().binding.unwrap();
+    let host = server.host.lock().await;
+    let trace = host.input_trace(
+        &AuthenticatedClient {
+            principal: "native-corpus-61".into(),
+            client_instance_id: [61; 16],
+        },
+        binding.view,
+    )?;
+    let selected: Vec<_> = trace
+        .iter()
+        .filter(|s| s.command_sequence == stroke.command_sequence)
+        .collect();
+    assert_eq!(selected.len(), stroke.event_count);
+    for (index, sample) in selected.iter().enumerate() {
+        assert_eq!(sample.event_index as usize, index);
+    }
+    let actual = source_controls::pointer_event_digest(selected.iter().map(|s| s.event.clone()))
+        .ok_or("source canvas trace is not pointer-only")?;
+    assert_eq!(
+        actual, stroke.events_digest,
+        "every captured sample must survive constrained TLS in order"
+    );
+    let final_point = match selected.last().unwrap().event.event {
+        rui_protocol_core::input::Event::Button {
+            position,
+            pressed: false,
+            ..
+        } => position,
+        _ => return Err("source canvas missing terminal release".into()),
+    };
+    let Some(Record::Scene(shape)) = frames[0]
+        .source
+        .state()
+        .records
+        .get(&rui_host_broker::CANVAS_SHAPE_SCENE_ID)
+    else {
+        return Err("source shape absent".into());
+    };
+    let Primitive::SolidRect { rect, .. } = shape.primitive else {
+        return Err("source shape is not a rectangle".into());
+    };
+    assert_eq!((rect.x, rect.y), (final_point.x, final_point.y));
+    let source_before = host.diagnostics();
+    drop(host);
+    drop(frames);
+    let source = compare(server, 61, &observations[0]).await?;
+    let mut excessive = Vec::with_capacity(128);
+    for i in 0..64 {
+        let p = surface_point(
+            &source.source,
+            source.displayed,
+            CANVAS_ID,
+            Point {
+                x: 20.0 + f64::from(i % 8) * 2.0,
+                y: 60.0 + f64::from(i % 5) * 2.0,
+            },
+        )?;
+        excessive.extend([p.x.to_string(), p.y.to_string()]);
+    }
+    drop(source);
+    native(root, CONTROLLER, "drag", &excessive)?;
+    wait(&observations[0], |o| {
+        o.stroke_notice_visible && o.stroke_notice.is_some_and(|s| s.contains("sample limit"))
+    })
+    .await?;
+    assert_eq!(
+        server.host.lock().await.diagnostics().source_commit,
+        source_before.source_commit
+    );
+    assert_eq!(
+        server.host.lock().await.diagnostics().consumed_commands,
+        source_before.consumed_commands
+    );
+    native(root, CONTROLLER, "drag_cancel", &coordinates)?;
+    wait(&observations[0], |o| {
+        o.stroke_notice_visible && o.stroke_notice == Some("Unsubmitted canvas stroke cancelled.")
+    })
+    .await?;
+    assert_eq!(
+        server.host.lock().await.diagnostics().source_commit,
+        source_before.source_commit
+    );
+    eprintln!("native corpus: explicit source resize");
+    let controls = observations[0].borrow().local_controls.unwrap();
+    spin(root, controls.width, 700)?;
+    spin(root, controls.height, 500)?;
+    let before = observations[0].borrow().displayed.unwrap().stamp.revision;
+    let observer_viewport = observations[1].borrow().displayed.unwrap().stamp.viewport;
+    let start = local_click(root, CONTROLLER, controls.resize)?;
+    let frames = changed(
+        server,
+        observations,
+        before,
+        "source-resize",
+        start,
+        latencies,
+    )
+    .await?;
+    let Some(Record::Surface(surface)) = frames[0]
+        .source
+        .state()
+        .records
+        .get(&rui_host_broker::SURFACE_ID)
+    else {
+        return Err("resized source surface absent".into());
+    };
+    assert_eq!(
+        (surface.content_size.width, surface.content_size.height),
+        (700.0, 500.0)
+    );
+    assert_eq!(
+        viewport_tuple(frames[1].displayed.stamp.viewport),
+        viewport_tuple(observer_viewport)
+    );
+    Ok(
+        serde_json::json!({"captured_event_count":stroke.event_count,"command_sequence":stroke.command_sequence,
+        "captured_and_source_events_sha256":hex(&actual),"link_bytes_per_second_each_direction":relay::BYTES_PER_SECOND,
+        "link_scope":"controller end-to-end TLS through opaque fixed-buffer byte-rate relay; healthy observer direct",
+        "overflow":"64-point native drag exceeded capture+release ceiling; visible after-paint rejection; zero source commit/command",
+        "cancel":"Escape before release; visible after-paint cancellation; zero source commit/command",
+        "stable_item_ids":ITEM_IDS,"retired_transient_ids":retired,"source_resize":[700,500]}),
+    )
+}
 async fn drive(
     server: &ServerHandle,
     root: &Path,
     directory: &Path,
     observations: &[watch::Receiver<DesktopObservation>],
     report: Option<&Path>,
+    diagnostics: Option<&Diagnostics>,
 ) -> Result<(), Error> {
+    let test_budget = MemoryBudget::new(1024 * 1024);
+    let mut latencies = Latencies::new(&test_budget)?;
+    let mut traces = if let Some(path) = report {
+        Some([
+            trace::Trace::new(
+                &PathBuf::from(format!("{}.controller.trace.jsonl", path.display())),
+                &test_budget,
+            )?,
+            trace::Trace::new(
+                &PathBuf::from(format!("{}.observer.trace.jsonl", path.display())),
+                &test_budget,
+            )?,
+        ])
+    } else {
+        None
+    };
     eprintln!("native corpus: initial presentation and control");
     wait(&observations[0], |o| o.has_control && o.displayed.is_some()).await?;
     wait(&observations[1], |o| o.displayed.is_some()).await?;
@@ -427,7 +1018,65 @@ async fn drive(
     compare(server, 62, &observations[1]).await?;
     keys(root, CONTROLLER, &["+Control_L", "F2", "-Control_L"])?;
     eprintln!("native corpus: broker takeover and cancellation");
-    wait(&observations[0], |o| o.has_control).await?;
+    wait(&observations[0], |o| o.has_control && o.input_ready).await?;
+    let broad = broad_controls(server, root, observations, &mut latencies).await?;
+    eprintln!("native corpus: actual cache loss and retained reconnect");
+    let before = server.host.lock().await.diagnostics();
+    let old = observations[1].borrow().displayed.unwrap().stamp;
+    let controls = observations[1].borrow().local_controls.unwrap();
+    local_click(root, OBSERVER, controls.cache)?;
+    wait(&observations[1], |o| {
+        o.input_ready
+            && o.displayed
+                .is_some_and(|d| d.stamp.generation > old.generation)
+    })
+    .await?;
+    assert!(
+        observations[0].borrow().has_control,
+        "observer cache loss must not revoke controller"
+    );
+    compare(server, 62, &observations[1]).await?;
+    let old = observations[0].borrow().displayed.unwrap().stamp;
+    let controls = observations[0].borrow().local_controls.unwrap();
+    local_click(root, CONTROLLER, controls.cache)?;
+    wait(&observations[0], |o| {
+        o.input_ready
+            && o.displayed
+                .is_some_and(|d| d.stamp.generation > old.generation)
+    })
+    .await?;
+    compare(server, 61, &observations[0]).await?;
+    if let (Some(traces), Some(diagnostics)) = (&mut traces, diagnostics) {
+        export_trace(&mut traces[0], diagnostics, 61, &observations[0])?;
+        traces[0].end_segment("retained prefix exported before explicit reconnect")?;
+    }
+    let old = observations[0].borrow().displayed.unwrap().stamp;
+    local_click(root, CONTROLLER, controls.reconnect)?;
+    wait(&observations[0], |o| {
+        o.has_control
+            && o.input_ready
+            && o.displayed
+                .is_some_and(|d| d.stamp.generation > old.generation)
+    })
+    .await?;
+    let recovered_controller = compare(server, 61, &observations[0]).await?;
+    assert_eq!(recovered_controller.displayed.stamp.revision, old.revision);
+    assert_eq!(
+        viewport_tuple(recovered_controller.displayed.stamp.viewport),
+        viewport_tuple(old.viewport)
+    );
+    compare(server, 62, &observations[1]).await?;
+    let after = server.host.lock().await.diagnostics();
+    assert_eq!(
+        before.source_commit, after.source_commit,
+        "cache/reconnect must not mutate source"
+    );
+    assert_eq!(
+        before.consumed_commands, after.consumed_commands,
+        "retained reconnect must not redispatch source actions"
+    );
+    // A fresh actual frame and grant precede editing after reconnect; old local
+    // composition and input generations were cleared by the worker.
     click(root, server, 61, &observations[0], PUBLIC_TEXT_ID).await?;
     wait(&observations[0], |o| {
         o.editing_target == Some(PUBLIC_TEXT_ID)
@@ -452,21 +1101,52 @@ async fn drive(
     let controller = compare(server, 61, &observations[0]).await?;
     let observer = compare(server, 62, &observations[1]).await?;
     if let Some(path) = report {
-        let budget = MemoryBudget::new(32 * 1024);
-        let _memory = budget.reserve(32 * 1024)?;
+        let _memory = test_budget.reserve(512 * 1024)?;
+        let mut trace_proofs = Vec::with_capacity(2);
+        if let (Some(traces), Some(diagnostics)) = (&mut traces, diagnostics) {
+            for (index, trace) in traces.iter_mut().enumerate() {
+                export_trace(trace, diagnostics, 61 + index as u8, &observations[index])?;
+                trace.end_segment("final exact retained prefix")?;
+                trace_proofs.push(trace.proof()?);
+            }
+        }
+        let mut cpuinfo = String::new();
+        File::open("/proc/cpuinfo")?
+            .take(4096)
+            .read_to_string(&mut cpuinfo)?;
+        let hardware = cpuinfo
+            .lines()
+            .find_map(|line| line.strip_prefix("model name\t: "))
+            .unwrap_or("unknown")
+            .to_owned();
+        let timing = |o: DesktopObservation| {
+            let t = o.render_timing;
+            serde_json::json!({"accepted_timer_ticks":t.accepted_ticks,"late_timer_ticks":t.late_ticks,
+            "elapsed_missed_timer_periods":t.elapsed_missed_periods,"attempted_frames":t.rendered_frames,"work_over_16_666_667ns":t.work_over_budget,"max_work_us":t.max_work_us,
+            "scope":"worker timer with Skip behavior; CPU render+RGBA+diagnostic fingerprint work; actual after-paint is separate"})
+        };
         let proof = serde_json::json!({
             "format":"rui.native-corpus-proof.v1",
             "result":"passed",
             "scope":"private Xvfb; shared GTK process; two independent TLS clients; GTK after-paint opportunity, not physical scanout",
             "checks":["full-session-source-reference","observer-viewport-isolation","rapid-six-character-typing",
                 "repeat-focused-target","native-unicode-preedit-commit","independent-python-stable-item",
+                "checkbox-typed-value","stable-list-select-reorder","absolute-source-scroll","popup-modal-tooltip-retirement",
+                "constrained-link-every-captured-canvas-sample","visible-overflow-and-escape-cancellation","explicit-source-resize",
+                "actual-resource-cache-loss-two-views","retained-reconnect-fresh-after-paint-and-control",
                 "broker-triggered-pending-cancellation-after-paint"],
+            "hardware":{"cpu":hardware,"kernel":String::from_utf8(Command::new("uname").arg("-sr").output()?.stdout)?.trim(),"GTK":format!("{}.{}.{}",gtk4::major_version(),gtk4::minor_version(),gtk4::micro_version())},
+            "canvas_and_controls":broad,"action_to_after_paint":latencies.proof(),
+            "build_profile":if cfg!(debug_assertions){"debug"}else{"release"},
+            "source_file_fingerprints":source_hashes(root)?,
+            "render_opportunity_timing":{"controller":timing(*observations[0].borrow()),"observer":timing(*observations[1].borrow())},
+            "exact_post_auth_traces":{"controller":trace_proofs.first(),"observer":trace_proofs.get(1),"names":"<report>.controller.trace.jsonl and <report>.observer.trace.jsonl"},
             "controller":controller.proof(),
             "observer":observer.proof(),
         });
         serde_json::to_writer_pretty(File::create(path)?, &proof)?;
     }
-    println!("native corpus: full {width}x{height} source/reference/two-mirror convergence; observer pan/zoom/resize isolated; rapid six-character typing + repeat focus + Unicode preedit; independent Python stable-item selection; takeover cancelled pending typing visibly");
+    println!("native corpus: full {width}x{height} source/reference/two-mirror convergence; checkbox/list/scroll/transients/source resize; every canvas sample preserved across32KiB/s TLS with visible overflow/cancel; observer viewport isolated; native typing+Unicode+Python; actual cache loss+retained reconnect; visible takeover cancellation");
     Ok(())
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -521,6 +1201,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "ReplaceText",
                                     "SetSelection",
                                     "ScrollTo",
+                                    "RawInputBatch",
+                                    "TextComposition",
+                                    "ResizeRequest",
                                 ]
                                 .into_iter()
                                 .map(str::to_owned)
@@ -540,13 +1223,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 credentials.push(credential);
             }
             let host = ControlledHost::new_corpus_with_fonts(
-                HostConfig::default(),
+                HostConfig::fresh()?,
                 "private-source".into(),
                 Arc::new(NativeSourceFontProvider::new(
                     PathBuf::from("/usr/bin/python3"),
                     root.join("fixtures/render/native_font.py"),
                 )),
             )?;
+            let diagnostics = report
+                .as_ref()
+                .map(|_| {
+                    Diagnostics::new(
+                        RecordingPolicy::AuthorizedDiagnosticBytes,
+                        TranscriptLimits {
+                            records: 4096,
+                            message_bytes: 1 << 20,
+                            retained_bytes: 16 << 20,
+                        },
+                        4,
+                    )
+                })
+                .transpose()?;
             let server = ServerHandle::bind(
                 "127.0.0.1:0".parse()?,
                 HostIdentity::from_der(
@@ -555,9 +1252,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?,
                 host,
                 Arc::new(Mutex::new(pairing)),
-                ServerConfig::default(),
+                ServerConfig {
+                    diagnostics: diagnostics.clone(),
+                    ..ServerConfig::default()
+                },
             )
             .await?;
+            let relay = relay::Relay::new(server.address, &MemoryBudget::new(128 * 1024)).await?;
             let (stop, signal) = watch::channel(false);
             let mut options = Vec::new();
             let mut observations = Vec::new();
@@ -565,7 +1266,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let (tx, rx) = watch::channel(DesktopObservation::default());
                 observations.push(rx);
                 options.push(Options {
-                    address: server.address,
+                    address: if index == 0 {
+                        relay.address
+                    } else {
+                        server.address
+                    },
                     server_name: "localhost".into(),
                     certificate: cert.to_vec(),
                     credential,
@@ -580,7 +1285,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             options_tx
                 .send(options)
                 .map_err(|_| "GTK option receiver closed")?;
-            let result = drive(&server, &root, &directory, &observations, report.as_deref()).await;
+            let result = drive(
+                &server,
+                &root,
+                &directory,
+                &observations,
+                report.as_deref(),
+                diagnostics.as_deref(),
+            )
+            .await;
             stop.send_replace(true);
             for _ in 0..100 {
                 if observations.iter().all(|o| o.borrow().closed) {
@@ -589,6 +1302,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
             server.shutdown().await;
+            relay.shutdown().await;
             result
         });
         let _ = done_tx.send(result.map_err(|error: Error| error.to_string()));

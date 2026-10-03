@@ -109,6 +109,35 @@ def main():
                 raise RuntimeError('private motion injection failed')
             if not xtst.XTestFakeButtonEvent(connection, 1, 1, 0) or not xtst.XTestFakeButtonEvent(connection, 1, 0, 0):
                 raise RuntimeError('private button injection failed')
+        elif operation in ('drag', 'drag_cancel') and 6 <= len(args) <= 130 and len(args) % 2 == 0:
+            points = [(float(args[i]), float(args[i + 1])) for i in range(2, len(args), 2)]
+            if any(not (0 <= px <= 4096 and 0 <= py <= 4096) for px, py in points):
+                raise ValueError('native drag coordinate ceiling')
+            dx, dy, child = integer(), integer(), ulong()
+            if not x.XTranslateCoordinates(connection, window, root, 0, 0, ctypes.byref(dx), ctypes.byref(dy), ctypes.byref(child)):
+                raise RuntimeError('private window translation unavailable')
+            pressed = False
+            try:
+                for index, (px, py) in enumerate(points):
+                    if not xtst.XTestFakeMotionEvent(connection, -1, dx.value + round(px), dy.value + round(py), 0):
+                        raise RuntimeError('private drag motion failed')
+                    if index == 0:
+                        if not xtst.XTestFakeButtonEvent(connection, 1, 1, 0):
+                            raise RuntimeError('private drag press failed')
+                        pressed = True
+                    x.XFlush(connection)
+                    # Give GDK an opportunity to capture each injected sample.
+                    # The Rust oracle compares every actually captured callback,
+                    # rather than assuming XTest guarantees toolkit delivery.
+                    time.sleep(.025)
+                if operation == 'drag_cancel':
+                    key('Escape', 1); key('Escape', 0)
+                    x.XFlush(connection)
+                    time.sleep(.05)
+            finally:
+                if pressed:
+                    xtst.XTestFakeButtonEvent(connection, 1, 0, 0)
+                    x.XFlush(connection)
         elif operation == 'resize_by' and len(args) == 4:
             width_delta, height_delta = map(int, args[2:])
             actual_root, px, py = ulong(), integer(), integer()

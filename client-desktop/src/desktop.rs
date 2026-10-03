@@ -3,6 +3,7 @@
 use crate::{
     command_queue::CommandQueue,
     interaction::{self, CommandBinding, EditingContext},
+    source_controls::{self, DeviceScope, PointerStroke, ResizeTarget},
     *,
 };
 use prost::Message;
@@ -14,7 +15,7 @@ use rui_protocol_core::{
     wire::proto as core,
 };
 use rui_transport::{
-    pairing::Credential, proto as session, ClientEvent, NetworkClient, TransportError,
+    pairing::Credential, proto as session, ClientEvent, NetworkClient, OpenedView, TransportError,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -46,12 +47,44 @@ pub struct DesktopObservation {
     pub binding: Option<ObservationBinding>,
     pub displayed: Option<DisplayedObservation>,
     pub has_control: bool,
+    pub input_ready: bool,
     pub control_revoked: bool,
     pub editing_target: Option<u64>,
     pub typing_pending: usize,
     pub typing_notice: TypingNotice,
     pub notice_visible: bool,
     pub closed: bool,
+    pub local_controls: Option<LocalControls>,
+    pub last_stroke: Option<StrokeObservation>,
+    pub stroke_notice: Option<&'static str>,
+    pub stroke_notice_visible: bool,
+    pub last_action: Option<ActionObservation>,
+    pub failure_class: Option<&'static str>,
+    pub render_timing: RenderTimingObservation,
+}
+/// Optional bounded scheduling counters. A tick is a render opportunity, while
+/// GTK after-paint remains the independent actual presentation callback.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RenderTimingObservation {
+    pub accepted_ticks: u64,
+    pub late_ticks: u64,
+    pub elapsed_missed_periods: u64,
+    pub rendered_frames: u64,
+    pub work_over_budget: u64,
+    pub max_work_us: u64,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct ActionObservation {
+    pub started_us: i64,
+    pub observed_revision: u64,
+    pub kind: ActionKind,
+}
+#[derive(Clone, Copy, Debug)]
+pub enum ActionKind {
+    SemanticClick,
+    SourceScroll,
+    SourceResize,
+    StrokeRelease,
 }
 #[derive(Clone, Copy, Debug)]
 pub struct ObservationBinding {
@@ -64,6 +97,26 @@ pub struct DisplayedObservation {
     pub stamp: Stamp,
     pub canvas_origin: Point,
     pub window_scale: i32,
+    pub frame_time_us: i64,
+    pub refresh_interval_us: i64,
+    pub predicted_presentation_us: i64,
+    pub after_paint_time_us: i64,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct LocalControls {
+    pub resize: Point,
+    pub width: Point,
+    pub height: Point,
+    pub scroll: Point,
+    pub scroll_y: Point,
+    pub reconnect: Point,
+    pub cache: Point,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct StrokeObservation {
+    pub command_sequence: u64,
+    pub event_count: usize,
+    pub events_digest: [u8; 32],
 }
 #[derive(Clone, Copy, Debug)]
 pub struct Stamp {
@@ -121,6 +174,22 @@ pub enum UiCommand {
     SelectAll {
         stamp: Stamp,
     },
+    Stroke {
+        stamp: Stamp,
+        stroke: PointerStroke,
+    },
+    ResizeSource {
+        stamp: Stamp,
+        target: ResizeTarget,
+        width: f64,
+        height: f64,
+    },
+    ScrollSource {
+        stamp: Stamp,
+        target: u64,
+        x: f64,
+        y: f64,
+    },
     Quit,
 }
 pub enum UiEvent {
@@ -157,13 +226,16 @@ impl TypingNotice {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct UiState {
     pub generation: u64,
     pub editing_generation: u64,
     pub lifecycle: Lifecycle,
     pub editing: Option<EditingContext>,
     pub typing_notice: TypingNotice,
+    pub raw_input: bool,
+    pub source_resize: Option<ResizeTarget>,
+    pub source_scroll: Option<u64>,
 }
 impl Default for UiState {
     fn default() -> Self {
@@ -173,6 +245,9 @@ impl Default for UiState {
             lifecycle: Lifecycle::Live,
             editing: None,
             typing_notice: TypingNotice::None,
+            raw_input: false,
+            source_resize: None,
+            source_scroll: None,
         }
     }
 }
@@ -189,6 +264,9 @@ impl UiState {
             None => self.lifecycle = Lifecycle::Quit,
         }
         self.editing = None;
+        self.raw_input = false;
+        self.source_resize = None;
+        self.source_scroll = None;
     }
     pub fn resume(&mut self) -> bool {
         if self.lifecycle == Lifecycle::Suspended {
@@ -230,13 +308,21 @@ async fn submit_semantic(
         return Err(TransportError::Protocol);
     }
     let wire = wire_command(domain);
+    submit_wire(client, CommandFamily::Semantic, &wire, pending).await
+}
+async fn submit_wire<T: Message>(
+    client: &mut NetworkClient,
+    family: CommandFamily,
+    wire: &T,
+    pending: &mut CommandQueue,
+) -> Result<(), TransportError> {
     let length = wire.encoded_len();
     pending
-        .encode(CommandFamily::Semantic, length, |bytes| {
-            wire.encode(bytes).map_err(|_| ())
-        })
+        .encode(family, length, |bytes| wire.encode(bytes).map_err(|_| ()))
         .map_err(|_| TransportError::Limit)?;
-    client.submit(pending.latest().unwrap().bytes()).await
+    client
+        .submit_family(family, pending.latest().unwrap().bytes())
+        .await
 }
 fn recoverable(error: &TransportError) -> bool {
     matches!(
@@ -247,6 +333,24 @@ fn recoverable(error: &TransportError) -> bool {
             | TransportError::Deadline
             | TransportError::ProducerBusy
     )
+}
+fn error_class(error: &TransportError) -> &'static str {
+    match error {
+        TransportError::ProducerBusy => "ProducerBusy",
+        TransportError::Tls => "Tls",
+        TransportError::Pin => "Pin",
+        TransportError::Io => "Io",
+        TransportError::WebSocket => "WebSocket",
+        TransportError::Limit => "Limit",
+        TransportError::Authentication => "Authentication",
+        TransportError::Entropy => "Entropy",
+        TransportError::Protocol => "Protocol",
+        TransportError::Binding => "Binding",
+        TransportError::Closed => "Closed",
+        TransportError::Deadline => "Deadline",
+        TransportError::Authority => "Authority",
+        TransportError::Receiver => "Receiver",
+    }
 }
 /// Reauthentication preserves the retained reducer, and never restores a lease.
 /// A failed attempt waits for an explicit bounded retry. Stale UI input drops
@@ -260,7 +364,7 @@ async fn recover_connection(
     commands: &mut mpsc::Receiver<UiCommand>,
     events: &SyncSender<UiEvent>,
     shutdown: &mut watch::Receiver<bool>,
-) -> Option<(NetworkClient, bool)> {
+) -> Option<(NetworkClient, bool, Option<OpenedView>)> {
     let mut context = (client.epoch, client.view_id);
     let mut retained = client.into_retained();
     loop {
@@ -281,6 +385,7 @@ async fn recover_connection(
             if ready {
                 context = binding;
                 let mut applied = false;
+                let mut opened = None;
                 let recovery = async {
                     client.open_view().await?;
                     // Old-lease exact retries either recover a retained result
@@ -296,8 +401,8 @@ async fn recover_connection(
                             match result {
                                 ClientEvent::CommandResult(r) if r.command_seq == sequence => break,
                                 ClientEvent::ControlRevoked(_) => {}
-                                ClientEvent::ViewOpened(_)
-                                | ClientEvent::ResumeAccepted(_)
+                                ClientEvent::ViewOpened(metadata) => opened = Some(metadata),
+                                ClientEvent::ResumeAccepted(_)
                                 | ClientEvent::ResetRequired(_)
                                 | ClientEvent::ResourceAvailable => {}
                                 ClientEvent::ResourcesNeeded { .. } => applied = false,
@@ -317,7 +422,7 @@ async fn recover_connection(
                     result=tokio::time::timeout(Duration::from_secs(15),recovery)=>result.unwrap_or(Err(TransportError::Deadline)),
                 };
                 if recovered.is_ok() {
-                    return Some((client, applied));
+                    return Some((client, applied, opened));
                 }
                 status(
                     events,
@@ -528,6 +633,8 @@ pub async fn worker(
     let mut presented_frames = 0u64;
     let mut requests = 1u64;
     let mut awaiting_resources = false;
+    let mut render_timing = RenderTimingObservation::default();
+    let mut opened: Option<OpenedView> = None;
     let mut typing = match crate::typing::TypingQueue::new(budget.clone()) {
         Ok(queue) => queue,
         Err(_) => {
@@ -613,6 +720,36 @@ pub async fn worker(
             } else {
                 None
             };
+            let granted = |action: &str| {
+                lease
+                    .as_ref()
+                    .is_some_and(|lease| lease.wire.allowed_actions.iter().any(|a| a == action))
+            };
+            let input_ready = !awaiting_resources
+                && presented.is_some_and(|stamp| {
+                    ui_state.accepts(stamp)
+                        && client
+                            .receiver()
+                            .state()
+                            .is_ok_and(|s| s.revision == stamp.revision)
+                });
+            ui_state.raw_input = granted("RawInputBatch")
+                && input_ready
+                && opened.as_ref().is_some_and(|v| v.input_devices.len() == 1);
+            ui_state.source_resize = if input_ready && granted("ResizeRequest") {
+                client
+                    .receiver()
+                    .state()
+                    .ok()
+                    .and_then(|s| source_controls::resize_target(s).ok())
+            } else {
+                None
+            };
+            ui_state.source_scroll = if input_ready && granted("ScrollTo") {
+                selected.filter(|target|client.receiver().state().ok().and_then(|s|s.records.get(target)).is_some_and(|r|matches!(r,Record::Semantic(n) if n.actions.iter().any(|a|a.id=="ScrollTo"&&a.schema_version==1))))
+            } else {
+                None
+            };
             if *ui.borrow() != ui_state {
                 ui.send_replace(ui_state);
             }
@@ -620,6 +757,7 @@ pub async fn worker(
                 observations.send_modify(|o| {
                     o.typing_pending = typing.pending_count();
                     o.has_control = lease.is_some();
+                    o.input_ready = input_ready;
                 });
             }
             if !deliver(&events, &mut pending) {
@@ -673,8 +811,12 @@ pub async fn worker(
             }
             tokio::select! {
                 _=shutdown.changed()=>{ui_state.clear(Lifecycle::Quit);break;},
-                _=tick.tick()=>{
-                    if dirty && !awaiting_resources && pending.is_none() {
+                scheduled=tick.tick()=>{
+                    render_timing.accepted_ticks=render_timing.accepted_ticks.saturating_add(1);
+                    let lateness=tokio::time::Instant::now().saturating_duration_since(scheduled).as_nanos();
+                    if lateness>16_666_667 {render_timing.late_ticks=render_timing.late_ticks.saturating_add(1);render_timing.elapsed_missed_periods=render_timing.elapsed_missed_periods.saturating_add((lateness/16_666_667).min(u128::from(u64::MAX)) as u64);}
+                    if dirty && !awaiting_resources && pending.is_none() && client.receiver().resources_ready().unwrap_or(false) {
+                        let work_start=std::time::Instant::now();
                         let v=*viewport.borrow();
                         match client.receiver().state().map_err(|_|()).and_then(|state|renderer.render_view(state,v,client.receiver()).map_err(|_|())) {
                             Ok(frame)=>match frame.into_rgba8_over(Color{red:1.0,green:1.0,blue:1.0,alpha:1.0}) {
@@ -683,17 +825,22 @@ pub async fn worker(
                             },
                             Err(_)=>{pending=None;ui_state.clear(Lifecycle::Suspended);status(&events,"Scene cannot be rendered within this profile and its limits.");dirty=false;},
                         }
+                        let elapsed=work_start.elapsed();render_timing.rendered_frames=render_timing.rendered_frames.saturating_add(1);
+                        render_timing.max_work_us=render_timing.max_work_us.max(elapsed.as_micros().min(u128::from(u64::MAX)) as u64);
+                        if elapsed.as_nanos()>16_666_667 {render_timing.work_over_budget=render_timing.work_over_budget.saturating_add(1);}
                     }
+                    if let Some(observations)=&options.observations {observations.send_modify(|o|o.render_timing=render_timing);}
                 },
                 _=ping.tick()=>{
-                    if let Err(error)=client.send(session::Kind::Ping,&session::Ping{nonce:serial}).await {reconnect=recoverable(&error);break;}
+                    if let Err(error)=client.send(session::Kind::Ping,&session::Ping{nonce:serial}).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                     if let Some(current)=&lease {
                         let Some(request)=request_id(&mut requests) else {break;};
-                        if let Err(error)=client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}).await {reconnect=recoverable(&error);break;}
+                        if let Err(error)=client.send(session::Kind::RenewControl,&session::RenewControl{request_id:request.to_vec(),lease_id:current.wire.lease_id.clone(),generation:current.wire.generation}).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                     }
                 },
                 changed=viewport.changed()=>{if changed.is_err() {break;}dirty=true;},
                 event=client.receive()=>match event {
+                    Ok(ClientEvent::ViewOpened(metadata))=>{if opened.is_some() {break;}opened=Some(metadata);},
                     Ok(ClientEvent::Applied{..})=>{awaiting_resources=false;dirty=true;status(&events,"View applied; waiting for display.");},
                     Ok(ClientEvent::ResourcesNeeded{..})=>{awaiting_resources=true;status(&events,"Waiting for verified resources; typing remains queued.");},
                     Ok(ClientEvent::ControlGranted(granted))=>{
@@ -719,7 +866,7 @@ pub async fn worker(
                 },
                     Ok(ClientEvent::Error(_))=>status(&events,"Host rejected the request."),
                     Ok(_)=>{},
-                    Err(error)=>{status(&events,"Disconnected; input has been cleared.");reconnect=recoverable(&error);break;},
+                    Err(error)=>{if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}status(&events,"Disconnected; input has been cleared.");reconnect=recoverable(&error);break;},
                 },
                 command=commands.recv()=>{
                     let Some(command)=command else {break;};
@@ -730,27 +877,53 @@ pub async fn worker(
                             if awaiting_resources {status(&events,"Wait for the current publication before dropping its cache.");continue;}
                             typing.cancel();selected=None;presented=None;issued=None;pending=None;
                             ui_state.clear(Lifecycle::Suspended);ui.send_replace(ui_state);
-                            if let Err(error)=client.resource_cache_lost().await {reconnect=recoverable(&error);break;}
+                            if let Err(error)=client.resource_cache_lost().await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             awaiting_resources= !client.receiver().resources_ready().unwrap_or(false);dirty= !awaiting_resources;
                             status(&events,"Cache cleared; waiting for verified resources and a new frame.");
                         },
-                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {reconnect=recoverable(&error);break;}},
+                        UiCommand::Acquire=>{let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}},
                         UiCommand::Release=>{
                             typing.cancel();selected=None;
                             if let Some(current)=lease.take() {
                                 let Some(request)=request_id(&mut requests) else {break;};
-                                if let Err(error)=client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}).await {reconnect=recoverable(&error);break;}
+                                if let Err(error)=client.send(session::Kind::ReleaseControl,&session::ReleaseControl{request_id:request.to_vec(),lease_id:current.wire.lease_id,generation:current.wire.generation}).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                             }
                         },
                         UiCommand::Presented(stamp)=>{
                             if !ui_state.accepts(stamp) {continue;}
                             if !awaiting_resources && ui_state.accepts(stamp) && issued.is_some_and(|s:Stamp|s.serial==stamp.serial && s.revision==stamp.revision)
                                 && client.receiver().state().is_ok_and(|s|s.revision==stamp.revision) {
-                                if let Err(error)=client.presented(stamp.revision).await {reconnect=recoverable(&error);break;}
+                                if let Err(error)=client.presented(stamp.revision).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
                                 presented=Some(stamp);presented_frames+=1;status(&events,"Displayed.");
-                                if options.auto_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {reconnect=recoverable(&error);break;}}
+                                if options.auto_control && !auto_acquired {auto_acquired=true;let Some(request)=request_id(&mut requests) else {break;};if let Err(error)=client.acquire_control(request).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}}
                                 if options.smoke_frames.is_some_and(|n|presented_frames>=n) && (!options.auto_control || lease.is_some()) {ui_state.clear(Lifecycle::Quit);break;}
                             } else if !awaiting_resources {dirty=true;}
+                        },
+                        UiCommand::Stroke{stamp,stroke}=>{
+                            if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||stroke.revision()!=stamp.revision||!stroke.matches_viewport(stamp.viewport) {status(&events,"Canvas view changed; the unsubmitted stroke was cancelled.");continue;}
+                            let Some(binding)=binding else {status(&events,"Request raw input control before drawing.");continue;};
+                            let Some(metadata)=opened.as_ref().filter(|m|m.input_devices.len()==1) else {status(&events,"No unambiguous source pointer device was granted.");continue;};
+                            if !lease.as_ref().is_some_and(|l|l.wire.allowed_actions.iter().any(|a|a=="RawInputBatch")) {status(&events,"Source pointer input is not granted.");continue;}
+                            let device=&metadata.input_devices[0];
+                            let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
+                            let prepared=match stroke.into_command(state,binding,DeviceScope{seat:&device.seat_id,device:&device.device_id,key_namespace:&device.key_namespace,input_mode:&device.input_mode,text_owner:&device.text_owner}) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Canvas stroke cancelled: source route, geometry, or device changed.");continue;}};
+                            if let Some(observations)=&options.observations {if let Some(events_digest)=prepared.event_digest() {observations.send_modify(|o|o.last_stroke=Some(StrokeObservation{command_sequence:sequence,event_count:prepared.wire().events.len(),events_digest}));}}
+                            if let Err(error)=submit_wire(&mut client,CommandFamily::RawInput,prepared.wire(),&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            sequence=pending_commands.next_sequence();
+                        },
+                        UiCommand::ResizeSource{stamp,target,width,height}=>{
+                            if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_resize!=Some(target) {status(&events,"Source resize context changed; wait for its latest frame.");continue;}
+                            let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
+                            let prepared=match source_controls::resize_command(state,target,width,height,binding,&budget) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Source size or focused surface is unavailable.");continue;}};
+                            if let Err(error)=submit_wire(&mut client,CommandFamily::Resize,prepared.wire(),&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            sequence=pending_commands.next_sequence();
+                        },
+                        UiCommand::ScrollSource{stamp,target,x,y}=>{
+                            if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_scroll!=Some(target) {status(&events,"Select the latest remote scroll target first.");continue;}
+                            let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
+                            let domain=match interaction::command(state,target,"ScrollTo",Arguments::Scroll{x,y},binding) {Ok(domain)=>domain,Err(_)=>{status(&events,"Remote scroll action or context is unavailable.");continue;}};
+                            if let Err(error)=submit_semantic(&mut client,domain,&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            sequence=pending_commands.next_sequence();
                         },
                         input=>{
                             let stamp=match &input {UiCommand::Click{stamp,..}|UiCommand::Commit{stamp,..}|UiCommand::SelectAll{stamp}=>*stamp,_=>unreachable!()};
@@ -759,7 +932,7 @@ pub async fn worker(
                             if !ui_state.accepts(stamp) || presented.is_none() || (!matches!(&input,UiCommand::Commit{..}) && (awaiting_resources || !presented.is_some_and(|p|p.serial==stamp.serial) || !client.receiver().state().is_ok_and(|s|s.revision==stamp.revision))) {status(&events,"View changed; wait for the latest frame.");continue;}
                             let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
                             let target=match input {
-                                UiCommand::Click{point,..}=>{match interaction::hit_test(state,stamp.revision,stamp.viewport,point) {Ok(t)=>{selected=Some(t.semantic);t.semantic},Err(_)=>{selected=None;status(&events,"No enabled remote action here.");continue;}}},
+                                UiCommand::Click{point,..}=>{match interaction::hit_test(state,stamp.revision,stamp.viewport,point) {Ok(t)=>{selected=Some(t.semantic);t.semantic},Err(_)=>{selected=None;status(&events,if interaction::canvas_hit_test(state,stamp.revision,stamp.viewport,point).is_ok(){"Canvas stroke submits on release; every sample is retained."}else{"No enabled remote action here."});continue;}}},
                                 UiCommand::Commit{context,..}=>context.target,
                                 _=>match selected {Some(t)=>t,None=>{status(&events,"Select a remote text target first.");continue;}},
                             };
@@ -770,7 +943,7 @@ pub async fn worker(
                                     else if node.actions.iter().any(|a|a.id=="Activate") {("Activate",Arguments::None)}
                                     else if node.actions.iter().any(|a|a.id=="SetValue") {
                                         let Some(TypedValue::Boolean(value))=&node.value else {status(&events,"This value requires an explicit editor.");continue;};("SetValue",Arguments::Checked(!value))
-                                    } else {status(&events,"Text target selected; type to edit or Ctrl+A to select all.");continue;}
+                                    } else {status(&events,if node.actions.iter().any(|a|a.id=="ScrollTo"){ "Remote scroll target selected; enter its absolute scroll position." }else{ "Text target selected; type to edit or Ctrl+A to select all." });continue;}
                                 },
                                 UiCommand::Commit{text,_memory,context,..}=>{
                                     if ui_state.editing != Some(context) || selected != Some(context.target) {ui_state.typing_notice=TypingNotice::Cancelled;status(&events,"Editing context changed; composition cancelled.");continue;}
@@ -785,7 +958,7 @@ pub async fn worker(
                             if !current.wire.allowed_actions.iter().any(|a|a==action) {status(&events,"This action is not granted.");continue;}
                             let lease_id: [u8;16]=match current.wire.lease_id.as_slice().try_into() {Ok(id)=>id,Err(_)=>break};
                             let domain=match interaction::command(state,target,action,args,CommandBinding{epoch:client.epoch,view:client.view_id,client:options.client_id,lease:lease_id,generation:current.wire.generation,sequence}) {Ok(c)=>c,Err(_)=>{status(&events,"Remote target or editing context is unavailable.");continue;}};
-                            if let Err(error)=submit_semantic(&mut client,domain,&mut pending_commands).await {reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
+                            if let Err(error)=submit_semantic(&mut client,domain,&mut pending_commands).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
                         },
                     }
                 },
@@ -800,6 +973,7 @@ pub async fn worker(
         lease = None;
         selected = None;
         typing.cancel();
+        drop(opened.take());
         ui_state.clear(Lifecycle::Suspended);
         ui_state.typing_notice = TypingNotice::Cancelled;
         ui.send_replace(ui_state);
@@ -807,11 +981,12 @@ pub async fn worker(
             observations.send_modify(|o| {
                 o.displayed = None;
                 o.has_control = false;
+                o.input_ready = false;
                 o.editing_target = None;
                 o.typing_pending = 0;
             });
         }
-        let Some((reconnected, recovery_applied)) = recover_connection(
+        let Some((reconnected, recovery_applied, recovery_opened)) = recover_connection(
             client,
             &options,
             &hello,
@@ -834,6 +1009,7 @@ pub async fn worker(
             return;
         };
         client = reconnected;
+        opened = recovery_opened;
         budget = client.receiver().memory_budget();
         sequence = pending_commands.next_sequence();
         renderer = match Renderer::new_with_profile(

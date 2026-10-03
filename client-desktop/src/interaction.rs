@@ -45,7 +45,7 @@ fn collection_version(state: &State, node: &SemanticNode) -> Result<Option<u64>,
     }
     Ok(version)
 }
-fn local(surface: &Surface, p: Point) -> Option<Point> {
+pub(crate) fn local(surface: &Surface, p: Point) -> Option<Point> {
     let m = surface.transform;
     let determinant = m.xx * m.yy - m.xy * m.yx;
     if determinant == 0.0 || !determinant.is_finite() {
@@ -69,6 +69,31 @@ pub fn hit_test(
     presented_revision: u64,
     viewport: Viewport,
     device: Point,
+) -> Result<Target, InteractionError> {
+    hit_test_role(state, presented_revision, viewport, device, None)
+}
+/// Raw canvas discovery uses a published CustomCanvas binding, independently
+/// of semantic actions. Device permission is supplied separately by the host.
+pub fn canvas_hit_test(
+    state: &State,
+    presented_revision: u64,
+    viewport: Viewport,
+    device: Point,
+) -> Result<Target, InteractionError> {
+    hit_test_role(
+        state,
+        presented_revision,
+        viewport,
+        device,
+        Some(SemanticRole::CustomCanvas),
+    )
+}
+fn hit_test_role(
+    state: &State,
+    presented_revision: u64,
+    viewport: Viewport,
+    device: Point,
+    role: Option<SemanticRole>,
 ) -> Result<Target, InteractionError> {
     if state.revision != presented_revision || presented_revision == 0 {
         return Err(InteractionError::StalePresentation);
@@ -149,7 +174,7 @@ pub fn hit_test(
                 let Some(Record::Semantic(node)) = state.records.get(&reference.id) else {
                     continue;
                 };
-                if node.actions.is_empty()
+                if role.map_or_else(|| node.actions.is_empty(), |role| node.role != role)
                     || node
                         .states
                         .get(&StateKey::Disabled)

@@ -6,5 +6,6 @@ pub mod desktop;
 pub mod interaction;
 mod path;
 pub mod renderer;
+pub mod source_controls;
 pub mod typing;
 pub use renderer::*;

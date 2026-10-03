@@ -15,7 +15,7 @@ use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::mpsc::{self, Receiver, TryRecvError},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -27,6 +27,8 @@ use tokio::sync::{mpsc as async_queue, watch};
 struct Relay {
     address: SocketAddr,
     hold: Arc<AtomicBool>,
+    initial_byte_barrier: Arc<AtomicUsize>,
+    blocked: Arc<AtomicBool>,
     cut: watch::Sender<u64>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -43,15 +45,19 @@ impl Relay {
             .unwrap();
         let address = listener.local_addr().unwrap();
         let hold = Arc::new(AtomicBool::new(false));
+        let initial_byte_barrier = Arc::new(AtomicUsize::new(0));
+        let blocked = Arc::new(AtomicBool::new(false));
         let (cut, _) = watch::channel(0u64);
         let signal = cut.clone();
         let paused = hold.clone();
+        let barrier = initial_byte_barrier.clone();
+        let downloading_blocked = blocked.clone();
         let task = tokio::spawn(async move {
             let mut children = tokio::task::JoinSet::new();
             loop {
                 tokio::select! {
                     incoming=listener.accept(),if children.len()<4=>{
-                        let (down,_)=incoming.unwrap();let pause=paused.clone();let mut stop=signal.subscribe();stop.borrow_and_update();
+                        let (down,_)=incoming.unwrap();let pause=paused.clone();let barrier=barrier.clone();let blocked=downloading_blocked.clone();let mut stop=signal.subscribe();stop.borrow_and_update();
                         children.spawn(async move {
                             let up=tokio::net::TcpStream::connect(upstream).await.unwrap();
                             down.set_nodelay(true).unwrap();up.set_nodelay(true).unwrap();
@@ -59,10 +65,18 @@ impl Relay {
                             let upload=async {let mut bytes=[0u8;4096];loop {let n=dr.read(&mut bytes).await?;if n==0 {break;}uw.write_all(&bytes[..n]).await?;}Ok::<(),std::io::Error>(())};
                             let download=async {
                                 let mut bytes=[0u8;4096];
+                                let mut received=0usize;
                                 loop {
                                     let n=ur.read(&mut bytes).await?;
                                     if n==0 {break;}
-                                    if pause.load(Ordering::Acquire) {std::future::pending::<()>().await;}
+                                    received+=n;
+                                    loop {
+                                        let ceiling=barrier.load(Ordering::Acquire);
+                                        if !pause.load(Ordering::Acquire)&&(ceiling==0||received<=ceiling) {break;}
+                                        blocked.store(true,Ordering::Release);
+                                        tokio::time::sleep(Duration::from_millis(1)).await;
+                                    }
+                                    blocked.store(false,Ordering::Release);
                                     dw.write_all(&bytes[..n]).await?;
                                 }
                                 Ok::<(),std::io::Error>(())
@@ -77,6 +91,8 @@ impl Relay {
         Self {
             address,
             hold,
+            initial_byte_barrier,
+            blocked,
             cut,
             task,
         }
@@ -92,6 +108,7 @@ struct Worker {
     ui: watch::Receiver<UiState>,
     observed: watch::Receiver<DesktopObservation>,
     shutdown: watch::Sender<bool>,
+    viewport: watch::Sender<Viewport>,
     task: tokio::task::JoinHandle<()>,
 }
 impl Worker {
@@ -112,6 +129,7 @@ impl Worker {
         let (observations, observed) = watch::channel(DesktopObservation::default());
         let (shutdown, shutdown_rx) = watch::channel(false);
         let (_viewport, viewport_rx) = watch::channel(Viewport::new(920, 480));
+        let viewport = _viewport.clone();
         let options = Options {
             address,
             server_name: "localhost".into(),
@@ -143,6 +161,7 @@ impl Worker {
             ui,
             observed,
             shutdown,
+            viewport,
             task,
         }
     }
@@ -199,6 +218,49 @@ impl Worker {
             .unwrap()
             .unwrap();
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+async fn dirty_viewport_waits_for_delayed_first_publication_without_presenting_revision_zero() {
+    let (server, credential, _, _) = setup().await;
+    let relay = Relay::new(server.address).await;
+    // This large resource-bearing fixture cannot fit in the first8KiB of
+    // encrypted downstream traffic. The earlier TLS/WS/ServerHello handshake
+    // fits, so the gate deterministically blocks an incomplete first capture.
+    relay.initial_byte_barrier.store(8192, Ordering::Release);
+    let mut worker = Worker::start_at(relay.address, credential);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while worker.observed.borrow().binding.is_none() || !relay.blocked.load(Ordering::Acquire) {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .unwrap();
+    worker.viewport.send_replace(Viewport::new(921, 481));
+    let deadline = Instant::now() + Duration::from_millis(150);
+    while Instant::now() < deadline {
+        assert_eq!(worker.ui.borrow().lifecycle, Lifecycle::Live);
+        assert!(!worker.observed.borrow().has_control);
+        match worker.events.try_recv() {
+            Ok(UiEvent::Frame { stamp, .. }) => panic!(
+                "frame before first publication committed: revision{}",
+                stamp.revision
+            ),
+            Ok(UiEvent::Ready(budget)) => assert!(budget.used() <= budget.limit()),
+            Ok(UiEvent::Status(_)) | Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => panic!("worker closed at initial-publication gate"),
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+    relay.initial_byte_barrier.store(0, Ordering::Release);
+    let frame = worker.frame(0, 1).await;
+    assert_eq!((frame.viewport.width, frame.viewport.height), (921, 481));
+    worker.present(frame).await;
+    worker.control().await;
+    assert_eq!(worker.observed.borrow().failure_class, None);
+    assert_eq!(server.host.lock().await.diagnostics().consumed_commands, 0);
+    worker.stop().await;
+    server.shutdown().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 3)]

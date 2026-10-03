@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cert.to_vec(),
             include_bytes!("../../transport/tests/data/localhost-key.der").to_vec(),
         )?,
-        ControlledHost::new(HostConfig::default(), "private-source".into())?,
+        ControlledHost::new(HostConfig::fresh()?, "private-source".into())?,
         Arc::new(Mutex::new(pairing)),
         ServerConfig {
             cleanup: Arc::new(move |cleanup| {

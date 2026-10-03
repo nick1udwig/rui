@@ -127,7 +127,7 @@ def main():
                 child = subprocess.Popen(command, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 if args.probe == 'ime':
                     type_probe(display, authority)
-                stdout, stderr = child.communicate(timeout=120 if args.probe == 'corpus' else 30)
+                stdout, stderr = child.communicate(timeout=300 if args.probe == 'corpus' else 30)
                 if child.returncode:
                     raise RuntimeError(f'native probe failed: {stdout}\n{stderr}')
                 print(stdout.strip())
