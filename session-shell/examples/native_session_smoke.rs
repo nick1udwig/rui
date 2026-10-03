@@ -24,8 +24,8 @@ use rui_transport::{pairing::PairingAuthority, HostIdentity, ProducerServerHandl
 use sha2::{Digest, Sha256};
 use std::{
     cell::RefCell,
-    fs::File,
-    io::{Read, Write},
+    fs::{File, OpenOptions},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     process::Command,
     rc::Rc,
@@ -33,10 +33,34 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::watch;
+#[path = "native_session_smoke/matrix.rs"]
+mod matrix;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 const CONTROLLER: &str = "RUI native session controller";
 const OBSERVER: &str = "RUI native session observer";
 const SOURCE: &str = "RUI isolated source probe";
+// A failed test assertion must still stop the GTK loop. The runner separately
+// terminates only this owned process group if toolkit shutdown stalls.
+struct StopOnDrop(watch::Sender<bool>);
+impl Drop for StopOnDrop {
+    fn drop(&mut self) {
+        self.0.send_replace(true);
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn driver_panic_requests_gtk_shutdown() {
+        let (stop, signal) = watch::channel(false);
+        let failed = std::panic::catch_unwind(|| {
+            let _shutdown = StopOnDrop(stop);
+            panic!("bounded test driver failure");
+        });
+        assert!(failed.is_err());
+        assert!(*signal.borrow());
+    }
+}
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -45,6 +69,8 @@ fn source_hashes(root: &Path) -> Result<String, Error> {
     for path in [
         "session-shell/examples/native_session_smoke.rs",
         "fixtures/session-shell/native_session.py",
+        "session-shell/examples/native_session_smoke/matrix.rs",
+        "fixtures/session-shell/native_held.py",
         "fixtures/session-shell/native_focus.py",
         "fixtures/render/native_events.py",
         "session-shell/src/actor.rs",
@@ -262,6 +288,51 @@ fn point(frame: &Compared, position: Point) -> [String; 2] {
         (frame.displayed.canvas_origin.y + (position.y - v.origin.y) * v.scale).to_string(),
     ]
 }
+async fn request_control(
+    port: &NativeProducerPort,
+    root: &Path,
+    observation: &watch::Receiver<DesktopObservation>,
+) -> Result<(), Error> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let state = *observation.borrow();
+        let binding = state.binding.ok_or("actual view binding missing")?;
+        let painted = state.displayed.ok_or("actual mirror paint missing")?;
+        if port
+            .presented_revision(binding.client, binding.view)
+            .await?
+            == Some(painted.stamp.revision)
+        {
+            break;
+        }
+        if Instant::now() >= deadline {
+            return Err(
+                "broker did not record the actual current Presented acknowledgement".into(),
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let before = observation.borrow().control_requests;
+    let p = observation
+        .borrow()
+        .local_controls
+        .ok_or("actual control bounds missing")?
+        .request_control;
+    native(
+        root,
+        CONTROLLER,
+        "click",
+        &[p.x.to_string(), p.y.to_string()],
+    )?;
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while observation.borrow().control_requests == before {
+        if Instant::now() >= deadline {
+            return Err("actual GTK Request control callback was not delivered".into());
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    Ok(())
+}
 async fn pair(
     port: &NativeProducerPort,
     observations: &[watch::Receiver<DesktopObservation>],
@@ -337,6 +408,8 @@ struct LocalObservation {
     width: i32,
     height: i32,
     failed: bool,
+    active: bool,
+    sampled_at_us: i64,
 }
 impl Default for LocalObservation {
     fn default() -> Self {
@@ -347,6 +420,8 @@ impl Default for LocalObservation {
             width: 0,
             height: 0,
             failed: false,
+            active: false,
+            sampled_at_us: 0,
         }
     }
 }
@@ -357,6 +432,7 @@ async fn drive(
     observations: &[watch::Receiver<DesktopObservation>],
     local: &watch::Receiver<LocalObservation>,
     report: Option<&Path>,
+    matrix: Option<&matrix::Context>,
 ) -> Result<(), Error> {
     eprintln!("native session: actual initial source/two-mirror presentation");
     let arranged = Command::new("/usr/bin/python3")
@@ -397,10 +473,24 @@ async fn drive(
     // Focus comes first. Source frontend focus loss is a real cleanup event,
     // so acquire explicitly after it settles instead of suppressing callbacks.
     native(root, CONTROLLER, "click", &point(&initial[0], click))?;
-    native(root, CONTROLLER, "click", &["65".into(), "20".into()])?;
+    matrix::settle_source_focus(host, local).await?;
+    request_control(port, root, &observations[0]).await?;
     wait(&observations[0], |o| o.has_control && o.physical_ready).await?;
     let before = compare(port, &observations[0]).await?;
     assert_eq!(text(before.capture.state(), main)?, "");
+    if let Some(context) = matrix {
+        return matrix::run(matrix::Run {
+            port,
+            host,
+            root,
+            observations,
+            local,
+            before: &before,
+            context,
+            report,
+        })
+        .await;
+    }
     // The native source only interprets physical keys. US physical y must be
     // German z; native client auto-repeat and local IM text cannot duplicate it.
     let baseline = diagnostics(host).await?;
@@ -667,6 +757,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .to_owned();
     let report = std::env::args().nth(1).map(PathBuf::from);
+    let matrix_mode = std::env::var("RUI_NATIVE_MATRIX")
+        .ok()
+        .map(|value| matrix::Mode::parse(&value))
+        .transpose()
+        .map_err(|e| e.to_string())?;
     let budget = MemoryBudget::new(128 << 20);
     let disposal_budget = budget.clone();
     let owner = Owner::spawn(
@@ -775,13 +870,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     width: source.canvas.width(),
                     height: source.canvas.height(),
                     failed: source.failure().is_some(),
+                    active: source.window.is_active(),
+                    sampled_at_us: glib::monotonic_time(),
                 });
             }
             glib::ControlFlow::Continue
         });
     });
     let (options_tx, options_rx) = mpsc::sync_channel(1);
+    let driver_report = report.clone();
     let thread = std::thread::spawn(move || {
+        let _shutdown = StopOnDrop(stop.clone());
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
@@ -810,6 +909,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                 )?);
             }
+            let pairing = Arc::new(Mutex::new(pairing));
             let server = ProducerServerHandle::bind(
                 "127.0.0.1:0".parse()?,
                 HostIdentity::from_der(
@@ -817,17 +917,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     include_bytes!("../../transport/tests/data/localhost-key.der").to_vec(),
                 )?,
                 Arc::new(native.clone()),
-                Arc::new(Mutex::new(pairing)),
+                pairing.clone(),
                 ServerConfig::default(),
             )
             .await?;
+            let matrix_context = match matrix_mode {
+                Some(mode) => Some(matrix::Context {
+                    mode,
+                    relay: matrix::Relay::new(server.address).await?,
+                    pairing,
+                    credential: rui_transport::pairing::Credential::from_bytes(
+                        *credentials[0].expose_for_tls_authentication(),
+                    ),
+                }),
+                None => None,
+            };
             let mut options = Vec::new();
             let mut observations = Vec::new();
             for (index, credential) in credentials.into_iter().enumerate() {
                 let (tx, rx) = watch::channel(DesktopObservation::default());
                 observations.push(rx);
                 options.push(Options {
-                    address: server.address,
+                    address: if index == 0 {
+                        matrix_context
+                            .as_ref()
+                            .map_or(server.address, |context| context.relay.address)
+                    } else {
+                        server.address
+                    },
                     server_name: "localhost".into(),
                     certificate: cert.to_vec(),
                     credential,
@@ -850,7 +967,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &root,
                 &observations,
                 &local_rx,
-                report.as_deref(),
+                driver_report.as_deref(),
+                matrix_context.as_ref(),
             )
             .await;
             stop.send_replace(true);
@@ -881,6 +999,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             disposal_budget.used()
         )
         .into());
+    }
+    if result.is_ok() {
+        if let Some(report) = &report {
+            // Final disposal is recorded only after all escaped native GTK and
+            // publication ownership has actually released its shared charge.
+            let mut file = OpenOptions::new().read(true).write(true).open(report)?;
+            let length = file.metadata()?.len();
+            if !(2..=65504).contains(&length) {
+                return Err("native report size ceiling".into());
+            }
+            file.seek(SeekFrom::End(-2))?;
+            let mut tail = [0u8; 2];
+            file.read_exact(&mut tail)?;
+            if tail != *b"}\n" {
+                return Err("native report termination mismatch".into());
+            }
+            file.seek(SeekFrom::End(-2))?;
+            writeln!(file, ",\"owner_disposal_bytes\":0}}")?;
+        }
     }
     result.map_err(|e| e.to_string().into())
 }

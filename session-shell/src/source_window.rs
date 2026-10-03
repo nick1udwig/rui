@@ -216,6 +216,10 @@ pub fn build(
         "Isolated native source: physical keys use the host layout.",
     ));
     label.set_wrap(true);
+    label.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
+    label.set_max_width_chars(80);
+    label.set_lines(3);
+    label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
     let content = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
     content.append(&canvas);
     content.append(&label);

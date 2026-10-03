@@ -1,0 +1,20 @@
+{
+  "driver_panic_shutdown_test_passes": 1,
+  "native_dependencies": {
+    "gtk4": "4.22.4",
+    "libei": "1.6.0",
+    "libeis": "1.6.0",
+    "xkbcommon": "1.13.2"
+  },
+  "native_test_passes": 43,
+  "probe_sha256": "7cc75017843f2e3feba95556ebda4fcc52c430cef9f3112700098ce413a1062e",
+  "reports_sha256": {
+    "native-held-disconnect.json": "2e1b15f97c8f46191bca5d770c6e1602186dc3cafdf33cf2d0a4a18ae01d63e8",
+    "native-held-expiry.json": "51dcab5c372f5f862972ad27c965a83d496ce6a3d218bd9bba44998fc9f5e94b",
+    "native-held-local-takeover.json": "98d79057b95d2724647bea68ba0b5dc1be277fddfb74c36bd500ddd19c599d12",
+    "native-held-revoke.json": "b2c741db3cb0350e3c2deada29e18452c84e4c5ae99c68c704710b112df89da1"
+  },
+  "scope": "Root independently rebuilt and ran four frozen native held-input cleanup variants on owned authenticated Xvfb, private service-free D-Bus and loopback TLS; no physical scanout claim.",
+  "strict_native_all_target_clippy": true,
+  "xvfb_sha256": "567a9b39284e303522fdc178059fe60d0e9917b811bd5066fb63260fd198a97c"
+}

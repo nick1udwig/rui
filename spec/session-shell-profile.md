@@ -311,8 +311,7 @@ The port unit/native tests use explicit trusted receipt fixtures. The optional
 `native-mirrors` example now passes actual TLS/two-mirror presentation and native
 physical callbacks against the same source owner, with exact records/pixels,
 host layout/repeat, unequal coordinate mapping, topology/cursor and local takeover.
-See `fixtures/session-shell/native-session.json`; negative routing, held-input
-cleanup and the remaining authorization matrix are still M4 work. Host IME and remote source resize are unsupported by this
+See `fixtures/session-shell/native-session.json`; negative routing and the remaining authorization matrix are still M4 work. Host IME and remote source resize are unsupported by this
 `raw.host.v1` port and are not advertised. Controlled-host resize and broader
 M2 controls are assessed separately from this isolated native backend.
 
@@ -328,3 +327,42 @@ Trusted owner diagnostics retain only the latest completed cleanup reason,
 lease generation and completion time, plus the current lease generation/deadline
 and native work generation. These fixed-size observations contain no lease
 capability or text and allow probes to distinguish expiry from disconnect.
+
+
+## Actual held-input cleanup matrix
+
+Root independently rebuilt the frozen native session probe and passed four
+separate private-display runs, retained in `fixtures/session-shell/native-held-*.json`.
+The source first receives one real remote key press and one button press. An
+opaque controller-only TLS relay then cuts the socket or stops renewal; the
+other variants revoke local pairing approval or deliver an actual source-window
+GDK click. Authoritative diagnostics require the original lease generation and
+respectively Disconnect, Expired, AuthorizationChanged or LocalActivity. Expiry
+occurs no earlier than the recorded deadline while the original connection and
+approval remain live; local takeover also advances native work generation.
+
+Every run observes both native cleanup release frames, zero held state and a
+Ready owner after the receiving EIS STOP. Old physical releases have no new
+native effect. The healthy observer's complete records and actual after-paint
+pixels equal its same-owner source projection. Non-revoked clients recover only
+after a fresh manual grant and a new physical press/release; no held state is
+restored. All frontend/server/owner charges return to zero after disposal.
+
+The harness waits for the broker's actual Presented marker before its one-shot
+Request Control click, rather than treating a local after-paint callback as a
+network acknowledgment. That trusted read requires a current connected, opened,
+approved view and cannot create a marker. Private bus configuration has no
+service activation directories. Owned process groups always terminate, driver
+panic requests GTK shutdown, and child logs retain at most 64 KiB. The source text
+preview wraps long runs and ellipsizes after three lines without truncating the
+authoritative text model. Root's 43 native tests, panic-shutdown regression and
+strict native all-target Clippy pass alongside the four actual runs.
+
+```sh
+cargo build --offline --locked -p rui-session-shell --features native-mirrors --example native_session_smoke
+python3 fixtures/session-shell/native_session.py --xvfb /tmp/rui-xvfb/usr/bin/Xvfb --matrix disconnect --report /tmp/rui-held-disconnect.json
+```
+
+Repeat with `expiry`, `revoke` and `local-takeover`, each with a fresh report path.
+This declared backend remains an isolated exported session, not arbitrary
+personal desktop input or physical scanout evidence.

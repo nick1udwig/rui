@@ -109,7 +109,9 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   and priority-cleanup tests. Actual TLS/two-mirror physical input, native host
   layout/repeat, unequal coordinate mapping, topology/cursor and local takeover
   now pass the root-reviewed baseline. Direct-versus-local click equivalence,
-  stale-route negatives, held-input cleanup and app-only denial remain. The
+  stale-route negatives and app-only denial remain. Independent actual runs now
+  accept disconnect/expiry/approval/local-takeover held-input cleanup, exact causes,
+  native releases/STOP, observer convergence and zero disposal ownership. The
   separate MUL-005 live-control TLS retry case is accepted.
 - **M5 remains open for the final case-by-case audit.** Python button exact retry,
   Unicode public-text replacement and stable-item selection now converge with both
