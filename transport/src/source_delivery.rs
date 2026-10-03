@@ -106,14 +106,16 @@ impl Delivery {
     }
     pub fn evicted(
         &mut self,
-        host: &ControlledHost,
+        host: &mut ControlledHost,
         session: &NegotiatedSession,
         ids: &p::ResourceIds,
-    ) -> Result<(), TransportError> {
+    ) -> Result<bool, TransportError> {
         if ids.digests.is_empty() || ids.digests.len() > MAX_RESOURCES {
             return Err(TransportError::Limit);
         }
         let mut unique = BTreeSet::new();
+        let mut missing = BTreeSet::new();
+        let mut retired = Vec::new();
         for raw in &ids.digests {
             let digest = codec::digest(raw)?;
             if !unique.insert(digest) {
@@ -133,19 +135,31 @@ impl Delivery {
                     .is_ok()
             });
             if !current && !live {
-                return Err(TransportError::Authority);
+                host.authorize_resource_eviction(&session.client, session.view_id, digest)
+                    .map_err(|_| TransportError::Authority)?;
+                retired.push(digest);
+            } else {
+                missing.insert(digest);
             }
         }
-        if self.evicted.len() + unique.iter().filter(|d| !self.evicted.contains(*d)).count()
+        if self.evicted.len()
+            + missing
+                .iter()
+                .filter(|d| !self.evicted.contains(*d))
+                .count()
             > MAX_RESOURCES
         {
             return Err(TransportError::Limit);
         }
-        self.evicted.extend(unique);
-        if self.started.is_none() {
+        // Every ID/duplicate/limit check passed before either owner mutates.
+        host.acknowledge_retired_resource_evictions(&session.client, session.view_id, &retired)
+            .map_err(|_| TransportError::Authority)?;
+        let affects_readiness = !missing.is_empty();
+        self.evicted.extend(missing);
+        if affects_readiness && self.started.is_none() {
             self.started = Some(Instant::now());
         }
-        Ok(())
+        Ok(affects_readiness)
     }
     pub fn available(&mut self, ids: p::ResourceIds) -> Result<(), TransportError> {
         if ids.digests.is_empty() || ids.digests.len() > MAX_RESOURCES {
@@ -404,13 +418,13 @@ mod tests {
             vec![digest.to_vec(), digest.to_vec()],
         ] {
             assert!(delivery
-                .evicted(&host, &session, &p::ResourceIds { digests: invalid })
+                .evicted(&mut host, &session, &p::ResourceIds { digests: invalid })
                 .is_err());
             assert!(delivery.evicted.is_empty());
             assert!(delivery.started.is_none());
             delivery.applied(1).unwrap();
         }
-        delivery.evicted(&host, &session, &ids()).unwrap();
+        assert!(delivery.evicted(&mut host, &session, &ids()).unwrap());
         assert!(delivery.started.is_some());
         assert!(!delivery.can_start());
         // Declared loss itself blocks re-APPLIED, even before NeedResources.

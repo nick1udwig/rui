@@ -429,8 +429,9 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                                 },
                                 p::Kind::ResourceAvailable=>{delivery.available(ids)?;false},
                                 p::Kind::ResourceEvicted=>{
-                                    delivery.evicted(&host,&session,&ids)?;
-                                    host.mark_resources_missing(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;
+                                    if delivery.evicted(&mut host,&session,&ids)? {
+                                        host.mark_resources_missing(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;
+                                    }
                                     false
                                 }
                                 _=>unreachable!(),

@@ -282,6 +282,72 @@ fn ordered_closed_public_glyphs_are_stable_and_private_content_never_shapes() {
     assert!(!held.bytes().is_empty());
 }
 #[test]
+fn declared_resource_metadata_is_view_bound_and_is_not_a_body_grant() {
+    let mut host = ControlledHost::new_corpus_with_fonts(
+        HostConfig::default(),
+        SECRET.into(),
+        Arc::new(PublicProvider {
+            calls: AtomicUsize::new(0),
+        }),
+    )
+    .unwrap();
+    let (observer, _) = open(&mut host, 4, false, false);
+    let capture = host
+        .source_capture(&observer.client, observer.view_id)
+        .unwrap();
+    let digest = capture.resources().next().unwrap().0.digest;
+    assert_eq!(
+        host.known_resource_count(&observer.client, observer.view_id)
+            .unwrap(),
+        1
+    );
+    host.authorize_resource_eviction(&observer.client, observer.view_id, digest)
+        .unwrap();
+    let wrong = rui_protocol_core::commands::AuthenticatedClient {
+        principal: "other".into(),
+        ..observer.client.clone()
+    };
+    assert!(host
+        .authorize_resource_eviction(&wrong, observer.view_id, digest)
+        .is_err());
+    assert!(host
+        .acknowledge_retired_resource_evictions(
+            &observer.client,
+            observer.view_id,
+            &[digest, [99; 32]]
+        )
+        .is_err());
+    assert_eq!(
+        host.known_resource_count(&observer.client, observer.view_id)
+            .unwrap(),
+        1
+    );
+    host.disconnect(&observer.client, 1).unwrap();
+    assert!(host
+        .authorize_resource_eviction(&observer.client, observer.view_id, digest)
+        .is_err());
+    let fresh = host.negotiate(auth(false), hello(4, true), 2).unwrap();
+    assert_ne!(fresh.view_id, observer.view_id);
+    assert_eq!(
+        host.known_resource_count(&fresh.client, fresh.view_id)
+            .unwrap(),
+        0
+    );
+    assert!(host
+        .authorize_resource_eviction(&fresh.client, fresh.view_id, digest)
+        .is_err());
+    assert!(host.resource(&fresh.client, fresh.view_id, digest).is_err());
+    drop(host.checkpoint(&fresh.client, fresh.view_id).unwrap());
+    assert_eq!(
+        host.known_resource_count(&fresh.client, fresh.view_id)
+            .unwrap(),
+        0
+    );
+    // Already-held old capture bytes stay owned locally, without authorizing the
+    // new projection to use their digest for either bookkeeping or reads.
+    assert!(!capture.resources().next().unwrap().1.is_empty());
+}
+#[test]
 fn unsupported_unicode_edit_applies_semantics_and_publishes_truthful_partial_coverage() {
     let provider = Arc::new(PublicProvider {
         calls: AtomicUsize::new(0),

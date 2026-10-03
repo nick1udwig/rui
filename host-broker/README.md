@@ -114,6 +114,13 @@ bodies and registry content never appear in automatic Debug/errors. The sibling
 transport crate supplies authorized network offer/chunk/ack retention and
 retained replica recovery; this source API itself performs no network I/O.
 
+The host separately remembers up to 4096 producer-declared resource digests per
+view for ordinary retired-cache eviction bookkeeping, charged by a conservative
+512 KiB reservation before insertion. Declarations include offline/unsent source
+publications and do not prove a peer cached a resource. They never grant body
+access. Retired notifications remove old metadata, and new policy/view or local
+revocation clears it. Exhausting this bound closes the affected publication view.
+
 The default tests are pure Rust. Run the explicit native font gate on the pinned
 source environment (GTK4.22.4/Pango1.58.2/Cairo1.18.4, Python GI/Cairo and the
 bundled verified font), without an availability-based skip:

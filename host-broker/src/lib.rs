@@ -183,6 +183,8 @@ struct Projection {
     resources: Option<PublicationAttachment>,
     resource_registry: BTreeMap<ResourceDigest, Vec<WeakPublicationAttachment>>,
     authorization_lifetime: Option<AuthorizationLifetime>,
+    known_resources: BTreeSet<ResourceDigest>,
+    resource_knowledge_memory: Option<ViewMemoryReservation>,
 }
 #[derive(Clone)]
 struct RecordStamp {
@@ -216,6 +218,8 @@ impl Projection {
             resources: None,
             resource_registry: BTreeMap::new(),
             authorization_lifetime: None,
+            known_resources: BTreeSet::new(),
+            resource_knowledge_memory: None,
         }
     }
     fn envelope(
@@ -331,6 +335,67 @@ impl ControlledHost {
             .and_then(|r| r.outlines.iter().position(|r| r.offer().digest == digest))
             .ok_or(HostError::ResourceUnavailable)?;
         Ok(AuthorizedResource { attachment, index })
+    }
+    /// Transport cache bookkeeping only: a previously declared digest permits
+    /// reporting an ordinary retired eviction, never reading its offer/body.
+    pub fn authorize_resource_eviction(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        digest: ResourceDigest,
+    ) -> Result<(), HostError> {
+        if self
+            .projection(client, view)?
+            .known_resources
+            .contains(&digest)
+        {
+            Ok(())
+        } else {
+            Err(HostError::ResourceUnavailable)
+        }
+    }
+    /// Forget harmless retired-cache declarations after a fully validated batch.
+    /// Current source dependencies stay remembered for future cache pressure.
+    pub fn acknowledge_retired_resource_evictions(
+        &mut self,
+        client: &AuthenticatedClient,
+        view: Id,
+        digests: &[ResourceDigest],
+    ) -> Result<(), HostError> {
+        if digests.len() > 512 {
+            return Err(HostError::FixtureLimit);
+        }
+        let projection = self.projection(client, view)?;
+        if digests
+            .iter()
+            .any(|digest| !projection.known_resources.contains(digest))
+        {
+            return Err(HostError::ResourceUnavailable);
+        }
+        let projection = self
+            .projections
+            .get_mut(&client.client_instance_id)
+            .unwrap();
+        for digest in digests {
+            let current = projection
+                .resources
+                .as_ref()
+                .and_then(|resources| resources.get::<ResourceClosure>())
+                .is_some_and(|closure| {
+                    closure.outlines.iter().any(|r| &r.offer().digest == digest)
+                });
+            if !current {
+                projection.known_resources.remove(digest);
+            }
+        }
+        Ok(())
+    }
+    pub fn known_resource_count(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+    ) -> Result<usize, HostError> {
+        Ok(self.projection(client, view)?.known_resources.len())
     }
     /// Trusted transport scratch/writer allocation against the same view ceiling.
     /// Reserve before allocating and retain through buffered socket lifetime.
@@ -520,6 +585,8 @@ impl ControlledHost {
         if !can_install_resources(projection, &resources) {
             return Err(SessionError::Oversized.into());
         }
+        let knowledge_memory =
+            resource_knowledge_reservation(&self.sessions, projection, &resources)?;
         let snapshot = p::Snapshot {
             revision,
             records: capture.records,
@@ -547,6 +614,7 @@ impl ControlledHost {
         projection.text_clock = self.source.text_clock;
         projection.records = capture.stamps;
         install_resources(projection, resources)?;
+        install_resource_knowledge(projection, knowledge_memory);
         projection.checkpoint_required = false;
         Ok(output)
     }
@@ -1132,6 +1200,14 @@ fn publish_projections(
             close_projection(sessions, projection, PublicationFailure::ReceiverLimit, now);
             continue;
         }
+        let knowledge_memory =
+            match resource_knowledge_reservation(sessions, projection, &resources) {
+                Ok(memory) => memory,
+                Err(_) => {
+                    close_projection(sessions, projection, PublicationFailure::ReceiverLimit, now);
+                    continue;
+                }
+            };
         let mutations = capture.mutations;
         if mutations.len() > projection.limits.records {
             close_projection(sessions, projection, PublicationFailure::ReceiverLimit, now);
@@ -1166,6 +1242,7 @@ fn publish_projections(
                 projection.text_clock = source.text_clock;
                 projection.records = capture.stamps;
                 let _ = install_resources(projection, resources);
+                install_resource_knowledge(projection, knowledge_memory);
             }
             Err(error) => {
                 let reason = match error {
@@ -1192,6 +1269,51 @@ fn close_projection(
     projection.checkpoint_required = true;
     projection.resources = None;
     projection.resource_registry.clear();
+    projection.known_resources.clear();
+    projection.resource_knowledge_memory = None;
+}
+
+const MAX_KNOWN_RESOURCES: usize = 4096;
+const RESOURCE_KNOWLEDGE_BYTES: usize = MAX_KNOWN_RESOURCES * 128;
+fn resource_knowledge_reservation(
+    sessions: &SessionBroker,
+    projection: &Projection,
+    resources: &Option<PublicationAttachment>,
+) -> Result<Option<ViewMemoryReservation>, HostError> {
+    let Some(closure) = resources.as_ref().and_then(|r| r.get::<ResourceClosure>()) else {
+        return Ok(None);
+    };
+    let added = closure
+        .outlines
+        .iter()
+        .filter(|r| !projection.known_resources.contains(&r.offer().digest))
+        .count();
+    if projection.known_resources.len() + added > MAX_KNOWN_RESOURCES {
+        return Err(HostError::FixtureLimit);
+    }
+    if projection.resource_knowledge_memory.is_some() {
+        return Ok(None);
+    }
+    // Conservative BTreeSet metadata ceiling; reserve before inserting any IDs.
+    Ok(Some(sessions.reserve_producer_view_memory(
+        &projection.client,
+        projection.view_id,
+        RESOURCE_KNOWLEDGE_BYTES,
+    )?))
+}
+fn install_resource_knowledge(projection: &mut Projection, memory: Option<ViewMemoryReservation>) {
+    if let Some(memory) = memory {
+        projection.resource_knowledge_memory = Some(memory);
+    }
+    if let Some(closure) = projection
+        .resources
+        .as_ref()
+        .and_then(|r| r.get::<ResourceClosure>())
+    {
+        for outline in &closure.outlines {
+            projection.known_resources.insert(outline.offer().digest);
+        }
+    }
 }
 
 fn resource_digests(resources: &Option<PublicationAttachment>) -> Vec<Vec<u8>> {

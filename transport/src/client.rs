@@ -212,6 +212,15 @@ impl PendingReplies {
         binding: Option<(Id, Id, Id)>,
         make: impl FnOnce() -> p::Packet,
     ) -> Result<(), TransportError> {
+        let (memory, bytes) = self.reserve_message(kind, payload_len, binding)?;
+        self.push(make(), memory, bytes)
+    }
+    fn reserve_message(
+        &self,
+        kind: p::Kind,
+        payload_len: usize,
+        binding: Option<(Id, Id, Id)>,
+    ) -> Result<(MemoryReservation, usize), TransportError> {
         fn varint_len(mut n: usize) -> usize {
             let mut len = 1;
             while n >= 128 {
@@ -234,7 +243,7 @@ impl PendingReplies {
             .and_then(|n| n.checked_add(payload_len))
             .ok_or(TransportError::Limit)?;
         let memory = self.reserve(bytes)?;
-        self.push(make(), memory, bytes)
+        Ok((memory, bytes))
     }
     fn enqueue_packet(&mut self, packet: p::Packet) -> Result<(), TransportError> {
         let bytes = packet.encoded_len();
@@ -724,6 +733,36 @@ impl NetworkClient {
             })?;
         self.needed_requested += count;
         Ok(())
+    }
+    /// Ordinary cache pressure releases one retired, unpinned entry. Current
+    /// graph and candidate dependencies cannot be evicted by this operation.
+    /// Cancellation retains the queued notification for the next flush.
+    pub async fn evict_unpinned_resource(&mut self) -> Result<Option<[u8; 32]>, TransportError> {
+        let binding = self.binding();
+        let (memory, bytes) =
+            self.pending
+                .reserve_message(p::Kind::ResourceEvicted, 34, binding)?;
+        let Some(evicted) = self
+            .receiver
+            .evict_one_unpinned_resource()
+            .map_err(|_| TransportError::Receiver)?
+        else {
+            return Ok(None);
+        };
+        let digest = evicted.digest;
+        self.pending.push(
+            codec::wrap(
+                p::Kind::ResourceEvicted,
+                &p::ResourceIds {
+                    digests: vec![digest.to_vec()],
+                },
+                binding,
+            ),
+            memory,
+            bytes,
+        )?;
+        self.flush_pending().await?;
+        Ok(Some(digest))
     }
     /// Trusted local cache-loss signal. It pauses presentation immediately;
     /// resource recovery is requested in bounded pages and APPLIED is re-sent
