@@ -43,6 +43,67 @@ fn batch(events: Vec<Event>) -> InputBatch {
 fn router() -> InputRouter {
     InputRouter::new(1, InputLimits::default()).unwrap()
 }
+#[test]
+fn pure_preflight_preserves_timestamps_and_held_transitions_and_rejects_late_errors() {
+    let mut router = router();
+    let mut future_motion = batch(vec![Event::Motion(point())]);
+    future_motion.events[0].timestamp_us = 1000;
+    router.validate(&route(), &future_motion).unwrap();
+    let press = batch(vec![Event::Key {
+        code: 30,
+        pressed: true,
+    }]);
+    router.validate(&route(), &press).unwrap();
+    router.validate(&route(), &press).unwrap();
+    assert_eq!(router.held(), &HeldInput::default());
+    let mut effects = 0;
+    router
+        .dispatch(&route(), &press, |_| {
+            effects += 1;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(effects, 1);
+    assert!(router.held().keys.contains(&30));
+    let invalid = batch(vec![
+        Event::Motion(point()),
+        Event::Key {
+            code: 30,
+            pressed: false,
+        },
+        Event::Key {
+            code: 31,
+            pressed: false,
+        },
+    ]);
+    assert_eq!(
+        router.validate(&route(), &invalid),
+        Err(InputError::Transition)
+    );
+    assert_eq!(
+        router.dispatch(&route(), &invalid, |_| {
+            effects += 1;
+            Ok(())
+        }),
+        Err(InputError::Transition)
+    );
+    assert_eq!(effects, 1);
+    assert!(router.held().keys.contains(&30));
+    let release = batch(vec![Event::Key {
+        code: 30,
+        pressed: false,
+    }]);
+    router.validate(&route(), &release).unwrap();
+    assert!(router.held().keys.contains(&30));
+    router
+        .dispatch(&route(), &release, |_| {
+            effects += 1;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(effects, 2);
+    assert!(router.held().keys.is_empty());
+}
 
 #[test]
 fn inp_001_inverse_letterbox_and_zoom_do_not_change_host_layout() {

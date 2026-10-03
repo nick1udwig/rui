@@ -236,6 +236,19 @@ impl InputRouter {
     pub fn held(&self) -> &HeldInput {
         &self.held
     }
+    /// Pure full-batch preflight before an adapter starts emulation or sends any
+    /// event. The bounded temporary state does not consume held transitions or
+    /// timestamp order in this router. Actual dispatch revalidates the batch.
+    pub fn validate(&self, route: &Route, batch: &InputBatch) -> Result<(), InputError> {
+        let mut temporary = Self {
+            surface: self.surface,
+            limits: self.limits.clone(),
+            held: self.held.clone(),
+            timestamp: self.timestamp,
+            failed: self.failed,
+        };
+        temporary.dispatch(route, batch, |_| Ok(()))
+    }
     /// Trusted cleanup bypasses stale routes, modality and focus. The adapter
     /// must deliver every release/cancel before another lease receives input.
     pub fn drain_cleanup(&mut self) -> HeldInput {
