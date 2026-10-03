@@ -16,7 +16,7 @@ use std::{
 };
 pub const SECRET: &str = "RESOURCE-TRANSPORT-PRIVATE-SENTINEL";
 pub const EDITED_SECRET: &str = "NEW-PRIVATE-ENTRY-ONLY-AUTHORIZED-CONTROLLER-938154";
-struct SyntheticPublicShaper;
+pub struct SyntheticPublicShaper;
 impl SourceFontProvider for SyntheticPublicShaper {
     fn shape(&self, text: &str, size: f64) -> Result<SourceShapedText, SourceFontError> {
         assert!(!text.contains(SECRET));

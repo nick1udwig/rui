@@ -1247,6 +1247,10 @@ impl ControlledHost {
         self.projection(client, view)?;
         Ok(self.sessions.retained_memory_bytes(client, view)?)
     }
+    pub fn queued_bytes(&self, client: &AuthenticatedClient, view: Id) -> Result<usize, HostError> {
+        self.projection(client, view)?;
+        Ok(self.sessions.queued_bytes(client, view)?)
+    }
     pub fn diagnostics(&self) -> HostDiagnostics {
         HostDiagnostics {
             source_commit: self.source.commit,
