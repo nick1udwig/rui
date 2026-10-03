@@ -1,5 +1,29 @@
 `rui-transport` binds the controlled headless host to real rustls TLS and tungstenite WebSockets. `ServerHandle::bind` accepts the host identity, bounded `PairingAuthority`, host fixture and cleanup callback. `NetworkClient::connect` requires an exact pinned DER certificate, a matching hostname, a locally approved credential and a registered producer ID. The certificate also passes normal rustls verification. No projection is constructed before authentication and authorization.
 
+`ProducerServerHandle::bind` uses the same authentication, framing, diagnostics
+and delivery path with a `ProducerPort`. The trusted adapter owns one source,
+broker and common command ledger; compound requests keep negotiation/resume
+keepers, readiness, admission and publication/resource selection in that owner.
+Issued connections carry an opaque owner/incarnation capability. Reusing a view
+ID cannot revive an old connection, and final delivery rechecks current capability
+and approval before attempting a write. Source envelopes must match the issued
+session/epoch/view before their payload receives a socket binding.
+
+The reference `ControlledPort` preserves the original shared fixture host for
+tests. It admits at most 32 normal requests under an 8 MiB owner budget, with
+conservative request/reply reservations and separately charged escaping immutable
+handles. One precharged persistent lifecycle task owns disconnect obligations
+even if a flush is busy or cancelled. It terminates after shutdown/final owner
+drop without retaining an owner cycle. A pending disconnect slot cannot be reused
+before its exact cleanup completes; cleanup failure permanently blocks new work.
+Lease checks add elapsed owner-queue time to the caller's monotonic timestamp.
+ACK/authorization/pump operations do not require extra view scratch allocation,
+so releasing readiness is still possible at the negotiated view-memory limit.
+
+Adapters must retain those lifecycle, timing and allocation contracts in their
+own owner lane. This transport boundary alone does not establish native injection,
+toolkit capture or graphical presentation; those adapters have separate gates.
+
 Run `cargo test -p rui-transport --test loopback --test resources --test reconnect` with loopback socket access. The resource tests use a bounded synthetic outline provider and cover cold paged closure delivery, warm updates, live cache loss, premature acknowledgments, invalid digest declarations and local approval revocation. Actual font rendering and GUI presentation are separate explicit native integration gates. Tests connect a controller and an observer through actual TLS, apply chunked binary Protobuf publications through `ViewReceiver`, edit Unicode scalars at the source, retry identical commands, reject observer dispatch, preserve private-field redaction and close a slow observer independently. Retained reconnect tests interrupt a chunked transaction, preserve committed state/cache, replay offline changes, restore lost resources and reject stale leases. The checked-in test certificate/private key are public test fixtures, never deployment identities.
 
 For concrete local pairing, run `cargo run -p rui-transport --example pair_and_serve -- CERTIFICATE.der PRIVATE_KEY.pkcs8.der NEW_CREDENTIAL_FILE`. It displays the public certificate fingerprint, producer ID, principal and exact requested permissions. The operator must type `APPROVE` before the credential is generated. The example creates a new owner-only file and never prints its bearer credential. Approval lives only in this process. A deployed application must supply its own local identity provisioning, secure credential delivery/storage and operator UI. No remote message can approve or widen access. Revocation invalidates the immutable grant even if the same principal is immediately approved again.
@@ -81,8 +105,10 @@ inside `inspect` have their own retention responsibility and cannot be recalled.
 The real TLS diagnostic tests cover resource-bearing snapshots/deltas, command
 bytes/results, both directions, credential/private-source exclusion, metadata
 mode, wrong scope, revocation, connection capacity and record exhaustion. These
-are recorder integration evidence; the full native interaction trace and decoded
-no-raster audit remain separate gates.
+are recorder integration evidence. The controlled native two-mirror interaction
+now has a separate [exact recorded network audit](../docs/desktop-controls.md),
+including full record prefixes and independently verified vector bodies. Real GTK
+producer wire composition and native session input remain separate gates.
 
 `tests/fault_matrix.rs` learns the bounded actual packet sequence, then closes
 owned TLS/WebSocket connections before every snapshot/delta begin, publication

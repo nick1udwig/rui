@@ -1,4 +1,7 @@
 use crate::diagnostics::{Diagnostics, RecordingSession};
+use crate::producer::{
+    self, Acknowledgement, Connection, Control, Operation, ProducerPort, Reply, Request,
+};
 use crate::source_delivery::Delivery;
 use crate::{
     codec, pairing::PairingAuthority, proto as p, websocket, HostIdentity, TransportError,
@@ -7,17 +10,12 @@ use prost::Message;
 use rui_host_broker::ControlledHost;
 use rui_protocol_core::commands::Id;
 use rui_protocol_core::publication::publication_digest;
-use rui_protocol_core::session::{
-    InputCleanup, NegotiatedSession, ResumeDisposition, SharedPayload,
-};
+use rui_protocol_core::session::{InputCleanup, ResumeDisposition, SharedPayload};
 use rui_protocol_core::transcript::Direction;
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeSet, VecDeque},
     net::SocketAddr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex as StdMutex,
-    },
+    sync::{Arc, Mutex as StdMutex},
     time::{Duration, Instant},
 };
 use tokio::{
@@ -29,16 +27,14 @@ use zeroize::Zeroize;
 
 #[derive(Clone)]
 pub struct ServerConfig {
-    /// Opt-in trusted local diagnostics; exact bytes require explicit policy.
     pub diagnostics: Option<Arc<Diagnostics>>,
     pub max_connections: usize,
     pub max_message_bytes: usize,
     pub handshake_timeout: Duration,
     pub send_timeout: Duration,
-    /// Whole publication/resource wait ceiling, including delayed APPLIED.
     pub publication_timeout: Duration,
-    /// Trusted host adapter callback: execute all cleanup before another lease
-    /// can be granted. The network never silently discards held-input cleanup.
+    /// Legacy ControlledHost cleanup adapter. Native producer ports own the
+    /// corresponding complete cleanup transaction themselves.
     pub cleanup: Arc<dyn Fn(InputCleanup) + Send + Sync>,
 }
 impl Default for ServerConfig {
@@ -63,11 +59,9 @@ impl Default for ServerConfig {
     }
 }
 struct Shared {
-    host: Arc<Mutex<ControlledHost>>,
+    port: Arc<dyn ProducerPort>,
     pairing: Arc<StdMutex<PairingAuthority>>,
     active: StdMutex<BTreeSet<Id>>,
-    revoked: StdMutex<BTreeMap<Id, p::ControlRevoked>>,
-    cleanup_busy: AtomicBool,
     start: Instant,
     config: ServerConfig,
 }
@@ -76,11 +70,32 @@ impl Shared {
         self.start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
     }
 }
+struct Runtime {
+    stop: Option<oneshot::Sender<()>>,
+    task: Option<JoinHandle<()>>,
+}
+impl Runtime {
+    async fn shutdown(mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        if let Some(task) = self.task.take() {
+            let _ = task.await;
+        }
+    }
+}
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+    }
+}
+/// Backwards-compatible fixture host handle for trusted source tests.
 pub struct ServerHandle {
     pub address: SocketAddr,
     pub host: Arc<Mutex<ControlledHost>>,
-    stop: Option<oneshot::Sender<()>>,
-    task: Option<JoinHandle<()>>,
+    runtime: Runtime,
 }
 impl ServerHandle {
     pub async fn bind(
@@ -90,7 +105,39 @@ impl ServerHandle {
         pairing: Arc<StdMutex<PairingAuthority>>,
         config: ServerConfig,
     ) -> Result<Self, TransportError> {
+        let host = Arc::new(Mutex::new(host));
+        let port = producer::ControlledPort::new(
+            host.clone(),
+            config.cleanup.clone(),
+            config.max_connections,
+        )?;
+        let server =
+            ProducerServerHandle::bind(address, identity, Arc::new(port), pairing, config).await?;
+        Ok(Self {
+            address: server.address,
+            host,
+            runtime: server.runtime,
+        })
+    }
+    pub async fn shutdown(self) {
+        self.runtime.shutdown().await;
+    }
+}
+/// The same pinned TLS/framing/recording path with an independently owned source.
+pub struct ProducerServerHandle {
+    pub address: SocketAddr,
+    runtime: Runtime,
+}
+impl ProducerServerHandle {
+    pub async fn bind(
+        address: SocketAddr,
+        identity: HostIdentity,
+        port: Arc<dyn ProducerPort>,
+        pairing: Arc<StdMutex<PairingAuthority>>,
+        config: ServerConfig,
+    ) -> Result<Self, TransportError> {
         if config.max_connections == 0
+            || config.max_connections > 128
             || config.max_message_bytes < websocket::MIN_MESSAGE
             || config.max_message_bytes > 1024 * 1024
             || config.handshake_timeout.is_zero()
@@ -103,13 +150,10 @@ impl ServerHandle {
             .await
             .map_err(|_| TransportError::Io)?;
         let address = listener.local_addr().map_err(|_| TransportError::Io)?;
-        let host = Arc::new(Mutex::new(host));
         let shared = Arc::new(Shared {
-            host: host.clone(),
+            port,
             pairing,
             active: StdMutex::new(BTreeSet::new()),
-            revoked: StdMutex::new(BTreeMap::new()),
-            cleanup_busy: AtomicBool::new(false),
             start: Instant::now(),
             config: config.clone(),
         });
@@ -122,36 +166,29 @@ impl ServerHandle {
                 tokio::select! {
                     _=&mut stopped=>break,
                     Some(_)=tasks.join_next(),if !tasks.is_empty()=>{},
-                    accepted=listener.accept()=>{let Ok((tcp,_))=accepted else {break;};let Ok(permit)=permits.clone().try_acquire_owned() else {drop(tcp);continue;};
-                        let shared=shared.clone();let acceptor=acceptor.clone();tasks.spawn(async move {let _permit=permit;let _=connection(tcp,acceptor,shared).await;});}
+                    accepted=listener.accept()=>{let Ok((tcp,_))=accepted else{break;};let Ok(permit)=permits.clone().try_acquire_owned()else{drop(tcp);continue;};
+                        let shared=shared.clone();let acceptor=acceptor.clone();tasks.spawn(async move{let _permit=permit;let _=connection(tcp,acceptor,shared).await;});}
                 }
             }
-            shared.host.lock().await.local_activity(shared.now());
-            drain_cleanup(&shared).await;
+            shared.port.shutdown();
             tasks.abort_all();
             while tasks.join_next().await.is_some() {}
+            let _ = tokio::time::timeout(
+                Duration::from_secs(3),
+                shared.port.flush_lifecycle(shared.now()),
+            )
+            .await;
         });
         Ok(Self {
             address,
-            host,
-            stop: Some(stop),
-            task: Some(task),
+            runtime: Runtime {
+                stop: Some(stop),
+                task: Some(task),
+            },
         })
     }
-    pub async fn shutdown(mut self) {
-        if let Some(stop) = self.stop.take() {
-            let _ = stop.send(());
-        }
-        if let Some(task) = self.task.take() {
-            let _ = task.await;
-        }
-    }
-}
-impl Drop for ServerHandle {
-    fn drop(&mut self) {
-        if let Some(stop) = self.stop.take() {
-            let _ = stop.send(());
-        }
+    pub async fn shutdown(self) {
+        self.runtime.shutdown().await;
     }
 }
 struct ActiveGuard {
@@ -163,34 +200,15 @@ impl Drop for ActiveGuard {
         if let Ok(mut active) = self.shared.active.lock() {
             active.remove(&self.id);
         }
-        if let Ok(mut revoked) = self.shared.revoked.lock() {
-            revoked.remove(&self.id);
-        }
     }
 }
-async fn drain_cleanup(shared: &Shared) {
-    let mut host = shared.host.lock().await;
-    drain_host_cleanup(shared, &mut host);
+struct ConnectionGuard {
+    port: Arc<dyn ProducerPort>,
+    connection: Connection,
 }
-fn drain_host_cleanup(shared: &Shared, host: &mut ControlledHost) {
-    if shared.cleanup_busy.load(Ordering::Acquire) {
-        return;
-    }
-    while let Some(cleanup) = host.take_cleanup() {
-        shared.cleanup_busy.store(true, Ordering::Release);
-        let notice = p::ControlRevoked {
-            lease_id: cleanup.lease.lease_id.to_vec(),
-            generation: cleanup.lease.generation,
-            reason: format!("{:?}", cleanup.reason),
-        };
-        let client = cleanup.lease.client.client_instance_id;
-        (shared.config.cleanup)(cleanup);
-        shared.cleanup_busy.store(false, Ordering::Release);
-        if shared.active.lock().is_ok_and(|a| a.contains(&client)) {
-            if let Ok(mut revoked) = shared.revoked.lock() {
-                revoked.insert(client, notice);
-            }
-        }
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        self.port.disconnect(&self.connection);
     }
 }
 async fn connection(
@@ -242,7 +260,6 @@ async fn connection(
     raw.zeroize();
     let fresh_view = wire.fresh_view;
     let mut hello = codec::hello(wire)?;
-    // The upgrade selected the parser bound before reading an envelope body.
     if hello.receiver_limits.envelope_bytes < ceiling {
         return Err(TransportError::Limit);
     }
@@ -274,117 +291,104 @@ async fn connection(
         shared: shared.clone(),
         id: client_id,
     };
-    let (session, resume_keeper) = {
-        let mut host = shared.host.lock().await;
-        let pairing = shared
-            .pairing
-            .lock()
-            .map_err(|_| TransportError::Authentication)?;
-        if !pairing.remains_authorized(approval, client_id, &authorization) {
-            return Err(TransportError::Authentication);
-        }
-        if fresh_view {
-            host.retire_registered_view(
-                &rui_protocol_core::commands::AuthenticatedClient {
-                    principal: authorization.principal.clone(),
-                    client_instance_id: client_id,
-                },
-                shared.now(),
-            )
-            .map_err(|_| TransportError::Authority)?;
-        }
-        let session = host
-            .negotiate_with_lifetime(
-                authorization.clone(),
-                hello,
-                Some(lifetime.clone()),
-                shared.now(),
-            )
-            .map_err(|_| TransportError::Authority)?;
-        // Capture the exact zero-delta keeper while negotiation and source
-        // state share the host lock; later source changes queue normal deltas.
-        let keeper = if matches!(&session.resume,ResumeDisposition::Accepted {from_revision,through_revision,..} if from_revision==through_revision)
-        {
-            match host.snapshot_publication(&session.client, session.view_id) {
-                Ok(frame) => Some(frame),
-                Err(_) => {
-                    let _ = host.disconnect(&session.client, shared.now());
-                    drop(pairing);
-                    drain_host_cleanup(&shared, &mut host);
-                    return Err(TransportError::Limit);
-                }
-            }
-        } else {
-            None
-        };
-        (session, keeper)
+    if !shared
+        .pairing
+        .lock()
+        .map_err(|_| TransportError::Authentication)?
+        .remains_authorized(approval, client_id, &authorization)
+    {
+        return Err(TransportError::Authentication);
+    }
+    let received = shared
+        .port
+        .transact(Request::Connect {
+            authorization: authorization.clone(),
+            hello: Box::new(hello),
+            lifetime: lifetime.clone(),
+            fresh_view,
+            now: shared.now(),
+        })
+        .await?;
+    let Reply::Connected(connection) = received.value() else {
+        return Err(TransportError::Protocol);
     };
-    let client = session.client.clone();
+    let connection = connection.clone();
+    drop(received);
+    let _connection = ConnectionGuard {
+        port: shared.port.clone(),
+        connection: connection.clone(),
+    };
     let recording = if let Some(owner) = &shared.config.diagnostics {
-        let host = shared.host.lock().await;
-        let memory = host
-            .reserve_view_memory(&client, session.view_id, owner.reservation_bytes())
-            .map_err(|_| TransportError::Limit);
-        match memory.and_then(|memory| owner.open(&session, lifetime, memory)) {
-            Ok(recording) => Some(recording),
-            Err(error) => {
-                drop(host);
-                let _ = shared.host.lock().await.disconnect(&client, shared.now());
-                drain_cleanup(&shared).await;
-                return Err(error);
-            }
-        }
+        let memory = reserve(&shared, &connection, owner.reservation_bytes()).await?;
+        Some(owner.open(connection.session(), lifetime, memory)?)
     } else {
         None
     };
     let result = run_authenticated(
         &mut socket,
         &shared,
-        session,
+        &connection,
         ceiling,
         approval,
-        authorization,
-        resume_keeper,
+        &authorization,
         recording,
     )
     .await;
-    let _ = shared.host.lock().await.disconnect(&client, shared.now());
-    drain_cleanup(&shared).await;
+    shared.port.disconnect(&connection);
+    let _ = shared.port.flush_lifecycle(shared.now()).await;
     result
 }
-#[allow(clippy::too_many_arguments)] // Authenticated ownership and resume keeper remain explicit.
+async fn request(
+    shared: &Shared,
+    connection: &Connection,
+    operation: Operation,
+) -> Result<producer::Received, TransportError> {
+    shared
+        .port
+        .transact(Request::Scoped {
+            connection: connection.clone(),
+            operation,
+            now: shared.now(),
+        })
+        .await
+}
+async fn reserve(
+    shared: &Shared,
+    connection: &Connection,
+    bytes: usize,
+) -> Result<rui_protocol_core::session::ViewMemoryReservation, TransportError> {
+    request(shared, connection, Operation::ReserveMemory { bytes })
+        .await?
+        .into_memory()
+}
+#[allow(clippy::too_many_arguments)]
 async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     socket: &mut tokio_tungstenite::WebSocketStream<S>,
     shared: &Shared,
-    session: NegotiatedSession,
+    connection: &Connection,
     ceiling: usize,
     approval: [u8; 32],
-    authorization: rui_protocol_core::session::VerifiedAuthorization,
-    mut resume_keeper: Option<SharedPayload>,
+    authorization: &rui_protocol_core::session::VerifiedAuthorization,
     recording: Option<RecordingSession>,
 ) -> Result<(), TransportError> {
+    let session = connection.session();
     if session.limits.envelope_bytes != ceiling {
         return Err(TransportError::Limit);
     }
     let binding = Some((session.session_id, session.epoch, session.view_id));
     let timeout = shared.config.send_timeout;
-    // Lifetime headroom is acquired before a post-authenticated socket send
-    // can retain encoded bytes. It also covers one bounded incoming decode.
-    let (_io_memory, mut delivery) = {
-        let host = shared.host.lock().await;
-        let _pairing = approved(shared, &session, approval, &authorization)?;
-        let memory = host
-            .reserve_view_memory(
-                &session.client,
-                session.view_id,
-                ceiling
-                    .checked_mul(8)
-                    .and_then(|n| n.checked_add(128 * 1024))
-                    .ok_or(TransportError::Limit)?,
-            )
-            .map_err(|_| TransportError::Limit)?;
-        (memory, Delivery::new(&host, &session)?)
-    };
+    approved(shared, connection, approval, authorization)?;
+    let _io_memory = reserve(
+        shared,
+        connection,
+        ceiling
+            .checked_mul(8)
+            .and_then(|n| n.checked_add(128 * 1024))
+            .ok_or(TransportError::Limit)?,
+    )
+    .await?;
+    let mut delivery =
+        Delivery::new(reserve(shared, connection, Delivery::reservation_bytes()).await?);
     let hello = p::ServerHello {
         selected_version: session.version,
         selected_profiles: session.profiles.iter().cloned().collect(),
@@ -405,16 +409,20 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
         codec::wrap(p::Kind::ServerHello, &hello, binding),
         ceiling,
         timeout,
+        shared,
+        connection,
+        approval,
+        authorization,
     )
     .await?;
     let mut opened = false;
     let mut queued = VecDeque::new();
-    let chunk_size = session
+    let chunk = session
         .limits
         .chunk_bytes
         .min(ceiling.saturating_sub(256))
         .min(session.limits.outbound_queue_bytes.saturating_sub(512) / 4);
-    if chunk_size == 0 {
+    if chunk == 0 {
         return Err(TransportError::Limit);
     }
     let mut heartbeat = tokio::time::interval(Duration::from_millis(2));
@@ -422,94 +430,58 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
         tokio::select! {
             raw=websocket::receive(socket)=>{
                 let raw=raw?;let packet=codec::packet(&raw,ceiling,binding)?;let kind=p::Kind::try_from(packet.kind).map_err(|_|TransportError::Protocol)?;
-                if !shared.pairing.lock().map_err(|_|TransportError::Authentication)?.remains_authorized(approval,session.client.client_instance_id,&authorization) {return Err(TransportError::Authentication);}
-                if kind==p::Kind::OpenView {
-                    if opened {return Err(TransportError::Protocol);}let view:p::OpenView=codec::decode(&packet.payload,ceiling)?;
-                    let semantic_only=session.profiles.contains("semantics.only.v1");
-                    if view.selection!="fixture" || view.mirror_canvas_policy!=if semantic_only {"semantic-only"}else {"host-canvas"} {return Err(TransportError::Protocol);}opened=true;
-                    let description={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?};
-                    record_incoming(recording.as_ref(),kind,&raw)?;
-                    let opened=p::ViewOpened {view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage,granted_input_modes:description.input_modes,input_devices:description.input_devices.into_iter().map(|d|p::InputDeviceGrant{seat_id:d.seat_id,device_id:d.device_id,key_namespace:d.key_namespace,input_mode:d.input_mode,text_owner:d.text_owner}).collect()};
-                    send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ViewOpened,&opened,binding),ceiling,timeout).await?;
-                    match &session.resume {
-                        ResumeDisposition::Accepted {from_revision,through_revision,transactions,requires_resources}=>{
-                            let resumed=p::ResumeAccepted {from_revision:*from_revision,through_revision:*through_revision,requires_resources:*requires_resources};
-                            send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ResumeAccepted,&resumed,binding),ceiling,timeout).await?;
-                            if from_revision==through_revision {
-                                delivery.seed_resumed(*from_revision,resume_keeper.take().ok_or(TransportError::Protocol)?);
-                            }
+                approved(shared,connection,approval,authorization)?;
+                if kind==p::Kind::OpenView{
+                    if opened{return Err(TransportError::Protocol);}let view:p::OpenView=codec::decode(&packet.payload,ceiling)?;
+                    let received=request(shared,connection,Operation::Open{selection:view.selection,mirror_canvas_policy:view.mirror_canvas_policy}).await?;
+                    let Reply::Opened{description,checkpoint}=received.value()else{return Err(TransportError::Protocol);};opened=true;
+                    let message=p::ViewOpened{view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage.clone(),granted_input_modes:description.input_modes.clone(),input_devices:description.input_devices.iter().map(|d|p::InputDeviceGrant{seat_id:d.seat_id.clone(),device_id:d.device_id.clone(),key_namespace:d.key_namespace.clone(),input_mode:d.input_mode.clone(),text_owner:d.text_owner.clone()}).collect()};
+                    let checkpoint=checkpoint.clone();drop(received);record_incoming(recording.as_ref(),kind,&raw)?;
+                    send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ViewOpened,&message,binding),ceiling,timeout,shared,connection,approval,authorization).await?;
+                    match &session.resume{
+                        ResumeDisposition::Accepted{from_revision,through_revision,transactions,requires_resources}=>{
+                            send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ResumeAccepted,&p::ResumeAccepted{from_revision:*from_revision,through_revision:*through_revision,requires_resources:*requires_resources},binding),ceiling,timeout,shared,connection,approval,authorization).await?;
+                        if from_revision==through_revision{let keeper=connection.resume_keeper().cloned().ok_or(TransportError::Protocol)?;source_scope(&keeper,session)?;delivery.seed_resumed(*from_revision,keeper);}
                             queued.extend(transactions.iter().cloned());
                         }
-                        _=>{
-                            if let ResumeDisposition::ResetRequired(reason)=&session.resume {send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ResetRequired,&p::ResetRequired {reason:format!("{reason:?}")},binding),ceiling,timeout).await?;}
-                            let mut host=shared.host.lock().await;let pairing=approved(shared,&session,approval,&authorization)?;
-                            queued.push_back(host.checkpoint(&session.client,session.view_id).map_err(|_|TransportError::Authority)?);drop(pairing);
+                        disposition=>{
+                            if let ResumeDisposition::ResetRequired(reason)=disposition{send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ResetRequired,&p::ResetRequired{reason:format!("{reason:?}")},binding),ceiling,timeout,shared,connection,approval,authorization).await?;}
+                            queued.push_back(checkpoint.ok_or(TransportError::Protocol)?);
                         }
                     }
-                }else {
-                    if !opened {return Err(TransportError::Protocol);}
-                    if matches!(kind,p::Kind::NeedResources|p::Kind::ResourceAvailable|p::Kind::ResourceEvicted) {
+                }else{
+                    if !opened{return Err(TransportError::Protocol);}
+                    if matches!(kind,p::Kind::NeedResources|p::Kind::ResourceAvailable|p::Kind::ResourceEvicted){
                         let ids:p::ResourceIds=codec::decode(&packet.payload,ceiling)?;
-                        let rejected={
-                            let mut host=shared.host.lock().await;
-                            let _pairing=approved(shared,&session,approval,&authorization)?;
-                            match kind {
-                                p::Kind::NeedResources=>match delivery.need(&host,&session,ids,chunk_size) {
-                                    Ok(())=>false,
-                                    Err(TransportError::Authority)=>true,
-                                    Err(error)=>return Err(error),
-                                },
-                                p::Kind::ResourceAvailable=>{delivery.available(ids)?;false},
-                                p::Kind::ResourceEvicted=>{
-                                    if delivery.evicted(&mut host,&session,&ids)? {
-                                        host.mark_resources_missing(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;
-                                    }
-                                    false
-                                }
-                                _=>unreachable!(),
-                            }
+                        let result=match kind{
+                            p::Kind::NeedResources=>delivery.need(shared.port.as_ref(),connection,ids,chunk,shared.now()).await,
+                            p::Kind::ResourceAvailable=>{request(shared,connection,Operation::Authorize).await?;delivery.available(ids)},
+                            p::Kind::ResourceEvicted=>delivery.evicted(shared.port.as_ref(),connection,&ids,shared.now()).await.map(|_|()),
+                            _=>unreachable!(),
                         };
-                        if !rejected {record_incoming(recording.as_ref(),kind,&raw)?;}
-                        if rejected {send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?;}
+                        match result{Ok(())=>record_incoming(recording.as_ref(),kind,&raw)?,Err(TransportError::Authority) if kind==p::Kind::NeedResources=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
                         continue;
                     }
-                    if kind==p::Kind::AppliedAck {
-                        let ack:p::RevisionAck=codec::decode(&packet.payload,ceiling)?;
-                        let mut host=shared.host.lock().await;
-                        let _pairing=approved(shared,&session,approval,&authorization)?;
-                        delivery.applied(ack.revision)?;
-                        let frame=delivery.applied_frame(ack.revision)?;
-                        if frame.publication_revision().is_some() {
-                            host.acknowledge_applied_publication(&session.client,session.view_id,ack.revision,frame)
-                                .map_err(|_|TransportError::Authority)?;
-                        }else {
-                            host.acknowledge_applied(&session.client,session.view_id,ack.revision)
-                                .map_err(|_|TransportError::Authority)?;
-                        }
-                        record_incoming(recording.as_ref(),kind,&raw)?;
-                        continue;
+                    if kind==p::Kind::AppliedAck{
+                        let ack:p::RevisionAck=codec::decode(&packet.payload,ceiling)?;delivery.applied(ack.revision)?;
+                        request(shared,connection,Operation::Ack(Acknowledgement::Applied{revision:ack.revision,witness:delivery.applied_frame(ack.revision)?.clone()})).await?;
+                        record_incoming(recording.as_ref(),kind,&raw)?;continue;
                     }
-                    let response=handle(shared,&session,kind,&packet.payload,approval,&authorization).await;
-                    if response.is_ok() {record_incoming(recording.as_ref(),kind,&raw)?;}
-                    match response {Ok(Some((kind,bytes)))=>send_recorded(recording.as_ref(), socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout).await?,Ok(None)=>{},
-                        Err(TransportError::Authority)=>send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::Error,&p::Error {code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout).await?,Err(error)=>return Err(error)}
+                    let response=handle(shared,connection,kind,&packet.payload).await;
+                    if response.is_ok(){record_incoming(recording.as_ref(),kind,&raw)?;}
+                    match response{Ok(Some((kind,bytes)))=>send_recorded(recording.as_ref(),socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout,shared,connection,approval,authorization).await?,Ok(None)=>{},Err(TransportError::Authority)=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
                 }
             }
             _=heartbeat.tick()=>{
-                if !shared.pairing.lock().map_err(|_|TransportError::Authentication)?.remains_authorized(approval,session.client.client_instance_id,&authorization) {return Err(TransportError::Authentication);}
-                shared.host.lock().await.tick(shared.now());drain_cleanup(shared).await;
-                let notice=shared.revoked.lock().map_err(|_|TransportError::Authority)?.remove(&session.client.client_instance_id);
-                if let Some(notice)=notice {send_recorded(recording.as_ref(), socket,codec::wrap(p::Kind::ControlRevoked,&notice,binding),ceiling,timeout).await?;}
-                if !opened {continue;}
-                if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout) {return Err(TransportError::Deadline);}
-                if delivery.can_start() {
-                    let frame={let mut host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;
-                        if let Some(frame)=queued.pop_front() {Some(frame)}else {host.take_outbound(&session.client,session.view_id).map_err(|_|TransportError::Authority)?}};
-                    if let Some(frame)=frame {delivery.install(Outgoing::new(frame,chunk_size,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}
-                }
-                let packet={let host=shared.host.lock().await;let _pairing=approved(shared,&session,approval,&authorization)?;
-                    host.view_description(&session.client,session.view_id).map_err(|_|TransportError::Authority)?;delivery.next(binding)?};
-                if let Some(packet)=packet {send_recorded(recording.as_ref(), socket,packet,ceiling,timeout).await?;}
+                approved(shared,connection,approval,authorization)?;
+                if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout){return Err(TransportError::Deadline);}
+                let may_take=opened&&delivery.can_start()&&queued.is_empty();
+                let received=request(shared,connection,Operation::Pump{take_publication:may_take}).await?;
+                let Reply::Pump{publication,revoked}=received.value()else{return Err(TransportError::Protocol);};let publication=publication.clone();let revoked=revoked.clone();drop(received);
+                if let Some(notice)=revoked{send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ControlRevoked,&p::ControlRevoked{lease_id:notice.lease.to_vec(),generation:notice.generation,reason:notice.reason},binding),ceiling,timeout,shared,connection,approval,authorization).await?;}
+                if !opened{continue;}
+            if delivery.can_start(){if let Some(frame)=queued.pop_front().or(publication){source_scope(&frame,session)?;delivery.install(Outgoing::new(frame,chunk,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}}
+                if let Some(packet)=delivery.next(binding)?{send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;}
             }
         }
     }
@@ -524,13 +496,43 @@ fn record_incoming(
     }
     Ok(())
 }
+fn approved(
+    shared: &Shared,
+    connection: &Connection,
+    approval: [u8; 32],
+    authorization: &rui_protocol_core::session::VerifiedAuthorization,
+) -> Result<(), TransportError> {
+    if !connection.authorized()
+        || !shared
+            .pairing
+            .lock()
+            .map_err(|_| TransportError::Authentication)?
+            .remains_authorized(
+                approval,
+                connection.session().client.client_instance_id,
+                authorization,
+            )
+    {
+        return Err(TransportError::Authentication);
+    }
+    Ok(())
+}
+#[allow(clippy::too_many_arguments)] // Keep the issued scope and approval explicit at every write.
 async fn send_recorded<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     recording: Option<&RecordingSession>,
     socket: &mut tokio_tungstenite::WebSocketStream<S>,
     mut packet: p::Packet,
     ceiling: usize,
     timeout: Duration,
+    shared: &Shared,
+    connection: &Connection,
+    approval: [u8; 32],
+    authorization: &rui_protocol_core::session::VerifiedAuthorization,
 ) -> Result<(), TransportError> {
+    approved(shared, connection, approval, authorization)?;
+    // Approval lifetime alone does not establish the current incarnation. The
+    // producer validates the issued capability before every attempted write.
+    request(shared, connection, Operation::Authorize).await?;
     if packet.encoded_len() > ceiling {
         return Err(TransportError::Limit);
     }
@@ -540,109 +542,50 @@ async fn send_recorded<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     if let Some(recording) = recording {
         recording.record(Direction::HostToClient, kind, &bytes)?;
     }
-    // Exact same bytes enter the maintained WebSocket/TLS sink. This is an
-    // attempted send, not proof of remote receipt or presentation.
+    approved(shared, connection, approval, authorization)?;
     websocket::send_bytes(socket, bytes, timeout).await
-}
-fn approved<'a>(
-    shared: &'a Shared,
-    session: &NegotiatedSession,
-    approval: [u8; 32],
-    authorization: &rui_protocol_core::session::VerifiedAuthorization,
-) -> Result<std::sync::MutexGuard<'a, PairingAuthority>, TransportError> {
-    let guard = shared
-        .pairing
-        .lock()
-        .map_err(|_| TransportError::Authentication)?;
-    if !guard.remains_authorized(approval, session.client.client_instance_id, authorization) {
-        return Err(TransportError::Authentication);
-    }
-    Ok(guard)
 }
 async fn handle(
     shared: &Shared,
-    session: &NegotiatedSession,
+    connection: &Connection,
     kind: p::Kind,
     raw: &[u8],
-    approval: [u8; 32],
-    authorization: &rui_protocol_core::session::VerifiedAuthorization,
 ) -> Result<Option<(p::Kind, Vec<u8>)>, TransportError> {
-    let ceiling = session.limits.envelope_bytes;
-    let mut host = shared.host.lock().await;
-    host.tick(shared.now());
-    drain_host_cleanup(shared, &mut host);
-    let _pairing = approved(shared, session, approval, authorization)?;
-    let client = &session.client;
-    let view = session.view_id;
-    let now = shared.now();
-    let granted =
-        |lease: rui_protocol_core::session::ControlLease, request_id: Vec<u8>| p::ControlGranted {
-            lease_id: lease.lease_id.to_vec(),
-            generation: lease.generation,
-            expires_at_ms: lease.expires_at_ms,
-            allowed_actions: lease.allowed_actions.into_iter().collect(),
-            request_id,
-        };
-    let result = match kind {
-        p::Kind::AppliedAck => {
-            let ack: p::RevisionAck = codec::decode(raw, ceiling)?;
-            host.acknowledge_applied(client, view, ack.revision)
-                .map_err(|_| TransportError::Authority)?;
-            None
-        }
+    let ceiling = connection.session().limits.envelope_bytes;
+    let operation = match kind {
         p::Kind::SemanticReady => {
             let ack: p::RevisionAck = codec::decode(raw, ceiling)?;
-            host.acknowledge_semantic_ready(client, view, ack.revision)
-                .map_err(|_| TransportError::Authority)?;
-            None
+            Operation::Ack(Acknowledgement::SemanticReady {
+                revision: ack.revision,
+            })
         }
         p::Kind::PresentedAck => {
             let ack: p::RevisionAck = codec::decode(raw, ceiling)?;
-            host.acknowledge_presented(client, view, ack.revision)
-                .map_err(|_| TransportError::Authority)?;
-            None
+            Operation::Ack(Acknowledgement::Presented {
+                revision: ack.revision,
+            })
         }
         p::Kind::AcquireControl => {
-            if shared.cleanup_busy.load(Ordering::Acquire) {
-                return Err(TransportError::Authority);
-            }
-            let request: p::AcquireControl = codec::decode(raw, ceiling)?;
-            let lease = host
-                .acquire_control(client, view, codec::id(&request.request_id)?, now)
-                .map_err(|_| TransportError::Authority)?;
-            Some((
-                p::Kind::ControlGranted,
-                granted(lease, request.request_id).encode_to_vec(),
-            ))
+            let req: p::AcquireControl = codec::decode(raw, ceiling)?;
+            Operation::Control(Control::Acquire {
+                request: codec::id(&req.request_id)?,
+            })
         }
         p::Kind::RenewControl => {
-            let request: p::RenewControl = codec::decode(raw, ceiling)?;
-            let lease = host
-                .renew_control(
-                    client,
-                    view,
-                    codec::id(&request.request_id)?,
-                    codec::id(&request.lease_id)?,
-                    request.generation,
-                    now,
-                )
-                .map_err(|_| TransportError::Authority)?;
-            Some((
-                p::Kind::ControlGranted,
-                granted(lease, request.request_id).encode_to_vec(),
-            ))
+            let req: p::RenewControl = codec::decode(raw, ceiling)?;
+            Operation::Control(Control::Renew {
+                request: codec::id(&req.request_id)?,
+                lease: codec::id(&req.lease_id)?,
+                generation: req.generation,
+            })
         }
         p::Kind::ReleaseControl => {
-            let request: p::ReleaseControl = codec::decode(raw, ceiling)?;
-            host.release_control(
-                client,
-                codec::id(&request.request_id)?,
-                codec::id(&request.lease_id)?,
-                request.generation,
-                now,
-            )
-            .map_err(|_| TransportError::Authority)?;
-            None
+            let req: p::ReleaseControl = codec::decode(raw, ceiling)?;
+            Operation::Control(Control::Release {
+                request: codec::id(&req.request_id)?,
+                lease: codec::id(&req.lease_id)?,
+                generation: req.generation,
+            })
         }
         p::Kind::SemanticCommand
         | p::Kind::RawInputBatch
@@ -656,44 +599,74 @@ async fn handle(
                 p::Kind::ResizeRequest => CommandFamily::Resize,
                 _ => unreachable!(),
             };
-            let command = rui_protocol_core::commands::decode_family(family, raw)
+            rui_protocol_core::commands::decode_family(family, raw)
                 .map_err(|_| TransportError::Protocol)?;
-            let result = host
-                .submit_family(client, family, raw, now)
-                .map_err(|_| TransportError::Protocol)?;
-            Some((
-                p::Kind::CommandResult,
-                codec::command_result(command.header().command_seq, result).encode_to_vec(),
-            ))
+            Operation::Command {
+                family,
+                bytes: zeroize::Zeroizing::new(raw.to_vec()),
+            }
         }
         p::Kind::GetCommandResult => {
-            let request: p::GetCommandResult = codec::decode(raw, ceiling)?;
-            let result = host
-                .get_command_result(client, view, request.command_seq, now)
-                .map_err(|_| TransportError::Authority)?;
-            Some((
-                p::Kind::CommandResult,
-                codec::command_result(request.command_seq, result).encode_to_vec(),
-            ))
+            let req: p::GetCommandResult = codec::decode(raw, ceiling)?;
+            Operation::Result {
+                sequence: req.command_seq,
+            }
         }
         p::Kind::CloseView => return Err(TransportError::Closed),
         p::Kind::Ping => {
             let ping: p::Ping = codec::decode(raw, ceiling)?;
-            Some((p::Kind::Pong, ping.encode_to_vec()))
-        }
-        // This controlled producer has no resource closure. Knowing a digest is
-        // never retrieval permission; resource-bearing producers must provide
-        // their currently authorized closure before this request can be served.
-        p::Kind::NeedResources => return Err(TransportError::Authority),
-        p::Kind::ResourceAvailable | p::Kind::ResourceEvicted => {
-            let _: p::ResourceIds = codec::decode(raw, ceiling)?;
-            return Err(TransportError::Authority);
+            request(shared, connection, Operation::Authorize).await?;
+            return Ok(Some((p::Kind::Pong, ping.encode_to_vec())));
         }
         _ => return Err(TransportError::Protocol),
     };
-    drain_host_cleanup(shared, &mut host);
-    Ok(result)
+    let received = request(shared, connection, operation).await?;
+    match received.value() {
+        Reply::Done => Ok(None),
+        Reply::Lease(lease) => {
+            let request_id = if kind == p::Kind::AcquireControl {
+                codec::decode::<p::AcquireControl>(raw, ceiling)?.request_id
+            } else {
+                codec::decode::<p::RenewControl>(raw, ceiling)?.request_id
+            };
+            Ok(Some((
+                p::Kind::ControlGranted,
+                p::ControlGranted {
+                    lease_id: lease.lease_id.to_vec(),
+                    generation: lease.generation,
+                    expires_at_ms: lease.expires_at_ms,
+                    allowed_actions: lease.allowed_actions.iter().cloned().collect(),
+                    request_id,
+                }
+                .encode_to_vec(),
+            )))
+        }
+        Reply::Command(result) => {
+            let seq = if kind == p::Kind::GetCommandResult {
+                codec::decode::<p::GetCommandResult>(raw, ceiling)?.command_seq
+            } else {
+                use rui_protocol_core::commands::CommandFamily;
+                let family = match kind {
+                    p::Kind::SemanticCommand => CommandFamily::Semantic,
+                    p::Kind::RawInputBatch => CommandFamily::RawInput,
+                    p::Kind::TextComposition => CommandFamily::TextComposition,
+                    p::Kind::ResizeRequest => CommandFamily::Resize,
+                    _ => return Err(TransportError::Protocol),
+                };
+                rui_protocol_core::commands::decode_family(family, raw)
+                    .map_err(|_| TransportError::Protocol)?
+                    .header()
+                    .command_seq
+            };
+            Ok(Some((
+                p::Kind::CommandResult,
+                codec::command_result(seq, result.clone()).encode_to_vec(),
+            )))
+        }
+        _ => Err(TransportError::Protocol),
+    }
 }
+
 pub(crate) struct Outgoing {
     pub frame: SharedPayload,
     payload: std::ops::Range<usize>,
@@ -717,6 +690,12 @@ impl Outgoing {
             return Err(TransportError::Limit);
         }
         let (base, revision, count) = publication_header(&frame[payload.clone()], core_kind)?;
+        if frame
+            .publication_revision()
+            .is_some_and(|stamped| stamped != revision)
+        {
+            return Err(TransportError::Protocol);
+        }
         let kind = match core_kind {
             1 => p::Kind::SnapshotBegin,
             2 => p::Kind::TransactionBegin,
@@ -848,6 +827,59 @@ fn source_envelope_header(raw: &[u8]) -> Result<(std::ops::Range<usize>, u64), T
         kind.ok_or(TransportError::Protocol)?,
     ))
 }
+/// Validate the trusted producer's outer scope before stripping its envelope.
+/// Otherwise a wrong-view source body could acquire this socket's binding.
+fn source_scope(
+    raw: &[u8],
+    session: &rui_protocol_core::session::NegotiatedSession,
+) -> Result<(), TransportError> {
+    let mut version = None;
+    let mut ids: [Option<[u8; 16]>; 3] = [None, None, None];
+    let mut required = 0usize;
+    fields(raw, |tag, value, data, _| {
+        match tag {
+            8 => {
+                if version.replace(value).is_some() {
+                    return Err(TransportError::Protocol);
+                }
+            }
+            18 | 26 | 34 => {
+                let index = (tag as usize - 18) / 8;
+                if ids[index]
+                    .replace(data.try_into().map_err(|_| TransportError::Binding)?)
+                    .is_some()
+                {
+                    return Err(TransportError::Protocol);
+                }
+            }
+            40 | 50 => {}
+            58 => {
+                required = required
+                    .checked_add(1)
+                    .filter(|n| *n <= 128)
+                    .ok_or(TransportError::Limit)?;
+                if data.len() > 256
+                    || !session
+                        .profiles
+                        .contains(std::str::from_utf8(data).map_err(|_| TransportError::Protocol)?)
+                {
+                    return Err(TransportError::Protocol);
+                }
+            }
+            _ if tag >> 3 >= 128 => {}
+            _ => return Err(TransportError::Protocol),
+        }
+        Ok(())
+    })?;
+    if version != Some(u64::from(session.version))
+        || ids[0] != Some(session.session_id)
+        || ids[1] != Some(session.epoch)
+        || ids[2] != Some(session.view_id)
+    {
+        return Err(TransportError::Binding);
+    }
+    Ok(())
+}
 fn publication_header(raw: &[u8], kind: u64) -> Result<(u64, u64, usize), TransportError> {
     if kind != 1 && kind != 2 {
         return Err(TransportError::Protocol);
@@ -889,15 +921,14 @@ mod tests {
     use rui_protocol_core::session::{
         ClientHello, Permissions, ReceiverLimits, SessionConfig, VerifiedAuthorization,
     };
-    fn setup(
+    use std::sync::atomic::Ordering;
+    async fn setup(
         cleanup: Arc<dyn Fn(InputCleanup) + Send + Sync>,
     ) -> (
         Arc<Shared>,
-        NegotiatedSession,
-        NegotiatedSession,
-        [u8; 32],
-        [u8; 32],
-        VerifiedAuthorization,
+        Connection,
+        Connection,
+        Arc<Mutex<ControlledHost>>,
     ) {
         let auth = VerifiedAuthorization {
             principal: "operator".into(),
@@ -908,66 +939,110 @@ mod tests {
                 actions: ["Activate".into()].into_iter().collect(),
             },
         };
-        let mut host = ControlledHost::new(
-            HostConfig {
-                max_text_bytes: 64,
-                ..Default::default()
-            },
-            String::new(),
-        )
-        .unwrap();
+        let host = Arc::new(Mutex::new(
+            ControlledHost::new(
+                HostConfig {
+                    max_text_bytes: 64,
+                    ..Default::default()
+                },
+                String::new(),
+            )
+            .unwrap(),
+        ));
+        let port = producer::ControlledPort::new(host.clone(), cleanup.clone(), 2).unwrap();
         let mut pairing = PairingAuthority::new(2).unwrap();
-        let mut sessions = Vec::new();
-        let mut grants = Vec::new();
+        let mut connections = Vec::new();
         for id in [3, 4] {
-            let request = pairing.request_local_pairing([id; 16]).unwrap();
-            let credential = pairing
-                .approve_local(request.request_id, auth.clone())
+            let req = pairing.request_local_pairing([id; 16]).unwrap();
+            let credential = pairing.approve_local(req.request_id, auth.clone()).unwrap();
+            let lifetime = pairing
+                .approval_lifetime(credential.expose_for_tls_authentication(), [id; 16])
                 .unwrap();
-            grants.push(
-                pairing
-                    .approval_id(credential.expose_for_tls_authentication(), [id; 16])
-                    .unwrap(),
-            );
-            let session = host
-                .negotiate(
-                    auth.clone(),
-                    ClientHello {
+            let received = port
+                .transact(Request::Connect {
+                    authorization: auth.clone(),
+                    hello: Box::new(ClientHello {
                         client_instance_id: [id; 16],
                         supported_versions: [1].into_iter().collect(),
                         supported_profiles: SessionConfig::default().supported_profiles,
                         required_profiles: SessionConfig::default().required_profiles,
                         receiver_limits: ReceiverLimits::default(),
                         resume: None,
+                    }),
+                    lifetime,
+                    fresh_view: false,
+                    now: 0,
+                })
+                .await
+                .unwrap();
+            let Reply::Connected(connection) = received.value() else {
+                panic!()
+            };
+            let connection = connection.clone();
+            drop(received);
+            let received = port
+                .transact(Request::Scoped {
+                    connection: connection.clone(),
+                    operation: Operation::Open {
+                        selection: "fixture".into(),
+                        mirror_canvas_policy: "host-canvas".into(),
                     },
-                    0,
-                )
+                    now: 0,
+                })
+                .await
                 .unwrap();
-            let payload = host.checkpoint(&session.client, session.view_id).unwrap();
-            drop(payload);
-            host.acknowledge_applied(&session.client, session.view_id, 1)
-                .unwrap();
-            host.acknowledge_presented(&session.client, session.view_id, 1)
-                .unwrap();
-            sessions.push(session);
-        }
-        let first = sessions.remove(0);
-        let second = sessions.remove(0);
-        host.acquire_control(&first.client, first.view_id, [9; 16], 0)
+            let Reply::Opened {
+                checkpoint: Some(frame),
+                ..
+            } = received.value()
+            else {
+                panic!()
+            };
+            let frame = frame.clone();
+            drop(received);
+            port.transact(Request::Scoped {
+                connection: connection.clone(),
+                operation: Operation::Ack(Acknowledgement::Applied {
+                    revision: 1,
+                    witness: frame,
+                }),
+                now: 0,
+            })
+            .await
             .unwrap();
-        let shared = Arc::new(Shared {
-            host: Arc::new(Mutex::new(host)),
-            pairing: Arc::new(StdMutex::new(pairing)),
-            active: StdMutex::new(BTreeSet::new()),
-            revoked: StdMutex::new(BTreeMap::new()),
-            cleanup_busy: AtomicBool::new(false),
-            start: Instant::now(),
-            config: ServerConfig {
-                cleanup,
-                ..Default::default()
-            },
-        });
-        (shared, first, second, grants[0], grants[1], auth)
+            port.transact(Request::Scoped {
+                connection: connection.clone(),
+                operation: Operation::Ack(Acknowledgement::Presented { revision: 1 }),
+                now: 0,
+            })
+            .await
+            .unwrap();
+            connections.push(connection);
+        }
+        let first = connections.remove(0);
+        let second = connections.remove(0);
+        port.transact(Request::Scoped {
+            connection: first.clone(),
+            operation: Operation::Control(Control::Acquire { request: [9; 16] }),
+            now: 0,
+        })
+        .await
+        .unwrap();
+        (
+            Arc::new(Shared {
+                port: Arc::new(port),
+                pairing: Arc::new(StdMutex::new(pairing)),
+                active: StdMutex::new(BTreeSet::new()),
+                start: Instant::now(),
+                config: ServerConfig {
+                    cleanup,
+                    ..Default::default()
+                },
+            }),
+            first,
+            second,
+            host,
+        )
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     async fn cleanup_completes_before_another_connection_can_acquire() {
@@ -977,17 +1052,21 @@ mod tests {
         let wait = StdMutex::new(wait);
         let callback = Arc::new(move |_: InputCleanup| {
             entered.lock().unwrap().take().unwrap().send(()).unwrap();
-            wait.lock()
-                .unwrap()
-                .recv_timeout(Duration::from_secs(2))
-                .unwrap();
+            // Let the test runtime schedule the competing socket while this
+            // deliberately synchronous trusted cleanup owns the host lock.
+            tokio::task::block_in_place(|| {
+                wait.lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(2))
+                    .unwrap();
+            });
         });
-        let (shared, _, second, _, grant, auth) = setup(callback);
-        shared.host.lock().await.local_activity(0);
+        let (shared, _, second, host) = setup(callback).await;
+        host.lock().await.local_activity(0);
         let draining = {
             let shared = shared.clone();
             tokio::spawn(async move {
-                drain_cleanup(&shared).await;
+                shared.port.flush_lifecycle(0).await.unwrap();
             })
         };
         entered_rx.await.unwrap();
@@ -1002,8 +1081,6 @@ mod tests {
                         request_id: vec![7; 16],
                     }
                     .encode_to_vec(),
-                    grant,
-                    &auth,
                 )
                 .await
             })
@@ -1019,17 +1096,13 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cleanup_panic_keeps_authority_gate_closed() {
-        let (shared, _, second, _, grant, auth) =
-            setup(Arc::new(|_| panic!("trusted cleanup failed")));
-        shared.host.lock().await.local_activity(0);
+        let (shared, _, second, host) = setup(Arc::new(|_| panic!("trusted cleanup failed"))).await;
+        host.lock().await.local_activity(0);
         let task = {
             let shared = shared.clone();
-            tokio::spawn(async move {
-                drain_cleanup(&shared).await;
-            })
+            tokio::spawn(async move { shared.port.flush_lifecycle(0).await })
         };
-        assert!(task.await.unwrap_err().is_panic());
-        assert!(shared.cleanup_busy.load(Ordering::Acquire));
+        assert_eq!(task.await.unwrap(), Err(TransportError::Authority));
         assert_eq!(
             handle(
                 &shared,
@@ -1039,8 +1112,6 @@ mod tests {
                     request_id: vec![7; 16]
                 }
                 .encode_to_vec(),
-                grant,
-                &auth
             )
             .await,
             Err(TransportError::Authority)
@@ -1048,45 +1119,48 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn revocation_while_waiting_for_host_lock_prevents_ledger_admission() {
-        let (shared, first, _, grant, _, auth) = setup(Arc::new(|_| {}));
-        let locked = shared.host.lock().await;
+        let (shared, first, _, host) = setup(Arc::new(|_| {})).await;
+        let locked = host.lock().await;
         let command = rui_protocol_core::wire::proto::SemanticCommand {
-            epoch: first.epoch.to_vec(),
-            view_id: first.view_id.to_vec(),
-            client_instance_id: first.client.client_instance_id.to_vec(),
+            epoch: first.session().epoch.to_vec(),
+            view_id: first.session().view_id.to_vec(),
+            client_instance_id: first.session().client.client_instance_id.to_vec(),
             command_seq: 1,
             target_id: COUNTER_ID,
+            control_lease_id: vec![9; 16],
+            control_generation: 1,
+            action_id: "Activate".into(),
+            action_schema_version: 1,
+            observed_view_revision: 1,
+            arguments: Some(
+                rui_protocol_core::wire::proto::semantic_command::Arguments::NoArguments(
+                    rui_protocol_core::wire::proto::EmptyArguments {},
+                ),
+            ),
             ..Default::default()
         }
         .encode_to_vec();
         let task = {
             let shared = shared.clone();
             tokio::spawn(async move {
-                handle(
-                    &shared,
-                    &first,
-                    p::Kind::SemanticCommand,
-                    &command,
-                    grant,
-                    &auth,
-                )
-                .await
+                handle(&shared, &first, p::Kind::SemanticCommand, &command).await
             })
         };
         tokio::task::yield_now().await;
         shared.pairing.lock().unwrap().revoke_local([3; 16]);
         drop(locked);
         assert_eq!(task.await.unwrap(), Err(TransportError::Authentication));
-        assert_eq!(shared.host.lock().await.diagnostics().consumed_commands, 0);
+        assert_eq!(host.lock().await.diagnostics().consumed_commands, 0);
     }
     #[tokio::test]
     async fn queued_cleanup_is_drained_by_acquire_before_grant() {
         let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let observed = calls.clone();
-        let (shared, _, second, _, grant, auth) = setup(Arc::new(move |_| {
+        let (shared, _, second, host) = setup(Arc::new(move |_| {
             observed.fetch_add(1, Ordering::AcqRel);
-        }));
-        shared.host.lock().await.local_activity(0);
+        }))
+        .await;
+        host.lock().await.local_activity(0);
         assert!(handle(
             &shared,
             &second,
@@ -1095,8 +1169,6 @@ mod tests {
                 request_id: vec![7; 16]
             }
             .encode_to_vec(),
-            grant,
-            &auth
         )
         .await
         .unwrap()
@@ -1116,5 +1188,58 @@ mod tests {
             (0, 1, 1)
         );
         assert!(source_envelope_header(&[40, 1, 50, 0, 50, 0]).is_err());
+    }
+    #[tokio::test]
+    async fn producer_envelope_must_match_issued_scope_and_required_profiles() {
+        use rui_protocol_core::wire::proto as core;
+        let (shared, first, _, _) = setup(Arc::new(|_| {})).await;
+        let session = first.session();
+        let envelope = core::Envelope {
+            protocol_version: session.version,
+            session_id: session.session_id.to_vec(),
+            epoch: session.epoch.to_vec(),
+            view_id: session.view_id.to_vec(),
+            kind: core::MessageKind::Snapshot as i32,
+            payload: vec![8, 1],
+            required_features: session.profiles.iter().take(1).cloned().collect(),
+        };
+        let bytes = envelope.encode_to_vec();
+        source_scope(&bytes, session).unwrap();
+        let mut wrong = envelope.clone();
+        wrong.view_id[0] ^= 1;
+        assert_eq!(
+            source_scope(&wrong.encode_to_vec(), session),
+            Err(TransportError::Binding)
+        );
+        wrong = envelope.clone();
+        wrong.protocol_version += 1;
+        assert_eq!(
+            source_scope(&wrong.encode_to_vec(), session),
+            Err(TransportError::Binding)
+        );
+        wrong = envelope.clone();
+        wrong.required_features.push("unknown.required.v1".into());
+        assert_eq!(
+            source_scope(&wrong.encode_to_vec(), session),
+            Err(TransportError::Protocol)
+        );
+        let mut duplicate = bytes.clone();
+        duplicate.extend([34, 16]);
+        duplicate.extend(session.view_id);
+        assert_eq!(
+            source_scope(&duplicate, session),
+            Err(TransportError::Protocol)
+        );
+        let mut required = bytes.clone();
+        required.extend([64, 1]); // unknown required envelope field8
+        assert_eq!(
+            source_scope(&required, session),
+            Err(TransportError::Protocol)
+        );
+        let mut optional = bytes;
+        optional.extend([128, 8, 1]); // optional field128 metadata
+        source_scope(&optional, session).unwrap();
+        shared.port.shutdown();
+        shared.port.flush_lifecycle(0).await.unwrap();
     }
 }

@@ -7,12 +7,13 @@ mod client;
 pub mod codec;
 pub mod diagnostics;
 pub mod pairing;
+pub mod producer;
 mod server;
 mod source_delivery;
 mod tls;
 mod websocket;
 pub use client::{ClientEvent, NetworkClient, OpenedView, RetainedClientView};
-pub use server::{ServerConfig, ServerHandle};
+pub use server::{ProducerServerHandle, ServerConfig, ServerHandle};
 use thiserror::Error;
 pub use tls::HostIdentity;
 #[derive(Debug, Error, PartialEq, Eq)]

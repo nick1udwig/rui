@@ -1,12 +1,14 @@
 //! One bounded producer publication and its immutable resource replies. The
 //! publication frame stays owned through APPLIED, including while the host
 //! advances or evicts its independent recovery history.
+use crate::producer::{
+    Connection, Operation, ProducerPort, Reply, Request, ResourceAccess, Witnesses,
+};
 use crate::server::Outgoing;
 use crate::{codec, proto as p, TransportError};
-use rui_host_broker::{AuthorizedResource, ControlledHost};
 use rui_protocol_core::{
     commands::Id,
-    session::{NegotiatedSession, SharedPayload, ViewMemoryReservation},
+    session::{SharedPayload, ViewMemoryReservation},
 };
 use std::{
     collections::{BTreeSet, VecDeque},
@@ -24,13 +26,8 @@ pub(crate) struct Delivery {
     _memory: ViewMemoryReservation,
 }
 impl Delivery {
-    pub fn new(host: &ControlledHost, session: &NegotiatedSession) -> Result<Self, TransportError> {
-        // Bounded digest sets, spare queue capacity and immutable handles. Resource
-        // bodies/frame attachments already carry their independent view charge.
-        let memory = host
-            .reserve_view_memory(&session.client, session.view_id, MAX_RESOURCES * 1024)
-            .map_err(|_| TransportError::Limit)?;
-        Ok(Self {
+    pub fn new(memory: ViewMemoryReservation) -> Self {
+        Self {
             publication: None,
             last_applied: None,
             resources: VecDeque::new(),
@@ -39,7 +36,16 @@ impl Delivery {
             evicted: BTreeSet::new(),
             started: None,
             _memory: memory,
-        })
+        }
+    }
+    pub fn reservation_bytes() -> usize {
+        MAX_RESOURCES * 1024
+    }
+    pub fn witnesses(&self) -> Witnesses {
+        Witnesses {
+            in_flight: self.publication.as_ref().map(|p| p.frame.clone()),
+            applied: self.last_applied.as_ref().map(|(_, p)| p.clone()),
+        }
     }
     pub fn seed_resumed(&mut self, revision: u64, frame: SharedPayload) {
         debug_assert!(self.last_applied.is_none() && self.publication.is_none());
@@ -50,18 +56,19 @@ impl Delivery {
         self.publication = Some(publication);
         self.started = Some(Instant::now());
     }
-    pub fn need(
+    pub async fn need(
         &mut self,
-        host: &ControlledHost,
-        session: &NegotiatedSession,
+        port: &dyn ProducerPort,
+        connection: &Connection,
         digests: p::ResourceIds,
         chunk: usize,
+        now: u64,
     ) -> Result<(), TransportError> {
         if digests.digests.is_empty() || digests.digests.len() > MAX_RESOURCES {
             return Err(TransportError::Limit);
         }
         let mut requested = BTreeSet::new();
-        let mut transfers = VecDeque::new();
+        let mut fresh = Vec::new();
         for raw in &digests.digests {
             let digest = codec::digest(raw)?;
             if !requested.insert(digest) {
@@ -70,32 +77,38 @@ impl Delivery {
             if self.pending.contains(&digest) {
                 continue;
             }
-            if self.pending.len() + transfers.len() >= MAX_RESOURCES {
+            if self.pending.len() + fresh.len() >= MAX_RESOURCES {
                 return Err(TransportError::Limit);
             }
-            // Exact in-flight or last APPLIED closure, not a known hash or even
-            // arbitrary retained history. Host rechecks current scope itself.
-            let selected = self
-                .publication
-                .as_ref()
-                .and_then(|publication| {
-                    host.publication_resource(
-                        &session.client,
-                        session.view_id,
-                        &publication.frame,
-                        digest,
-                    )
-                    .ok()
+            fresh.push(digest);
+        }
+        let mut transfers = VecDeque::new();
+        if !fresh.is_empty() {
+            let expected: BTreeSet<_> = fresh.iter().copied().collect();
+            let received = port
+                .transact(Request::Scoped {
+                    connection: connection.clone(),
+                    now,
+                    operation: Operation::Resources {
+                        witnesses: self.witnesses(),
+                        digests: fresh,
+                    },
                 })
-                .or_else(|| {
-                    self.last_applied.as_ref().and_then(|(_, frame)| {
-                        host.publication_resource(&session.client, session.view_id, frame, digest)
-                            .ok()
-                    })
-                })
-                .ok_or(TransportError::Authority)?;
-            let transfer = ResourceTransfer::new(selected, chunk)?;
-            transfers.push_back(transfer);
+                .await?;
+            let Reply::Resources(resources) = received.value() else {
+                return Err(TransportError::Protocol);
+            };
+            if resources.len() != expected.len() {
+                return Err(TransportError::Protocol);
+            }
+            let mut returned = BTreeSet::new();
+            for resource in resources {
+                let digest = resource.offer()?.digest;
+                if !expected.contains(&digest) || !returned.insert(digest) {
+                    return Err(TransportError::Protocol);
+                }
+                transfers.push_back(ResourceTransfer::new(resource.clone(), chunk)?);
+            }
         }
         self.pending.extend(requested);
         self.resources.extend(transfers);
@@ -104,56 +117,39 @@ impl Delivery {
         }
         Ok(())
     }
-    pub fn evicted(
+    pub async fn evicted(
         &mut self,
-        host: &mut ControlledHost,
-        session: &NegotiatedSession,
+        port: &dyn ProducerPort,
+        connection: &Connection,
         ids: &p::ResourceIds,
+        now: u64,
     ) -> Result<bool, TransportError> {
         if ids.digests.is_empty() || ids.digests.len() > MAX_RESOURCES {
             return Err(TransportError::Limit);
         }
         let mut unique = BTreeSet::new();
-        let mut missing = BTreeSet::new();
-        let mut retired = Vec::new();
+        let mut digests = Vec::new();
         for raw in &ids.digests {
             let digest = codec::digest(raw)?;
             if !unique.insert(digest) {
                 return Err(TransportError::Protocol);
             }
-            let current = self.publication.as_ref().is_some_and(|publication| {
-                host.publication_resource(
-                    &session.client,
-                    session.view_id,
-                    &publication.frame,
-                    digest,
-                )
-                .is_ok()
-            });
-            let live = self.last_applied.as_ref().is_some_and(|(_, frame)| {
-                host.publication_resource(&session.client, session.view_id, frame, digest)
-                    .is_ok()
-            });
-            if !current && !live {
-                host.authorize_resource_eviction(&session.client, session.view_id, digest)
-                    .map_err(|_| TransportError::Authority)?;
-                retired.push(digest);
-            } else {
-                missing.insert(digest);
-            }
+            digests.push(digest);
         }
-        if self.evicted.len()
-            + missing
-                .iter()
-                .filter(|d| !self.evicted.contains(*d))
-                .count()
-            > MAX_RESOURCES
-        {
-            return Err(TransportError::Limit);
-        }
-        // Every ID/duplicate/limit check passed before either owner mutates.
-        host.acknowledge_retired_resource_evictions(&session.client, session.view_id, &retired)
-            .map_err(|_| TransportError::Authority)?;
+        let received = port
+            .transact(Request::Scoped {
+                connection: connection.clone(),
+                now,
+                operation: Operation::Evicted {
+                    witnesses: self.witnesses(),
+                    digests,
+                    previously_missing: self.evicted.iter().copied().collect(),
+                },
+            })
+            .await?;
+        let Reply::Evicted { missing } = received.value() else {
+            return Err(TransportError::Protocol);
+        };
         let affects_readiness = !missing.is_empty();
         self.evicted.extend(missing);
         if affects_readiness && self.started.is_none() {
@@ -229,7 +225,7 @@ impl Delivery {
         while let Some(resource) = self.resources.front_mut() {
             if let Some(packet) = resource.next(binding)? {
                 if resource.stage == 3 {
-                    self.completed.insert(resource.resource.offer().digest);
+                    self.completed.insert(resource.resource.offer()?.digest);
                 }
                 return Ok(Some(packet));
             }
@@ -245,18 +241,18 @@ impl Delivery {
     }
 }
 struct ResourceTransfer {
-    resource: AuthorizedResource,
+    resource: ResourceAccess,
     stage: u32,
     index: u32,
     chunks: u32,
     chunk: usize,
 }
 impl ResourceTransfer {
-    fn new(resource: AuthorizedResource, chunk: usize) -> Result<Self, TransportError> {
+    fn new(resource: ResourceAccess, chunk: usize) -> Result<Self, TransportError> {
         if chunk == 0 {
             return Err(TransportError::Limit);
         }
-        let chunks = u32::try_from(resource.bytes().len().div_ceil(chunk))
+        let chunks = u32::try_from(resource.bytes()?.len().div_ceil(chunk))
             .map_err(|_| TransportError::Limit)?;
         if chunks == 0 || chunks > 4096 {
             return Err(TransportError::Limit);
@@ -270,7 +266,7 @@ impl ResourceTransfer {
         })
     }
     fn next(&mut self, binding: Option<(Id, Id, Id)>) -> Result<Option<p::Packet>, TransportError> {
-        let offer = self.resource.offer();
+        let offer = self.resource.offer()?;
         if self.stage == 0 {
             self.stage = 1;
             return Ok(Some(codec::wrap(
@@ -288,13 +284,13 @@ impl ResourceTransfer {
         }
         if self.index < self.chunks {
             let start = self.index as usize * self.chunk;
-            let end = (start + self.chunk).min(self.resource.bytes().len());
+            let end = (start + self.chunk).min(self.resource.bytes()?.len());
             let packet = codec::wrap(
                 p::Kind::ResourceChunk,
                 &p::ResourceChunk {
                     digest: offer.digest.to_vec(),
                     index: self.index,
-                    data: self.resource.bytes()[start..end].to_vec(),
+                    data: self.resource.bytes()?[start..end].to_vec(),
                 },
                 binding,
             );
@@ -319,8 +315,8 @@ impl ResourceTransfer {
 mod tests {
     use super::*;
     use rui_host_broker::{
-        HostConfig, SourceFontError, SourceFontProvider, SourceGlyph, SourceOutline,
-        SourceShapedText,
+        AuthorizationLifetime, ControlledHost, HostConfig, SourceFontError, SourceFontProvider,
+        SourceGlyph, SourceOutline, SourceShapedText,
     };
     use rui_protocol_core::{resources::*, session::*};
     use std::sync::Arc;
@@ -361,9 +357,9 @@ mod tests {
             })
         }
     }
-    #[test]
-    fn cache_loss_requires_completion_and_available_before_reapplied() {
-        let mut host = ControlledHost::new_corpus_with_fonts(
+    #[tokio::test]
+    async fn cache_loss_requires_completion_and_available_before_reapplied() {
+        let host = ControlledHost::new_corpus_with_fonts(
             HostConfig::default(),
             "PRIVATE".into(),
             Arc::new(OneOutline),
@@ -371,9 +367,11 @@ mod tests {
         .unwrap();
         let mut profiles = SessionConfig::default().supported_profiles;
         profiles.insert("glyph.outline-single.v1".into());
-        let session = host
-            .negotiate(
-                VerifiedAuthorization {
+        let host = Arc::new(tokio::sync::Mutex::new(host));
+        let port = crate::producer::ControlledPort::new(host.clone(), Arc::new(|_| {}), 2).unwrap();
+        let received = port
+            .transact(Request::Connect {
+                authorization: VerifiedAuthorization {
                     principal: "alice".into(),
                     policy_version: 1,
                     permissions: Permissions {
@@ -382,23 +380,41 @@ mod tests {
                         actions: Default::default(),
                     },
                 },
-                ClientHello {
+                hello: Box::new(ClientHello {
                     client_instance_id: [3; 16],
                     supported_versions: [1].into_iter().collect(),
                     supported_profiles: profiles,
                     required_profiles: SessionConfig::default().required_profiles,
                     receiver_limits: ReceiverLimits::default(),
                     resume: None,
-                },
-                0,
-            )
+                }),
+                lifetime: AuthorizationLifetime::new(),
+                fresh_view: false,
+                now: 0,
+            })
+            .await
             .unwrap();
-        let baseline = host
+        let Reply::Connected(connection) = received.value() else {
+            panic!()
+        };
+        let connection = connection.clone();
+        drop(received);
+        let session = connection.session();
+        let mut locked = host.lock().await;
+        let baseline = locked
             .retained_memory_bytes(&session.client, session.view_id)
             .unwrap();
-        let mut delivery = Delivery::new(&host, &session).unwrap();
-        let frame = host.checkpoint(&session.client, session.view_id).unwrap();
-        let digest = host
+        let mut delivery = Delivery::new(
+            locked
+                .reserve_view_memory(
+                    &session.client,
+                    session.view_id,
+                    Delivery::reservation_bytes(),
+                )
+                .unwrap(),
+        );
+        let frame = locked.checkpoint(&session.client, session.view_id).unwrap();
+        let digest = locked
             .source_capture(&session.client, session.view_id)
             .unwrap()
             .resources()
@@ -406,6 +422,7 @@ mod tests {
             .unwrap()
             .0
             .digest;
+        drop(locked);
         delivery.install(Outgoing::new(frame, 512, session.limits.snapshot_bytes).unwrap());
         while delivery.next(None).unwrap().is_some() {}
         delivery.applied(1).unwrap();
@@ -418,18 +435,25 @@ mod tests {
             vec![digest.to_vec(), digest.to_vec()],
         ] {
             assert!(delivery
-                .evicted(&mut host, &session, &p::ResourceIds { digests: invalid })
+                .evicted(&port, &connection, &p::ResourceIds { digests: invalid }, 0)
+                .await
                 .is_err());
             assert!(delivery.evicted.is_empty());
             assert!(delivery.started.is_none());
             delivery.applied(1).unwrap();
         }
-        assert!(delivery.evicted(&mut host, &session, &ids()).unwrap());
+        assert!(delivery
+            .evicted(&port, &connection, &ids(), 0)
+            .await
+            .unwrap());
         assert!(delivery.started.is_some());
         assert!(!delivery.can_start());
         // Declared loss itself blocks re-APPLIED, even before NeedResources.
         assert!(delivery.applied(1).is_err());
-        delivery.need(&host, &session, ids(), 16).unwrap();
+        delivery
+            .need(&port, &connection, ids(), 16, 0)
+            .await
+            .unwrap();
         assert!(delivery.applied(1).is_err());
         while delivery.next(None).unwrap().is_some() {}
         assert!(delivery.applied(1).is_err());
@@ -437,18 +461,21 @@ mod tests {
         delivery.applied(1).unwrap();
         assert!(delivery.can_start());
         assert!(delivery.started.is_none());
-        let retained = host
+        let locked = host.lock().await;
+        let retained = locked
             .retained_memory_bytes(&session.client, session.view_id)
             .unwrap();
         assert!(retained <= session.limits.view_memory_bytes);
         drop(delivery);
         assert!(
-            host.retained_memory_bytes(&session.client, session.view_id)
+            locked
+                .retained_memory_bytes(&session.client, session.view_id)
                 .unwrap()
                 < retained
         );
         assert!(
-            host.retained_memory_bytes(&session.client, session.view_id)
+            locked
+                .retained_memory_bytes(&session.client, session.view_id)
                 .unwrap()
                 >= baseline
         );
