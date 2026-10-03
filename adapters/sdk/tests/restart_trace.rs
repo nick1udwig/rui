@@ -97,12 +97,10 @@ fn actual_broker_survives_source_kill_and_replays_public_retirement_and_fresh_ef
         );
         let state = receiver.state().unwrap();
         assert!(state.resource_refs().is_empty());
-        assert!(
-            state
-                .records
-                .values()
-                .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_)))
-        );
+        assert!(state
+            .records
+            .values()
+            .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_))));
         assert!(receiver.presented_revision().unwrap().is_none());
         let Record::Session(session) = &state.records[&session_id] else {
             panic!("broker Session survives")

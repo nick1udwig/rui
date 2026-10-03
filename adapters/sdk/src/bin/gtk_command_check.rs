@@ -10,7 +10,7 @@ use rui_protocol_core::session::{
     VerifiedAuthorization,
 };
 use rui_protocol_core::wire::proto as p;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::{
     fs,
@@ -211,12 +211,10 @@ impl Fixture {
         assert!(host.presented_revision(&session.client)?.is_none());
         let state = host.state(&session.client)?;
         assert!(state.resource_refs().is_empty());
-        assert!(
-            state
-                .records
-                .values()
-                .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_)))
-        );
+        assert!(state
+            .records
+            .values()
+            .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_))));
         Ok(Self {
             host,
             session,
@@ -304,11 +302,10 @@ impl Fixture {
             );
             assert!(self.host.presented_revision(observer)?.is_none());
         }
-        assert!(
-            self.host
-                .presented_revision(&self.session.client)?
-                .is_none()
-        );
+        assert!(self
+            .host
+            .presented_revision(&self.session.client)?
+            .is_none());
         retain_capture(&self.host, &self.trace_directory)?;
         Ok(())
     }
@@ -353,11 +350,9 @@ impl Fixture {
                 manifest["command_cause"]["authority_gate"],
                 "core-ledger-admitted"
             );
-            assert!(
-                manifest["command_cause"]["private_request_id"]
-                    .as_u64()
-                    .is_some()
-            );
+            assert!(manifest["command_cause"]["private_request_id"]
+                .as_u64()
+                .is_some());
             let native_bytes = fs::read(
                 self.host
                     .source_artifact_for_diagnostics()
@@ -367,12 +362,10 @@ impl Fixture {
             let envelope = p::Envelope::decode(native_bytes.as_slice())?;
             let snapshot = p::Snapshot::decode(envelope.payload.as_slice())?;
             assert_eq!(snapshot.revision, manifest["revision"].as_u64().unwrap());
-            assert!(
-                snapshot
-                    .records
-                    .iter()
-                    .any(|r| matches!(r.record, Some(p::record::Record::Scene(_))))
-            );
+            assert!(snapshot
+                .records
+                .iter()
+                .any(|r| matches!(r.record, Some(p::record::Record::Scene(_)))));
             let mut primitives = BTreeMap::<&str, usize>::new();
             let mut surface_coverage = Vec::new();
             for record in &snapshot.records {
@@ -477,16 +470,15 @@ fn positive_and_races(root: &Path) -> Result<Value> {
     assert_eq!(f.host.diagnostics(), counters);
     let mut changed = c.clone();
     changed.action_id = "Focus".into();
-    assert!(
-        f.host
-            .submit(
-                &f.session.client,
-                CommandFamily::Semantic,
-                &changed.encode_to_vec(),
-                f.now()
-            )
-            .is_err()
-    );
+    assert!(f
+        .host
+        .submit(
+            &f.session.client,
+            CommandFamily::Semantic,
+            &changed.encode_to_vec(),
+            f.now()
+        )
+        .is_err());
     assert_eq!(f.host.diagnostics(), counters);
     let observer = f.host.negotiate(
         authorization("controlled-observer", false),
@@ -501,21 +493,20 @@ fn positive_and_races(root: &Path) -> Result<Value> {
     );
     f.host.consume_semantics(&observer.client)?;
     f.observers.push(observer.client.clone());
-    assert!(
-        f.host
-            .negotiate(
-                authorization("undersized-observer", false),
-                hello(
-                    6,
-                    ReceiverLimits {
-                        view_memory_bytes: 256,
-                        ..ReceiverLimits::default()
-                    }
-                ),
-                f.now()
-            )
-            .is_err()
-    );
+    assert!(f
+        .host
+        .negotiate(
+            authorization("undersized-observer", false),
+            hello(
+                6,
+                ReceiverLimits {
+                    view_memory_bytes: 256,
+                    ..ReceiverLimits::default()
+                }
+            ),
+            f.now()
+        )
+        .is_err());
     let mut unauthorized = c.clone();
     unauthorized.client_instance_id = observer.client.client_instance_id.to_vec();
     unauthorized.view_id = observer.view_id.to_vec();
@@ -536,16 +527,15 @@ fn positive_and_races(root: &Path) -> Result<Value> {
         principal: "other-principal".into(),
         client_instance_id: f.session.client.client_instance_id,
     };
-    assert!(
-        f.host
-            .submit(
-                &impostor,
-                CommandFamily::Semantic,
-                &c.encode_to_vec(),
-                f.now()
-            )
-            .is_err()
-    );
+    assert!(f
+        .host
+        .submit(
+            &impostor,
+            CommandFamily::Semantic,
+            &c.encode_to_vec(),
+            f.now()
+        )
+        .is_err());
     for (label, modify, want) in [
         ("wrong-view", 0, Rejection::WrongView),
         ("stale-control-generation", 1, Rejection::StaleControl),
@@ -695,16 +685,15 @@ fn positive_and_races(root: &Path) -> Result<Value> {
     std::thread::sleep(Duration::from_millis(25));
     assert!(!f.host.poll_source(f.now())?);
     f.consume()?;
-    assert!(
-        f.state()
-            .records
-            .values()
-            .filter_map(|r| match r {
-                Record::Surface(s) => Some(s),
-                _ => None,
-            })
-            .all(|s| !s.mapped)
-    );
+    assert!(f
+        .state()
+        .records
+        .values()
+        .filter_map(|r| match r {
+            Record::Surface(s) => Some(s),
+            _ => None,
+        })
+        .all(|s| !s.mapped));
     let r = f.submit("late-event-after-source-destroy", &c, Status::Rejected)?;
     assert_eq!(r.rejection, Some(Rejection::MissingTarget));
     f.finish()
@@ -753,11 +742,10 @@ fn fault(root: &Path, name: &str, operation: Mutation) -> Result<Value> {
     let count = f.host.diagnostics();
     f.retry("exact-unknown-retry", &c, &r)?;
     assert_eq!(count, f.host.diagnostics());
-    assert!(
-        f.host
-            .acquire_control(&f.session.client, [9; 16], f.now())
-            .is_err()
-    );
+    assert!(f
+        .host
+        .acquire_control(&f.session.client, [9; 16], f.now())
+        .is_err());
     let fresh = f.command(button, "Activate", none());
     let rejected = f.submit("fresh-command-after-unknown", &fresh, Status::Rejected)?;
     assert_eq!(rejected.rejection, Some(Rejection::Unauthorized));
@@ -947,24 +935,22 @@ fn restart(root: &Path) -> Result<Value> {
     assert!(f.host.pending_publication(&f.session.client)?.is_none());
     for attempt in 3..=5 {
         let bad = Command::new("/nonexistent/rui-controlled-source");
-        assert!(
-            f.host
-                .restart_source(bad, root.join(format!("failed-start-{attempt}")), f.now())
-                .is_err()
-        );
+        assert!(f
+            .host
+            .restart_source(bad, root.join(format!("failed-start-{attempt}")), f.now())
+            .is_err());
         assert_eq!(f.host.source_generation(), attempt);
         assert_eq!(f.host.epoch(), epoch);
         assert_eq!(f.host.publication_revision(), before_failed_starts);
     }
-    assert!(
-        f.host
-            .restart_source(
-                Command::new("/nonexistent/rui-controlled-source"),
-                root.join("restart-limit"),
-                f.now()
-            )
-            .is_err()
-    );
+    assert!(f
+        .host
+        .restart_source(
+            Command::new("/nonexistent/rui-controlled-source"),
+            root.join("restart-limit"),
+            f.now()
+        )
+        .is_err());
     f.retry(
         "same-unknown-after-failed-starts",
         &original_command,
@@ -1091,13 +1077,11 @@ fn whole_native(root: &Path) -> Result<Value> {
     f.observers.push(observer.client);
     let initial = f.host.source_capture_for_diagnostics().clone();
     assert_eq!(initial["surfaces"].as_array().unwrap().len(), 4);
-    assert!(
-        initial["surfaces"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|s| s["mapped"] == true)
-    );
+    assert!(initial["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|s| s["mapped"] == true));
     let modal_entry = named(f.state(), "Modal entry");
     let modal_close = named(f.state(), "Close native modal");
     let main_button = named(f.state(), "Activate source action");
@@ -1228,42 +1212,32 @@ fn whole_native(root: &Path) -> Result<Value> {
     let final_capture = f.host.source_capture_for_diagnostics().clone();
     let interrupted = final_capture["interrupted_nonce"].as_u64().unwrap();
     let events = final_capture["barrier_events"].as_array().unwrap();
-    assert!(
-        events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
-    );
-    assert!(
-        events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "abort")
-    );
-    assert!(
-        !events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "commit")
-    );
+    assert!(events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture"));
+    assert!(events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "abort"));
+    assert!(!events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "commit"));
     assert_ne!(final_capture["capture_barrier_nonce"], interrupted);
     let stale: Vec<_> = events
         .iter()
         .filter(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
         .map(|e| &e["token"])
         .collect();
-    assert!(
-        final_capture["surfaces"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|s| !stale.contains(&&s["capture_token"]))
-    );
+    assert!(final_capture["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|s| !stale.contains(&&s["capture_token"])));
     assert!(!f.state().records.contains_key(&tooltip_root));
-    assert!(
-        final_capture["surfaces"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|s| s["surface_key"] != "tooltip")
-    );
+    assert!(final_capture["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|s| s["surface_key"] != "tooltip"));
     assert!(f.state().records.values().any(|r| matches!(r, Record::Semantic(s) if s.label.as_deref() == Some("Barrier semantic mutation retained"))));
     let mut result = f.finish()?;
     result["final_whole_capture"] = final_capture;

@@ -4,8 +4,8 @@
 //! Public projections have independent bounded delivery and resource ownership.
 use crate::source_identity::SourceIdentities;
 use crate::{
-    CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES, MAX_MANIFEST_ALLOCATION, bounded_read,
-    manifest_preflight,
+    bounded_read, manifest_preflight, CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES,
+    MAX_MANIFEST_ALLOCATION,
 };
 use prost::Message;
 use rui_protocol_core::commands::{
@@ -1946,18 +1946,17 @@ mod tests {
             .get::<PublishedClosure>()
             .unwrap();
         assert!(!old_closure.resources.is_empty());
-        assert!(
-            host.sessions
-                .acquire_control(
-                    &controller,
-                    host.views[&controller.client_instance_id]
-                        .negotiated
-                        .view_id,
-                    [8; 16],
-                    0
-                )
-                .is_err()
-        );
+        assert!(host
+            .sessions
+            .acquire_control(
+                &controller,
+                host.views[&controller.client_instance_id]
+                    .negotiated
+                    .view_id,
+                [8; 16],
+                0
+            )
+            .is_err());
         host.acknowledge_applied(&controller, 1, &controller_first)
             .unwrap();
         assert!(host.presented_revision(&controller).unwrap().is_none());
@@ -1981,10 +1980,9 @@ mod tests {
             3
         );
         assert!(host.acknowledge_applied(&observer, 3, &first).is_err());
-        assert!(
-            host.acknowledge_applied(&observer, 1, &controller_first)
-                .is_err()
-        );
+        assert!(host
+            .acknowledge_applied(&observer, 1, &controller_first)
+            .is_err());
         // The exact old witness still works after two source captures. It does
         // not acquire presentation on its own or advance another view.
         host.acknowledge_applied(&observer, 1, &first).unwrap();
@@ -2040,14 +2038,12 @@ mod tests {
             .keys()
             .next()
             .unwrap();
-        assert!(
-            host.publication_resource(&other, &publication, digest)
-                .is_err()
-        );
-        assert!(
-            host.publication_resource(&client, &publication, [255; 32])
-                .is_err()
-        );
+        assert!(host
+            .publication_resource(&other, &publication, digest)
+            .is_err());
+        assert!(host
+            .publication_resource(&client, &publication, [255; 32])
+            .is_err());
         host.acknowledge_applied(&client, 1, &publication).unwrap();
         host.acknowledge_presented(&client, 1).unwrap();
         let view = host.views.get_mut(&client.client_instance_id).unwrap();
@@ -2074,10 +2070,9 @@ mod tests {
         assert_eq!(host.state(&client).unwrap().revision, 2);
         assert!(host.presented_revision(&client).unwrap().is_none());
         host.revoke_authorization(&client, 0).unwrap();
-        assert!(
-            host.publication_resource(&client, &publication, digest)
-                .is_err()
-        );
+        assert!(host
+            .publication_resource(&client, &publication, digest)
+            .is_err());
     }
 
     #[test]
@@ -2127,16 +2122,15 @@ mod tests {
         host.acknowledge_applied(&client, 2, &second).unwrap();
         assert!(host.acknowledge_presented(&client, 2).is_err());
         assert!(host.presented_revision(&client).unwrap().is_none());
-        assert!(
-            host.sessions
-                .acquire_control(
-                    &client,
-                    host.views[&client.client_instance_id].negotiated.view_id,
-                    [9; 16],
-                    0
-                )
-                .is_err()
-        );
+        assert!(host
+            .sessions
+            .acquire_control(
+                &client,
+                host.views[&client.client_instance_id].negotiated.view_id,
+                [9; 16],
+                0
+            )
+            .is_err());
     }
 
     #[test]
@@ -2269,21 +2263,15 @@ mod tests {
                 0,
             )
             .unwrap();
-        assert!(
-            sessions
-                .authorize_projection(&negotiated.client, negotiated.view_id)
-                .is_ok()
-        );
+        assert!(sessions
+            .authorize_projection(&negotiated.client, negotiated.view_id)
+            .is_ok());
         assert!(consumer_for_view(&mut sessions, &negotiated, 0).is_err());
-        assert!(
-            sessions
-                .authorize_projection(&negotiated.client, negotiated.view_id)
-                .is_err()
-        );
-        assert!(
-            sessions
-                .acquire_control(&negotiated.client, negotiated.view_id, [4; 16], 0)
-                .is_err()
-        );
+        assert!(sessions
+            .authorize_projection(&negotiated.client, negotiated.view_id)
+            .is_err());
+        assert!(sessions
+            .acquire_control(&negotiated.client, negotiated.view_id, [4; 16], 0)
+            .is_err());
     }
 }

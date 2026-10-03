@@ -74,21 +74,15 @@ fn actual_whole_view_barrier_retirement_focus_modality_closure_and_pixels() {
     }
     let interrupted = report["interrupted_nonce"].as_u64().unwrap();
     let events = report["barrier_events"].as_array().unwrap();
-    assert!(
-        events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
-    );
-    assert!(
-        events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "abort")
-    );
-    assert!(
-        !events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "commit")
-    );
+    assert!(events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture"));
+    assert!(events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "abort"));
+    assert!(!events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "commit"));
     let stale_tokens: BTreeSet<_> = events
         .iter()
         .filter(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
@@ -243,12 +237,10 @@ fn forged_whole_barrier_membership_nonce_geometry_and_visual_clock_fail_audit() 
         let path = temporary.join(format!("{name}.json"));
         fs::write(&path, serde_json::to_vec(&m).unwrap()).unwrap();
         fs::copy(root.join("whole-0001.bin"), path.with_extension("bin")).unwrap();
-        assert!(
-            CaptureArtifact::read(&path)
-                .unwrap()
-                .verify_vector_audit(&receiver)
-                .is_err()
-        );
+        assert!(CaptureArtifact::read(&path)
+            .unwrap()
+            .verify_vector_audit(&receiver)
+            .is_err());
     }
     fs::remove_dir_all(temporary).unwrap();
     receiver.close();

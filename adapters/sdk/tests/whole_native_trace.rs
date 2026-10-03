@@ -131,21 +131,15 @@ fn admitted_native_whole_commands_bind_effects_modality_lifecycle_and_fresh_unio
     let events = evidence["final_whole_capture"]["barrier_events"]
         .as_array()
         .unwrap();
-    assert!(
-        events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
-    );
-    assert!(
-        events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "abort")
-    );
-    assert!(
-        !events
-            .iter()
-            .any(|e| e["nonce"] == interrupted && e["event"] == "commit")
-    );
+    assert!(events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture"));
+    assert!(events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "abort"));
+    assert!(!events
+        .iter()
+        .any(|e| e["nonce"] == interrupted && e["event"] == "commit"));
     let stale: BTreeSet<_> = events
         .iter()
         .filter(|e| e["nonce"] == interrupted && e["event"] == "fresh-capture")
@@ -266,12 +260,10 @@ fn admitted_native_whole_commands_bind_effects_modality_lifecycle_and_fresh_unio
         );
         let public_state = public.state().unwrap();
         assert!(public_state.resource_refs().is_empty());
-        assert!(
-            public_state
-                .records
-                .values()
-                .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_)))
-        );
+        assert!(public_state
+            .records
+            .values()
+            .all(|r| !matches!(r, Record::Scene(_) | Record::Binding(_))));
         assert!(public.presented_revision().unwrap().is_none());
         if revision > 1 {
             let command = commands

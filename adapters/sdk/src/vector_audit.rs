@@ -1,13 +1,13 @@
 //! Diagnostic audit of the actual decoded GTK publication/resource closure.
 //! Source origins are cooperating-producer evidence, not remote attestation.
-use crate::{CaptureArtifact, CaptureError, hex};
+use crate::{hex, CaptureArtifact, CaptureError};
 use rui_protocol_core::model::{
     Color, FillRule, GlyphFont, Primitive, Record, Rect, VisualCoverage,
 };
 use rui_protocol_core::receiver::ViewReceiver;
 use rui_protocol_core::resources::{ResourceKind, ResourceProvenance};
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Serialize)]

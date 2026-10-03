@@ -402,10 +402,9 @@ mod tests {
     #[test]
     fn live_and_lifetime_identity_limits_fail_without_partial_authority() {
         let mut ids = SourceIdentities::new();
-        assert!(
-            ids.project(&mut bounded_snapshot(MAX_LIVE_IDS + 1), 0)
-                .is_err()
-        );
+        assert!(ids
+            .project(&mut bounded_snapshot(MAX_LIVE_IDS + 1), 0)
+            .is_err());
         assert_eq!(ids.session, 0);
         assert!(ids.issued.is_empty());
         ids.project(&mut bounded_snapshot(MAX_LIVE_IDS), 0).unwrap();
