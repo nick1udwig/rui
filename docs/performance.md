@@ -52,9 +52,8 @@ queue measurements are samples. Whole-process peak RSS is separately reported as
 and renderer reservations return to zero, and all scoped diagnostic owners close.
 
 This CPU renderer misses the provisional 16.67 ms opportunity at 60 Hz. These
-measurements satisfy the declared PER-001 load checks; native action-to-Presented
-latency and actual desktop frame opportunities remain separate M5 integration
-work. No native presentation is inferred from CPU rendering or Applied.
+measurements satisfy the declared PER-001 load checks. The separate actual
+native measurements below do not infer presentation from CPU rendering or Applied.
 
 Reproduce on a machine with the pinned native font dependencies:
 
@@ -67,3 +66,33 @@ The benchmark requires loopback sockets. It uses fixture TLS credentials and
 an explicit local recorder; no desktop session is required. The JSON emitted by
 the executable contains measurements; the retained report additionally records
 the build environment and source hashes.
+
+## Actual native input through after-paint
+
+The root-reviewed [native broad report](../fixtures/render/native-broad.json)
+measures fourteen successful source actions in a debug build on the same
+i7-1280P, GTK 4.22.4, Linux 7.1.9. Each sample starts inside the actual GTK input
+callback before enqueue and ends at the actual after-paint callback for its
+causal revision. Canvas timing starts at release, when its complete stroke is
+submitted. The controller crosses a 32 KiB/s relay; the observer connects directly.
+Both mirrors, the controlled source and the diagnostic comparisons run on this
+machine. Other compiler/native test work ran concurrently.
+
+| Actual callback latency, milliseconds | p50 | p95 | p99 |
+|---|---:|---:|---:|
+| Controller | 1971.926 | 2386.027 | 2386.027 |
+| Observer | 1675.626 | 1931.399 | 1931.399 |
+
+The small, heterogeneous sample includes checkbox, selection/reorder, scroll,
+transients, canvas and source resize, following initial resources, typing and
+viewport warmup. With fourteen samples, p95 and p99 are the maximum observation.
+All fourteen actions succeeded without timeout; deliberate pre-submission overflow
+and Escape cancellations are reported separately. Both clients exceeded their
+reported 16.667 ms interval on every sample. CPU render/RGBA/diagnostic work also
+exceeded the configured opportunity in all 30 controller and 31 observer attempts.
+The report retains individual samples and worker scheduling counters. Elapsed
+timer periods are not a count of physically dropped display frames.
+
+These timings are measured limitations, not a 60 Hz performance pass. After-paint
+on the owned Xvfb is a native callback boundary and makes no physical scanout
+claim. Release-build measurements remain a separate follow-up to this debug run.
