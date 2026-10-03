@@ -1,11 +1,14 @@
 # Measured GTK 4 cooperating capture
 
-This foundation demonstrates an actual GTK content snapshot boundary, a
-vector-only Protobuf publication accepted by the Rust receiver, and a local
-native-versus-replay comparison of the full constrained corpus. It measures a
-small ordinary-control corpus under GTK 4.22.4. It is not a generic GTK desktop
-adapter, a persistent network producer or completed M3 interaction. A controlled
-whole-view transaction slice is measured separately below.
+The measured cooperating GTK 4.22.4 corpus covers an actual snapshot boundary,
+vector-only Protobuf publication, native-versus-replay comparisons, guarded TLS
+commands and actual two-mirror presentation. The later
+[producer composition matrix](#native-wire-composition-producer) and
+[desktop wire composition run](#actual-desktop-wire-composition) measure native
+transient state and client IM commits separately. Earlier standalone capture and
+semantic probes retain their original narrower scope below. These bounded
+cooperating fixtures do not establish an arbitrary GTK desktop adapter or a
+production persistent source service.
 
 ## Source boundary and identity
 
@@ -186,10 +189,13 @@ A per-view `SessionState` carries actual native focus and focus-generation
 transitions. The registry observes window focus notifications, resolves only
 explicitly registered native ancestors, and clears focus when the popup unmaps
 or objects are destroyed. Tests check the actual recorded transitions and reject
-stale focus clocks. IME composition, guarded remote command dispatch through the
-shared Rust session authority/ledger, and causal command-result publication are
-still acceptance work. Timed local corpus callbacks are not remote command
-proof, and `NativeRegistry.resolve_event` alone cannot admit a command.
+stale focus clocks. This original capture run has no remote command or IME
+composition evidence; those are measured in the later
+[TLS producer](#optional-gtk-producer-port-and-actual-tls),
+[composition matrix](#native-wire-composition-producer), and
+[desktop IM run](#actual-desktop-wire-composition). Timed local corpus callbacks
+are not remote command proof, and `NativeRegistry.resolve_event` alone cannot
+admit a command.
 
 ## Exact replay, resources and bounds
 
@@ -245,7 +251,7 @@ state/resource budget. Exact envelopes are bounded to 1 MiB, and resources to
 16 MiB. The fixture bridge does not expose arbitrary large-envelope decoding or
 an authenticated network resource producer.
 
-## Local visual diagnostics and remaining acceptance work
+## Local visual diagnostics
 
 The same submitted GSK node is drawn into a bounded local Cairo image for
 comparison: `.local.png` and native little-endian premultiplied sRGB BGRA
@@ -518,8 +524,8 @@ That retained five-frame whole-view run uses native cooperating fixture lifecycl
 callbacks. It is the historical capture component, separate from the later
 [TLS producer](#optional-gtk-producer-port-and-actual-tls),
 [actual mirror presentation](#native-bindings-and-actual-mirror-presentation), and
-[wire composition producer](#native-wire-composition-producer) measurements.
-Actual desktop wire IM callbacks remain a separate acceptance gate. AT-SPI was
+[wire composition producer](#native-wire-composition-producer) and
+[actual desktop IM](#actual-desktop-wire-composition) measurements. AT-SPI was
 not used to infer coherence; this capture run alone is not a whole-milestone claim.
 
 ## Admitted commands and whole-view captures
@@ -594,8 +600,9 @@ semantic component makes no network, Presented or wire composition claim; those
 source capabilities are measured in the later
 [TLS](#optional-gtk-producer-port-and-actual-tls),
 [mirror](#native-bindings-and-actual-mirror-presentation), and
-[composition](#native-wire-composition-producer) sections. Actual desktop wire IM
-callbacks remain a separate acceptance gate.
+[composition](#native-wire-composition-producer) sections. Native client IM
+callbacks are measured separately in the
+[actual desktop wire run](#actual-desktop-wire-composition).
 
 ## Per-view visual publication ownership
 
@@ -711,8 +718,9 @@ fails the audit before presentation. This profile is cooperating-source evidence
 not remote attestation. The probe uses semantic readiness, not Presented, and
 makes no TextComposition or preedit claim. Its source-context guards are reused
 by the subsequently accepted [visual mirror](#native-bindings-and-actual-mirror-presentation)
-and [composition producer](#native-wire-composition-producer); actual desktop wire
-IM callbacks remain a separate acceptance gate.
+and [composition producer](#native-wire-composition-producer). The subsequent
+[actual desktop wire run](#actual-desktop-wire-composition) supplies native client
+IM and presentation evidence absent from this semantic probe.
 
 ```sh
 python3 fixtures/gtk/native_check.py --xvfb /path/to/Xvfb \
@@ -860,7 +868,8 @@ historical transport run makes no actual mirror, wire composition or physical
 input claim. Actual after-paint readiness is measured in the
 [mirror section](#native-bindings-and-actual-mirror-presentation), and private
 preedit/native commit are measured by the
-[composition producer](#native-wire-composition-producer). Native session physical
+[composition producer](#native-wire-composition-producer) and
+[actual desktop IM run](#actual-desktop-wire-composition). Native session physical
 input has its own [declared baseline and cleanup scope](desktop-controls.md).
 
 ```sh
@@ -947,8 +956,9 @@ cargo test --locked -p rui-client-desktop --test gtk_bindings
 This slice establishes real mirror after-paint readiness and source-bound native
 pointer discovery. The later [composition producer](#native-wire-composition-producer)
 measurement verifies native transient stages and their cancellation matrix.
-Actual desktop wire IM callbacks remain a separate acceptance gate; the earlier
-local preedit/ReplaceText path alone does not establish that protocol feature.
+The [actual desktop wire run](#actual-desktop-wire-composition) supplies native IM
+callback evidence; the earlier local preedit/ReplaceText path alone does not
+establish that protocol feature.
 
 Root independently rebuilt the frozen binding/mirror slice and reran both native
 probes. `fixtures/gtk/mirror-root-verification.json` records four actual after-paint
@@ -969,7 +979,7 @@ editing the document or publishing preedit to observers. Commit consumes the
 original scalar range once and reports Applied only after a fresh, audited
 whole-view capture. Its source_commit is the editing Surface capture token.
 The optional `text.clock.gtk-editable4224.v1` contract records GTK's observed
-clear/insert/caret clocks; see `spec/input-profile.md`. It is negotiated only for
+clear/insert/caret clocks; see the [input profile](../spec/input-profile.md). It is negotiated only for
 the exact measured toolkit version and never inferred from coincidental text.
 
 Root independently rebuilt the frozen producer and ran all 15 actual TLS/native
@@ -977,18 +987,21 @@ scenarios: commit, explicit cancel, focus and selection ABA, target removal,
 revocation, disconnect, renewal beyond the original deadline, expiry, insertion,
 whole deletion, same-content replacement, insertion into empty, prefix deletion,
 and empty-to-empty commit. All passed. The producer driver uses simulated
-Presented callbacks; actual desktop IM callbacks and after-paint remain a
-separate acceptance gate. The desktop CompositionQueue has independently passed
-10 tests covering ordered transient stages, exact causal confirmation in both
-arrival orders, measured clocks, strict generic behavior, ABA/context failures,
+Presented callbacks; its source assertions therefore do not establish desktop
+IM or native presentation. Those are measured in the
+[actual desktop wire run](#actual-desktop-wire-composition). The frozen producer
+review included 10 independently passed desktop CompositionQueue tests covering
+ordered transient stages, exact causal confirmation in both arrival orders,
+measured clocks, strict generic behavior, ABA/context failures,
 exact results, bounds and retained allocation ownership.
 
 Producer validation passed 23 SDK unit tests, the optional-profile core
 regression, 12 native Python tests and strict SDK Clippy. Independent Python/Rust
 replay of the final commit trace passed 364 exact packets, six publications,
 78 vector transfers (58,012 bytes), all six record kinds, four distinct commands
-and one exact retry. This producer acceptance does not close TXT-002/TXT-003
-until actual desktop wire composition is independently verified.
+and one exact retry. This producer run establishes the source side of
+TXT-002/TXT-003; actual native desktop callbacks and paint readiness have separate
+evidence below.
 
 
 The 15 root-run scenarios are retained in
@@ -999,3 +1012,93 @@ protobuf packets, source manifests and RVP vectors. The bounded
 cancellation receipts, causal Surface tokens, exact retries, measured clocks and
 zero disposal ownership. Root reran the frozen replay and strict Clippy. CI also
 runs the independent commit-trace audit against `composition-commit.audit.json`.
+
+
+## Actual desktop wire composition
+
+The desktop selects TextComposition only when a full visual view grants
+`text.client.v1` and the lease permits that command family. Native key filtering
+arms the original epoch/view, lease generation, target/text identity, scalar
+selection and focus/content/full-record clocks before synchronous IM signals.
+Retired IM generations cannot deliver stages into a fresh context. Native Begin,
+UpdatePreedit, Commit and Cancel use the same serialized exact-byte command ledger
+as the source's other commands. The semantic ReplaceText path remains available
+when composition is unadvertised; a rejected or failed wire stage never falls
+back to it.
+
+Local preedit is private and reserved before GTK retains it, bounded to 16 KiB of
+UTF-8 per native stage. The worker queue permits at most 32 stages, 64 KiB of
+queued text and 128 issued identities per queue lifetime, with one stage in
+flight. Begin, UpdatePreedit and Cancel return Dispatched after native transient
+acknowledgement, without document mutation, source-commit evidence or public
+publication. Observer records, resource bodies and trace prefixes do not receive
+preedit. Exact controller command bytes are retained only by explicitly scoped
+diagnostics. Commit consumes the original scalar replacement range once.
+
+The next edit requires both its matching Applied sequence and exact coherent
+source text/caret/context, including the Applied source token in the editing
+Surface's `source_capture_tokens`. Result and publication may arrive in either
+order. Verified resources and a current actual GTK snapshot/after-paint callback
+must then authorize dispatch. The optional explicitly negotiated
+`text.clock.gtk-editable4224.v1` contract permits only the measured
+clear/insert/caret deltas with that causal witness. It preserves native ABA
+observations; without the profile, conservative clock checks remain. The precise
+formula is documented in the
+[input profile](../spec/input-profile.md#cooperating-gtk-client-text-composition).
+
+Failed stage handoff, limits, stale context and missing causal confirmation stop
+the admitting grant through a priority lane independent of the ordinary GUI
+FIFO. Cleanup retains the original grant owner before that FIFO can fail and
+cannot acquire a newer grant from current UI state. Recovery requires fresh
+manual control. A fresh grant retires the previous native editing/context
+generation; a delayed revocation notice affects only its exact lease identity
+and generation. The source fences old authority immediately, clears private
+preedit on its native thread, and rejects late commits. Renewal keeps a valid
+held composition live without restoring a canceled context.
+
+Root independently rebuilt the final frozen runtime and passed the actual
+private-display run retained in
+[desktop-composition-interaction.json](../fixtures/gtk/desktop-composition-interaction.json).
+Actual XTest/GDK IM input commits `a`, Ctrl+Shift+U U+00E9, then ordered `x` and
+`y`, producing `aéxy` with scalar carets 1, 2, 3 and 4. Five native Begin callbacks,
+12 preedit updates, four commits and one Escape cancellation agree with the wire
+stages. Preedit and Escape leave the observer document unchanged; no physical
+composing batch or semantic ReplaceText fallback is emitted. A priority reset
+returns to a fresh observing scope without control. The run uses actual GTK
+Presented callbacks before every admitted stage and before rebasing the next
+composition.
+
+Ten source/two-mirror after-paint record and complete viewport RGBA comparisons
+match. Five separately retained native captures check 935 glyphs and pass the
+declared native Cairo versus linear renderer tolerance with zero bad interior
+pixels. Shared host ownership peaks at 217,299,798 bytes within 256 MiB and returns
+to zero on disposal. The exact authorized post-authentication exports are
+[controller.trace.jsonl](../fixtures/gtk/desktop-composition-golden/controller.trace.jsonl)
+and [observer.trace.jsonl](../fixtures/gtk/desktop-composition-golden/observer.trace.jsonl),
+with source manifests and vector bodies in the same retained directory.
+Credential handshakes and local raster diagnostics are excluded from these traces.
+The selected clock profile is an actual `NetworkClient.profiles` observation
+recorded by the native probe; these post-authentication prefixes contain no
+ServerHello. The controller prefix ends before the priority reset. The native
+report establishes that reset and fresh scope, rather than the original trace.
+The independent [controller](../fixtures/gtk/desktop-composition-controller.audit.json)
+and [observer](../fixtures/gtk/desktop-composition-observer.audit.json) network
+audits verify 487 packets, 12 publications and 76 vector transfers across all six
+record kinds. Default SDK replay binds all 50 retained artifacts (3,301,599 bytes)
+to the report and verifies native vector closures, text clocks and causal tokens.
+
+This run uses separate authenticated source and mirror Xvfb displays, an owned
+service-free private bus, pinned GTK 4.22.4/Cairo and native GTK IM simple. It
+measures the bounded cooperating source and native frame submissions, without a
+physical scanout or arbitrary application/theme claim. The rapid native commits
+do not establish overlap while a wire commit is in flight; portable queue tests
+cover that order. Focus/removal/revocation/disconnect/renewal/expiry causes and
+clock edge cases are separately retained in the 15-case producer matrix above.
+Strict final desktop tests, Clippy and formatting also pass.
+
+```sh
+cargo build --locked --release -p rui-client-desktop \
+  --features gtk-source-probe --example gtk_source_probe
+python3 fixtures/gtk/mirror_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-gtk-desktop-composition-empty --scenario composition
+```

@@ -203,22 +203,50 @@ Local viewport changes require another actual GTK frame before pointer input
 uses the new mapping. Control requests use fresh bounded request IDs and renew
 the current lease; control is never inferred from a rendered semantic action.
 
-The IM integration displays native preedit in bounded local chrome and sends
-guarded ReplaceText commands on commit. It captures epoch/view, lease/generation, target version,
-text identity/content/selection record versions, scalar replacement range and
+The IM integration selects wire TextComposition when the view grants
+`text.client.v1` and the current lease permits `TextComposition`. Native preedit
+stays in bounded local chrome; Begin, UpdatePreedit and Cancel acknowledge private
+source state without editing or publishing document text. Commit replaces the
+original scalar range once through the shared command ledger. When composition
+is unadvertised, an authorized editable target uses guarded semantic ReplaceText
+on commit. A failed wire stage never falls back to ReplaceText.
+
+Both paths capture epoch/view, lease/generation, target version, text
+identity/content/selection record versions, scalar replacement range and
 focus generation before native key filtering can synchronously emit IM signals.
-Unrelated scene revisions preserve that identity and the command retains its
-original observed revision. Relevant context changes invalidate the capture
-**before** calling IM.reset. Each replacement native IM instance has an immutable
+Unrelated scene revisions preserve that identity. Semantic fallback commands
+retain the original observed revision; wire stages use the current actual
+Presented revision after checking the captured editing context. Relevant context
+changes invalidate the capture **before** calling IM.reset. Each replacement native IM instance has an immutable
 editing-generation identity; callbacks from retired instances are rejected even
 after the new instance has armed its first key. Empty native commits clear local
-preedit and emit no deletion command. Native key filtering arms each capture
-before synchronous commit/preedit signals. Displayed preedit is limited to 1024
-UTF-8 bytes, reserved before GTK retains it, and cleared before reset/context
-changes. It is never authoritative source text or a wire publication.
+preedit and cancel an active wire composition without deleting document text.
+Displayed preedit is limited to 16 KiB of UTF-8 in wire mode, or 1024 bytes in the
+semantic fallback, reserved before GTK retains it and cleared before reset or
+context changes. It never becomes authoritative source text or a public
+publication. Only explicitly authorized controller diagnostics can retain exact
+preedit command bytes; observer records, resources and traces contain no preedit.
 
-Accepted commits enter a bounded FIFO with one ReplaceText in flight, at most
-32 commits total, at most 16 KiB of waiting UTF-8 input, and 1024 bytes per commit.
+The wire queue retains at most 32 stages, 64 KiB of queued UTF-8 and 128 issued
+composition identities per queue lifetime, with at most 16 KiB per native stage.
+Its reserved shared budget covers text, queue capacity and retired identities.
+Only one stage is in flight. Begin, UpdatePreedit and Cancel require matching
+Dispatched results with no source commit. Commit requires the matching Applied
+sequence and nonempty source evidence, the exact installed text and scalar caret,
+unchanged editing context, and that evidence in the editing Surface's coherent
+`source_capture_tokens`. Result and publication may arrive in either order;
+neither alone confirms the edit. The next composition uses the newly confirmed
+context only after verified resources and an actual GTK Presented callback.
+
+The optional negotiated `text.clock.gtk-editable4224.v1` contract admits only the
+pinned GTK 4.22.4 clear/insert/caret deltas with this causal witness and expected
+text/caret. It preserves independent native focus, content and selection
+observations. Without that profile, conservative clock checks remain in force.
+See the [input profile](input-profile.md#cooperating-gtk-client-text-composition)
+for the precise deltas.
+
+The semantic fallback retains its bounded FIFO with one ReplaceText in flight,
+at most 32 commits total, 16 KiB of waiting UTF-8 input and 1024 bytes per commit.
 Expected source text is limited to 64 KiB. The next edit uses fresh confirmed
 scalar selection and source clocks only after the matching command sequence
 returns Applied with nonempty source evidence and a resulting revision, and
@@ -230,17 +258,27 @@ semantic target version may stay fixed or advance once. Larger jumps cancel
 pending typing even if final text coincidentally matches. This narrow policy
 fails closed for producers using a different editing-clock convention.
 
-New dispatch also waits for verified resources and actual GTK Presented of the
-current applied revision. A resource or render wait preserves the FIFO. An
-unexpected text/selection/focus/authority change, target click, terminal rejection
+Both paths wait for verified resources and actual GTK Presented of the current
+applied revision before dispatch. A resource or render wait preserves queued
+work. An unexpected text/selection/focus/authority change, target click, terminal rejection
 or allocation/queue limit cancels queued work with sticky latest-state feedback.
 Cancellation cannot undo a command already dispatched. Native input is rejected
 visibly before IM filtering when no context or GUI queue capacity is available.
-Native commit size/allocation/channel failures also retain local feedback through
-ordinary source statuses and frames, and keep native editing disabled across
-automatic editing-context resets until explicit target reselection. Previously
-accepted FIFO entries continue; a failed handoff emits no command.
-This is not implementation or acceptance of the wire TextComposition family.
+In wire mode, stage or receipt failure, allocation pressure and failed native
+handoff cancel queued editing and stop the admitting grant through an independent
+priority lane. The cleanup owner is captured before the ordinary GUI FIFO can
+fail; cleanup cannot target a later grant. Recovery requires fresh manual control.
+A new grant retires old IM/context generations before accepting input, and a
+delayed ControlRevoked notice is effective only for its matching lease identity
+and generation. The source immediately fences that old authority, then clears
+private transient state on its native thread. Late stages cannot commit.
+
+Semantic fallback commit size/allocation/channel failures retain local feedback
+through ordinary source statuses and frames, and keep native editing disabled
+across automatic editing-context resets until explicit target reselection.
+Previously accepted fallback FIFO entries continue; a failed handoff emits no
+command. The [actual desktop wire run](../docs/gtk-coverage.md#actual-desktop-wire-composition)
+measures wire stages separately from the earlier local ReplaceText IM probe.
 
 Lifecycle and editing state use a separate bounded latest-state watch channel.
 Clear/Closed/Quit cannot be lost behind a full frame/status queue; generations
@@ -366,5 +404,7 @@ python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe physical
 Root review passed three component tests, strict desktop Clippy and this actual
 GTK 4.22.4 private-X11 probe: physical Y and Shift presses/releases keep evdev
 identities 21 and 42, and real server autorepeat produces no duplicate down.
-This verifies local capture. Remote HOST_PHYSICAL delivery, native source effects
-and two-mirror presentation remain separate integration gates.
+This component verifies local capture. The subsequent accepted
+[native session measurements](session-shell-profile.md#actual-held-input-cleanup-matrix)
+cover remote HOST_PHYSICAL delivery, native effects, two-mirror presentation,
+cleanup, mapping and stale-route/scope rejection for the declared isolated backend.

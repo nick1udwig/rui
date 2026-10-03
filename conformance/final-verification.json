@@ -1,0 +1,620 @@
+{
+  "date": "2026-10-03",
+  "reviewer": "root project-manager review with independently frozen copies and native reruns",
+  "implementation_and_evidence_commit": "e57145d909d02a995ee08bfdeb09a525fbe91584",
+  "scope": "RFC M0–M5; all 79 declared conformance cases; constrained pinned GTK corpus and isolated exported EIS backend; section 14 deferred",
+  "suite_accounting": "412 production-workspace tests at 4f2634a plus one newly added retained corpus test at e57145d; optional/native suites overlap these tests and are not additive unique-test counts. Three default native omissions executed explicitly. Native checks used system Cairo; default CI-style checks used isolated minimal Cairo1.18.4. Final SDK includes the new retained test.",
+  "case_audit": {
+    "cases": 79,
+    "priority": {
+      "P0": 77,
+      "P1": 2
+    },
+    "layers": {
+      "model": 46,
+      "integration": 24,
+      "render": 4,
+      "interop": 1,
+      "property": 2,
+      "load": 2
+    },
+    "duplicates": 0,
+    "missing": []
+  },
+  "tests": [
+    {
+      "command": "cargo test --workspace --locked",
+      "passed": 412,
+      "failed": 0,
+      "ignored": 3,
+      "log": {
+        "file": "rui-root-final-workspace-tests.log",
+        "sha256": "89faed020d0d0bb20207386ba6a2444f00368daf70a45eef2c1596ae16d25f9d",
+        "bytes": 50141
+      }
+    },
+    {
+      "command": "cargo test -p rui-producer-sdk --test desktop_composition_trace --locked",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "file": "rui-root-final-retained-composition-tests.log",
+        "sha256": "5056a35ddb14a0e4c4aadcf137454be7500d76addf237754fac77e96be1fc7e7",
+        "bytes": 545
+      }
+    },
+    {
+      "command": "cargo test -p rui-producer-sdk --features transport,gtk-fixture-hooks --all-targets --locked",
+      "passed": 49,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "file": "rui-root-final-sdk-tests.log",
+        "sha256": "2f5a8323b714a04d2930ac64dded5054c29227d5d40c179eb954813fb1922ab0",
+        "bytes": 8715
+      }
+    },
+    {
+      "command": "cargo test -p rui-client-desktop --features gtk-source-probe --all-targets",
+      "passed": 93,
+      "failed": 0,
+      "ignored": 1,
+      "log": {
+        "file": "rui-root-desktop-wire-final-tests.log",
+        "sha256": "c7d64f60c6ff14b55c045db90e485e1490f4b091978b72a7dd4b3d16a23aa2a3",
+        "bytes": 13133
+      }
+    },
+    {
+      "command": "cargo test -p rui-session-shell --features native-mirrors --all-targets",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 33,
+      "log": {
+        "file": "rui-root-final-session-tests.log",
+        "sha256": "cc6101a432a98f2044875948aba4acf347f4d8caf63b3eac4a11ea286c5fc094",
+        "bytes": 7775
+      }
+    },
+    {
+      "command": "cargo test -p rui-session-shell --features native-mirrors --all-targets -- --ignored",
+      "passed": 33,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "file": "rui-root-final-session-ignored-tests.log",
+        "sha256": "78c35a19af8739e69c0f99e2117075a58f9b683263b957e1fa49dd98377f91d4",
+        "bytes": 4633
+      }
+    },
+    {
+      "command": "cargo test -p rui-host-broker --test source_fonts -- --ignored",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "file": "rui-root-final-native-font-tests.log",
+        "sha256": "a6a157080a316e4788070661c620cc3b02507e87f5a2532dd2f6fbe20334b897",
+        "bytes": 953
+      }
+    },
+    {
+      "command": "cargo test -p rui-client-desktop --features gtk-source-probe --test performance_source -- --ignored",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "file": "rui-root-final-native-load-test.log",
+        "sha256": "9ddd4f5afc2f8b09394cdea8f3bcfae48db45b21d6ef585101d2c8ea4e57f985",
+        "bytes": 582
+      }
+    },
+    {
+      "command": "python3 -m unittest adapters.sdk.test_producer adapters.atspi.test_observer adapters.atspi.test_trace adapters.gtk4.test_capture adapters.gtk4.test_native adapters.gtk4.test_composition fixtures.gtk.test_compare fixtures.gtk.test_negatives fixtures.gtk.test_transaction fixtures.gtk.test_composition_trace fixtures.render.test_native_font conformance.test_shrink conformance.test_semantic_client conformance.test_full_reference conformance.test_network_audit conformance.test_indexed_network_audit",
+      "passed": 88,
+      "failed": 0,
+      "log": {
+        "file": "rui-root-final-python-tests.log",
+        "sha256": "0e23e9122f05455701f218ae36231f5dc7e05da7c29a183047ce50f33b7cc25c",
+        "bytes": 187
+      }
+    }
+  ],
+  "static_checks": [
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "passed": true,
+      "log": {
+        "file": "rui-root-final-workspace-clippy.log",
+        "sha256": "8f7722c939ee33f98aca339a0b42117829c3591960d026b91079e3e66530842e",
+        "bytes": 546
+      }
+    },
+    {
+      "command": "cargo clippy -p rui-producer-sdk --features transport,gtk-fixture-hooks --all-targets --locked -- -D warnings",
+      "passed": true,
+      "log": {
+        "file": "rui-root-final-sdk-clippy.log",
+        "sha256": "6d308566590e45ea036976335bb1054de3c57b011663d17dd7e557e34678dcb5",
+        "bytes": 151
+      }
+    },
+    {
+      "command": "cargo clippy -p rui-client-desktop --features gtk-source-probe --all-targets -- -D warnings",
+      "passed": true,
+      "log": {
+        "file": "rui-root-desktop-wire-final-clippy.log",
+        "sha256": "75b60f5aa29645fd03928a40481bf3ef2ede9b297bce2a38f1039397b0e2e481",
+        "bytes": 155
+      }
+    },
+    {
+      "command": "cargo clippy -p rui-session-shell --features native-mirrors --all-targets -- -D warnings",
+      "passed": true,
+      "log": {
+        "file": "rui-root-final-session-clippy.log",
+        "sha256": "2b4615bce7e0a4b0bb5ec617cf9592da550d9cd5c09c16f79d02ea00521afb18",
+        "bytes": 232
+      }
+    },
+    {
+      "command": "cargo fmt --all --check",
+      "passed": true,
+      "log": {
+        "file": "rui-root-final-retained-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  ],
+  "independent_replay": [
+    {
+      "checkpoint": "c105485; retained inputs and independent implementations unchanged by desktop integration",
+      "log": {
+        "file": "rui-root-accepted-c105485-generated.log",
+        "sha256": "0e87381124151119c8c15468806f70765224438a1bbd839170713e24fc8c6a9e",
+        "bytes": 495
+      },
+      "summary": "mise WARN  Failed to resolve tool version list for github:can1357/oh-my-pi: [~/.config/mise/config.toml] github:can1357/oh-my-pi@latest: no versions found for github:can1357/oh-my-pi matching date filter\n   Compiling rui-protocol-core v0.1.0 (/tmp/rui-fault-review-oct3/protocol-core)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.90s\nIndependent replay passed: 1275 prefixes, 16 seeds, exact golden bytes\nIndependent scene decode passed: 144 fixtures, all nine primitives"
+    },
+    {
+      "checkpoint": "c105485; retained inputs and independent implementations unchanged by desktop integration",
+      "log": {
+        "file": "rui-root-accepted-c105485-typed.log",
+        "sha256": "e7aeb1f1cab0a76ee09720e437259fdd14a82465488b46c9ea0b6aa49a8ed279",
+        "bytes": 86
+      },
+      "summary": "Independent typed replay passed: 6 prefixes, exact Unicode/numeric/collection vectors"
+    },
+    {
+      "checkpoint": "c105485; retained inputs and independent implementations unchanged by desktop integration",
+      "log": {
+        "file": "rui-root-accepted-c105485-full.log",
+        "sha256": "06fa6e2c53914d8528472caede09102a45d906b6f5a6125bf250f494339217e7",
+        "bytes": 228
+      },
+      "summary": "{\"native_prefixes\": 124, \"independent_scopes\": 19, \"record_kinds\": [\"Scene\", \"Semantic\", \"Session\", \"Surface\", \"Text\"], \"scene_primitives\": [\"Border\", \"FillPath\", \"GlyphRun\", \"Group\", \"SolidRect\", \"StrokePath\"], \"passed\": true}"
+    }
+  ],
+  "retained_network_audits": [
+    {
+      "name": "broad-controller",
+      "result": {
+        "passed": true,
+        "sha256": "5cd1460f2ca1cbbff0217c757ed4bc3a3d3e567c5ee0b57ded1f75037286b3fa",
+        "interrupted_publications": 0,
+        "incomplete_resource_transfers": 0,
+        "unrequested_resource_offers": 0,
+        "segments": 2,
+        "packets": 806,
+        "exact_packet_bytes": 587282,
+        "verified_resource_transfers": 75,
+        "verified_vector_bytes": 53841,
+        "complete_publications": 27,
+        "readiness_acknowledgements": 29,
+        "presented_acknowledgements": 28,
+        "commands": 26,
+        "command_family_50": 24,
+        "command_results": 26,
+        "command_family_51": 1,
+        "command_family_53": 1,
+        "closed_prefixes": 2,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "GlyphRun",
+          "Group",
+          "SolidRect"
+        ]
+      },
+      "log": {
+        "file": "rui-root-final-broad-controller-audit.log",
+        "sha256": "80a0f1183f0964111e881cb5f401e7bb7a096cbebb8a6c42f65d0dbdc379960f",
+        "bytes": 779
+      }
+    },
+    {
+      "name": "broad-observer",
+      "result": {
+        "passed": true,
+        "sha256": "8f7496257328e508688d17f0a919285159a5891cbd70a68907f7443e2fef499f",
+        "interrupted_publications": 0,
+        "incomplete_resource_transfers": 0,
+        "unrequested_resource_offers": 0,
+        "segments": 1,
+        "packets": 601,
+        "exact_packet_bytes": 556126,
+        "verified_resource_transfers": 75,
+        "verified_vector_bytes": 53841,
+        "complete_publications": 27,
+        "readiness_acknowledgements": 28,
+        "presented_acknowledgements": 29,
+        "closed_prefixes": 1,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "GlyphRun",
+          "Group",
+          "SolidRect"
+        ]
+      },
+      "log": {
+        "file": "rui-root-final-broad-observer-audit.log",
+        "sha256": "ba7fc356ab625b009594003ecddf9c55b5e7a76709c403afafc7afd89ac76534",
+        "bytes": 657
+      }
+    },
+    {
+      "name": "gtk-transport",
+      "result": {
+        "closed_prefixes": 2,
+        "command_family_50": 2,
+        "command_results": 2,
+        "commands": 1,
+        "complete_publications": 4,
+        "exact_command_retries": 1,
+        "exact_packet_bytes": 243850,
+        "incomplete_resource_transfers": 0,
+        "index_sha256": "89c72053c1425804bbb4f43e4d6b8abf5b17d4f328059b160d411a2597f84580",
+        "interrupted_publications": 0,
+        "packets": 335,
+        "passed": true,
+        "presented_acknowledgements": 2,
+        "readiness_acknowledgements": 3,
+        "record_kinds": [
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "Border",
+          "FillPath",
+          "GlyphRun",
+          "Group",
+          "SolidRect",
+          "StrokePath"
+        ],
+        "segments": 2,
+        "sha256": "1c40170ae0fc1c2ff32865831f10a76e5d77bbbf182d805edbf74766a2202473",
+        "unrequested_resource_offers": 0,
+        "verified_resource_transfers": 76,
+        "verified_vector_bytes": 56320
+      },
+      "log": {
+        "file": "rui-root-final-gtk-transport-audit.log",
+        "sha256": "8f51e18b1db3706018c2be6735ffcc18e9578cbf4503886782842e52fb136e6d",
+        "bytes": 870
+      }
+    },
+    {
+      "name": "gtk-controller",
+      "result": {
+        "passed": true,
+        "sha256": "95b87c7701f66a82e3164907dc987247ae1441fd6deda2c86974aaf952089a80",
+        "interrupted_publications": 0,
+        "incomplete_resource_transfers": 0,
+        "unrequested_resource_offers": 0,
+        "segments": 1,
+        "packets": 185,
+        "exact_packet_bytes": 124904,
+        "verified_resource_transfers": 38,
+        "verified_vector_bytes": 28160,
+        "complete_publications": 2,
+        "readiness_acknowledgements": 2,
+        "presented_acknowledgements": 3,
+        "commands": 1,
+        "command_family_50": 1,
+        "command_results": 1,
+        "closed_prefixes": 1,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "Border",
+          "FillPath",
+          "GlyphRun",
+          "Group",
+          "SolidRect",
+          "StrokePath"
+        ]
+      },
+      "log": {
+        "file": "rui-root-final-gtk-controller-audit.log",
+        "sha256": "a373216e6965a4123da06ca6005d27778c4b87e4a742ad32d8784efc6678fdea",
+        "bytes": 769
+      }
+    },
+    {
+      "name": "gtk-observer",
+      "result": {
+        "passed": true,
+        "sha256": "ea6047dfbbe2d035c883edcd3db74a95a992e850027edfe427b3a2ff706ed94b",
+        "interrupted_publications": 0,
+        "incomplete_resource_transfers": 0,
+        "unrequested_resource_offers": 0,
+        "segments": 1,
+        "packets": 176,
+        "exact_packet_bytes": 123826,
+        "verified_resource_transfers": 38,
+        "verified_vector_bytes": 28160,
+        "complete_publications": 2,
+        "readiness_acknowledgements": 2,
+        "presented_acknowledgements": 3,
+        "closed_prefixes": 1,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "Border",
+          "FillPath",
+          "GlyphRun",
+          "Group",
+          "SolidRect",
+          "StrokePath"
+        ]
+      },
+      "log": {
+        "file": "rui-root-final-gtk-observer-audit.log",
+        "sha256": "868603de2de573e6d396ab7af8ccdd80df0b989c7c312b8793db860c3b97e1cd",
+        "bytes": 702
+      }
+    },
+    {
+      "name": "gtk-composition",
+      "result": {
+        "closed_prefixes": 2,
+        "command_family_50": 1,
+        "command_family_52": 4,
+        "command_results": 5,
+        "commands": 4,
+        "complete_publications": 6,
+        "exact_command_retries": 1,
+        "exact_packet_bytes": 355040,
+        "incomplete_resource_transfers": 0,
+        "index_sha256": "85a125ea04ddca0fb3237a36c2e25972131ce8c2f294c2d8fc28c7cdaed00f08",
+        "interrupted_publications": 0,
+        "packets": 364,
+        "passed": true,
+        "presented_acknowledgements": 4,
+        "readiness_acknowledgements": 5,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "Border",
+          "FillPath",
+          "GlyphRun",
+          "Group",
+          "SolidRect",
+          "StrokePath"
+        ],
+        "segments": 2,
+        "sha256": "8f4f1225ad7a6da10d4523e8191ecc47fe6a980ea746a178af4fa0e291d3793f",
+        "unrequested_resource_offers": 0,
+        "verified_resource_transfers": 78,
+        "verified_vector_bytes": 58012
+      },
+      "log": {
+        "file": "rui-root-final-gtk-composition-audit.log",
+        "sha256": "90702e5d751c9ab17faa601088c7a975993edb024de837cb2d9da2c61f371dd3",
+        "bytes": 911
+      }
+    },
+    {
+      "name": "retained-controller",
+      "result": {
+        "passed": true,
+        "sha256": "5770043205536f98d4e7c5d8345f6ee1d8eebc83fe014357a3ba47a139de24da",
+        "interrupted_publications": 0,
+        "incomplete_resource_transfers": 0,
+        "unrequested_resource_offers": 0,
+        "segments": 1,
+        "packets": 275,
+        "exact_packet_bytes": 296069,
+        "verified_resource_transfers": 38,
+        "verified_vector_bytes": 28160,
+        "complete_publications": 6,
+        "readiness_acknowledgements": 6,
+        "presented_acknowledgements": 7,
+        "commands": 23,
+        "command_family_50": 1,
+        "command_results": 23,
+        "command_family_52": 22,
+        "closed_prefixes": 1,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "Border",
+          "FillPath",
+          "GlyphRun",
+          "Group",
+          "SolidRect",
+          "StrokePath"
+        ]
+      },
+      "log": {
+        "file": "rui-root-final-retained-controller-audit.log",
+        "sha256": "2b9f05a28b3dde2f35aa0afe7d124f687611c387bc3ffb93b043a174068fb7bb",
+        "bytes": 798
+      }
+    },
+    {
+      "name": "retained-observer",
+      "result": {
+        "passed": true,
+        "sha256": "f155b7f9aaca16c1752bc1bab3bdcaece2caafdbbe948d991c0c8fff7766f4be",
+        "interrupted_publications": 0,
+        "incomplete_resource_transfers": 0,
+        "unrequested_resource_offers": 0,
+        "segments": 1,
+        "packets": 212,
+        "exact_packet_bytes": 288124,
+        "verified_resource_transfers": 38,
+        "verified_vector_bytes": 28160,
+        "complete_publications": 6,
+        "readiness_acknowledgements": 6,
+        "presented_acknowledgements": 7,
+        "closed_prefixes": 1,
+        "record_kinds": [
+          "Binding",
+          "Scene",
+          "Semantic",
+          "Session",
+          "Surface",
+          "Text"
+        ],
+        "scene_primitives": [
+          "Border",
+          "FillPath",
+          "GlyphRun",
+          "Group",
+          "SolidRect",
+          "StrokePath"
+        ]
+      },
+      "log": {
+        "file": "rui-root-final-retained-observer-audit.log",
+        "sha256": "4867a3bfaef78397ec3aaa8fe2bda710d068d985caa9bab2660c65128775e202",
+        "bytes": 702
+      }
+    }
+  ],
+  "native_runs": [
+    {
+      "command": "python3 fixtures/gtk/mirror_check.py --xvfb /path/to/Xvfb --output /tmp/fresh-composition --scenario composition",
+      "report": "fixtures/gtk/desktop-composition-interaction.json",
+      "log": {
+        "file": "rui-root-desktop-wire-ime-final-oct3.log",
+        "sha256": "457d17c0c7266cdc39d9a2c905b3a6ae27e59d4bf62b7028444b994a8ad30aed",
+        "bytes": 137
+      },
+      "scope": "Actual source plus two TLS mirrors, actual GTK IM callbacks, actual Canvas after-paint; selected-profile observation separate from post-auth trace."
+    },
+    {
+      "command": "python3 fixtures/session-shell/native_session.py --xvfb /path/to/Xvfb --target-dir target/debug --report /tmp/fresh-baseline.json",
+      "report": "fixtures/session-shell/native-session-final.json",
+      "log": {
+        "file": "rui-root-final-session-baseline-oct3.log",
+        "sha256": "3f5d284dca4de8707caac7c664496de1e868f7079eaf640997449176ac2dbc18",
+        "bytes": 650
+      }
+    },
+    {
+      "command": "python3 fixtures/session-shell/native_session.py --xvfb /path/to/Xvfb --target-dir target/debug --matrix local-takeover --report /tmp/fresh-takeover.json",
+      "report": "fixtures/session-shell/native-held-local-takeover-final.json",
+      "log": {
+        "file": "rui-root-final-session-takeover-oct3.log",
+        "sha256": "4240cb200fc62bbd6c3962efe8b1dd73d8019308e1734d40490bca578398fc06",
+        "bytes": 718
+      }
+    },
+    {
+      "probe": "native_ime_probe with native_smoke.type_probe under mirror_check.run_private",
+      "log": {
+        "file": "rui-root-native-ime-private-oct3.log",
+        "sha256": "137dd08e4e6dac8e052896469df36df020f3977159607fd540caa75239946244",
+        "bytes": 201
+      },
+      "scope": "Actual Unicode/fallback/reset/full-FIFO; final native implementation and probe bytes unchanged from that run."
+    }
+  ],
+  "source_file_sha256": {
+    "client-desktop/src/composition.rs": "0e70582fe66816793ca1df5925151246308a1404142d826a10b99194c493af38",
+    "client-desktop/src/desktop.rs": "68f30b9d763956783a5bb199605ebf377c78c479e32e82408b93430bda34ba95",
+    "client-desktop/src/desktop/gtk.rs": "13b3d7b9c549bca0702ebfda60eb1bdb26f43f3ef6ad1855ed8ac758f0c2935e",
+    "client-desktop/src/desktop/native.rs": "d5c058620947bf77c20e47692f6b91ca1d94f0103fd565ef27a923f731e057cc",
+    "client-desktop/src/desktop/physical_callbacks.rs": "de8edd5bf31a2a6a1641f2f448e41422a06156ddea557052322a72c258b1da03",
+    "client-desktop/src/desktop/composition_cleanup.rs": "90554a45f4cf7aa648982d3392ee281e0bdc78ed2eda60f773e7ad46e03d601b",
+    "client-desktop/examples/native_ime_probe.rs": "8b12e5fa008a54e7785a0423c8fa15df3742fccd955456d75989f0ca65fb4e59",
+    "client-desktop/examples/gtk_source_probe.rs": "d5aa988e8a527c87fc8216033afec2da28d071af3688a0394c0c80c15b950cd7",
+    "client-desktop/examples/corpus_support/composition.rs": "18861b29a169376fb536a801823d81228f795a3f84f0955a8c33bdde0a0cf0df",
+    "fixtures/gtk/mirror_check.py": "c898a9dcf4d6ab2cf76d851373b66303b8e02d4fc37722c273d473190d894f8a",
+    "fixtures/gtk/composition_trace.py": "b0f6888decadad450b0228066af2be828bef8046f081ffb6ef30c11cd226e7eb",
+    "fixtures/gtk/test_composition_trace.py": "9e06d776cc8ecd9140a594463d1f2c7ec987785f4ee25fe64085c0129ed6e3b8",
+    "session-shell/examples/native_session_smoke.rs": "0be433eb4be6e76c407628f8591132099cf3ed4ac26352d43ae152a591b0eb0d",
+    "adapters/sdk/src/gtk_host.rs": "7082e29cf6685c0f9d36c0e34d3f828c8a91686c6ec226103590f4cbb21a2078",
+    "adapters/sdk/src/gtk_port.rs": "07cbc4b62091a0f48825734f5a7377048e353d357d1d4b7c7a9f16fcf4e2c71a",
+    "adapters/sdk/src/gtk_composition.rs": "9e45d94dfc70ad0107d087f89c6c5d09f443f27b916aa7d82e2edd320fa6d4f2",
+    "adapters/gtk4/native.py": "4a931d03410326824b15504c3308eb7e96c49f75fd72b2728373cd1d89565b49",
+    "adapters/gtk4/composition.py": "43e9629423a3da810167dcb7253126315628332aa264239608d531151dbbe2e1"
+  },
+  "evidence_sha256": {
+    "fixtures/gtk/desktop-composition-interaction.json": "15345f3af8249501bb538e6a4d5235696251c26ccc7551028e013ad811c93889",
+    "fixtures/gtk/desktop-composition-controller.audit.json": "2b9f05a28b3dde2f35aa0afe7d124f687611c387bc3ffb93b043a174068fb7bb",
+    "fixtures/gtk/desktop-composition-observer.audit.json": "4867a3bfaef78397ec3aaa8fe2bda710d068d985caa9bab2660c65128775e202",
+    "fixtures/session-shell/native-session-final.json": "952896b2e57c801ee140825fb48e99707e76c69bd16e1f4e9afe140554b4db18",
+    "fixtures/session-shell/native-held-local-takeover-final.json": "34bea10c74d1e36b75d47bdd83b9051db0a7fdd15e6bbd68608565aa9610d16b",
+    "fixtures/gtk/final-native-root-verification.json": "462888c1dc542266732b8b3e9b7e5608a42819e0f65aadf34d8034b416ee6cf0",
+    "fixtures/performance/native-release.json": "b8fa6f335068c068c2013d4983e8f28cc0e90e44bfea65afc3f70211f08611d0"
+  },
+  "limitations": [
+    "The measured CPU and native callback-to-after-paint paths miss the provisional 60 Hz budget; measured resource and queue ceilings hold.",
+    "After-paint is a presentation opportunity, not physical scanout.",
+    "No claim of arbitrary application/theme/compositor support or raster fallback.",
+    "The native x/y batch proves ordered effects; portable CompositionQueue tests cover pre-roundtrip queue overlap."
+  ],
+  "logs": "Log basenames and hashes identify the root local runs. Retained evidence, tests and reproduction commands are committed; temporary logs are not runtime dependencies.",
+  "documentation_audit": {
+    "case_rows": 79,
+    "unique_case_ids": 79,
+    "local_markdown_targets_and_anchors_checked": 239,
+    "broken_links": [],
+    "original_RFC_and_conformance_spec_unchanged": true
+  }
+}

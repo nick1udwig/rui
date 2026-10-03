@@ -47,7 +47,7 @@ transfer API.
 
 See [the measured GTK coverage report](../../docs/gtk-coverage.md) for the source
 scope, pinned environment, local image diagnostics, unsupported rendering and
-remaining interaction work.
+the separate accepted capture, producer and mirror measurements.
 
 `gtk_host::GtkCommandHost` is a bounded cooperating-source command fixture.
 Trusted host code supplies the source process and already verified authorization,
@@ -78,6 +78,10 @@ views and observers receive no composition capability. The optional pinned GTK
 clock contract and accepted producer scope are documented in the
 [input profile](../../spec/input-profile.md) and
 [composition report](../../docs/gtk-coverage.md#native-wire-composition-producer).
+The separate [actual desktop wire run](../../docs/gtk-coverage.md#actual-desktop-wire-composition)
+uses native IM callbacks and actual after-paint readiness through this owner.
+Public records, resources and observer traces contain no transient preedit;
+exact controller command bytes require explicitly scoped diagnostic permission.
 
 Applied requires a newer valid same-source capture carrying the exact private
 request ID and authority marker. Its source token and actual published revision
@@ -180,4 +184,6 @@ local drawing outside source export are excluded. The complete consumed native
 trace is refreshed with those probes active, including unrelated refreshes and
 source destruction; exact peer commands/retries and all retained publications
 are decoded and hash-bound in tests. This is bounded cooperating fixture
-evidence, not provenance attestation for arbitrary producers or full M3 closure.
+evidence. This negative run alone does not attest arbitrary producers or establish
+the complete interaction scope; the coverage report separates the later native
+producer and actual mirror measurements.

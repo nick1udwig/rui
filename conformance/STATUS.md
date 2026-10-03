@@ -1,168 +1,119 @@
 # Implementation acceptance
 
-The original root `conformance.yaml` remains an unchanged design artifact.
-Passing a component test does not by itself complete an integration case.
-The authorized implementation scope is RFC M0–M5, including all 79 specified
-cases and the P1 measurements; RFC section 14 remains deferred.
-The [case-by-case audit](CASES.md) maps all 79 cases to committed evidence and
-remaining integration gates.
+RFC milestones **M0–M5 are accepted for the declared corpus and isolated backend**.
+The [case audit](CASES.md) maps all 79 original cases exactly once: 77 P0 cases
+and both P1 measurements. There are no remaining gates in this authorized scope.
+RFC section 14 remains deferred. The original `conformance.yaml` is preserved
+as a historical design artifact; this record and the case audit describe the
+implemented system.
 
-## Accepted foundations
+Acceptance covers the pinned constrained GTK application corpus and the owned
+EIS session backend. It does not establish arbitrary application, theme,
+compositor or whole-desktop support. The measured CPU/native render paths miss
+the provisional 60 Hz budget; that limitation is reported explicitly under
+RFC section 13, alongside passing queue and memory ceilings.
 
-| Area | Executable evidence | Scope |
-|---|---|---|
-| Schema and reducer | `protocol-core/tests/model.rs`, `scene.rs`; Python oracle | Nine retained primitives; atomic graph/version validation |
-| Publications and resources | `publication.rs`, `resources.rs`, `receiver.rs`, `pipeline.rs` | Exact-byte chunks, shared budgets, pins, delayed resources, cache loss and revocation |
-| Command and session authority | `commands.rs`, `session.rs`; `host-broker/tests/controlled.rs` | One exact-byte ledger for semantic/raw/composition/resize families; source evidence, leases, private observer projections; headless/TLS source dispatch for all four families accepted |
-| Input and composition primitives | `protocol-core/tests/input.rs` | Whole-batch validation, ordered capture, conservative cleanup, transient scalar-indexed composition; headless/TLS integration includes actual source canvas/resize, transient preedit and scalar commits; native adapters remain separately gated |
-| Controlled source input families | `host-broker/tests/input_families.rs`, `transport/tests/input_families.rs` | Eight headless and three real TLS cases: one exact-byte sequence ledger, permission-filtered modes, source canvas effects, scalar composition, source resize, private preedit, stale routes/leases, cleanup and cache-loss neutralization; graphical/native dispatch remains separate |
-| Scoped transcripts | `protocol-core/tests/transcript.rs`, `transport/tests/diagnostics.rs` | Opt-in post-auth TLS recording: metadata mode or explicitly authorized exact pre-encryption bytes; same-view reserved budget, bounded connections/records, credential exclusion, scoped inspection and revocation/close cleanup; actual private-entry observer publication/resource/history scans pass in both recording modes; controlled native full-record/closure audit and four exact GTK producer TLS prefixes pass; actual GTK mirror paint and wire composition remain separate |
-| Generated hardening | `protocol-core/tests/hardening.rs` | 2,048 replay prefixes and 10,000 bounded malformed-payload mutations |
-| Replay minimization | `conformance/shrink.py`, `test_shrink.py` | Independent replay failures produce a bounded, minimized exact-byte transcript preserving the mismatch class |
-| Actual TLS recovery matrix | `transport/tests/fault_matrix.rs`, `common/fault_proxy.rs` | Every actual cold snapshot/resource and warm command/delta packet boundary: 34+4 cuts, lost command-result exact retry, old-lease rejection, unchanged prior records, full-canvas CPU source/recovered pixel equality and delayed delivery; actual native GUI recovery now passes in `fixtures/render/native-broad.json` |
-| Sustained TLS ownership churn | `transport/tests/sustained.rs` | 128 surface incarnations, 384 effects, 32 reconnects, 430 evictions and 512 retired IDs; source equality/live cache/staging/queue checks each cycle, lease renewal, four-client fail-closed retention and exact retry after churn; receiver budgets return to zero |
-| Integrated load measurements | `transport/examples/measure_integrated.rs`, `client-desktop/tests/performance_source.rs`; [report](../docs/performance.md) | 10,000 records and 2,500 visible native glyph cells; exact one/twenty-record deltas, two TLS receivers, stalled-observer isolation, p50/p95/p99 encode/apply/render, warm cache reuse and bounded lifetime allocation peaks; CPU rendering misses 60 Hz, native presentation remains separate |
-| Receiver recovery matrix | `protocol-core/tests/recovery_matrix.rs` | Every publication/resource chunk cut, duplicate chunks, cache loss, fresh-state equivalence and 256-resource churn; synthetic command and presentation callbacks, not network/visual evidence |
-| Independent decoder/reducer | `python3 conformance/check.py` | 1,275 semantic replay prefixes and 144 scene fixtures across exact bytes and 16 seeds |
-| Real TLS/WebSocket binding | `transport/tests/loopback.rs` and transport unit tests | Pinned identity, explicit approval, two clients, command retry, private projections, revocation, bounded framing and slow-observer isolation; cancelled receives and polled flushes retain budgeted replies without duplicate frames |
-| Authorized network resources | `transport/tests/resources.rs`, `protocol-core/tests/session.rs` | Two TLS clients, paged cold closure, warm reuse, live cache loss, premature acknowledgments, invalid eviction and revocation; exact retained transaction acknowledgment survives history eviction; ordinary retired eviction now passes (`transport/tests/eviction.rs`), including reservation failure, bounded churn and retained reconnect |
-| Shared producer transport boundary | `transport/src/producer.rs`, `transport/tests/producer.rs`; `fixtures/render/native-port.json` | Root69 transport tests, strict Clippy and actual broad two-mirror GUI regression pass; bounded owner transactions, exact capability/resume/resource witnesses, persistent priority cleanup and execution-time expiry; native producer adapters remain separately gated |
-| Socket lifecycle during stalled producer work | `transport/tests/producer_disconnect.rs`, server ingress unit test | Root's 77 transport tests, strict Clippy and formatting pass. The delayed-Open TLS regression forbids heartbeat polling before producer Open completes; it fails on the prior server and passes with the correction. Actual TLS EOF, WebSocket Close and bounded input overflow trigger priority disconnect before a blocked producer finishes; Ping/Close remain readable with a blocked outgoing sink. An unprocessed AppliedAck leads to an explicit checkpoint reset; warm-resume tests establish owner receipt with a serialized Ping/Pong barrier. Socket buffers retain their parent allocation charges through destruction before cleanup waits. |
-| Retained authenticated reconnect | `transport/tests/reconnect.rs`, `host-broker/tests/controlled.rs`, `protocol-core/tests/receiver.rs` | Eight real TLS cases cover warm/offline replay, higher checkpoint preserving retirement/clocks, interrupted chunks/exact retry, cache loss, fresh scope on changed limits/reapproval, immediate reconnect/cancellation and allocation failure; immutable approval lifetime denies offline reads and prunes history; actual native GUI recovery now passes in `fixtures/render/native-broad.json` |
-| Retained desktop worker recovery | `client-desktop/tests/recovery_worker.rs`, `command_queue.rs`; [behavior](../docs/desktop-recovery.md) | Actual TLS ambiguous-send retries, presentation/control link loss, retained resume and cache reacquisition; bounded exact-command ownership and UI generation invalidation; tests simulate presentation; actual two-mirror GTK recovery passes separately in `native-broad.json` |
-| Independent semantic client | `conformance/semantic_client.py`, `test_semantic_client.py`, `typed_interop.py`; `transport/tests/independent.rs` | Standard-library Python decoder, reducer and TLS client; six typed replay prefixes agree with Rust; real source activation, Unicode replacement, stable-item selection and exact retry without scenes or Presented; button, Unicode public text and stable-item effects converge with both actual native mirrors in `native-python.json` |
-| CPU reference renderer | `client-desktop/tests/pixels.rs`, `cli.rs` | Nine primitives, analytic pixels, linear composition, transforms, clipping, surfaces, paths, glyphs, bounds and explicit failure |
-| Guarded GTK mirror | `client-desktop/src/desktop.rs`, `tests/interaction.rs`; `fixtures/render/native_smoke.py` | Actual GTK frame callbacks and two-mirror TLS smoke; generic advertised actions, scalar text context guards, bounded frame ownership and local observer transforms; bounded causal FIFO, visible native preedit and sticky input failure feedback; full-canvas two-window source/record/pixel convergence and independent Python item effects pass; broader controls, transients, canvas, explicit source resize and actual native recovery now pass in `native-broad.json` |
-| Painted-frame physical input | `client-desktop/tests/physical_dispatch.rs`, desktop physical callback/continuity/I/O unit tests; [scope](../docs/desktop-controls.md) | Root's combined accepted desktop feature suite passes 74 tests with one native-only test omitted, including four real TLS recovery cases. Charged per-frame routing summaries prevent stale focus/geometry/occlusion and unrouteable-overlay fallthrough; held-input ownership, suppressed client repeat and a grant-scoped priority stop survive normal queue/socket backpressure. Actual native session two-mirror input remains an integration gate. |
-| Expanded controlled source | `host-broker/tests/corpus.rs`; `client-desktop/tests/corpus_reference.rs` | Unicode edits, checkbox, stable collections, clipped scrolling and fresh transient identities; two TLS replicas equal direct source records and selected vector renders; absent font provider stays explicitly Partial and no Presented is claimed |
-| Pinned source font helper | `fixtures/render/native_font.py`, `test_native_font.py` | Private pinned font configuration, bounded actual Pango positions and RVP1 outlines; bounded host closures retain authorized glyph bodies across publication owners; paged real TLS delivery and actual native font/two-mirror gate accepted |
-| Isolated native session foundation | `session-shell/tests/native.rs`, `tests/topology.rs`; `fixtures/session-shell/native-source.json` | Nine actual fd-only EIS tests and five topology/reducer tests: explicit unequal regions, actual XKB layout/repeat, topmost hit/modal guards, source effects and verified releases/cancels/STOP; resource readiness loss neutralizes repeats; no native local-device, TLS or actual mirror Presented claim |
-| Native authority owner and local source window | `session-shell/tests/actor.rs`, native/unit tests; `fixtures/session-shell/native-window.json` | Thirty source-window feature tests and actual private GDK physical key/pointer callbacks: bounded single-owner authority, cancellation-safe connections, exact resume keeper, local takeover ordering, focus-loss release and native clone memory ownership; shared TLS/mirror integration remains |
-| Native session producer port | `session-shell/tests/native_port.rs`, `src/actor/transport.rs`; [scope](../spec/session-shell-profile.md#optional-authenticated-producer-port) | Root’s 38 native-feature tests and strict Clippy pass, followed by five corrected port regressions. The existing native owner serves bounded compound transactions with persistent priority cleanup, exact release identities, shared parent allocation ownership, atomic prepared checkpoints and explicit whole-session selection. Spoofed fresh reconnects preserve the legitimate offline view; changed negotiated limits mint a fresh view before any resume keeper. Actual TLS/two-mirror physical integration remains separate. |
-| Observed accessibility reconciliation | `adapters/sdk/tests/atspi_trace.rs`, `adapters/atspi/test_observer.py`, `test_trace.py`; [scope](../adapters/atspi/README.md) | Six actual two-application captures: dropped events, traversal mutation, bounded retry, stopped-source isolation, restart retirement and explicit process identity; identical overlapping titles never resolve native surfaces/input; Rust and independent Python accept exact OBSERVED/Partial publications |
-| Native session with two actual TLS mirrors | `session-shell/examples/native_session_smoke.rs`, [root report](../fixtures/session-shell/native-session.json) | Root’s 42 native-feature tests, eight physical preparation tests, five actual TLS recovery tests, strict all-target Clippy, formatting and private native GUI run pass. Same owner supplies direct authoritative records and source pixels; actual controller/observer after-paint records and full viewport RGBA agree. US physical Y uses German host z/repeat with exactly two native press/release frames; pointer mapping uses unequal logical/EIS/framebuffer regions. Popup/tooltip/modal lifecycle, configure route renewal, vector cursor and actual local source takeover converge. Parent allocation ownership returns to zero on disposal. INP-005/006 accepted; direct-versus-remote click, stale-route negatives, held-input cleanup, app-only denial and lease retry matrix remain. |
-| Pinned vector cursor | `client-desktop/tests/cursor.rs`, `spec/cursor-profile.md` | Explicit optional profile, bundled vector shapes, authorized custom paths, hotspot and canvas clipping; native session integration remains |
-| Causal typing queue | `client-desktop/tests/typing.rs` | Bounded FIFO, one in-flight edit, exact result plus source text/version/selection confirmation and actual Presented gate; six rapid native characters, repeated focus, Unicode preedit and sticky full-channel rejection pass |
-| Trusted resource admission | `protocol-core/tests/receiver.rs` | Authenticated producer helper validates the complete graph before granting its declared closure; invalid graphs and allocation failures roll back grants; strict default receiver unchanged |
-| Actual GTK capture and SDK | `adapters/sdk/tests/gtk_capture.rs`, Python producer tests, `fixtures/gtk/measure.py` | Twenty strict publications: seventeen mapped snapshots and three lifecycle signals; typed scalar text/selection, collection and focus clocks, unmap/remap pin release, fresh identities after destruction, reentrant lifecycle ordering and bounded artifact decoding |
-| Guarded native GTK commands | `adapters/sdk/tests/native_trace.rs`, `fixtures/gtk/native_check.py` | Common-ledger admission, live native identity/clocks/modality/lease guards, causal capture, exact retries and unknown-outcome retention; 32 dispatches/37 callbacks, 47 source publications and 273 hash-bound vector artifacts; bounded semantic fixture, no TLS/IME claim |
-| Native Unicode scalar editing | `adapters/sdk/tests/unicode_trace.rs`, `fixtures/gtk/unicode-interaction.json` | Nine source captures verify supplementary/combining/RTL text, backward and intra-cluster selection, carets, unchanged selection-only content clocks and exact retry; one native scalar-range call fixes grapheme-based selection loss; no wire IME claim |
-| Native source restart | `adapters/sdk/tests/restart_trace.rs`, `fixtures/gtk/restart-interaction.json` | Actual post-callback SIGKILL preserves the broker epoch/common ledger; exact ambiguous retries perform no new effects, old app IDs retire, replacement identities/clocks are fresh, delayed generation dispatch fails, three failed starts preserve unavailable state and final ownership returns to zero; bounded private semantic fixture |
-| GTK unsupported sources and vector audit | `adapters/sdk/tests/negative_trace.rs`, `fixtures/gtk/negative-report.json`; refreshed native trace | Actual photograph, texture, Cairo, blur and shader nodes decline with named Partial regions; native path control succeeds; observed Python exporter traps, exact decoded geometry/resources and gap census checks; full network recorder remains open |
-| Coherent native whole-view capture | `adapters/sdk/tests/whole_trace.rs`, `fixtures/gtk/whole-interaction.json`, `test_transaction.py` | Five real four-surface/lifecycle transactions, fresh per-surface snapshot barrier, interrupted-union abort, typed focus/modal topology, exact vector closure and five direct native/replay pixel comparisons; bounded quota returns to zero; remote whole-view command path remains |
-| Guarded whole-view native commands | `adapters/sdk/tests/whole_native_trace.rs`, `fixtures/gtk/whole-native-interaction.json` | Thirteen admitted/rejected/retry scenarios, seven native dispatches, modal Unicode editing/close, menu unmap/remap/action and tooltip retirement during a fresh capture barrier; eight full-view source/replay pixel comparisons and sixteen independent private/public wire prefixes; bounded semantic fixture, no TLS/IME/Presented claim |
-| Bounded native visual publication ownership | `adapters/sdk/src/gtk_host.rs`; [scope](../docs/gtk-coverage.md) | One installed snapshot and one coalesced replacement per view, exact attached vector closure and charged escaping handles; slow observers, old ACKs, cache loss, Partial readiness denial and allocation-failure isolation pass; native TLS is accepted in the separate port gate below; wire IME remains pending |
-| Native lifecycle fence | `adapters/sdk/tests/native_fence_trace.rs`, `fixtures/gtk/native-fence-interaction.json`; [ABI and scope](../docs/gtk-coverage.md#native-lifecycle-fence) | Root32 SDK tests, strict Clippy, 21 Python checks and actual healthy/stalled native probes pass. A source receipt proves admission with a live generation before invalidation; final guard rejects with zero dispatch, exact retry stays failed and a fresh generation succeeds. Actual TLS lifecycle is accepted in the separate port gate below; wire IME remains open. |
-| GTK source over authenticated TLS | `adapters/sdk/tests/transport_trace.rs`, `fixtures/gtk/transport-interaction.json`; [scope](../docs/gtk-coverage.md#optional-gtk-producer-port-and-actual-tls) | Root’s frozen 38 SDK tests, strict Clippy, formatting and actual private GTK probes pass. One owner serves two full-visual clients; modal-close source evidence and exact retry agree, and a stalled observer catches up independently. Disconnect and approval-only revocation fence an already queued native command with zero dispatch; a fresh retained view queries/retries the same Failed outcome before a new-generation action. Resource handles immediately enforce both lifetimes, canceled Connect replies cannot bypass cleanup, and parent memory returns to zero. Four full-visual network prefixes, 335 packets and 76 vector transfers independently replay in CI. Driver Presented is explicitly simulated; actual mirror paint and wire IME remain open. |
-| Native focus and selection continuity | `adapters/sdk/tests/native_context_trace.rs`, `adapters/gtk4/test_native.py`; [scope](../docs/gtk-coverage.md) | Actual focus and backward-selection away/back transitions advance source clocks before another frame; stale admitted commands fail without dispatch, exact retries retain failure, and callback allocation/read failures permanently deny the source incarnation; wire IME remains separate |
-| Full native independent record audit | `conformance/full_reference.py`, `full_interop.py` | All fields of 124 exact publication prefixes across nineteen scopes agree with Rust, including glyph geometry, semantic/text clocks, coverage, focus, retirement, lifecycle fences and collections; approved vector bodies pass independent descriptor/hash/geometry checks; 54 additional real TLS publication prefixes, all six record kinds and 150 vector transfers pass the independent recorded network audit |
-| GTK local visual comparison | `fixtures/gtk/pixel-comparison.json`, comparator tests and SDK glyph negative controls | Seventeen strict frames pass declared native/replay tolerance; zero interior mismatches, 1,577 outline bounds checked; actual decoded glyph omission/shift/size rejected; reports bind exact golden envelope bytes |
+## Milestones
 
-Root review required corrections to authorization revocation races, cleanup
-ordering and panic handling, recursive allocation preflight, private transport
-logging, conservative input cleanup, resource descriptor access and renderer
-work bounds. The accepted CPU renderer also passes against a fresh checksum-pinned
-Cairo 1.18.4 build with optional native backends disabled, as used by CI.
+| Milestone | Accepted scope and evidence |
+|---|---|
+| M0 — Feasibility and vocabulary | [GTK coverage](../docs/gtk-coverage.md) identifies the actual same-node snapshot boundary, cooperating stable semantics, seventeen mapped frames per style, 104 default-style gaps and zero constrained-style gaps. Unsupported texture/Cairo/effect regions are named; exported resources remain vectors. Decorations and compositor output are outside capture scope. |
+| M1 — Pure protocol core | All 46 model-layer cases have executable negotiation, atomic graph/publication/resource, recovery, command and security evidence. Exact transcripts, generated faults, an independent Python decoder/reducer and mismatch shrinker accompany the Rust core. Required unknown variants and malformed/over-budget input fail explicitly. |
+| M2 — Controlled vertical slice | Resource-bearing source and two actual TLS/GTK mirrors converge in records and RGBA after controls, list/scroll, popup/modal/tooltip, ordered canvas input, source resize, cache loss and retained reconnect. Observer transforms preserve source state. The controller runs through a constrained 32 KiB/s relay. [Reproduction and scope](../docs/desktop-controls.md). |
+| M3 — Real GTK producer | Same-tree vector capture, typed semantics and bindings, guarded native actions, coherent whole-view capture, lifecycle fences, broker-preserving source restart and actual client IM composition pass. Two mirrors compare against authoritative source records and pixels after their own GTK paint callbacks. Local preedit stays private; committed Unicode edits have exact causal source evidence. [Native coverage and evidence](../docs/gtk-coverage.md). |
+| M4 — Session integration | Actual EIS input, host XKB/repeat, unequal coordinate spaces, modality, focus, cursor and topology pass for the isolated exported session. Direct/remote click equivalence, stale routing after move/occlusion/modal, authenticated app-only denial, old-generation rejection and four held-input cleanup causes pass actual native runs. AT-SPI reconciliation remains explicitly OBSERVED. [Backend scope](../spec/session-shell-profile.md). |
+| M5 — Hardening and translation seam | Actual TLS boundary cuts, exact retries, sustained resource churn, bounded slow readers and independent full-record/vector replay pass. A Python semantic-only client activates a button, replaces Unicode text and selects a stable collection item with exactly three effects and no Presented messages; both native mirrors converge. [Named-hardware performance measurements](../docs/performance.md) include CPU, latency, bytes, cache reuse and allocation peaks. |
 
-## Milestone gates
+## Final composition acceptance
 
-- **M0 accepted for the declared corpus.** [Measured GTK coverage](../docs/gtk-coverage.md)
-  identifies the actual same-node snapshot boundary, cooperating stable semantics,
-  seventeen mapped frames per style, 104 default-style gaps and zero constrained-style gaps.
-  Window decorations and compositor output are outside that capture scope.
-- **M1 accepted for the declared model corpus.** All 46 model-layer cases have
-  executable negotiation, graph/publication/resource, recovery, command and
-  security evidence in the case audit. Root's frozen accepted workspace run
-  at `6b9f80b` passed 390 Rust tests, strict Clippy and formatting, with three
-  native-only tests omitted by the default configuration; 75 Python tests also
-  passed. The subsequently reviewed TLS lease-retry case passed separately. Independent checks
-  passed 1,275 semantic prefixes, 144 scene fixtures, six typed prefixes,
-  124 native capture prefixes, 54 controlled network prefixes and four GTK
-  producer network prefixes. Five additional
-  producer-parent lifetime regressions pass, including destruction order and
-  escaped allocations after broker shutdown. These core results do not depend
-  on a GUI; actual GTK network composition and session input remain M3/M4 gates.
-- **M2 accepted for the declared controlled corpus.** Resource-bearing full-canvas
-  source/two-native-mirror records and RGBA converge after checkbox/list/scroll,
-  popup/modal/tooltip, ordered canvas and explicit source resize actions. Native
-  overflow/Escape feedback, independent observer transforms, both-view cache loss
-  and retained reconnect with fresh actual after-paint/control pass. The controller
-  uses a constrained 32 KiB/s TLS relay. Exact retained network prefixes replay in
-  CI; [scope and reproduction](../docs/desktop-controls.md).
-- **M3 remains open.** Typed capture, explicit popup lifecycle, guarded native
-  semantic dispatch, causal action evidence and observed unsupported-source/vector
-  audits and actual broker-preserving native source restart have passed review.
-  Guarded whole-view native commands now pass actual TLS through the shared owner,
-  including exact recorded vector/source replay and socket-loss/approval-only
-  lifecycle fences. Actual source/two-mirror after-paint interaction now passes independent root
-  review: four complete record/pixel matches, two native captures, 364 glyph checks,
-  zero bad interior pixels and zero host ownership after disposal. Binding geometry
-  lifecycle and popup background input ownership regressions pass; controller and
-  observer exact network traces independently replay all six record kinds in CI.
-  Wire IME remains. Coherent whole-view
-  native capture and all five direct/replay pixel comparisons have passed. The declared seventeen-frame local
-  visual comparison has passed.
-- **M4 accepted for the declared isolated backend.** Actual EIS, source geometry/hit testing, host XKB/repeat,
-  serialized native authority, private GDK local-device capture/focus cleanup and
-  observed accessibility reconciliation have passed review. The native owner now
-  implements the shared producer port with reviewed scope, reconnect, allocation
-  and priority-cleanup tests. Actual TLS/two-mirror physical input, native host
-  layout/repeat, unequal coordinate mapping, topology/cursor and local takeover
-  now pass the root-reviewed baseline. Root also accepts direct-versus-local
-  click equivalence, actual TLS stale-route rejection after move/occlusion/modal
-  with valid positive controls, authenticated app-only denial before disclosure,
-  and explicit old-generation rejection after real local takeover. Independent actual runs now
-  accept disconnect/expiry/approval/local-takeover held-input cleanup, exact causes,
-  native releases/STOP, observer convergence and zero disposal ownership. The
-  separate MUL-005 live-control TLS retry case is accepted.
-- **M5 remains open for the final case-by-case audit.** Python button exact retry,
-  Unicode public-text replacement and stable-item selection now converge with both
-  actual GTK mirrors, with exactly three source effects and no Python Presented. Native debug/release callback-to-after-paint
-  measurements now accompany the controlled two-mirror run; both miss the provisional
-  frame budget and make no physical scanout claim. Actual TLS fault/recovery traces, sustained resource churn and integrated
-  named-hardware CPU/network/bandwidth/memory measurements have passed.
+[The canonical root native run](../fixtures/gtk/desktop-composition-interaction.json)
+uses separate authenticated Xvfb displays, a service-free private bus, pinned
+GTK 4.22.4 and the isolated test's simple IM. Actual client GTK callbacks produce
+five Begins, twelve Updates, four Commits and one Cancel through the common TLS
+command ledger. ASCII `a`, Unicode `é` and the native `x`/`y` batch produce
+`aéxy` with scalar caret 4. The batch proves ordered native effects; queued overlap
+before a round trip is covered separately by the portable composition queue test.
 
-Current transport foundation limits and trusted boundaries are in its
-[README](../transport/README.md). The CPU renderer's native allocation policy,
-local image artifacts and pinned sampling are specified in
-[its profile](../spec/renderer-profile.md). Native GTK antialiasing differences
-are covered by an explicit calibrated tolerance and independent glyph checks;
-this does not extend acceptance beyond the measured constrained corpus.
+Ten actual after-paint comparisons match complete source records and viewport
+pixels across controller and observer. Five native captures check 935 glyphs
+with zero bad interior pixels under the declared calibrated tolerance. The
+source owner returns to zero tracked bytes. Preedit changes neither authoritative
+TextModel nor the observer's visible composition. Escape cancels without editing;
+priority reset leaves an observer without automatically reacquiring control.
 
-### Accepted native mapping follow-up
+The negotiated optional `text.clock.gtk-editable4224.v1` profile describes the
+measured native GtkEditable clocks. Commit confirmation requires the exact
+expected text/caret/clocks and the matching Applied cause on the coherent focused
+Surface, followed by actual current presentation before the next stage. Generic
+sources retain strict clock behavior. Ambiguous commands keep their original
+encoded bytes. Fresh grants retire old local editing state; delayed revocations
+must match the current lease ID and generation. Native reset/full-channel
+regressions preserve cleanup for the original input owner.
 
-Root independently built and ran the frozen mapping probe on an authenticated
-private Xvfb display. A real middle-button pan creates four positive letterbox
-margins at mirror scale 1.5. The remote TLS/EIS click and direct GDK source click
-reach the same source-local (14,30) position within 1e-4, each produces one
-source effect, and both actual mirrors match their source records and rendered
-pixels. The source viewport is 600×528; EIS and Surface geometry remain explicit.
-The hash-bound report is `fixtures/session-shell/native-mapping.json`; host
-ownership returns to zero. Strict native-example Clippy passes. INP-001 is
-accepted; stale routing, app-only network denial and desktop wire IME remain.
+The selected clock profile is observed directly from the negotiated client
+capabilities; credential handshakes are excluded from post-authentication traces.
+The original controller trace ends before priority reset, whose fresh scope and
+control state are checked in the native report.
 
+The independent retained controller audit validates 275 packets, 296,069 exact
+packet bytes, six publications, 38 vector transfers and 23 commands: one Focus
+and 22 TextComposition stages. The observer audit validates 212 packets and six
+publications. Both replay all six record kinds and six exercised scene primitives,
+with no incomplete transfers or unrequested resources. The retained 50-file
+corpus is 3,301,599 bytes and contains exact packets, capture envelopes and vector
+bodies. Local raster comparison artifacts are not network payloads.
 
-### Composition-era combined regression
+TXT-002 and TXT-003 combine this desktop evidence with the
+[fifteen native producer scenarios](../fixtures/gtk/composition-interaction.json):
+commit/cancel, focus and selection changes, removal, revocation, disconnect,
+renewal/expiry, and measured empty/no-op/deletion/insertion clock cases. Source
+invalidation rejects late stages. Portable queue, native reset and lease-transition
+regressions cover bounded admission, stale ownership and exact-command retention.
 
-The accepted `c105485` source passed 412 default-workspace Rust tests (three
-native-only tests omitted), 48 optional producer SDK tests, 84 Python tests,
-workspace/SDK strict Clippy and formatting. Independent replay passed 1,275
-semantic prefixes, 144 scene fixtures, six typed prefixes and 124 retained native
-prefixes. All six retained network audits passed, including controlled mirrors,
-GTK full transport, GTK mirrors and the new composition commit trace.
+## Final regression record
 
-Root also rebuilt the native source driver and reran Unicode, broker-preserving
-SIGKILL/restart and unsupported texture/Cairo/effect probes against the accepted
-composition producer. Fresh traces passed four Rust replay tests and independent
-full-field replay of 23 prefixes across five scopes. Implementation and artifact
-hashes, native callback counts, exporter traps and disposal evidence are retained
-in `fixtures/gtk/final-native-root-verification.json`. Actual desktop wire IME
-and the two remaining session authority negatives are still separate gates.
+The [machine-readable final verification](final-verification.json) records source
+and evidence fingerprints, commands, results and log hashes. Independent root
+review required and verified corrections to stale input ownership, delayed lease
+notifications, native reset cleanup, causal text clocks, authorization races,
+allocation lifetimes and reconnect presentation matching.
 
+- The final production workspace passes 412 Rust tests with three native-only
+  tests omitted by default, strict workspace Clippy and formatting. The newly
+  retained desktop composition corpus passes its additional default SDK test.
+- The optional producer SDK suite passes 49 tests, including that retained test,
+  with strict all-target Clippy. The desktop GTK/source feature suite passes
+  93 tests, with one native-only load test omitted by default, and strict Clippy.
+- Native session validation passes 12 ordinary tests and all 33 explicitly
+  enabled native tests, with strict all-target Clippy. Actual final baseline and
+  held-input local takeover pass after the desktop lease changes; both return
+  tracked owner memory to zero. The corrected comparison harness accepts only
+  the current authorized scope paired with its own painted generation.
+- The two source-font tests and native source-load test omitted by default pass
+  explicitly in the pinned environment. The actual native IM probe passes
+  Unicode, fallback typing, context reset and full-channel cleanup checks.
+- All 88 Python tests, eight retained exact network audits and independent
+  generated/full-field replay pass as recorded in the final verification. The
+  unchanged independent corpus includes 1,275 semantic prefixes, 144 scene fixtures, six typed prefixes
+  and 124 native prefixes across nineteen scopes.
+- Fresh native Unicode, broker-preserving SIGKILL/restart and unsupported
+  texture/Cairo/effect regressions also pass after producer composition integration;
+  four fresh Rust replay tests and independent 23-prefix/five-scope replay agree.
+  [Root evidence](../fixtures/gtk/final-native-root-verification.json) records the
+  callback, exporter-trap and disposal checks.
 
-Root's frozen native wire authority probe passed independently with strict
-native-example Clippy. `fixtures/session-shell/native-wire.json` binds source
-fingerprints to nine actual third-view paints, three positive native controls,
-four exact rejected retries, no negative source effects, one fresh manual-grant
-effect, healthy mirror convergence and zero receiver/owner disposal memory.
-INP-002 and INP-007 are accepted. TXT-002/TXT-003 desktop wire IME remain open.
+CI replays the retained native evidence without requiring a desktop. Actual GTK,
+EIS and accessibility probes require the documented pinned native environment.
+GTK after-paint is a presentation opportunity, not a physical scanout measurement.
+
+## Limits retained in acceptance
+
+The strict profile carries no raster fallback, business logic or executable
+remote components. Unsupported content stays explicit Partial/unavailable.
+AT-SPI observations cannot establish trusted native input association from titles
+or geometry. Host IME is not provided by the isolated physical-input backend;
+the GTK producer uses negotiated client-owned composition. Memory ownership and
+queue bounds are enforced independently of the provisional latency targets.
+Current supported profiles and trust boundaries are documented in the
+[transport README](../transport/README.md), [renderer profile](../spec/renderer-profile.md),
+[input profile](../spec/input-profile.md) and [case audit](CASES.md).

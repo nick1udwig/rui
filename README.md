@@ -6,17 +6,19 @@ state. The strict profile prohibits transmitted raster content.
 
 The design is in [RFC.md](RFC.md). The original [conformance.yaml](conformance.yaml)
 defines the intended full system. [Implementation acceptance](conformance/STATUS.md)
-tracks evidence and the remaining milestone gates.
+records the accepted milestones and their evidence.
 
-Implemented foundations include a bounded Rust protocol core, controlled host,
-pinned TLS/WebSocket transport with local pairing and resource delivery, a CPU
-vector renderer, a GTK desktop mirror with causal typing and visible preedit, and
-a cooperating GTK snapshot producer with guarded native semantic commands.
-The pure protocol core and controlled two-mirror milestone are accepted for the
-declared corpus, including broad controls, native recovery and direct-source
-record/pixel comparisons. Native session input now passes an actual TLS/two-mirror
-baseline; its remaining negative cases and real GTK composition remain active
-work. The acceptance record states the scope of each result.
+RFC milestones M0–M5 and all 79 conformance cases are implemented and accepted
+for the declared fixtures and isolated backend. The implementation includes a
+bounded Rust core, pinned TLS/WebSocket transport, CPU vector rendering, two
+GTK mirrors, a cooperating GTK producer with native wire composition, and
+permissioned EIS session input. Exact traces replay through independent Rust
+and Python implementations.
+
+Acceptance covers the measured constrained GTK corpus and exported test session.
+The [performance report](docs/performance.md) records missed provisional 60 Hz
+budgets; arbitrary application/desktop support and RFC section 14 remain outside
+this scope.
 
 ## Development
 
@@ -73,5 +75,5 @@ contains source/mirror hashes and scenario results without document text or cred
 
 Unsupported required variants fail explicitly. The measured GTK scope is
 cooperating content under declared styles; it does not establish arbitrary
-application or whole-desktop coverage. Full RFC acceptance requires the remaining
-integration, visual, recovery and hardening gates.
+application or whole-desktop coverage. See the [case audit](conformance/CASES.md)
+for the accepted integration, visual, recovery and hardening evidence.

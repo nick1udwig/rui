@@ -54,9 +54,23 @@ python3 fixtures/render/native_smoke.py --xvfb /path/to/Xvfb --probe corpus \
   --report /tmp/rui-native-broad.json
 ```
 
-The GTK producer's guarded wire composition has a separate
-[accepted source trace](gtk-coverage.md#native-wire-composition-producer); actual
-desktop wire IM callbacks and cancellation remain a separate acceptance gate.
+The GTK producer's guarded wire composition has an
+[accepted source trace](gtk-coverage.md#native-wire-composition-producer), and the
+[actual desktop wire run](gtk-coverage.md#actual-desktop-wire-composition) measures
+native IM callbacks, private preedit, scalar commits and Escape cancellation with
+real after-paint readiness. The mirror selects this path only for an advertised
+`text.client.v1` view and a lease permitting TextComposition. Semantic ReplaceText
+is the fallback when composition is unadvertised; a failed wire stage never uses it.
+Commit confirmation requires the matching Applied result, exact source text/caret
+and the editing Surface's causal capture token before a fresh native presentation
+can authorize the next edit. GTK's optional negotiated clock profile preserves its
+observed clear/insert/caret transitions.
+
+Wire editing failures clear local preedit and stop the original grant through a
+priority cleanup lane even when the ordinary GUI queue is full. Recovery requires
+fresh manual control. Fresh grants retire prior editing generations, and delayed
+revocation notices cannot stop an unrelated newer lease. The source fences old
+authority immediately and clears transient state on its native thread.
 Native session physical input passes the baseline, cleanup and routing/scope
 measurements below. This controlled-source run measures real after-paint callbacks
 without a physical scanout claim.
@@ -89,8 +103,8 @@ acknowledged revision; a changed route requires a fresh presentation.
 Root's frozen review passed eight physical preparation tests, five actual TLS
 recovery tests, strict all-target Clippy and formatting. The new tests cover
 visual-only progression and reject changed routing at either comparison boundary,
-wrong connection identity and future paint revisions. The same-native-source,
-two-mirror physical session gate is assessed separately.
+wrong connection identity and future paint revisions. The subsequent native
+source/two-mirror measurements below establish the declared physical session scope.
 
 The [native session baseline](../fixtures/session-shell/native-session.json)
 uses two actual TLS mirrors and their native EIS source on an authenticated

@@ -117,8 +117,11 @@ now has a separate [exact recorded network audit](../docs/desktop-controls.md),
 including full record prefixes and independently verified vector bodies. The GTK
 producer's [wire composition trace](../docs/gtk-coverage.md#native-wire-composition-producer)
 and the [native session baseline, cleanup and routing/scope checks](../docs/desktop-controls.md)
-are separately accepted. Actual desktop wire IM callbacks remain a separate
-acceptance gate.
+are separately accepted. The subsequent
+[actual desktop composition run](../docs/gtk-coverage.md#actual-desktop-wire-composition)
+measures native IM callbacks, private transient stages and causally confirmed
+commits with actual after-paint readiness. Its independently scoped controller
+and observer traces complement the transport recorder tests.
 
 `tests/fault_matrix.rs` learns the bounded actual packet sequence, then closes
 owned TLS/WebSocket connections before every snapshot/delta begin, publication

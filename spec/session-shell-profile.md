@@ -311,7 +311,10 @@ The port unit/native tests use explicit trusted receipt fixtures. The optional
 `native-mirrors` example now passes actual TLS/two-mirror presentation and native
 physical callbacks against the same source owner, with exact records/pixels,
 host layout/repeat, unequal coordinate mapping, topology/cursor and local takeover.
-See `fixtures/session-shell/native-session.json`; negative routing and the remaining authorization matrix are still M4 work. Host IME and remote source resize are unsupported by this
+See the [native baseline](../fixtures/session-shell/native-session.json),
+[held-input cleanup matrix](#actual-held-input-cleanup-matrix), and
+[stale-route/scope measurements](#actual-stale-route-and-scope-rejection) for the
+accepted declared backend. Host IME and remote source resize are unsupported by this
 `raw.host.v1` port and are not advertised. Controlled-host resize and broader
 M2 controls are assessed separately from this isolated native backend.
 
@@ -320,8 +323,10 @@ EIS input and local GDK input. Ordinary releases and authority cleanup release
 frames neutralize held input without activating the application again. Root's
 43 actual native-feature tests, strict all-target Clippy and formatting pass,
 including equal local/native press effects, a real cleanup release and explicit
-old-generation Protobuf rejection with no new native frame. The full graphical
-fractional-scale direct-versus-remote comparison remains separately assessed.
+old-generation Protobuf rejection with no new native frame. The subsequent
+[mapping report](../fixtures/session-shell/native-mapping.json) measures a real
+remote TLS/EIS click against a direct GDK source click after local pan and
+fractional scale; the two normal mirrors match their own source records and pixels.
 
 Trusted owner diagnostics retain only the latest completed cleanup reason,
 lease generation and completion time, plus the current lease generation/deadline
@@ -395,3 +400,7 @@ python3 fixtures/session-shell/native_session.py --xvfb /path/to/Xvfb \
 
 These results complete the declared isolated-backend M4 integration gates.
 They do not extend support to an arbitrary desktop or unexported application.
+Final accepted-code reruns retain the
+[native baseline](../fixtures/session-shell/native-session-final.json) and
+[held local-takeover cleanup](../fixtures/session-shell/native-held-local-takeover-final.json)
+separately from these earlier reviewed reports.
