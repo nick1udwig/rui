@@ -1,20 +1,39 @@
 import unittest
 import tempfile
 import time
+from unittest.mock import patch
 from pathlib import Path
 
 import gi
 for name, version in [('Gtk', '4.0'), ('Gsk', '4.0'), ('Graphene', '1.0')]:
     gi.require_version(name, version)
-from gi.repository import Gsk, Gdk, Graphene
+from gi.repository import Gsk, Gdk, Graphene, Gtk
 
 from adapters.gtk4.capture import CaptureMixin, Exporter, census
-from adapters.sdk.producer import CoherentSource
+from adapters.sdk.producer import CoherentSource, MAX_RECORDS
 from adapters.gtk4.state import NativeRegistry, SourceRejected
 from types import SimpleNamespace
 
 
 class CaptureBoundsTests(unittest.TestCase):
+    def test_refused_binding_registration_leaves_registry_and_identity_state_unchanged(self):
+        source = CoherentSource()
+        source.register('button', 3, lambda: {}, actions=['Activate'])
+        for index in range(MAX_RECORDS - len(source._ids)):
+            source.identifier('quota:' + str(index))
+        registry = NativeRegistry.__new__(NativeRegistry)
+        registry.source, registry.widgets = source, {}
+        # Registration fails before touching a native object or its signals.
+        # A small type witness lets the quota path run without a display.
+        class WidgetWitness:
+            pass
+        with patch.object(Gtk, 'Widget', WidgetWitness):
+            with self.assertRaisesRegex(ValueError, 'identity ceiling'):
+                registry.bind('button', WidgetWitness(), 'view')
+        self.assertEqual(registry.widgets, {})
+        self.assertNotIn('binding:button', source._ids)
+        self.assertEqual(len(source._ids), MAX_RECORDS)
+
     def capture_fixture(self, source, directory, callback=None):
         class Capture(CaptureMixin):
             def get_width(self):
@@ -117,7 +136,7 @@ class CaptureBoundsTests(unittest.TestCase):
         source.register('button', 3, lambda: {})
         target = source.identifier('semantic:button')
         surface = source.identifier('surface:view')
-        widget = SimpleNamespace(get_mapped=lambda: True, get_sensitive=lambda: True)
+        widget = SimpleNamespace(get_mapped=lambda: True, is_sensitive=lambda: True)
         capture = SimpleNamespace(source_alive=True, source_mapped=True, last_frame={'routing_token': '01' * 16})
         registry = NativeRegistry.__new__(NativeRegistry)
         registry.source = source

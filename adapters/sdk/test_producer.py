@@ -9,6 +9,24 @@ from adapters.sdk.producer import CoherentSource, encode_snapshot, path_resource
 
 
 class ProducerTests(unittest.TestCase):
+    def test_binding_identity_and_cache_retire_with_object_and_private_profile_denies(self):
+        source = CoherentSource()
+        source.register('button', 3, lambda: {'label': 'public'}, actions=['Activate'])
+        binding = source.identifier('binding:button')
+        first = source.bindings(10, 20, [{'id': binding, 'semantic_id': source.identifier('semantic:button'), 'interaction_region': [1, 2, 30, 20]}], usable=True)[0]
+        moved = source.bindings(10, 20, [{'id': binding, 'semantic_id': first['semantic_id'], 'interaction_region': [2, 2, 30, 20]}], usable=True)[0]
+        self.assertEqual(first['id'], moved['id'])
+        self.assertEqual(moved['version'], first['version'] + 1)
+        hidden = source.bindings(10, 20, [moved], usable=False)[0]
+        self.assertIsNone(hidden['interaction_region'])
+        source.unregister('button')
+        self.assertIn(binding, source.retired_object_ids)
+        self.assertNotIn(('binding', binding), source._models)
+        source.register('button', 3, lambda: {'sensitivity': 2, 'label': 'private'}, actions=['Activate'])
+        self.assertNotEqual(source.identifier('binding:button'), binding)
+        with self.assertRaisesRegex(ValueError, 'private semantics unsupported'):
+            source.semantics('button', 1)
+
     def test_scene_reappearance_allocates_fresh_id_and_stable_semantics_survive(self):
         source = CoherentSource()
         source.register("root", 1, lambda: {"label": "root"})

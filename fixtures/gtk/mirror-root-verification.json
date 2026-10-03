@@ -1,0 +1,309 @@
+{
+  "after_native_activate": [
+    {
+      "actual_after_paint_rgba_sha256": "e7f6936a34530b2b52d55041d218d586db2597d40099462b49139a8f792dde7a",
+      "command_cause": {
+        "authority_gate": "core-ledger-admitted",
+        "private_request_id": 9,
+        "source_generation": 1
+      },
+      "direct_source_records_sha256": "1bc703e3a7dd8c26dad943c13d6f1064ae133abbdfc7b66353ddd637f303a0f8",
+      "direct_source_rgba_sha256": "e7f6936a34530b2b52d55041d218d586db2597d40099462b49139a8f792dde7a",
+      "frame_clock": {
+        "after_paint_time_us": 126136859720,
+        "frame_time_us": 126136852894,
+        "refresh_interval_us": 16667
+      },
+      "frame_serial": 3,
+      "local_pam": "whole-0002.pam",
+      "mirror_records_sha256": "1bc703e3a7dd8c26dad943c13d6f1064ae133abbdfc7b66353ddd637f303a0f8",
+      "native_capture": "whole-0002.json",
+      "native_glyph_count": 152,
+      "record_count": 271,
+      "source_commit": "f35fc07367704574af2c059e6a73cb96:whole:24:2",
+      "vector_audit": "VectorAudit { scene_records: 234, primitive_counts: {\"Border\": 9, \"FillPath\": 1, \"GlyphRun\": 152, \"Group\": 45, \"SolidRect\": 26, \"StrokePath\": 1}, resource_bodies: 32, resource_bytes: 21778, unsupported_subtrees: 0, observed_counter_schema: true }",
+      "view_revision": 2,
+      "viewport": {
+        "height": 640,
+        "origin": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "width": 1024
+      }
+    },
+    {
+      "actual_after_paint_rgba_sha256": "e7f6936a34530b2b52d55041d218d586db2597d40099462b49139a8f792dde7a",
+      "command_cause": {
+        "authority_gate": "core-ledger-admitted",
+        "private_request_id": 9,
+        "source_generation": 1
+      },
+      "direct_source_records_sha256": "1bc703e3a7dd8c26dad943c13d6f1064ae133abbdfc7b66353ddd637f303a0f8",
+      "direct_source_rgba_sha256": "e7f6936a34530b2b52d55041d218d586db2597d40099462b49139a8f792dde7a",
+      "frame_clock": {
+        "after_paint_time_us": 126136853827,
+        "frame_time_us": 126136850373,
+        "refresh_interval_us": 16667
+      },
+      "frame_serial": 3,
+      "local_pam": "whole-0002.pam",
+      "mirror_records_sha256": "1bc703e3a7dd8c26dad943c13d6f1064ae133abbdfc7b66353ddd637f303a0f8",
+      "native_capture": "whole-0002.json",
+      "native_glyph_count": 152,
+      "record_count": 271,
+      "source_commit": "f35fc07367704574af2c059e6a73cb96:whole:24:2",
+      "vector_audit": "VectorAudit { scene_records: 234, primitive_counts: {\"Border\": 9, \"FillPath\": 1, \"GlyphRun\": 152, \"Group\": 45, \"SolidRect\": 26, \"StrokePath\": 1}, resource_bodies: 32, resource_bytes: 21778, unsupported_subtrees: 0, observed_counter_schema: true }",
+      "view_revision": 2,
+      "viewport": {
+        "height": 640,
+        "origin": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "width": 1024
+      }
+    }
+  ],
+  "controller_trace": {
+    "bytes": 298014,
+    "file_byte_ceiling": 67108864,
+    "packets": 213,
+    "policy": "AuthorizedDiagnosticBytes; post-auth only; mode0600",
+    "segment_ceiling": 8,
+    "segments": 1,
+    "sha256": "7ebbeb1d842438c759db417a9c781782c64b92b223dddb75e7a2c4b662cbc2c4"
+  },
+  "diagnostic_memory_peak": 93111784,
+  "host_memory_after_disposal": 0,
+  "host_memory_peak": 216712975,
+  "initial": [
+    {
+      "actual_after_paint_rgba_sha256": "dbc9eccdbcae31993419470e3c548a50f119d7bc3a571a1a81027e7cfecc8020",
+      "command_cause": null,
+      "direct_source_records_sha256": "682420608a66e40f89bae4cb71805fa21115f75439ba99e99f441b0c3b8fe6e4",
+      "direct_source_rgba_sha256": "dbc9eccdbcae31993419470e3c548a50f119d7bc3a571a1a81027e7cfecc8020",
+      "frame_clock": {
+        "after_paint_time_us": 126126092580,
+        "frame_time_us": 126126093664,
+        "refresh_interval_us": 16667
+      },
+      "frame_serial": 2,
+      "local_pam": "whole-0001.pam",
+      "mirror_records_sha256": "682420608a66e40f89bae4cb71805fa21115f75439ba99e99f441b0c3b8fe6e4",
+      "native_capture": "whole-0001.json",
+      "native_glyph_count": 212,
+      "record_count": 356,
+      "source_commit": "f35fc07367704574af2c059e6a73cb96:whole:16:1",
+      "vector_audit": "VectorAudit { scene_records: 319, primitive_counts: {\"Border\": 12, \"FillPath\": 1, \"GlyphRun\": 212, \"Group\": 62, \"SolidRect\": 31, \"StrokePath\": 1}, resource_bodies: 38, resource_bytes: 28160, unsupported_subtrees: 0, observed_counter_schema: true }",
+      "view_revision": 1,
+      "viewport": {
+        "height": 640,
+        "origin": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "width": 1024
+      }
+    },
+    {
+      "actual_after_paint_rgba_sha256": "dbc9eccdbcae31993419470e3c548a50f119d7bc3a571a1a81027e7cfecc8020",
+      "command_cause": null,
+      "direct_source_records_sha256": "682420608a66e40f89bae4cb71805fa21115f75439ba99e99f441b0c3b8fe6e4",
+      "direct_source_rgba_sha256": "dbc9eccdbcae31993419470e3c548a50f119d7bc3a571a1a81027e7cfecc8020",
+      "frame_clock": {
+        "after_paint_time_us": 126127938449,
+        "frame_time_us": 126127931129,
+        "refresh_interval_us": 16667
+      },
+      "frame_serial": 2,
+      "local_pam": "whole-0001.pam",
+      "mirror_records_sha256": "682420608a66e40f89bae4cb71805fa21115f75439ba99e99f441b0c3b8fe6e4",
+      "native_capture": "whole-0001.json",
+      "native_glyph_count": 212,
+      "record_count": 356,
+      "source_commit": "f35fc07367704574af2c059e6a73cb96:whole:16:1",
+      "vector_audit": "VectorAudit { scene_records: 319, primitive_counts: {\"Border\": 12, \"FillPath\": 1, \"GlyphRun\": 212, \"Group\": 62, \"SolidRect\": 31, \"StrokePath\": 1}, resource_bodies: 38, resource_bytes: 28160, unsupported_subtrees: 0, observed_counter_schema: true }",
+      "view_revision": 1,
+      "viewport": {
+        "height": 640,
+        "origin": [
+          0.0,
+          0.0
+        ],
+        "scale": 1.0,
+        "width": 1024
+      }
+    }
+  ],
+  "isolated_environment": {
+    "backend": "GDK x11; GSK cairo; GIO local; portals/a11y autoactivation disabled",
+    "mirror_display": "authenticated private Xvfb2300x1100; two disjoint1024x640 canvases",
+    "session_bus": "owned EXTERNAL bus with no service search directories",
+    "source_display": "separate authenticated private Xvfb1280x1024"
+  },
+  "mode": "actual-native-gtk-source-mirror",
+  "native_dependencies": {
+    "cairo": "1.18.4",
+    "fontconfig": "2.18.3",
+    "gtk4": "4.22.4",
+    "pango": "1.58.2",
+    "xvfb_binary_sha256": "567a9b39284e303522fdc178059fe60d0e9917b811bd5066fb63260fd198a97c"
+  },
+  "native_reference_comparison": {
+    "captures": [
+      {
+        "capture": "whole-0001.json",
+        "envelope_sha256": "5a1bc8e912e1b802438fb5ff38592ea1f4367438fa7164476ccd4205295a9687",
+        "geometry": {
+          "glyphs_checked": 212,
+          "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+        },
+        "local_reference_sha256": "ca3f59dedfe30e8d319e1faa9ba81d1fb6f5ed2a170f5435c4b4b9db35b8e14b",
+        "pixels": {
+          "edge_max_alpha_error": 0,
+          "edge_max_rgb_error": 129,
+          "edge_mean_max_rgb_error": 3.5880532253398902,
+          "edge_pixels": 69140,
+          "interior_bad_pixels": 0,
+          "interior_max_channel_error": 0,
+          "passed": true,
+          "pixels": 432000,
+          "viewport_mean_alpha_error": 0.0,
+          "viewport_mean_max_rgb_error": 0.5742546296296296
+        }
+      },
+      {
+        "capture": "whole-0002.json",
+        "envelope_sha256": "2541f7376caae9de70f336472730817ce6f073ff3e4bac21ed254b52aec42da7",
+        "geometry": {
+          "glyphs_checked": 152,
+          "maximum_source_pixel_bounds_error": 1.5543122344752192e-15
+        },
+        "local_reference_sha256": "1e96cc969f0cf7da87f6c98e65f664d7edfdaab9a0a06902118b6cb626adc469",
+        "pixels": {
+          "edge_max_alpha_error": 0,
+          "edge_max_rgb_error": 129,
+          "edge_mean_max_rgb_error": 3.7753948355982816,
+          "edge_pixels": 62621,
+          "interior_bad_pixels": 0,
+          "interior_max_channel_error": 0,
+          "passed": true,
+          "pixels": 432000,
+          "viewport_mean_alpha_error": 0.0,
+          "viewport_mean_max_rgb_error": 0.5472662037037037
+        }
+      }
+    ],
+    "criteria": {
+      "edge_max_alpha_error": 128,
+      "edge_max_rgb_error": 160,
+      "edge_mean_max_rgb_error": 8.0,
+      "interior_max_channel_error": 3,
+      "native_glyph_bounds_max_source_pixel_error": 0.00390625,
+      "profile": "gtk-cairo1184-vs-rui-samples2x2.v1",
+      "source_edge_dilation_pixels": 1,
+      "source_edge_neighbor_threshold": 2,
+      "viewport_mean_alpha_error": 1.0,
+      "viewport_mean_max_rgb_error": 4.0
+    },
+    "scope": "Exact native same-node local diagnostic composition versus verified source projection; actual after-paint mirror texture digest equals this projection over opaque white."
+  },
+  "observer_scope": "two separate instances of the same Rust receiver and renderer",
+  "observer_trace": {
+    "bytes": 287837,
+    "file_byte_ceiling": 67108864,
+    "packets": 190,
+    "policy": "AuthorizedDiagnosticBytes; post-auth only; mode0600",
+    "segment_ceiling": 8,
+    "segments": 1,
+    "sha256": "6998b395b71b445cc6836e2f3e0db6dff96dc537a9f241ae7090ce456702f949"
+  },
+  "presentation_scope": "actual GTK Canvas snapshot then after-paint -> existing NetworkClient Presented -> same GtkCommandHost broker; no simulated callback",
+  "probe_binary_sha256": "e7b4d274d0513c0f2b14bef7d5f1a5fd04693247e0696311fdff6a78b6540f98",
+  "retained_exact_trace_sha256": {
+    "controller.trace.jsonl": "7ebbeb1d842438c759db417a9c781782c64b92b223dddb75e7a2c4b662cbc2c4",
+    "observer.trace.jsonl": "6998b395b71b445cc6836e2f3e0db6dff96dc537a9f241ae7090ce456702f949",
+    "source-vector/0037f787f71aac921e7c6ffd7966dc1ab6cb396581d0331a9d694136176d5d24.rvp": "65bbf23d7747f2036a50972c7eadc643054ca8d356a7dd2127fc667ee15f5afc",
+    "source-vector/02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c.rvp": "4d403f0d9e970475d7b2b57c10b5776bc2214fb4b32384c961406787f6d8d7e4",
+    "source-vector/04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d.rvp": "58a265c32645b23932b1aeeda0720e264a55bda09f365ec5ae91166d69ac2df7",
+    "source-vector/0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1.rvp": "2d3c588512169ae64ce5e660b91ca094c121b0f459502a6d7307f006424a071e",
+    "source-vector/116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc.rvp": "ad53028bdf4cb935db25a714662419cc82def4132111535047eeaf5114919942",
+    "source-vector/1d89554382033ce6386e9b053bd2490b30a6723b0c1df8338f99e924892123d7.rvp": "ba33f3ce4925bf563524f0eb6258daf652871487d0243b949f11bcd2efae6bc3",
+    "source-vector/465c1ec9505aace15ea828acdc8f66cde228f926fa3acce735ec6a5a6c256762.rvp": "46ee48394624a5c74c47cd7dde5bdea8b65afca2d17c315f9065eb76a0f805a3",
+    "source-vector/46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153.rvp": "aae7f325cd9bc1fea398b6bc33c4e09d3afabfe9448b3b684d757ad6e96754f1",
+    "source-vector/499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5.rvp": "42a56ac68686b11f5fc8be936a7f3e89ad656d9f6c064f9b0fe738171f4cf900",
+    "source-vector/4a68b6a161a23574b036c0cc58ed51008ee47db08519fc91ec1044cef1ed1dc2.rvp": "a37fb5fd6796a5100d82205d8d1ea90b9c999d0922433914216d901999ad04d8",
+    "source-vector/4ad6e327dc85be1cfa4b296daa6ef1d5585f416e5d788e8b4de3d5ef3a177eb3.rvp": "030827f4eb62b1cd587f1a50f4009dc2951fb2518b5849716845cf2651c7d8a9",
+    "source-vector/52524fa6f715deec83953453ba1b627b959a2417dc99e3aa461bba8ab51607e8.rvp": "02a0514afcb9a1b2ec3072772f6448998fa73c3f8fc66328732c6062ae171572",
+    "source-vector/5dd2ed0bb10f0f3c2df648ebd1829bbd1108af5543c9499ebeb26e1a1f94673f.rvp": "fd820ffa2791d4d52db028cc7779b0ccf49bd6b98ef0a78c45731f258338be72",
+    "source-vector/67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9.rvp": "66c967d019ed1052fb99cc05e61a34ec0d66823240b08cd09ed56eca3a829d90",
+    "source-vector/725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746.rvp": "9287c14fbd950d2c6b9ded72fd4684de3d219e1f1b3f8593d7b81b584e48293e",
+    "source-vector/7302b6791f67f11a03b203f959d1fdac8e1e921d3dbaf66b6930fda96eb54b37.rvp": "fcf6b0841217274e2c939238c6eae8a51458bebdc99b8ff789d46394527f58c6",
+    "source-vector/7b6da6d298d10aa92c355364ba8302af4da169f59e1ceebf2e4f7bf5b2527197.rvp": "84c3ae1f4e8a0553fbacbdb1fef2251d39c30aef93302805bed473225fa0b017",
+    "source-vector/8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce.rvp": "5a41d083c2ad08a9185d5e60e4ac9876f155e11f50d2fa31b15892b9d8886abb",
+    "source-vector/8e512df673be0cbc86214262607787432ecd7ab37ce2809bf803171664182526.rvp": "4bbe44309bf189b3af903df190a27822fdb63c82adb2eb46efdaa7ce714fa68b",
+    "source-vector/8fd04a47850587b8c4517c2d1a5d6e17b02ad08cf2c5ac758548d68a7b15da0b.rvp": "4dd2819af9e23acd82dd2c72d05b9fec46f40fced88eeebc3bb0cc4ef1ce6605",
+    "source-vector/926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9.rvp": "95e15d72289ca011cd6d5f6289182768a797fb85ab225bc88670813d5fed2baa",
+    "source-vector/a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372.rvp": "ad67386ca3253c3a7c0f8d599f62ba8f4882edf84569d56215969cfc66663dbd",
+    "source-vector/aa9e877a2c46f5c5ab49c67fd8e2585b6d5d46c553dba4ac24d9cf966dd4a75a.rvp": "b3a7700bddd8b2b609ba58d74583776b38104c3fb2c26b63eb8ba24252404101",
+    "source-vector/af612ef45c7fdee0169642ab831dfef31d8537eb63ac11f92f0df0122f5c41ea.rvp": "9655f4729e35ec92e417ea8771b1b3a7665aefae9feb471bea0cd51e1847d9ac",
+    "source-vector/b059a55da03ed5a684a714a63c8f951b66c49e88c08afc2e8f1902fb1575d14e.rvp": "0e881223f09c50614867c5d65b4a2127534df6553a1be131c997ec6bd418f3ae",
+    "source-vector/b21fc188df82b6c6744a19721f3c6e2d867910f9012c7f6b3b14be3e4886e4ed.rvp": "39b71ae754474e852cd7e123ad9b0a268713556351a522341e6416c581ac31fd",
+    "source-vector/b633538174f996d85763d46e2e57afcb1a7ab654807fab65b8f8ad9bd4996381.rvp": "3bb119a73c86329ce75330905b478407a9520968630ab4d32070b338618578f4",
+    "source-vector/bee9d8dde2eb462ebb972d6b6d92a12367486c4c7b30343c84b8110c54c308ea.rvp": "fed6d8ccc0f77a2689321df0819bd439e8e3c315939028bf5866498438a6dca5",
+    "source-vector/c5ff9c5499a5ae1cdd941b29695e74002dff8f37c5276015541a1866f05b837b.rvp": "da2c699c10721e3bbe9d1c854b4c189a3dc37cd8c1bfb74fc1e7e280db0612d6",
+    "source-vector/cbe2d9adb1cb550c9bf47b4041c303fc2c66bf34603995c13a7f9d4d0147123e.rvp": "0963b958dcb5b4bb6762ebd3325cb96a02773bb2a906b29419588942d4126254",
+    "source-vector/d550bf563826442b3fc467beb9b03576160235f3e8b2a825cdd5aaae304b4814.rvp": "ede89e8d6549f7a3e23fffa3a3f1d33b9281123e85f1ea61b44f7c81f4956858",
+    "source-vector/e07abf3e482f3db45a76b83cf3c05d639fae70e2c94ea24f614a52798b66da21.rvp": "1e3c3138caf503e3932c618bdd48bda44b20d43eb61e92df44e0323d55956cb3",
+    "source-vector/e216c5213718ffe7f1c4c5f32414bb059e6c33e26f016e474b84173e09b94c19.rvp": "2caff6f4127db7e1a6e97f033584df04ac8891b740af2a8a85f0f24a8e9b3444",
+    "source-vector/e3b1a2f3fba416eb6d973c692ae6da8e5955e22ed9dea5039b6e07d54ac68942.rvp": "6abd051602c93bbef0046b3ae25c6e0ead9134ea7ffe7fe5c835baed6dd46691",
+    "source-vector/e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52.rvp": "a5d4bd6e2b53c07fd8c16d82ac7d1d1b6da4a07a1739580ec24c6ae684cbc7f0",
+    "source-vector/eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d.rvp": "1bd531144e37f0af48f423a3bd900396d79c6a9bb5dfceabb4d25e9cecdf85a5",
+    "source-vector/ef6cea984ae05081d27e6fcea0b96aa8f932edd13e63d26aae5baedc0d21ea5c.rvp": "70150843fc2c3f589b5e065f243d661cb5467bc4de45bc6e15bdcc91ac37d8b7",
+    "source-vector/ff2132153f33dbe6dbb71330c40737e7c139c4731ca4aac0193c9761b3cb4f53.rvp": "83e4cd8063c4dfa9e6753d08e4d39b0bca8be20cf36dd36f22af2892f16e17bd",
+    "source-vector/whole-0001.bin": "5a1bc8e912e1b802438fb5ff38592ea1f4367438fa7164476ccd4205295a9687",
+    "source-vector/whole-0001.json": "5f9ba709e86e7184d649732a46899236dd4efcc713027f408688dbb29626b0e8",
+    "source-vector/whole-0002.bin": "2541f7376caae9de70f336472730817ce6f073ff3e4bac21ed254b52aec42da7",
+    "source-vector/whole-0002.json": "0ab220c4850fb7f426f5460cacf426169833ef690ef0d68991405ef90b410abc"
+  },
+  "source_action_started_us": 126135000496,
+  "source_file_fingerprints": {
+    "Cargo.lock": "b79c951bb18c3f7880880eb4e1373b800c3c169c626282ae7eaba42ca7f37f33",
+    "adapters/gtk4/capture.py": "02b8692c787c855983c71a89ea27d3bf3c46bcdc2f9e0c354467bea88e25dcd8",
+    "adapters/gtk4/native.py": "83c8a37857b6d7de52423ba6ea42cb90b9f34cada5d097a6eda7d25c52aed618",
+    "adapters/gtk4/native_fence.py": "50b7134b34bab62d8ae44b981dcebfdb6401ed05245917732fbe656350f776e1",
+    "adapters/gtk4/state.py": "54d5d3aaaf380b655ad6118a03c48885524bd5c6442058f329d3b926fee15339",
+    "adapters/gtk4/transaction.py": "1f87d54be4ea34958cdee8a15986346194138592fa518dacdb0dc83365cab7ef",
+    "adapters/sdk/Cargo.toml": "685e92497d230c6906786481b1b3226c41335778f63017384bb36d636a8ff072",
+    "adapters/sdk/producer.py": "9228c57181cc8ffd0d7e19b6bbd3d366005c9f326d161500192f1c39127741a5",
+    "adapters/sdk/src/gtk_host.rs": "33d16386d0be123cb00609d809ce9041af2c50aaadbc52f8b5a42de6a3a01b0e",
+    "adapters/sdk/src/gtk_port.rs": "725a6658208247f86fa687446d9d7e69a499c11626867692de11cc7dededcd9b",
+    "adapters/sdk/src/lib.rs": "77046f28528d31d99b4ebc7398f13d5b8afd63a6bdd29fe11e174962251c800a",
+    "adapters/sdk/src/native_fence.rs": "349ac58c6be6506548d6c57e700ce027c6c6e599d4fd985239f64f050d2f1854",
+    "adapters/sdk/src/source_identity.rs": "8cac211cdcdf77f8cec360cb9f1200d4f32736647d82c64810062c8b9ec83507",
+    "adapters/sdk/src/vector_audit.rs": "5c644b2c90c6e7f00bcc9c37823a82cf59686d839309b5e4f814d9e5a5f72741",
+    "client-desktop/Cargo.toml": "e9e97a6620e65b3cbc1933a63716eeac16e22cddeca770a00e44ccbd4e8278ac",
+    "client-desktop/examples/corpus_support/trace.rs": "2d640f9198ee7981d5c620e101e69f3688029e560fa86c318c774bdae59ad779",
+    "client-desktop/examples/gtk_source_probe.rs": "a3cbeb265e5171116748fc2f8d8baeeee1d8b287d497f41ba283f1e33d07d089",
+    "client-desktop/src/desktop.rs": "2ee1da7b6fb3260c9194ac6168314cd882ef2304c0b9a91642a0cec450c2b6b4",
+    "client-desktop/src/desktop/gtk.rs": "7c76f5085134ca13bd9174e9ae8eecbaae3d736fc3f66d8aaaa6f38a1cd65a05",
+    "client-desktop/src/interaction.rs": "88d1c5d9e9e564152772ee17df66cb7d92ec6a3ef420acb1f1581ae0e851939d",
+    "client-desktop/src/renderer.rs": "b12a51ffa0baf1b403a51356dd48820c664b59ce47753692c2c3ae9752c47a7e",
+    "fixtures/gtk/compare.py": "d2ae03909e1e42a14f158d7385794d815edc3c4252dfdb306999af9683fb3042",
+    "fixtures/gtk/corpus.py": "efaeee50331b23b311790deacec117c67ebc50cd3715dcec1905c5fb12df3b8a",
+    "fixtures/gtk/mirror_check.py": "8ab510ac513346918ad4fc9423b38f78d5f142562a1d51c719c2a234fb9428a3",
+    "fixtures/gtk/place_windows.py": "f38dfeffc8ce6411cc7c3dcbea4bbb1f6ccf0e814bdfb1c05a4b7c7623d449a3",
+    "fixtures/gtk/whole_native_source.py": "20c714dcf6f740390422e00b6b10dab606e8ff1f0abc3ddab7208882b01798c8",
+    "fixtures/gtk/whole_view.py": "11a1dce80399b9901c54a323eaf1ad1113a2b9f874b2f0bdbd199a309872ea71",
+    "fixtures/render/native_events.py": "2f466166ff83bb04c31d23a868da69e30fec158a527a861ab89b76a957a035bc",
+    "transport/src/client.rs": "daec8ad07cdfac6c2927e8fc950fcce58783ff13aedaf0bb5888f679b43881fa",
+    "transport/src/producer.rs": "ad8dc16ba98081762f1b4c364bac5d58c0db13e09095ad4df72dd2cc44353cf8",
+    "transport/src/server.rs": "c37a56f0f8cb087e06a151378f235424cef54ff12f2686b1d621f67255c44e92",
+    "transport/src/source_delivery.rs": "d153fd8c514d6a15de95dd484e8e06421b633604809a05793926301b88b827e4"
+  },
+  "source_scope": "cooperating GTK4.22.4 fixture, immutable same-node local/export capture across registered native surfaces; isolated source-owned placement, no WM composition claim"
+}

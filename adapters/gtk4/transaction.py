@@ -216,6 +216,9 @@ class CaptureTransaction:
         if frame["semantics"] != facts["surfaces"][ticket.key]["semantics"]:
             self.invalidate("captured-semantic-payload-differs-from-boundary")
             return False
+        if frame.get('binding_regions', []) != facts['surfaces'][ticket.key].get('binding_regions', []):
+            self.invalidate('captured-widget-geometry-differs-from-boundary')
+            return False
         try:
             # Resource descriptors come from the actual source write. Charge
             # new union bodies before retaining descriptors/capture ownership.

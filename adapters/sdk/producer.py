@@ -138,6 +138,7 @@ def encode_semantic(record: dict) -> bytes:
     data += b"".join(blob(8, ref(3, child)) for child in record["children"])
     data += b"".join(blob(7, scalar(1, key) + scalar(2, value)) for key, value in sorted(record.get("states", {}).items()))
     data += b"".join(blob(10, text(1, action) + scalar(2, 1)) for action in record.get("actions", []))
+    data += b"".join(blob(13, ref(5, binding)) for binding in record.get("visual_bindings", []))
     if record.get("text_model"):
         data += blob(11, ref(4, record["text_model"]))
     if record.get("collection_model"):
@@ -162,6 +163,14 @@ def encode_text(record: dict) -> bytes:
         data += blob(6, scalar(1, record["selection"][0]) + scalar(2, record["selection"][1]))
     data += scalar(7, record["editable"]) + scalar(8, record["selectable"])
     return blob(4, data)
+
+
+def encode_binding(record: dict) -> bytes:
+    data = scalar(1, record["id"]) + scalar(2, record["version"]) + blob(3, ref(1, record["surface_id"]))
+    data += blob(4, ref(3, record["semantic_id"])) + blob(5, ref(2, record["scene_root"]))
+    if record.get("interaction_region") is not None:
+        data += blob(6, doubles(record["interaction_region"]))
+    return blob(5, data)
 
 
 def encode_session(record: dict) -> bytes:
@@ -189,6 +198,10 @@ def encode_surface(frame: dict) -> bytes:
         data += blob(14, ref(2, frame["scene_root"]))
     if frame.get("semantic_root"):
         data += blob(15, ref(3, frame["semantic_root"]))
+    if frame.get('mapped', True) and not frame['gaps'] and 'binding_regions' in frame:
+        # An unbound popup background still owns input. Filtering surfaces by
+        # widget regions would expose an underlying unrelated action.
+        data += blob(16, doubles([0, 0, *frame['size']]))
     routing = frame.get("routing_token")
     if routing is None:
         routing = hashlib.sha256(b"RUI/0.1/route\0" + str(frame["surface_id"]).encode() + frame["capture_token"].encode()).hexdigest()[:32]
@@ -206,6 +219,7 @@ def encode_snapshot(frame: dict, binding: dict) -> bytes:
     records += [encode_scene(record) for record in frame["scene"]]
     records += [encode_semantic(record) for record in frame["semantics"]]
     records += [encode_text(record["text"]) for record in frame["semantics"] if record.get("text")]
+    records += [encode_binding(record) for record in frame.get("visual_bindings", [])]
     if frame.get("session"):
         records.append(encode_session(frame["session"]))
     if len(records) > MAX_RECORDS:
@@ -245,6 +259,7 @@ class CoherentSource:
         self._model_sizes = {}
         self.model_cache_bytes = 0
         self._focus = {}
+        self.native_bindings = None
         self.retired_scene_ids = set()
         self.retired_semantic_ids = set()
         self.retired_object_ids = set()
@@ -286,6 +301,10 @@ class CoherentSource:
                 self.retired_semantic_ids.add(text_id)
                 self.remove_model("text", text_id)
                 self.remove_model("text-record", text_id)
+            binding_id = self._ids.pop("binding:" + name, None)
+            if binding_id is not None:
+                self.retired_object_ids.add(binding_id)
+                self.remove_model("binding", binding_id)
         for surface, (focus, _) in list(self._focus.items()):
             if focus in removed:
                 self.focus_changed(surface, None)
@@ -373,6 +392,10 @@ class CoherentSource:
         for key, (role, read, parent, actions) in self._semantics.items():
             if key in selected:
                 fields = dict(read())
+                if fields.get('sensitivity', 1) != 1:
+                    # This cooperating producer profile only exports an
+                    # explicitly public corpus. It has no redaction policy.
+                    raise ValueError('private semantics unsupported by public producer profile')
                 identifier = self.identifier("semantic:" + key)
                 children = [self.identifier("semantic:" + child) for child, (_, _, owner, _) in self._semantics.items() if owner == key and child in selected]
                 if fields.get("text"):
@@ -408,12 +431,30 @@ class CoherentSource:
                     model.update(items=items, selected_items=chosen, version=self.model_clock("collection", identifier, (tuple(items), total, materialization, tuple(chosen))))
                     fields["collection_model"] = model
                 node = {"id": identifier, "identity": key, "role": role, "children": children, "actions": list(actions), **fields}
+                if self.native_bindings:
+                    binding = self.native_bindings.reference(key)
+                    if binding is not None:
+                        node['visual_bindings'] = [binding]
                 # This is the actual SemanticNode payload, not the overall
                 # visual frame. Text content/selection have their own record
                 # and clocks, so only the TextModel reference participates.
                 stamp = json.dumps({name: value for name, value in node.items() if name not in ('identity', 'text')}, sort_keys=True, separators=(',', ':'))
                 node['version'] = self.model_clock('semantic', identifier, stamp)
                 result.append(node)
+        return result
+
+    def binding_regions(self, surface):
+        return self.native_bindings.regions(surface) if self.native_bindings else []
+
+    def bindings(self, surface_id, scene_root, regions, *, usable):
+        result = []
+        for region in regions:
+            record = {'id': region['id'], 'semantic_id': region['semantic_id'], 'interaction_region': region['interaction_region'],
+                      'surface_id': surface_id, 'scene_root': scene_root}
+            if not usable:
+                record['interaction_region'] = None
+            record['version'] = self.model_clock('binding', record['id'], json.dumps(record, sort_keys=True, separators=(',', ':')))
+            result.append(record)
         return result
 
     def write_artifact(self, output: Path, name: str, body: bytes):

@@ -101,6 +101,174 @@ fn same_json(a: &Value, b: &Value) -> bool {
 }
 
 impl CaptureArtifact {
+    fn verify_native_bindings(&self, receiver: &ViewReceiver) -> Result<(), CaptureError> {
+        use rui_protocol_core::model::{ObjectKind, ObjectRef};
+        let manifest = self.manifest();
+        let state = receiver.state()?;
+        let expected = manifest["visual_bindings"].as_array();
+        let actual_count = state
+            .records
+            .values()
+            .filter(|r| matches!(r, Record::Binding(_)))
+            .count();
+        if expected.map_or(0, Vec::len) != actual_count {
+            return Err(CaptureError::Invalid);
+        }
+        let mut seen = BTreeSet::new();
+        for source in expected.into_iter().flatten() {
+            let id = source["id"].as_u64().ok_or(CaptureError::Invalid)?;
+            let surface_id = source["surface_id"].as_u64().ok_or(CaptureError::Invalid)?;
+            let semantic_id = source["semantic_id"]
+                .as_u64()
+                .ok_or(CaptureError::Invalid)?;
+            let root = source["scene_root"].as_u64().ok_or(CaptureError::Invalid)?;
+            let Some(Record::Binding(binding)) = state.records.get(&id) else {
+                return Err(CaptureError::Invalid);
+            };
+            let Some(Record::Surface(surface)) = state.records.get(&surface_id) else {
+                return Err(CaptureError::Invalid);
+            };
+            let Some(Record::Semantic(semantic)) = state.records.get(&semantic_id) else {
+                return Err(CaptureError::Invalid);
+            };
+            let region = binding
+                .interaction_region
+                .map(|r| json!([r.x, r.y, r.width, r.height]))
+                .unwrap_or(Value::Null);
+            if !seen.insert(id)
+                || source["version"].as_u64() != Some(binding.version)
+                || binding.surface
+                    != (ObjectRef {
+                        kind: ObjectKind::Surface,
+                        id: surface_id,
+                    })
+                || binding.semantics
+                    != [ObjectRef {
+                        kind: ObjectKind::Semantic,
+                        id: semantic_id,
+                    }]
+                || binding.scenes
+                    != [ObjectRef {
+                        kind: ObjectKind::Scene,
+                        id: root,
+                    }]
+                || surface.scene_root
+                    != Some(ObjectRef {
+                        kind: ObjectKind::Scene,
+                        id: root,
+                    })
+                || !semantic.bindings.contains(&ObjectRef {
+                    kind: ObjectKind::Binding,
+                    id,
+                })
+                || !same_json(&source["interaction_region"], &region)
+                || ((!surface.mapped || surface.visual_coverage != VisualCoverage::Complete)
+                    && binding.interaction_region.is_some())
+            {
+                return Err(CaptureError::Invalid);
+            }
+            let regions = if manifest["surfaces"].is_array() {
+                let surface_source = manifest["surfaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|s| s["surface_id"].as_u64() == Some(surface_id))
+                    .ok_or(CaptureError::Invalid)?;
+                let key = surface_source["surface_key"]
+                    .as_str()
+                    .ok_or(CaptureError::Invalid)?;
+                &manifest["source_boundary_facts"]["surfaces"][key]["binding_regions"]
+            } else {
+                &manifest["binding_regions"]
+            };
+            let native = regions
+                .as_array()
+                .ok_or(CaptureError::Invalid)?
+                .iter()
+                .find(|r| r["id"].as_u64() == Some(id))
+                .ok_or(CaptureError::Invalid)?;
+            if native["semantic_id"].as_u64() != Some(semantic_id)
+                || (surface.mapped
+                    && surface.visual_coverage == VisualCoverage::Complete
+                    && !same_json(&native["interaction_region"], &region))
+            {
+                return Err(CaptureError::Invalid);
+            }
+            if let Some(rect) = binding.interaction_region {
+                if rect.x < 0.0
+                    || rect.y < 0.0
+                    || rect.width <= 0.0
+                    || rect.height <= 0.0
+                    || rect.x + rect.width > surface.content_size.width
+                    || rect.y + rect.height > surface.content_size.height
+                {
+                    return Err(CaptureError::Invalid);
+                }
+            }
+        }
+        for record in state.records.values() {
+            let Record::Surface(surface) = record else {
+                continue;
+            };
+            let source = if let Some(surfaces) = manifest["surfaces"].as_array() {
+                surfaces
+                    .iter()
+                    .find(|s| s["surface_id"].as_u64() == Some(surface.id))
+                    .ok_or(CaptureError::Invalid)?
+            } else if manifest["surface_id"].as_u64() == Some(surface.id) {
+                manifest
+            } else {
+                continue;
+            };
+            let plans = if manifest["surfaces"].is_array() {
+                let key = source["surface_key"]
+                    .as_str()
+                    .ok_or(CaptureError::Invalid)?;
+                &manifest["source_boundary_facts"]["surfaces"][key]["binding_regions"]
+            } else {
+                &manifest["binding_regions"]
+            };
+            let plan_ids: Vec<_> = plans
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|plan| plan["id"].as_u64().ok_or(CaptureError::Invalid))
+                .collect::<Result<_, _>>()?;
+            let published: BTreeSet<_> = expected
+                .into_iter()
+                .flatten()
+                .filter(|binding| binding["surface_id"].as_u64() == Some(surface.id))
+                .map(|binding| binding["id"].as_u64().ok_or(CaptureError::Invalid))
+                .collect::<Result<_, _>>()?;
+            if plan_ids.len() != published.len()
+                || plan_ids.into_iter().collect::<BTreeSet<_>>() != published
+            {
+                return Err(CaptureError::Invalid);
+            }
+            let regions: Vec<_> = if surface.mapped
+                && surface.visual_coverage == VisualCoverage::Complete
+                && source["binding_regions"].is_array()
+            {
+                vec![json!([
+                    0,
+                    0,
+                    surface.content_size.width,
+                    surface.content_size.height
+                ])]
+            } else {
+                Vec::new()
+            };
+            let actual: Vec<_> = surface
+                .input_region
+                .iter()
+                .map(|r| json!([r.x, r.y, r.width, r.height]))
+                .collect();
+            if !same_json(&json!(regions), &json!(actual)) {
+                return Err(CaptureError::Invalid);
+            }
+        }
+        Ok(())
+    }
     /// Check whole-view source barrier evidence against every decoded surface.
     /// This remains diagnostic cooperating-source evidence, not attestation.
     fn verify_whole_view(&self, receiver: &ViewReceiver) -> Result<(), CaptureError> {
@@ -175,7 +343,6 @@ impl CaptureArtifact {
                     })
                 || actual.opacity != 1.0
                 || actual.clip.is_some()
-                || !actual.input_region.is_empty()
                 || actual.parent.map(|r| r.id) != f["parent"].as_u64()
                 || actual.modal_for.map(|r| r.id) != f["modal_for"].as_u64()
                 || f["native_modal"].as_bool().is_none()
@@ -500,6 +667,7 @@ impl CaptureArtifact {
         } else if manifest["destroyed"] != true {
             check_coverage(manifest)?;
         }
+        self.verify_native_bindings(receiver)?;
         self.verify_native_glyph_evidence(receiver)?;
         Ok(VectorAudit {
             scene_records: scenes.len(),

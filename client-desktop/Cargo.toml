@@ -5,6 +5,7 @@ edition.workspace = true
 
 [features]
 desktop = ["dep:gtk4", "dep:rui-transport", "dep:tokio", "dep:prost"]
+gtk-source-probe = ["desktop", "rui-producer-sdk/transport", "rui-producer-sdk/gtk-fixture-hooks"]
 
 [[bin]]
 name = "rui-mirror"
@@ -26,6 +27,10 @@ required-features = ["desktop"]
 [[example]]
 name = "corpus_smoke"
 required-features = ["desktop"]
+
+[[example]]
+name = "gtk_source_probe"
+required-features = ["gtk-source-probe"]
 
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }

@@ -94,8 +94,12 @@ Cairo 1.18.4 build with optional native backends disabled, as used by CI.
   audits and actual broker-preserving native source restart have passed review.
   Guarded whole-view native commands now pass actual TLS through the shared owner,
   including exact recorded vector/source replay and socket-loss/approval-only
-  lifecycle fences. Actual native mirror after-paint interaction and wire IME
-  remain. Coherent whole-view
+  lifecycle fences. Actual source/two-mirror after-paint interaction now passes independent root
+  review: four complete record/pixel matches, two native captures, 364 glyph checks,
+  zero bad interior pixels and zero host ownership after disposal. Binding geometry
+  lifecycle and popup background input ownership regressions pass; controller and
+  observer exact network traces independently replay all six record kinds in CI.
+  Wire IME remains. Coherent whole-view
   native capture and all five direct/replay pixel comparisons have passed. The declared seventeen-frame local
   visual comparison has passed.
 - **M4 remains open.** Actual EIS, source geometry/hit testing, host XKB/repeat,

@@ -68,6 +68,31 @@ class TransactionLifecycle(unittest.TestCase):
             self.assertFalse(self.barrier.submit(ticket, self.captures['a'], self.frame(ticket), []))
         self.assertFalse(self.commits)
 
+    def test_widget_geometry_mismatch_aborts_candidate_and_union_before_commit(self):
+        original = self.oracle
+        regions = [{'id': 9, 'semantic_id': 8, 'interaction_region': [2, 3, 20, 10]}]
+        def oracle():
+            value = original()
+            for surface in value['surfaces'].values():
+                surface['binding_regions'] = regions
+            return value
+        # The actual callback contract compares native geometry captured with
+        # the candidate to the immutable transaction boundary.
+        self.barrier.oracle = oracle
+        baseline = self.budget.used
+        self.barrier.begin()
+        previous = self.barrier.acquire('b')
+        first = self.frame(previous)
+        first['binding_regions'] = regions
+        self.barrier.submit(previous, self.captures['b'], first, [self.offer()])
+        ticket = self.barrier.acquire('a')
+        frame = self.frame(ticket)
+        frame['binding_regions'] = [{'id': 9, 'semantic_id': 8, 'interaction_region': [40, 3, 20, 10]}]
+        self.assertFalse(self.barrier.submit(ticket, self.captures['a'], frame, [self.offer()]))
+        self.assertFalse(self.commits)
+        self.barrier.cancel('geometry-negative-complete')
+        self.assertEqual(self.budget.used, baseline)
+
     def test_timeout_without_any_native_frame_releases_all_transient_memory(self):
         baseline = self.budget.used
         self.barrier.begin()

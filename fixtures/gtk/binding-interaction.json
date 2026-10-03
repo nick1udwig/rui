@@ -1,0 +1,82 @@
+{
+  "frames": [
+    {
+      "binding_id": 4,
+      "capture": "binding-source-0001.json",
+      "counter_rotated_clip_denied": true,
+      "stage": "initial"
+    },
+    {
+      "binding_id": 4,
+      "capture": "binding-source-0002.json",
+      "counter_rotated_clip_denied": true,
+      "stage": "moved"
+    },
+    {
+      "binding_id": 4,
+      "capture": "binding-source-0003.json",
+      "counter_rotated_clip_denied": true,
+      "stage": "hidden"
+    },
+    {
+      "binding_id": 4,
+      "capture": "binding-source-0005.json",
+      "counter_rotated_clip_denied": true,
+      "stage": "remapped"
+    },
+    {
+      "binding_id": 4,
+      "capture": "binding-source-0006.json",
+      "counter_rotated_clip_denied": true,
+      "stage": "disabled-ancestor"
+    },
+    {
+      "binding_id": 4,
+      "capture": "binding-source-0007.json",
+      "counter_rotated_clip_denied": true,
+      "stage": "removed"
+    }
+  ],
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "retained_trace_sha256": {
+    "02e4bda6456a109a6bb59556208945a6a4e0271c96e59cba6697e567b8adc44c.rvp": "4d403f0d9e970475d7b2b57c10b5776bc2214fb4b32384c961406787f6d8d7e4",
+    "04ca892634c35553408d3712ccb3d5b22506d2c9b71892f1a492644673c8d56d.rvp": "58a265c32645b23932b1aeeda0720e264a55bda09f365ec5ae91166d69ac2df7",
+    "0c0bcc5a7c57431f3e18d038a19a82a56f4e511d17a4ecedeea4ef250b42bcd1.rvp": "2d3c588512169ae64ce5e660b91ca094c121b0f459502a6d7307f006424a071e",
+    "116674bce9425d53b0b7fbccaf720da612645234b41298cc38a0e01c0df8b5fc.rvp": "ad53028bdf4cb935db25a714662419cc82def4132111535047eeaf5114919942",
+    "46a8e78d6468fe56c6847e032e2569ca00e108e9183c7bced28af2fe6eba1153.rvp": "aae7f325cd9bc1fea398b6bc33c4e09d3afabfe9448b3b684d757ad6e96754f1",
+    "499c52d0b11330cbf79a6cc25453d7876e2b193959ba83b7546bd50821d7feb5.rvp": "42a56ac68686b11f5fc8be936a7f3e89ad656d9f6c064f9b0fe738171f4cf900",
+    "67b3cc9782633d07b2845935b1101df85229fd0f24f573d6d3448e24aab0d6f9.rvp": "66c967d019ed1052fb99cc05e61a34ec0d66823240b08cd09ed56eca3a829d90",
+    "725d2d87b0058527161dd0c6e05b37b2b2faa6ded36a121cfc28177cbc4ca746.rvp": "9287c14fbd950d2c6b9ded72fd4684de3d219e1f1b3f8593d7b81b584e48293e",
+    "8b8723786413d71e1aa4057b7d59e7bc1acda5414c2ed864d2cb0afae6b2abce.rvp": "5a41d083c2ad08a9185d5e60e4ac9876f155e11f50d2fa31b15892b9d8886abb",
+    "926048dcf77d302d53a970695a465027258246a10768655ebd67ca5b112031a9.rvp": "95e15d72289ca011cd6d5f6289182768a797fb85ab225bc88670813d5fed2baa",
+    "a69b75befe8e85668ae51d9f6d2ad6965c7cd3cd0a20e74a7ba1d54e45b1d372.rvp": "ad67386ca3253c3a7c0f8d599f62ba8f4882edf84569d56215969cfc66663dbd",
+    "binding-source-0001.bin": "9f0393d9463a40d1fbcd48429f31ce0030fdc2c1cda78e1fd70f969aa879de12",
+    "binding-source-0001.json": "dec36a79c522b7907a1a2e81c8758bdc9beefa833eaaf810de865e90c73871dd",
+    "binding-source-0002.bin": "eb30195b64acd096e66545a597c18075b2b5ba3c7ac43fffab116c4a403fecc4",
+    "binding-source-0002.json": "8a0b231d0004ee7d21b4b116d17fd3ee81aed4541fd72c336588e323c144da19",
+    "binding-source-0003.bin": "9a7b2c1b978cf0a84726596c752f9d873b49bcb695eb07984e603673fc0d3c1b",
+    "binding-source-0003.json": "2cd146306c17410cb3271073e71f7cf98cb93a2ced8fc6f1c39dfdee5146dea4",
+    "binding-source-0005.bin": "2489211a645513930fbe10291ee5b3ac3ee219fb195264fa6a2244b47e939a7c",
+    "binding-source-0005.json": "9a9684722e593f569af5277bbee8d751dd53c68b99a825a43f2f3ff1d09f3f63",
+    "binding-source-0006.bin": "898607ea4b7c4fc7939e515c881f9cab817fb4722154b8db50efaf4b61cc471c",
+    "binding-source-0006.json": "0e38cc5e5a807c69216f9ea89173770772ec9ecf48fa2406e60c48d3d0c9bb34",
+    "binding-source-0007.bin": "485c383cfd0ae2b1723c8e488dc41dfd3b817828aa73a8b9b3ced4b953569e8d",
+    "binding-source-0007.json": "8e6e68bef6dc4ff856f29d0f8dd9cac13e2b40c7cb1ec5311a102b51c62d9053",
+    "e839fa0e4e133fdbabb6b3631ee7d88f76ebdf5c8dd0213bd8fc300e6d602a52.rvp": "a5d4bd6e2b53c07fd8c16d82ac7d1d1b6da4a07a1739580ec24c6ae684cbc7f0",
+    "eccd251c6c811d93aab61ef4b6ff2614073d53ff2916449b475c9039193fef4d.rvp": "1bd531144e37f0af48f423a3bd900396d79c6a9bb5dfceabb4d25e9cecdf85a5"
+  },
+  "scope": "actual native local geometry/lifecycle, no remote command claim",
+  "source_file_fingerprints": {
+    "adapters/gtk4/capture.py": "02b8692c787c855983c71a89ea27d3bf3c46bcdc2f9e0c354467bea88e25dcd8",
+    "adapters/gtk4/state.py": "54d5d3aaaf380b655ad6118a03c48885524bd5c6442058f329d3b926fee15339",
+    "adapters/sdk/producer.py": "9228c57181cc8ffd0d7e19b6bbd3d366005c9f326d161500192f1c39127741a5",
+    "fixtures/gtk/binding_capture.py": "070478c46dca89cb10a74153201d5907aa8489318d44bd1a2436413059dd9ff2",
+    "fixtures/gtk/binding_check.py": "8e231b434a93da747912dbe02a2603f8c4d9d475873f304bb4180106c5c22a66",
+    "fixtures/gtk/corpus.py": "efaeee50331b23b311790deacec117c67ebc50cd3715dcec1905c5fb12df3b8a",
+    "fixtures/gtk/mirror_check.py": "bdb4266420226bc660ad183659c568762760696edfc2c65d63575d0d094eaf00"
+  }
+}

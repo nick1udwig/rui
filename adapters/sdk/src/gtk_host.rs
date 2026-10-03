@@ -48,7 +48,10 @@ const MAX_REQUEST: usize = 128 << 10;
 const MAX_REPLY: usize = 8 << 10;
 const SOURCE_MEMORY: usize = 96 << 20;
 const CLIENT_MEMORY: usize = 8 << 20;
-const PUBLIC_VIEW_MEMORY: usize = 32 << 20;
+// A normal full-corpus mirror viewport retains the old GTK texture while
+// allocating a linear frame, its geometric plan and the new RGBA texture.
+// Actual1024x640 presentation exceeded32MiB;64MiB keeps this bounded overlap.
+const PUBLIC_VIEW_MEMORY: usize = 64 << 20;
 const ARTIFACT_MEMORY: usize = MAX_MANIFEST_ALLOCATION;
 // One 16MiB body plus bounded resource descriptor/seen sets and wire scratch.
 // Source resource bodies are also independently charged inside the receiver.

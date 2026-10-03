@@ -803,7 +803,7 @@ and memory ceilings either produce a validated fresh projection or reject and
 clean up independently of another live view. Old-view ACK witnesses fail in the
 new scope; retained command outcomes stay in the same common ledger.
 
-The public view negotiates at most 32 MiB for normal mirror frame and transport
+The public view negotiates at most 64 MiB for normal mirror frame and transport
 allocations, a 128 KiB envelope and 32 KiB chunks. The private per-view verification
 receiver has a separate 8 MiB allowance. Actual broker IO, publication, attachment
 and resource reservations share the host's 256 MiB parent budget, and escaped
@@ -857,3 +857,88 @@ python3 fixtures/gtk/transport_check.py --xvfb /path/to/Xvfb \
 cargo test --locked --offline -p rui-producer-sdk \
   --features transport,gtk-fixture-hooks --test transport_trace
 ```
+
+## Native bindings and actual mirror presentation
+
+The cooperating source now publishes stable `Binding` records from registered
+native GTK widgets. Their interaction rectangles come from `compute_transform`
+and `compute_bounds` in the same capture's content coordinates. Supported
+actionable leaf widgets must be mapped, visible, sensitive through their
+ancestry, and inside native clipping ancestors. The declared profile permits
+only finite positive axis-aligned transforms. A rotated clipping ancestor stays
+unsupported even when a counter-rotated child has an axis-aligned aggregate
+transform. A hidden or disabled widget keeps its binding identity with no
+interaction rectangle; removal retires the identity and its model-cache charge.
+The scene association is the exact captured surface scene root, rather than an
+inferred mapping from native widget internals to individual render nodes.
+
+Mapped complete surfaces conservatively own their entire content input rectangle.
+Precise control bounds remain on bindings. A native popup background therefore
+cannot pass a click through to an underlying main-surface control. Source
+boundary plans include these bounds, and fresh snapshot candidates must match
+them before a whole-view barrier can commit. Unsupported/partial regions do not
+enable pointer actions. This source profile exports an explicitly public corpus;
+private semantic registrations fail closed. Semantic-only host projections still
+strip binding records, visual references and resources.
+
+`binding-interaction.json` and `binding-golden/` retain six actual native captures
+for movement, hide/remap, ancestor disablement and retirement. Rust replay checks
+the stable identity and changing binding clock, rotated ancestor denial, reciprocal
+semantic references and resource closure. Negative checks reject altered source
+bounds, omitted/duplicate plans, wrong semantic ownership and incomplete surface
+input coverage. A deliberately changed boundary after another candidate is held
+aborts the transaction and returns all candidate reservations.
+
+`mirror-interaction.json` and `mirror-golden/` retain two exact source vector
+captures and two post-authenticated network traces. The actual GTK source runs
+on one private authenticated Xvfb display; two disjoint 1024×640 GTK mirrors run
+on a second owned display. This preserves ordinary popup autohide and separates
+the source's native input grabs from remote mirror input. A service-free private
+D-Bus configuration prevents portal or accessibility service autoactivation.
+Timeouts terminate only the owned child process group and include bounded logs.
+
+Both mirrors use the normal GTK Canvas snapshot and after-paint callback, which
+sends Presented to the same producer broker. Four actual after-paint frames
+match the independently replayed source record and RGBA hashes. A native pointer
+click at a published modal-close binding travels through the generic mirror hit
+test, the shared authorization ledger and final source guard; its causal native
+capture closes the modal for both viewers. The two local native reference
+comparisons pass the declared backend/color tolerance with zero bad interior
+pixels and 364 independently checked native glyphs. Raster references are local
+comparison outputs; the retained network/vector corpus contains only JSON,
+protobuf envelopes and approved RVP vector bodies. Both mirrors use the same
+Rust reducer/renderer; the independent Python network decoder is separate evidence.
+
+The report pins native dependency versions, source/probe file fingerprints,
+probe/Xvfb binary hashes, exact retained source/trace hashes and memory disposal.
+The measured host peak is about 207 MiB within its shared 256 MiB parent and
+returns to zero on disposal. A normal 1024×640 mirror failed its render allocation
+under the earlier 32 MiB public ceiling while retaining the previous texture;
+the ceiling is now 64 MiB to cover the linear frame, render plan and old/new GTK
+textures. Lower peer ceilings retain the existing atomic rejection/recovery tests.
+The private verification receiver remains independently capped at 8 MiB.
+
+```sh
+cargo build --locked --release -p rui-client-desktop \
+  --features gtk-source-probe --example gtk_source_probe
+python3 fixtures/gtk/mirror_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-gtk-mirror-empty
+python3 fixtures/gtk/binding_check.py --xvfb /path/to/Xvfb \
+  --output /tmp/rui-gtk-bindings-empty
+cargo test --locked -p rui-producer-sdk --test binding_trace
+cargo test --locked -p rui-client-desktop --test gtk_bindings
+```
+
+This slice establishes real mirror after-paint readiness and source-bound native
+pointer discovery. Negotiated wire composition and its complete cancellation
+matrix remain separate pending work; the existing local preedit/ReplaceText path
+does not establish that protocol feature.
+
+Root independently rebuilt the frozen binding/mirror slice and reran both native
+probes. `fixtures/gtk/mirror-root-verification.json` records four actual after-paint
+record/pixel matches, two coherent source captures, 364 glyph checks, zero bad
+interior pixels and zero retained host memory. The six-frame native binding
+geometry lifecycle also passed. Independent Python/Rust network replay verifies
+the retained controller185/observer176 packet prefixes, two publications each,
+all six record kinds and six source primitives; their expected audits run in CI.
+The runner always disposes its owned process group, including wrapper failures.

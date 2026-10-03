@@ -170,7 +170,7 @@ class WholeView:
                 'parent': None if key == 'main-content' else self.source._ids.get('surface:main-content'),
                 'modal_for': self.source._ids.get('surface:main-content') if key == 'modal' and mapped else None,
                 'native_modal': self.modal.get_modal() if key == 'modal' else False,
-                'semantics': semantics}
+                'semantics': semantics, 'binding_regions': self.source.binding_regions(key)}
         return {'incarnation': self.source.identity, 'source_revision': self.source.source_revision,
             'surfaces': surfaces, 'focus': focus, 'focus_generation': self.focus_generation,
             'visual_policy': {'animations': False, 'cursor_blink': False, 'controlled_static_canvas': True}}
@@ -283,7 +283,7 @@ class WholeView:
         frame['surface_key'] = 'whole'
 
     def assemble(self, nonce, facts, candidates, offers):
-        scene, semantics, surfaces, gaps, glyphs, bounds = [], [], [], [], [], []
+        scene, semantics, surfaces, gaps, glyphs, bounds, bindings = [], [], [], [], [], [], []
         origins = {}
         counters = {'schema': 2, 'source_nodes_visited': 0, 'source_node_types': {}, 'node_decisions': {}, 'decline_reasons': {}, 'geometry_extractions': {}, 'vector_records_emitted': 0, 'vector_primitive_types': {}, 'vector_resource_bodies': len(offers), 'unsupported_subtrees': 0, 'local_reference_draws': 0}
         for key, state in facts['surfaces'].items():
@@ -305,12 +305,14 @@ class WholeView:
                 'stacking_order': state['stacking_order'], 'mapped': state['mapped'], 'focused': facts['focus'] is not None and facts['focus'][0] == key,
                 'modal_for': state['modal_for'], 'capture_token': token, 'gaps': sgaps,
                 'scene_root': source['scene_root'] if source else lifecycle_root, 'semantic_root': state['semantic_root'],
+                'binding_regions': state['binding_regions'],
                 'capture_boundary': source['capture_boundary'] if source else 'source-lifecycle-state',
                 'capture_barrier_nonce': nonce}
             if state['parent']:
                 surface['parent_surface'] = {'surface_id': state['parent']}
             surfaces.append(surface)
             semantics.extend(state['semantics'])
+            bindings.extend(self.source.bindings(state['surface_id'], surface['scene_root'], state['binding_regions'], usable=state['mapped'] and not sgaps))
             if source:
                 scene.extend(source['scene'])
                 glyphs.extend(source['source_glyph_evidence'])
@@ -335,7 +337,7 @@ class WholeView:
         return {'revision': self.revision, 'source_revision': facts['source_revision'], 'capture_token': token,
             'capture_boundary': 'source-thread-all-registered-surfaces-fresh-snapshot-barrier', 'native_context_profile': 'gtk-native-focus-context.v1',
             'gtk_version': [4, 22, 4], 'capture_barrier_nonce': nonce, 'whole_view_stage': self.stage, 'size': [720, 600],
-            'surfaces': surfaces, 'scene': scene, 'semantics': semantics, 'session': session,
+            'surfaces': surfaces, 'scene': scene, 'semantics': semantics, 'session': session, 'visual_bindings': bindings,
             'gaps': gaps, 'resources': sorted(offers), 'resource_offers': list(offers.values()),
             'uses_glyph_outline': bool(glyphs), 'source_glyph_evidence': glyphs,
             'geometry_resource_origins': origins, 'gsk_node_bounds': bounds, 'exporter_counters': counters,

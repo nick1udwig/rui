@@ -1,0 +1,176 @@
+{
+  "binding": {
+    "epoch": "3d7f754b59da48ac905a4a247df01365",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "0000000000000000000000000000001f"
+  },
+  "binding_regions": [
+    {
+      "id": 5,
+      "interaction_region": null,
+      "semantic_id": 3
+    }
+  ],
+  "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+  "capture_duration_ns": 182190,
+  "capture_token": "3d7f754b59da48ac905a4a247df01365:binding-source:11:7",
+  "envelope_sha256": "485c383cfd0ae2b1723c8e488dc41dfd3b817828aa73a8b9b3ced4b953569e8d",
+  "exporter_counters": {
+    "decline_reasons": {},
+    "geometry_extractions": {},
+    "local_reference_draws": 1,
+    "node_decisions": {
+      "lowered": 1
+    },
+    "schema": 2,
+    "source_node_types": {
+      "color-node": 1
+    },
+    "source_nodes_visited": 1,
+    "unsupported_subtrees": 0,
+    "vector_primitive_types": {
+      "SolidRect": 1
+    },
+    "vector_records_emitted": 1,
+    "vector_resource_bodies": 0
+  },
+  "focused": false,
+  "gaps": [],
+  "geometry_resource_origins": {},
+  "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font",
+  "gsk_node_bounds": [
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        500.0,
+        300.0
+      ],
+      "path": "root",
+      "type": "color-node"
+    }
+  ],
+  "gsk_node_counts": {
+    "color-node": 1
+  },
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "local_reference": {
+    "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB",
+    "height": 300,
+    "scope": "local-comparison-only-never-wire",
+    "sha256": "1a6079b3e7762769653eb6c61154cada6dbd0ef577042a25b08eda2bdb92c9f9",
+    "stride": 2000,
+    "width": 500
+  },
+  "mapped": true,
+  "protocol_handoff": {
+    "envelope_bytes": 779,
+    "resource_bytes": 0,
+    "resource_kind_counts": {
+      "1": 0,
+      "2": 0
+    }
+  },
+  "resource_offers": [],
+  "resources": [],
+  "revision": 7,
+  "routing_token": "55d2561db59679382a4b3d91372d66aa",
+  "scene": [
+    {
+      "children": [],
+      "clip": null,
+      "id": 30,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1
+        ],
+        "rect": [
+          0.0,
+          0.0,
+          500.0,
+          300.0
+        ],
+        "type": "SolidRect"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 7
+    }
+  ],
+  "scene_root": 30,
+  "semantic_root": 1,
+  "semantics": [
+    {
+      "actions": [],
+      "children": [
+        3
+      ],
+      "id": 1,
+      "identity": "root",
+      "label": "Native binding source",
+      "role": 1,
+      "version": 2
+    },
+    {
+      "actions": [
+        "Activate"
+      ],
+      "children": [],
+      "id": 3,
+      "identity": "counter",
+      "label": "Counter rotated",
+      "role": 3,
+      "version": 1,
+      "visual_bindings": [
+        5
+      ]
+    }
+  ],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      500,
+      300
+    ],
+    "focus": null,
+    "focus_generation": 5,
+    "focus_surface": null,
+    "id": 32,
+    "version": 7
+  },
+  "size": [
+    500,
+    300
+  ],
+  "source_glyph_evidence": [],
+  "source_revision": 11,
+  "surface_id": 31,
+  "surface_key": "binding-source",
+  "surface_role": 1,
+  "uses_glyph_outline": false,
+  "visual_bindings": [
+    {
+      "id": 5,
+      "interaction_region": null,
+      "scene_root": 30,
+      "semantic_id": 3,
+      "surface_id": 31,
+      "version": 1
+    }
+  ]
+}
