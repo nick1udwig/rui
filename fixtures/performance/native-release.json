@@ -1,0 +1,415 @@
+{
+  "action_to_after_paint": {
+    "clock": "GLib monotonic microseconds",
+    "configured_render_opportunity_hz": 60,
+    "controller": {
+      "count": 14,
+      "over_one_reported_frame_interval": 14,
+      "p50_us": 762356,
+      "p95_us": 1024619,
+      "p99_us": 1024619,
+      "samples_with_reported_refresh_interval": 14
+    },
+    "excluded_expected_rejections": [
+      "overflow before submission",
+      "Escape before submission"
+    ],
+    "failed_source_actions": 0,
+    "finish": "actual GTK after-paint callback for causal view revision; no physical scanout claim",
+    "observer": {
+      "count": 14,
+      "over_one_reported_frame_interval": 14,
+      "p50_us": 214932,
+      "p95_us": 381116,
+      "p99_us": 381116,
+      "samples_with_reported_refresh_interval": 14
+    },
+    "samples": [
+      {
+        "action": "checkbox",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 922616,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 373104
+      },
+      {
+        "action": "checkbox",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 934803,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 352789
+      },
+      {
+        "action": "stable-item-select",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 281692,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 201501
+      },
+      {
+        "action": "stable-item-reorder",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 372815,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 195209
+      },
+      {
+        "action": "absolute-source-scroll",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 256835,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 214932
+      },
+      {
+        "action": "source-scroll-restore",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 269014,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 207913
+      },
+      {
+        "action": "popup",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 1009520,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 381116
+      },
+      {
+        "action": "transient-dismiss",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 773373,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 207269
+      },
+      {
+        "action": "modal",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 985147,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 370701
+      },
+      {
+        "action": "transient-dismiss",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 793970,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 196137
+      },
+      {
+        "action": "tooltip",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 1024619,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 376229
+      },
+      {
+        "action": "transient-dismiss",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 762356,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 197089
+      },
+      {
+        "action": "ordered-source-canvas",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 285718,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 221107
+      },
+      {
+        "action": "source-resize",
+        "controller_reported_refresh_interval_us": 16667,
+        "controller_us": 412435,
+        "observer_reported_refresh_interval_us": 16667,
+        "observer_us": 276643
+      }
+    ],
+    "source_action_timeouts": 0,
+    "start": "actual GTK input callback before enqueue; canvas starts at release/submission callback; includes constrained network, source capture, resource verification, CPU render and actual GTK after-paint",
+    "successful_sample_count": 14,
+    "warmup": "initial full resource delivery, viewport changes and native typing/Python scenario precede measured broader controls"
+  },
+  "build_profile": "release",
+  "canvas_and_controls": {
+    "cancel": "Escape before release; visible after-paint cancellation; zero source commit/command",
+    "captured_and_source_events_sha256": "9801cc5afc071fbeaf3c3cb281d1b1bf516428308038fa88e48a2ae2ffd282f2",
+    "captured_event_count": 13,
+    "command_sequence": 23,
+    "link_bytes_per_second_each_direction": 32768,
+    "link_scope": "controller end-to-end TLS through opaque fixed-buffer byte-rate relay; healthy observer direct",
+    "overflow": "64-point native drag exceeded capture+release ceiling; visible after-paint rejection; zero source commit/command",
+    "retired_transient_ids": [
+      10008,
+      10016,
+      10024
+    ],
+    "source_resize": [
+      700,
+      500
+    ],
+    "stable_item_ids": [
+      70,
+      71,
+      72
+    ]
+  },
+  "checks": [
+    "full-session-source-reference",
+    "observer-viewport-isolation",
+    "rapid-six-character-typing",
+    "repeat-focused-target",
+    "native-unicode-preedit-commit",
+    "independent-python-stable-item",
+    "checkbox-typed-value",
+    "stable-list-select-reorder",
+    "absolute-source-scroll",
+    "popup-modal-tooltip-retirement",
+    "constrained-link-every-captured-canvas-sample",
+    "visible-overflow-and-escape-cancellation",
+    "explicit-source-resize",
+    "actual-resource-cache-loss-two-views",
+    "retained-reconnect-fresh-after-paint-and-control",
+    "broker-triggered-pending-cancellation-after-paint"
+  ],
+  "controller": {
+    "actual_frame_clock": {
+      "after_paint_us": 113585670651,
+      "frame_time_us": 113585677072,
+      "predicted_presentation_us": 0,
+      "refresh_interval_us": 16667
+    },
+    "after_paint_rgba_sha256": "51f8b48a996baf5cb0608bda0930b0a16a70dd3bf42a5f262aa17fd316c4a450",
+    "direct_source_records_sha256": "ed28465ba254dba7c080595dfc1f4db7d78886ab65ea45c704baebeefcfa939d",
+    "direct_source_rgba_sha256": "51f8b48a996baf5cb0608bda0930b0a16a70dd3bf42a5f262aa17fd316c4a450",
+    "frame_serial": 30,
+    "mirror_records_sha256": "ed28465ba254dba7c080595dfc1f4db7d78886ab65ea45c704baebeefcfa939d",
+    "record_count": 2114,
+    "source_commit": 27,
+    "verified_resource_count": 37,
+    "view_revision": 27,
+    "viewport": {
+      "height": 480,
+      "origin": [
+        0.0,
+        0.0
+      ],
+      "scale": 1.0,
+      "width": 920
+    }
+  },
+  "exact_post_auth_traces": {
+    "controller": {
+      "bytes": 1244623,
+      "file_byte_ceiling": 67108864,
+      "packets": 584,
+      "policy": "AuthorizedDiagnosticBytes; post-auth only; mode0600",
+      "segment_ceiling": 8,
+      "segments": 2,
+      "sha256": "454d7201971d36bada56a697419204c6162d1ac2905f319f958b2ce39d7c1a44"
+    },
+    "names": "<report>.controller.trace.jsonl and <report>.observer.trace.jsonl",
+    "observer": {
+      "bytes": 1196446,
+      "file_byte_ceiling": 67108864,
+      "packets": 488,
+      "policy": "AuthorizedDiagnosticBytes; post-auth only; mode0600",
+      "segment_ceiling": 8,
+      "segments": 1,
+      "sha256": "1c2a2e79adc195896e6a7552494dfd68c2331b729f66e06911b0d9ebdd496659"
+    }
+  },
+  "format": "rui.native-corpus-proof.v1",
+  "hardware": {
+    "GTK": "4.22.4",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1280P",
+    "kernel": "Linux 7.1.9-arch1-2"
+  },
+  "observer": {
+    "actual_frame_clock": {
+      "after_paint_us": 113585589797,
+      "frame_time_us": 113585584741,
+      "predicted_presentation_us": 0,
+      "refresh_interval_us": 16667
+    },
+    "after_paint_rgba_sha256": "b0febf6de20bfb670b7dca5f299ed324e4c670d37c04f6874dfa34dc5fc0cbc1",
+    "direct_source_records_sha256": "c3eada4f66753a994f880c75873b5d5b5112bc0e750db0a38b9713741824d8e7",
+    "direct_source_rgba_sha256": "b0febf6de20bfb670b7dca5f299ed324e4c670d37c04f6874dfa34dc5fc0cbc1",
+    "frame_serial": 31,
+    "mirror_records_sha256": "c3eada4f66753a994f880c75873b5d5b5112bc0e750db0a38b9713741824d8e7",
+    "record_count": 2114,
+    "source_commit": 27,
+    "verified_resource_count": 37,
+    "view_revision": 27,
+    "viewport": {
+      "height": 440,
+      "origin": [
+        30.0,
+        30.0
+      ],
+      "scale": 1.25,
+      "width": 840
+    }
+  },
+  "render_opportunity_timing": {
+    "controller": {
+      "accepted_timer_ticks": 2129,
+      "attempted_frames": 30,
+      "elapsed_missed_timer_periods": 259,
+      "late_timer_ticks": 31,
+      "max_work_us": 204045,
+      "scope": "worker timer with Skip behavior; CPU render+RGBA+diagnostic fingerprint work; actual after-paint is separate",
+      "work_over_16_666_667ns": 30
+    },
+    "observer": {
+      "accepted_timer_ticks": 2105,
+      "attempted_frames": 31,
+      "elapsed_missed_timer_periods": 289,
+      "late_timer_ticks": 31,
+      "max_work_us": 249144,
+      "scope": "worker timer with Skip behavior; CPU render+RGBA+diagnostic fingerprint work; actual after-paint is separate",
+      "work_over_16_666_667ns": 31
+    }
+  },
+  "result": "passed",
+  "scope": "private Xvfb; shared GTK process; two independent TLS clients; GTK after-paint opportunity, not physical scanout",
+  "source_file_fingerprints": {
+    "client-desktop/examples/corpus_smoke.rs": {
+      "bytes": 50583,
+      "sha256": "54e3f48e041eb68516d180a4ac4c0370963cea0ef7cacfe14ca06b8626e30fd2"
+    },
+    "client-desktop/examples/corpus_support/relay.rs": {
+      "bytes": 2811,
+      "sha256": "522389ed167825a5efc0b6a473ff759c3431f7da122639738b3cfbf14a63519b"
+    },
+    "client-desktop/examples/corpus_support/trace.rs": {
+      "bytes": 5983,
+      "sha256": "2d640f9198ee7981d5c620e101e69f3688029e560fa86c318c774bdae59ad779"
+    },
+    "client-desktop/src/command_queue.rs": {
+      "bytes": 5871,
+      "sha256": "ddc870262086219064ccb3a082fd63f8db1b220689f1d70797995563a9c7a324"
+    },
+    "client-desktop/src/desktop.rs": {
+      "bytes": 54333,
+      "sha256": "7453777b467928056de29798e31969e01f3967026a3036b5b9c37639c60ed755"
+    },
+    "client-desktop/src/desktop/gtk.rs": {
+      "bytes": 47427,
+      "sha256": "59b11dd79749d25b96cdcdc161d818b637955daada4b2c2077f6f41e3f7dcbf5"
+    },
+    "client-desktop/src/interaction.rs": {
+      "bytes": 15843,
+      "sha256": "88d1c5d9e9e564152772ee17df66cb7d92ec6a3ef420acb1f1581ae0e851939d"
+    },
+    "client-desktop/src/source_controls.rs": {
+      "bytes": 12555,
+      "sha256": "547ca5a0e76c1d3dcbf3b06bd271c5fc660510cfa9f1816b77fabe7c7e7bfa27"
+    },
+    "fixtures/render/native_events.py": {
+      "bytes": 8429,
+      "sha256": "2f466166ff83bb04c31d23a868da69e30fec158a527a861ab89b76a957a035bc"
+    },
+    "fixtures/render/native_font.py": {
+      "bytes": 4744,
+      "sha256": "c4e17d79335feada83294ee0d17fe9fda88f43116040cd239aea977f179be31d"
+    },
+    "host-broker/src/corpus.rs": {
+      "bytes": 34863,
+      "sha256": "d9a197afb012429ebe0b00de6f67108c37109203f9f6cdb0960f77d9a76e55a2"
+    },
+    "host-broker/src/source_input.rs": {
+      "bytes": 10454,
+      "sha256": "e265d94ba92e0d8b2b6635fab7551b2d1761d178bc4e4746aa9d6478d4a43ed9"
+    },
+    "protocol-core/src/commands.rs": {
+      "bytes": 37274,
+      "sha256": "963c818e3a9c8ad0ec15a38e4218b094bea295152b3f2a67a58530954df15831"
+    },
+    "protocol-core/src/receiver.rs": {
+      "bytes": 36974,
+      "sha256": "2d42ffb502543ab829336428a489313ed17df63e64fdd2138780c693d84eb942"
+    },
+    "protocol-core/src/session.rs": {
+      "bytes": 60599,
+      "sha256": "8ad4677564fb06b4402dcb93a07a7d4695114da5b50d61f7e88546a88016ced4"
+    },
+    "transport/src/client.rs": {
+      "bytes": 45589,
+      "sha256": "7a6a37c906d45d64377c86db4b5d7bc35b74f27bc0dbbd10b9461b9696f6c606"
+    },
+    "transport/src/server.rs": {
+      "bytes": 45962,
+      "sha256": "1e93b93c19e2a8435780fd45b925e1cf5fd31dda00b14c03a4bd7dc09ec766de"
+    },
+    "transport/src/source_delivery.rs": {
+      "bytes": 16942,
+      "sha256": "df518247fe7d38d48a0c2ccd91b149c5934e720bb02969c1969a8c147b14f80c"
+    }
+  },
+  "review_conditions": "Release build from the frozen, formatted controlled-GUI slice. Root transport regression briefly overlapped the start; targeted native/transport work may also have run. Native probe uses isolated authenticated Xvfb/private bus; after-paint is not physical scanout.",
+  "independent_network_audit": {
+    "controller": {
+      "passed": true,
+      "sha256": "454d7201971d36bada56a697419204c6162d1ac2905f319f958b2ce39d7c1a44",
+      "interrupted_publications": 0,
+      "incomplete_resource_transfers": 0,
+      "unrequested_resource_offers": 0,
+      "segments": 2,
+      "packets": 584,
+      "exact_packet_bytes": 563365,
+      "verified_resource_transfers": 75,
+      "verified_vector_bytes": 53841,
+      "complete_publications": 27,
+      "readiness_acknowledgements": 29,
+      "presented_acknowledgements": 30,
+      "commands": 26,
+      "command_family_50": 24,
+      "command_results": 26,
+      "command_family_51": 1,
+      "command_family_53": 1,
+      "closed_prefixes": 2,
+      "record_kinds": [
+        "Binding",
+        "Scene",
+        "Semantic",
+        "Session",
+        "Surface",
+        "Text"
+      ],
+      "scene_primitives": [
+        "GlyphRun",
+        "Group",
+        "SolidRect"
+      ]
+    },
+    "observer": {
+      "passed": true,
+      "sha256": "1c2a2e79adc195896e6a7552494dfd68c2331b729f66e06911b0d9ebdd496659",
+      "interrupted_publications": 0,
+      "incomplete_resource_transfers": 0,
+      "unrequested_resource_offers": 0,
+      "segments": 1,
+      "packets": 488,
+      "exact_packet_bytes": 549120,
+      "verified_resource_transfers": 75,
+      "verified_vector_bytes": 53841,
+      "complete_publications": 27,
+      "readiness_acknowledgements": 28,
+      "presented_acknowledgements": 30,
+      "closed_prefixes": 1,
+      "record_kinds": [
+        "Binding",
+        "Scene",
+        "Semantic",
+        "Session",
+        "Surface",
+        "Text"
+      ],
+      "scene_primitives": [
+        "GlyphRun",
+        "Group",
+        "SolidRect"
+      ]
+    }
+  }
+}

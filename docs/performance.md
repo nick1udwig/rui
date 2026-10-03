@@ -95,4 +95,19 @@ timer periods are not a count of physically dropped display frames.
 
 These timings are measured limitations, not a 60 Hz performance pass. After-paint
 on the owned Xvfb is a native callback boundary and makes no physical scanout
-claim. Release-build measurements remain a separate follow-up to this debug run.
+claim.
+
+The [release-build run](../fixtures/performance/native-release.json) repeats the
+same fourteen-action scenario from the frozen formatted source. Its controller
+p50/p95/p99 is **762.356 / 1024.619 / 1024.619 ms**; the direct observer measures
+**214.932 / 381.116 / 381.116 ms**. All fourteen samples still exceed the reported
+frame interval. Maximum render/RGBA/diagnostic work is 204.045 ms for the controller
+and 249.144 ms for the observer, with every attempted frame over budget.
+
+The transport regression briefly overlapped this run's start, and targeted agent
+work may also have run. The retained report includes those conditions, source
+fingerprints, individual samples, exact trace hashes, and root independent audits
+of all 54 publication prefixes and 150 vector resource transfers. The earlier
+debug trace is retained for deterministic CI replay. Reproduce release timing by
+building `corpus_smoke` with `--release` and passing `--target-dir target/release`
+to `fixtures/render/native_smoke.py`.
