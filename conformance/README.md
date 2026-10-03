@@ -68,9 +68,9 @@ and three consumed commands; the Python client emits no Presented acknowledgemen
 flat RVP1 geometry and exact envelope hashes before comparing every retained
 record field against the Rust reducer. The handwritten decoder covers all six
 record kinds and all nine scene primitives. The accepted native corpus currently
-exercises 122 publication prefixes across 18 scopes, with five record kinds and
+exercises 124 publication prefixes across 19 scopes, with five record kinds and
 six scene primitives; the existing generated scene fixtures cover all nine.
-It includes semantic, Unicode, restart, unsupported-source, native context, whole-view and
+It includes semantic, Unicode, restart, unsupported-source, native context, lifecycle-fence, whole-view and
 observed AT-SPI captures. Each prefix compares retirement and stable object clocks
 as well as full values, geometry, glyph positions, resource references, focus,
 collections, source tokens and coverage declarations.
