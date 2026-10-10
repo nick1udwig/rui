@@ -46,11 +46,14 @@ try {
       const { measure } = await import("/tests/benchmark.mjs");
       const { checkContract } = await import("/tests/contract.mjs");
       const { checkSemanticView } = await import("/tests/semantic.mjs");
+      const { checkSemanticControls } =
+        await import("/tests/semantic-controls.mjs");
       return {
         ...checkPixels(),
         ...measure(false),
         ...(await checkContract()),
         ...(await checkSemanticView()),
+        ...(await checkSemanticControls()),
       };
     });
     console.log(

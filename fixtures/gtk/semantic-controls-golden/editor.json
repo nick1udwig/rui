@@ -1,0 +1,1462 @@
+{
+  "passed": true,
+  "observerRejected": true,
+  "canvasConstructed": false,
+  "readOnlyDom": {
+    "nodes": 13,
+    "fields": 3,
+    "allFieldsReadOnly": true
+  },
+  "domControls": true,
+  "staleDraftRejected": true,
+  "capabilities": {
+    "mode": "semanticOnly",
+    "profiles": [
+      "content.no-raster.v1",
+      "mirror2d.core.v1",
+      "semantics.core.v1",
+      "semantics.only.v1",
+      "text.clock.gtk-editable4224.v1"
+    ],
+    "can_control": true,
+    "actions": [
+      "Activate",
+      "Focus",
+      "ReplaceText",
+      "ScrollTo",
+      "SetSelection",
+      "SetValue"
+    ]
+  },
+  "effects": [
+    {
+      "operation": "Activate",
+      "target": "16",
+      "sequence": "1"
+    },
+    {
+      "operation": "ReplaceText",
+      "target": "12",
+      "sequence": "3"
+    },
+    {
+      "operation": "ActivateItem",
+      "target": "9",
+      "sequence": "4"
+    }
+  ],
+  "valueEffect": {
+    "target": "26",
+    "sequence": "5"
+  },
+  "staleModelRejected": true,
+  "invalidValueRejected": true,
+  "revokedValueRejected": true,
+  "state": {
+    "revision": "8",
+    "records": {
+      "2": {
+        "Session": {
+          "id": "2",
+          "version": "8",
+          "canvas": {
+            "x": 0,
+            "y": 0,
+            "width": 720,
+            "height": 600
+          },
+          "cursor": null,
+          "focus": {
+            "kind": "Semantic",
+            "id": "12"
+          },
+          "focus_surface": {
+            "kind": "Surface",
+            "id": "30"
+          },
+          "focus_generation": "3"
+        }
+      },
+      "3": {
+        "Semantic": {
+          "id": "3",
+          "version": "1",
+          "role": "Root",
+          "label": "Document editor",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "4"
+            },
+            {
+              "kind": "Semantic",
+              "id": "5"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "4": {
+        "Semantic": {
+          "id": "4",
+          "version": "1",
+          "role": "Group",
+          "label": "Document form",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "11"
+            },
+            {
+              "kind": "Semantic",
+              "id": "12"
+            },
+            {
+              "kind": "Semantic",
+              "id": "14"
+            },
+            {
+              "kind": "Semantic",
+              "id": "16"
+            },
+            {
+              "kind": "Semantic",
+              "id": "22"
+            },
+            {
+              "kind": "Semantic",
+              "id": "24"
+            },
+            {
+              "kind": "Semantic",
+              "id": "26"
+            },
+            {
+              "kind": "Semantic",
+              "id": "28"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "5": {
+        "Semantic": {
+          "id": "5",
+          "version": "2",
+          "role": "List",
+          "label": "Documents",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "7"
+            },
+            {
+              "kind": "Semantic",
+              "id": "9"
+            }
+          ],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ScrollTo",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": {
+            "version": "2",
+            "items": [
+              {
+                "kind": "Semantic",
+                "id": "7"
+              },
+              {
+                "kind": "Semantic",
+                "id": "9"
+              }
+            ],
+            "total_count": "2",
+            "materialization": "Full",
+            "selected_items": [
+              {
+                "kind": "Semantic",
+                "id": "9"
+              }
+            ]
+          },
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "7": {
+        "Semantic": {
+          "id": "7",
+          "version": "4",
+          "role": "ListItem",
+          "label": "Semantic A\ud83d\ude00e\u0301\u05d0\u05d1",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "9": {
+        "Semantic": {
+          "id": "9",
+          "version": "2",
+          "role": "ListItem",
+          "label": "Tasks",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "True"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "11": {
+        "Semantic": {
+          "id": "11",
+          "version": "2",
+          "role": "Label",
+          "label": "Saved 1 times",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "12": {
+        "Semantic": {
+          "id": "12",
+          "version": "1",
+          "role": "TextField",
+          "label": "Title",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False",
+            "ReadOnly": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ReplaceText",
+              "schema_version": 1
+            },
+            {
+              "id": "SetSelection",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": {
+            "kind": "Text",
+            "id": "32"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "14": {
+        "Semantic": {
+          "id": "14",
+          "version": "1",
+          "role": "TextField",
+          "label": "Body",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False",
+            "ReadOnly": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ReplaceText",
+              "schema_version": 1
+            },
+            {
+              "id": "SetSelection",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": {
+            "kind": "Text",
+            "id": "33"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "16": {
+        "Semantic": {
+          "id": "16",
+          "version": "1",
+          "role": "Button",
+          "label": "Save document",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "18": {
+        "Semantic": {
+          "id": "18",
+          "version": "1",
+          "role": "Root",
+          "label": "Document details",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "19"
+            },
+            {
+              "kind": "Semantic",
+              "id": "20"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "19": {
+        "Semantic": {
+          "id": "19",
+          "version": "1",
+          "role": "Label",
+          "label": "Changes belong to this source document.",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "20": {
+        "Semantic": {
+          "id": "20",
+          "version": "1",
+          "role": "Button",
+          "label": "Close details",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "22": {
+        "Semantic": {
+          "id": "22",
+          "version": "1",
+          "role": "Button",
+          "label": "Document details",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "24": {
+        "Semantic": {
+          "id": "24",
+          "version": "1",
+          "role": "Button",
+          "label": "Replace title control",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "26": {
+        "Semantic": {
+          "id": "26",
+          "version": "2",
+          "role": "Checkbox",
+          "label": "Reviewed",
+          "description": null,
+          "value": {
+            "Boolean": true
+          },
+          "states": {
+            "Disabled": "False",
+            "Checked": "True"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "SetValue",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "28": {
+        "Semantic": {
+          "id": "28",
+          "version": "1",
+          "role": "TextField",
+          "label": "Private field",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": {
+            "kind": "Text",
+            "id": "34"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "30": {
+        "Surface": {
+          "id": "30",
+          "version": "8",
+          "role": "Toplevel",
+          "parent": null,
+          "desktop_rect": {
+            "x": 0,
+            "y": 0,
+            "width": 620,
+            "height": 390
+          },
+          "content_size": {
+            "width": 620,
+            "height": 390
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "0",
+          "mapped": true,
+          "focused": true,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "3"
+          },
+          "input_region": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 620,
+              "height": 390
+            }
+          ],
+          "routing_token": [
+            204,
+            27,
+            21,
+            222,
+            115,
+            117,
+            107,
+            236,
+            25,
+            178,
+            97,
+            179,
+            77,
+            122,
+            146,
+            70
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              51,
+              57,
+              54,
+              98,
+              50,
+              54,
+              99,
+              99,
+              53,
+              51,
+              50,
+              51,
+              52,
+              52,
+              100,
+              98,
+              57,
+              99,
+              54,
+              53,
+              55,
+              100,
+              55,
+              98,
+              57,
+              102,
+              100,
+              55,
+              101,
+              54,
+              99,
+              56,
+              58,
+              109,
+              97,
+              105,
+              110,
+              45,
+              99,
+              111,
+              110,
+              116,
+              101,
+              110,
+              116,
+              58,
+              51,
+              56,
+              58,
+              56
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "31": {
+        "Surface": {
+          "id": "31",
+          "version": "8",
+          "role": "Toplevel",
+          "parent": {
+            "kind": "Surface",
+            "id": "30"
+          },
+          "desktop_rect": {
+            "x": 180,
+            "y": 80,
+            "width": 0,
+            "height": 0
+          },
+          "content_size": {
+            "width": 0,
+            "height": 0
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "1",
+          "mapped": false,
+          "focused": false,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "18"
+          },
+          "input_region": [],
+          "routing_token": [
+            148,
+            239,
+            1,
+            184,
+            230,
+            39,
+            11,
+            178,
+            221,
+            209,
+            254,
+            178,
+            248,
+            63,
+            7,
+            252
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              51,
+              57,
+              54,
+              98,
+              50,
+              54,
+              99,
+              99,
+              53,
+              51,
+              50,
+              51,
+              52,
+              52,
+              100,
+              98,
+              57,
+              99,
+              54,
+              53,
+              55,
+              100,
+              55,
+              98,
+              57,
+              102,
+              100,
+              55,
+              101,
+              54,
+              99,
+              56,
+              58,
+              100,
+              101,
+              116,
+              97,
+              105,
+              108,
+              115,
+              58,
+              51,
+              56,
+              58,
+              117,
+              110,
+              109,
+              97,
+              112,
+              112,
+              101,
+              100,
+              58,
+              56
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "32": {
+        "Text": {
+          "id": "32",
+          "version": "12",
+          "text_version": "8",
+          "status": "Available",
+          "content": "Tasks",
+          "selection": {
+            "anchor": "0",
+            "focus": "0"
+          },
+          "editable": true,
+          "selectable": true
+        }
+      },
+      "33": {
+        "Text": {
+          "id": "33",
+          "version": "7",
+          "text_version": "7",
+          "status": "Available",
+          "content": "Read, write, review",
+          "selection": {
+            "anchor": "0",
+            "focus": "0"
+          },
+          "editable": true,
+          "selectable": true
+        }
+      },
+      "34": {
+        "Text": {
+          "id": "34",
+          "version": "1",
+          "text_version": "1",
+          "status": "Redacted",
+          "content": null,
+          "selection": null,
+          "editable": false,
+          "selectable": false
+        }
+      }
+    },
+    "retired": []
+  },
+  "evidence": [
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280232f20108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e7631121e746578742e636c6f636b2e67746b2d6564697461626c65343232342e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d064880012244080110011a0841637469766174651a05466f6375731a0b5265706c616365546578741a085363726f6c6c546f1a0c53657453656c656374696f6e1a0853657456616c75652a1087b8c483f2c237a5aa9c6eb160e86535"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280432400a1001010101010101010000000000000001110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c792a0b73656d616e7469632e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280a323d0a1084786bd881a6a9feabe9fe08b5767538180120b70c280130163a204e0ace75826f22ef5fde9acf115ac93c4ef7b813e8d34723002b32d8ec2abaa6"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c32cc0c0a1084786bd881a6a9feabe9fe08b57675381ab70c080112d9010ad601081e100118012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01102c87298952dc75c12cfd67edc993c314900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a31383a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12ba010ab701081f1001180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110d15a9e0bb59420b00f4719381babbb0f900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a31383a756e6d61707065643a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e122b1a29080310011801220f446f63756d656e7420656469746f72420408031004420408031005800101880101124d1a4b080410011802220d446f63756d656e7420666f726d42040803100b42040803100c42040803100e42040803101042040803101642040803101842040803101a42040803101c800101880101124d1a4b0805100118072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180801120408031007120408031009180220012a0408031007800101880101123a1a38080710011808220b4669656c64206e6f7465733a0408031002520c0a084163746976617465100152090a05466f637573100180010188010112341a3208091001180822055461736b733a0408031001520c0a084163746976617465100152090a05466f6375731001800101880101121d1a1b080b10011806220d536176656420302074696d657380010188010112551a53080c1001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a040804102080010188010112541a52080e100118052204426f64793a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0408041021800101880101123c1a3a081010011803220d5361766520646f63756d656e743a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101123f1a3d0816100118032210446f63756d656e742064657461696c733a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112441a4208181001180322155265706c616365207469746c6520636f6e74726f6c3a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112411a3f081a1001180422085265766965776564320210003a04080110013a0408021001520c0a0853657456616c7565100152090a05466f637573100180010188010112231a21081c10011805220d50726976617465206669656c645a0408041022800101880101122c1a2a0812100118012210446f63756d656e742064657461696c7342040803101342040803101480010188010112371a3508131001180622274368616e6765732062656c6f6e6720746f207468697320736f7572636520646f63756d656e742e800101880101123c1a3a081410011803220d436c6f73652064657461696c733a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101121f221d08201005180420012a0b4669656c64206e6f7465733202100b38014001122c222a08211005180520012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d320038014001120a2208082210011801200312283226080210011a12190000000000808640210000000000c082402a040803100c32040801101e3803221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a1084786bd881a6a9feabe9fe08b576753810b70c180120162a204e0ace75826f22ef5fde9acf115ac93c4ef7b813e8d34723002b32d8ec2abaa6"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020801"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020801"
+    },
+    {
+      "direction": "sent",
+      "kind": 40,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282832120a1003030303030303030000000000000001"
+    },
+    {
+      "direction": "received",
+      "kind": 41,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282932690a10396b26cc532344db0000000000000001100118c429220841637469766174652205466f637573220b5265706c6163655465787422085363726f6c6c546f220c53657453656c656374696f6e220853657456616c75652a1003030303030303030000000000000001"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001283232620a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320012a10396b26cc532344db00000000000000013001381042084163746976617465480150015a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080112074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a32323a322802"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a10e0983a8b3993026e99f19566ec7b622410011802208004280130033a20dfe9bfbb00d0e666fbc2151ded63293fce38fe38e31b2926ca8651ad97f98226"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c3295040a10e0983a8b3993026e99f19566ec7b62241a8004080110021adc010ad9010ad601081e100218012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01101b7d762a308f2bb44c3f2cae62e015b9900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a32323a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1002180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a011050c25da171284d12b2d388c3244f729d900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a32323a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a1f0a1d1a1b080b10021806220d536176656420312074696d65738001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a10e0983a8b3993026e99f19566ec7b6224108004180120032a20dfe9bfbb00d0e666fbc2151ded63293fce38fe38e31b2926ca8651ad97f98226"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020802"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020802"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012832325f0a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320022a10396b26cc532344db00000000000000013001380c4205466f637573480150025a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080212074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a32323a332803"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a103fd2d433a2092428a2baf21bee1f94561002180320df03280130023a20a717e2027dc2657db854c361077ba89f8e88daa959782b91a5973fff92a27b47"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c32f4030a103fd2d433a2092428a2baf21bee1f94561adf03080210031adc010ad9010ad601081e100318012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01109cb93be658c8f8da12dc8090c3b578c4900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a32323a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1003180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110693988a1e1286f76a4e5863c104e0111900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a32323a756e6d61707065643a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a103fd2d433a2092428a2baf21bee1f945610df03180120022a20a717e2027dc2657db854c361077ba89f8e88daa959782b91a5973fff92a27b47"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020803"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020803"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a1001010101010101010000000000000001200128323282010a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320032a10396b26cc532344db00000000000000013001380c420b5265706c61636554657874480150035a060801100420037219100b1a1553656d616e7469632041f09f988065cc81d790d791"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080312074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a32363a342804"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a101f497cdda9207058be0ed9b202bee0c01003180420d004280130043a2070aaff5b666ebb6153dfb47ca756c0d6f2abf2d0d40ecdfdb26482d672926b28"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c32e5040a101f497cdda9207058be0ed9b202bee0c01ad004080310041ad6010ad3010ad001081e100418012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038a0110170721fffe34a3d6067f0aa13fbbd905900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a32363a34b2010c636f6c6f722d676c79706873b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1004180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110682016e29fa1aa793b6bad1ec5b183ed900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a32363a756e6d61707065643a34b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a460a441a42080710021808221553656d616e7469632041f09f988065cc81d790d7913a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a2d0a2b222908201006180520012a1553656d616e7469632041f09f988065cc81d790d7913204080f100f380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a101f497cdda9207058be0ed9b202bee0c010d004180120042a2070aaff5b666ebb6153dfb47ca756c0d6f2abf2d0d40ecdfdb26482d672926b28"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020804"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020804"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001283232640a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320042a10396b26cc532344db00000000000000013001380942084163746976617465480150045a04080118016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080412074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a33373a352805"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a10eee7fc7827bf31be5166e05c73715cc51004180520f405280130073a20467708c584cbe1f387dc5e90bf43d5de8771049ec6fea7ace7491d8573630738"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c3289060a10eee7fc7827bf31be5166e05c73715cc51af405080410051adc010ad9010ad601081e100518012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110dbe8869a03e3b3f8587e16d577660448900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a33373a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1005180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01102ebd0192165763c75cf17e567013ce0a900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a33373a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a4f0a4d1a4b0805100218072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180802120408031007120408031009180220012a04080310098001018801011a460a441a42080710031808221553656d616e7469632041f09f988065cc81d790d7913a0408031001520c0a084163746976617465100152090a05466f63757310018001018801011a360a341a3208091002180822055461736b733a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a190a17221508201007180620012a055461736b733200380140011a270a25222308211006180620012a13526561642c2077726974652c207265766965773200380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a10eee7fc7827bf31be5166e05c73715cc510f405180120072a20467708c584cbe1f387dc5e90bf43d5de8771049ec6fea7ace7491d8573630738"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001283232640a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320052a10396b26cc532344db00000000000000013001381a420853657456616c7565480150055a0208016a020801"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080512074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a33383a362806"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a107c5a15a2dcced343c5c72c8ddd419c8b1005180620a404280130033a209a5e4c04aa9b6ad7d087fa26100f58115735140b73167fe032b44d693aa5d1b0"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c32b9040a107c5a15a2dcced343c5c72c8ddd419c8b1aa404080510061adc010ad9010ad601081e100618012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01106ef6ec4640ce20dd74989324fdd38570900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a33383a36b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1006180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110dc0e38d8159099f873df11075f07cb8c900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a33383a756e6d61707065643a36b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a430a411a3f081a1002180422085265766965776564320210013a04080110013a0408021002520c0a0853657456616c7565100152090a05466f63757310018001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a107c5a15a2dcced343c5c72c8ddd419c8b10a404180120032a209a5e4c04aa9b6ad7d087fa26100f58115735140b73167fe032b44d693aa5d1b0"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020806"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020806"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012832325f0a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320062a10396b26cc532344db00000000000000013001380c4205466f637573480150065a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080612074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a33383a372807"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a103fa9c2deae60555352ce5250da0e161a1006180720fc03280130033a20c0c5893928805a1cb1ba1416a86b865e0d521898d653e8cc3ca82d5082d23657"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c3291040a103fa9c2deae60555352ce5250da0e161a1afc03080610071adc010ad9010ad601081e100718012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110eee17ef7938909ff4491badd0238fa59900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a33383a37b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1007180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a011094b26ce6428be786849e7286fdc1fca3900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a33383a756e6d61707065643a37b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a1b0a19221708201008180620012a055461736b7332021005380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a103fa9c2deae60555352ce5250da0e161a10fc03180120032a20c0c5893928805a1cb1ba1416a86b865e0d521898d653e8cc3ca82d5082d23657"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020807"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020807"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012832326a0a10396b26cc532344db9c657d7b9fd7e6c81210010101010101010100000000000000011a100303030303030303030303030303030320072a10396b26cc532344db00000000000000013001380c420c53657453656c656374696f6e480150075a060801100620037a00"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000120012836323a080712074170706c696564222b33393662323663633533323334346462396336353764376239666437653663383a77686f6c653a33383a382808"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280b323f0a100c5b64b2663d6c0cc2114ac3b15a84371007180820fa03280130033a2087a3caf89a2733f5d25af2acb1f55eb2700548dc4eb1753ffad4c01ad70535ac"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280c328f040a100c5b64b2663d6c0cc2114ac3b15a84371afa03080710081adc010ad9010ad601081e100818012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110cc1b15de73756bec19b261b34d7a9246900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a33383a38b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1008180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a011094ef01b8e6270bb2ddd1feb2f83f07fc900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a33383a756e6d61707065643a38b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a190a17221508201009180620012a055461736b733200380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001280d323b0a100c5b64b2663d6c0cc2114ac3b15a843710fa03180120032a2087a3caf89a2733f5d25af2acb1f55eb2700548dc4eb1753ffad4c01ad70535ac"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001281e32020808"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282332020808"
+    },
+    {
+      "direction": "sent",
+      "kind": 43,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000012001282b32260a10030303030303030300000000000000021210396b26cc532344db00000000000000011801"
+    },
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 8,
+      "hex": "20012808321a0a1850524f44554345525f434f4e4e454354494f4e5f42555359"
+    },
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001280232f20108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e7631121e746578742e636c6f636b2e67746b2d6564697461626c65343232342e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d064880012244080110011a0841637469766174651a05466f6375731a0b5265706c616365546578741a085363726f6c6c546f1a0c53657453656c656374696f6e1a0853657456616c75652a1087b8c483f2c237a5aa9c6eb160e86535"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001280432400a1001010101010101010000000000000002110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c792a0b73656d616e7469632e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 34,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a100101010101010101000000000000000220012822320d0a0b566965774368616e676564"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001280a323d0a105e674ad8516d97f3083e21856ab81543180820b20c280130163a202b496d3156adefbb439e93f782b039d79caee39366cf62d8c6f4dfcfbdb817f0"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001280c32c70c0a105e674ad8516d97f3083e21856ab815431ab20c080812d9010ad601081e100818012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110cc1b15de73756bec19b261b34d7a9246900103980101a00101aa013233393662323663633533323334346462396336353764376239666437653663383a6d61696e2d636f6e74656e743a33383a38b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12ba010ab701081f1008180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a011094ef01b8e6270bb2ddd1feb2f83f07fc900103980101a00101aa013633393662323663633533323334346462396336353764376239666437653663383a64657461696c733a33383a756e6d61707065643a38b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e122b1a29080310011801220f446f63756d656e7420656469746f72420408031004420408031005800101880101124d1a4b080410011802220d446f63756d656e7420666f726d42040803100b42040803100c42040803100e42040803101042040803101642040803101842040803101a42040803101c800101880101124d1a4b0805100218072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180802120408031007120408031009180220012a040803100980010188010112441a42080710041808221553656d616e7469632041f09f988065cc81d790d7913a0408031001520c0a084163746976617465100152090a05466f637573100180010188010112341a3208091002180822055461736b733a0408031002520c0a084163746976617465100152090a05466f6375731001800101880101121d1a1b080b10021806220d536176656420312074696d657380010188010112551a53080c1001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a040804102080010188010112541a52080e100118052204426f64793a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0408041021800101880101123c1a3a081010011803220d5361766520646f63756d656e743a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101123f1a3d0816100118032210446f63756d656e742064657461696c733a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112441a4208181001180322155265706c616365207469746c6520636f6e74726f6c3a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112411a3f081a1002180422085265766965776564320210013a04080110013a0408021002520c0a0853657456616c7565100152090a05466f637573100180010188010112231a21081c10011805220d50726976617465206669656c645a0408041022800101880101122c1a2a0812100118012210446f63756d656e742064657461696c7342040803101342040803101480010188010112371a3508131001180622274368616e6765732062656c6f6e6720746f207468697320736f7572636520646f63756d656e742e800101880101123c1a3a081410011803220d436c6f73652064657461696c733a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101121722150820100c180820012a055461736b733200380140011225222308211007180720012a13526561642c2077726974652c20726576696577320038014001120a2208082210011801200312283226080210081a12190000000000808640210000000000c082402a040803100c32040801101e3803221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001280d323b0a105e674ad8516d97f3083e21856ab8154310b20c180120162a202b496d3156adefbb439e93f782b039d79caee39366cf62d8c6f4dfcfbdb817f0"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001281e32020808"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210396b26cc532344db9c657d7b9fd7e6c81a10010101010101010100000000000000022001282332020808"
+    }
+  ],
+  "events": [
+    {
+      "type": "connected",
+      "can_control": true
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "applied",
+      "revision": "1"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "1"
+    },
+    {
+      "type": "control",
+      "granted": true
+    },
+    {
+      "type": "commandResult",
+      "sequence": "1",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:22:2",
+      "revision": "2"
+    },
+    {
+      "type": "applied",
+      "revision": "2"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "2"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "2",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:22:3",
+      "revision": "3"
+    },
+    {
+      "type": "applied",
+      "revision": "3"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "3"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "3",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:26:4",
+      "revision": "4"
+    },
+    {
+      "type": "applied",
+      "revision": "4"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "4"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "4",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:37:5",
+      "revision": "5"
+    },
+    {
+      "type": "applied",
+      "revision": "5"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "5"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "5",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:38:6",
+      "revision": "6"
+    },
+    {
+      "type": "applied",
+      "revision": "6"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "6"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "6",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:38:7",
+      "revision": "7"
+    },
+    {
+      "type": "applied",
+      "revision": "7"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "7"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "7",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "396b26cc532344db9c657d7b9fd7e6c8:whole:38:8",
+      "revision": "8"
+    },
+    {
+      "type": "applied",
+      "revision": "8"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "8"
+    },
+    {
+      "type": "control",
+      "granted": false
+    },
+    {
+      "type": "disconnected"
+    },
+    {
+      "type": "control",
+      "granted": false
+    },
+    {
+      "type": "failure",
+      "message": "host is still closing the previous connection; reconnect shortly"
+    },
+    {
+      "type": "disconnected"
+    },
+    {
+      "type": "connected",
+      "can_control": true
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "reset"
+    },
+    {
+      "type": "applied",
+      "revision": "8"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "8"
+    },
+    {
+      "type": "disconnected"
+    }
+  ],
+  "application": "editor",
+  "browser": "151.0.7922.173",
+  "pinScope": "owned-test-certificate-SPKI",
+  "sourceRevision": 38,
+  "independentPythonPrefixes": 9,
+  "independentScopes": 2
+}

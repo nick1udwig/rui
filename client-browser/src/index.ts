@@ -3,3 +3,4 @@ export * from "./renderer.js";
 export * from "./model.js";
 export * from "./timing.js";
 export * from "./semantic.js";
+export * from "./semantic-controls.js";

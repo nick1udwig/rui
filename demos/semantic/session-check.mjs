@@ -106,12 +106,20 @@ try {
   await page.goto(origin);
   const credential = await readFile(resolve(identity, "client.credential"));
   const result = await page.evaluate(
-    async ({ url, credential }) => {
-      const { BrowserClient, webSocketTransport, text, SemanticView } =
-        await import("/dist/index.js");
+    async ({ url, credential, domControls }) => {
+      const {
+        BrowserClient,
+        webSocketTransport,
+        text,
+        SemanticView,
+        SemanticControls,
+      } = await import("/dist/index.js");
       const root = document.createElement("div");
       document.body.append(root);
       const view = new SemanticView(root);
+      const status = document.createElement("p");
+      document.body.append(status);
+      let controls;
       const evidence = [],
         events = [];
       let wireBytes = 0;
@@ -192,15 +200,52 @@ try {
           events.push({ ...event });
           if (event.type === "applied" || event.type === "resumed") {
             const state = client.state;
-            if (state) {
+            if (state && !domControls) {
               view.render(state);
               client.semanticReady(state.revision);
             }
           } else if (event.type === "reset" || event.type === "disconnected") {
-            view.reset();
+            if (!domControls) view.reset();
           }
         },
       });
+      if (domControls) controls = new SemanticControls(client, root, status);
+      const commandSequence = () => {
+        const frame = evidence
+          .filter((p) => p.direction === "sent" && p.kind === 50)
+          .at(-1);
+        if (!frame) throw Error("no command");
+        return field(
+          field(
+            new Uint8Array(frame.hex.match(/../g).map((x) => parseInt(x, 16))),
+            6,
+          ),
+          4,
+        );
+      };
+      const perform = (id, action) => {
+        const button = root.querySelector(
+          `[data-semantic-id="${id}"] button[data-action="${action}"]`,
+        );
+        if (!button || button.disabled)
+          throw Error(
+            "generic DOM action unavailable: " +
+              action +
+              " " +
+              status.textContent,
+          );
+        const before = evidence.filter(
+          (p) => p.direction === "sent" && p.kind === 50,
+        ).length;
+        button.click();
+        if (
+          evidence.filter((p) => p.direction === "sent" && p.kind === 50)
+            .length !==
+          before + 1
+        )
+          throw Error("DOM command was not dispatched: " + status.textContent);
+        return commandSequence();
+      };
       const wait = async (condition) => {
         const deadline = performance.now() + 12000;
         while (performance.now() < deadline) {
@@ -259,7 +304,9 @@ try {
       client.requestControl();
       await wait(() => client.hasControl);
       const effects = [];
-      const seq = client.activate(button.id);
+      const seq = domControls
+        ? perform(button.id, "Activate")
+        : client.activate(button.id);
       effects.push({ operation: "Activate", target: button.id, sequence: seq });
       await wait(settled);
       const entry = nodes().find(
@@ -271,14 +318,38 @@ try {
           text(client.state, n.id)?.editable,
       );
       if (!entry) throw Error("no editable semantic field");
-      client.focus(entry.id);
+      if (domControls) perform(entry.id, "EditDraft");
+      else client.focus(entry.id);
       await wait(settled);
-      const capture = client.captureEdit(entry.id),
-        content = "Semantic A😀éאב";
+      const content = "Semantic A😀éאב";
+      let editSequence;
+      if (domControls) {
+        await wait(() => root.querySelector("textarea[data-local-draft]"));
+        const input = root.querySelector("textarea[data-local-draft]");
+        const before = evidence.filter(
+          (p) => p.direction === "sent" && p.kind === 50,
+        ).length;
+        input.dispatchEvent(
+          new CompositionEvent("compositionstart", { data: "local" }),
+        );
+        input.value = content;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(
+          new CompositionEvent("compositionend", { data: content }),
+        );
+        if (
+          evidence.filter((p) => p.direction === "sent" && p.kind === 50)
+            .length !== before
+        )
+          throw Error("local composition mutated source");
+        root.querySelector('button[data-action="ApplyDraft"]').click();
+        editSequence = commandSequence();
+      } else
+        editSequence = client.commitEdit(client.captureEdit(entry.id), content);
       effects.push({
         operation: "ReplaceText",
         target: entry.id,
-        sequence: client.commitEdit(capture, content),
+        sequence: editSequence,
       });
       await wait(settled);
       if (text(client.state, entry.id)?.content !== content)
@@ -305,11 +376,13 @@ try {
       effects.push({
         operation: "ActivateItem",
         target: item.id,
-        sequence: client.activateItem(
-          collection.id,
-          item.id,
-          collection.collection.version,
-        ),
+        sequence: domControls
+          ? perform(item.id, "Activate")
+          : client.activateItem(
+              collection.id,
+              item.id,
+              collection.collection.version,
+            ),
       });
       await wait(settled);
       let invalidValueRejected = false;
@@ -330,7 +403,20 @@ try {
       if (checkbox) {
         valueEffect = {
           target: checkbox.id,
-          sequence: client.setChecked(checkbox.id, true),
+          sequence: domControls
+            ? (() => {
+                const input = root.querySelector(
+                  `[data-semantic-id="${checkbox.id}"] > input[type=checkbox]`,
+                );
+                input.checked = true;
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                if (input.checked)
+                  throw Error(
+                    "optimistic checkbox replaced authoritative value",
+                  );
+                return commandSequence();
+              })()
+            : client.setChecked(checkbox.id, true),
         };
         await wait(settled);
         if (!nodes().find((n) => n.id === checkbox.id)?.value?.Boolean)
@@ -340,6 +426,36 @@ try {
                 typeof v === "bigint" ? String(v) : v,
               ),
           );
+      }
+      let staleDraftRejected = null;
+      if (domControls) {
+        perform(entry.id, "EditDraft");
+        await wait(
+          () =>
+            root.querySelector("textarea[data-local-draft]") &&
+            !client.pendingCommands,
+        );
+        const input = root.querySelector("textarea[data-local-draft]");
+        input.value = "Original stale local draft 😀";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        client.setSelection(entry.id, 0n, 0n);
+        await wait(settled);
+        if (input.value !== "Original stale local draft 😀")
+          throw Error("source update discarded local draft");
+        const before = evidence.filter(
+            (p) => p.direction === "sent" && p.kind === 50,
+          ).length,
+          authoritative = text(client.state, entry.id).content;
+        root.querySelector('button[data-action="ApplyDraft"]').click();
+        staleDraftRejected =
+          evidence.filter((p) => p.direction === "sent" && p.kind === 50)
+            .length === before &&
+          root.textContent.includes("Conflicting source context");
+        if (
+          !staleDraftRejected ||
+          text(client.state, entry.id).content !== authoritative
+        )
+          throw Error("stale draft was rebased");
       }
       let state = client.state;
       for (const record of state.records.values()) {
@@ -358,10 +474,12 @@ try {
         throw Error("visual/resource/other family traffic");
       const readOnlyDom = {
         nodes: root.querySelectorAll("[data-semantic-id]").length,
-        fields: root.querySelectorAll("textarea").length,
-        allFieldsReadOnly: [...root.querySelectorAll("textarea")].every(
-          (e) => e.readOnly,
-        ),
+        fields: root.querySelectorAll(
+          "textarea[data-authoritative], textarea:not([data-local-draft])",
+        ).length,
+        allFieldsReadOnly: [
+          ...root.querySelectorAll("textarea:not([data-local-draft])"),
+        ].every((e) => e.readOnly),
       };
       if (
         readOnlyDom.nodes < 5 ||
@@ -371,10 +489,12 @@ try {
         throw Error("live read-only semantic DOM");
       const capabilities = client.capabilities;
       let revokedValueRejected = null;
-      if (checkbox) {
+      if (checkbox || domControls) {
         client.releaseControl();
+        if (domControls && root.querySelector("textarea[data-local-draft]"))
+          throw Error("revocation kept authorized draft");
         try {
-          client.setChecked(checkbox.id, false);
+          client.setChecked(checkbox?.id ?? button.id, false);
           revokedValueRejected = false;
         } catch {
           revokedValueRejected = true;
@@ -400,6 +520,7 @@ try {
       if (client.hasControl) throw Error("authority restored on reconnect");
       state = client.state;
       client.dispose();
+      controls?.dispose();
       view.dispose();
       if (root.childNodes.length)
         throw Error("authorized DOM retained after disposal");
@@ -422,6 +543,8 @@ try {
         observerRejected,
         canvasConstructed: false,
         readOnlyDom,
+        domControls,
+        staleDraftRejected,
         capabilities,
         effects,
         valueEffect,
@@ -433,7 +556,11 @@ try {
         events,
       });
     },
-    { url: `wss://127.0.0.1:${port}/rui`, credential: [...credential] },
+    {
+      url: `wss://127.0.0.1:${port}/rui`,
+      credential: [...credential],
+      domControls: process.env.RUI_SEMANTIC_DOM_CONTROLS === "1",
+    },
   );
   credential.fill(0);
   assert.equal(errors.length, 0, errors.join("\n"));

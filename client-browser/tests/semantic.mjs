@@ -15,7 +15,7 @@ const clocks = new Set([
   "stacking_order",
   "Integer",
 ]);
-function model(value, key = "") {
+export function model(value, key = "") {
   if (typeof value === "string" && clocks.has(key) && /^-?\d+$/.test(value))
     return BigInt(value);
   if (Array.isArray(value))

@@ -1,3 +1,12 @@
+S3 implemented: optional generic SemanticControls maps advertised schema-1 actions
+to guarded public APIs. Explicit source focus precedes immutable edit capture; local
+composition/paste/deletion remain draft state until Apply. Authoritative values stay
+visible while pending; stale contexts do not silently rebase. Revocation/removal/
+scope cleanup purge drafts and ambiguous native outcomes block fresh commands.
+Three-engine DOM tests and fresh owned corpus/editor checks pass, including independent
+Python exact-wire replay. See demos/semantic/README.md and
+fixtures/gtk/semantic-controls-golden. Simultaneous mirror convergence remains S5.
+
 Command ambiguity correction: portable exact command bytes remain retained for
 Unknown/OutcomeUnknown/OutcomeExpired and Dispatched, and causal waiting recognizes
 the native status names. A renderer/readiness update alone cannot unlock a fresh edit;

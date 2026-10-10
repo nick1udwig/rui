@@ -1,9 +1,10 @@
 # Semantic browser presentation
 
 This separate consumer uses `BrowserClient` in semantic-only mode and the reusable
-`SemanticView` mapping. It constructs no canvas and sends no Presented. The current
-UI is read-only: local navigation and text selection do not invoke source focus,
-scroll, resize or edits. Guarded DOM controls are the next S3 increment.
+`SemanticView` mapping with optional `SemanticControls`. It constructs no canvas
+and sends no Presented. Observers can navigate and select local text. Controllers
+explicitly activate source controls, select stable items, change declared Boolean
+values, or request source focus before editing a local draft.
 
 ```sh
 python3 demos/web/run.py --presentation semantic --application editor
@@ -21,8 +22,8 @@ Mapped surfaces supply semantic roots and modal relationships. The mapping follo
 ordered semantic children, explicit reading order and already materialized semantic
 groups. It never uses Scene/Binding coordinates, GTK classes, labels or known IDs to
 choose control roles. Root/Group become labeled sections; text fields use read-only
-native textareas, Boolean states use disabled native checkboxes, lists/items retain
-list semantics, and buttons/custom canvases remain focusable information. Unsupported
+native textareas, Boolean states use native checkboxes (disabled for observers), lists/items retain
+list semantics, and buttons/custom canvases retain focusable information and advertised actions. Unsupported
 actions/schemas are described, not dispatched. Unmapped surfaces are omitted.
 
 Labels/descriptions/values/text use textContent or value. LabelledBy relations resolve
@@ -46,3 +47,33 @@ DOM/focus, unmapped cleanup and limits. Live owned GTK checks call render before
 SemanticReady, then independently replay the exact authorized packets. Responsive
 layout/accessibility/device acceptance remains S4 work; viewport emulation is not a
 mobile-browser claim.
+
+The interaction adapter uses only public library APIs. Local DOM focus, selection,
+input, paste, deletion and composition do not dispatch source commands. Edit draft
+requests source focus, waits for confirmed focus/readiness, and captures the original
+target, revision, text/selection/focus clocks and lease token. Apply draft (or
+Ctrl+Enter after local composition ends) submits that bounded committed string. The
+16 KiB UTF-8 ceiling is enforced before WASM copying. Source text remains visible
+separately; a newer publication never silently rebases a draft. Conflicts preserve
+the local draft until an explicit new edit or authority/scope cleanup.
+
+Pending and rejected outcomes appear in a live status. Unknown/OutcomeUnknown/
+OutcomeExpired block another command; resolving an original command remains an
+explicit caller operation, never a freshly created retry. Revocation, removal,
+reset, disconnect and disposal retire the draft. Reconnect does not request control.
+Only schema-1 advertised actions are enabled, with native host guards rechecked.
+
+Fresh owned-display DOM checks on both applications:
+
+```sh
+python3 demos/semantic/session_check.py --dom-controls --xvfb /path/to/Xvfb --output /tmp/rui-semantic-dom-corpus
+python3 demos/semantic/session_check.py --dom-controls --application editor --xvfb /path/to/Xvfb --output /tmp/rui-semantic-dom-editor
+```
+
+[Retained authorized traces](../../fixtures/gtk/semantic-controls-golden) include
+independent Python replay, the three intended effects, editor Boolean mutation,
+local-composition silence, stale-selection draft rejection, revocation and reconnect.
+Three-engine DOM regressions additionally exercise unknown outcomes, exact UTF-8
+limits and zero mutation from observer navigation. Source-side guard faults remain
+covered by the native application/context tests. S4 layout/device and S5 simultaneous
+presentation acceptance remain outstanding.

@@ -628,6 +628,13 @@ export class BrowserClient {
     };
   }
   commitEdit(capture: EditCapture, content: string): bigint {
+    if (
+      typeof content !== "string" ||
+      content.length > (16 << 10) ||
+      content.includes("\0") ||
+      new TextEncoder().encode(content).length > (16 << 10)
+    )
+      throw new RangeError("text commit limit");
     assertUint64(capture.target);
     assertUint64(capture.revision);
     assertUint64(capture.textVersion);

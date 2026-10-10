@@ -55,10 +55,12 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--xvfb',required=True,type=Path)
     parser.add_argument('--application',choices=('corpus','editor'),default='corpus')
+    parser.add_argument('--dom-controls',action='store_true')
     parser.add_argument('--output',required=True,type=Path)
     args=parser.parse_args()
     os.environ['RUI_SEMANTIC_OUTPUT']=str(args.output.resolve())
     os.environ['RUI_SEMANTIC_APPLICATION']=args.application
+    os.environ['RUI_SEMANTIC_DOM_CONTROLS']='1' if args.dom_controls else '0'
     print(run_private(str(args.xvfb.resolve()),['node',str(ROOT/'demos/semantic/session-check.mjs')],timeout=120).strip())
     audit(args.output/'session.json')
 
