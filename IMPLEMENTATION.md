@@ -25,6 +25,13 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+C1 adds the [application/capability matrix](docs/application-matrix.md), a bounded
+submitted-node inventory and mandatory unsupported-content companion checks.
+A fresh owned-display default/constrained census and six native negative cases
+pass; repeated occurrences are separated from unique gap reasons. The selected
+second target is an application-owned document editor, pending reusable-adapter
+and source/client evidence in C3. Default GTK styling remains explicitly partial.
+
 P5 adds a frozen small-demo evaluator and an opt-in named-runner workflow.
 Retained three-run results pass the 16.67 ms draw budget and fail the unchanged
 100/150 ms action goals. Ordinary CI validates evidence and correlation rather

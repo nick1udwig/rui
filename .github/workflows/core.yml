@@ -30,6 +30,7 @@ jobs:
       - run: python3 -m unittest adapters.atspi.test_observer adapters.atspi.test_trace
       - run: python3 -m unittest conformance.test_shrink
       - run: python3 -m unittest ci.test_performance_gate
+      - run: python3 -m unittest fixtures.gtk.test_inventory
       - run: python3 -m unittest conformance.test_semantic_client
       - run: python3 -m conformance.typed_interop
       - run: python3 -m unittest conformance.test_full_reference

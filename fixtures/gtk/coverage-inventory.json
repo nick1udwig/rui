@@ -1,0 +1,124 @@
+{
+  "backend": "xvfb",
+  "countsAre": "repeated frame occurrences, not unique controls or supported workflows",
+  "environment": {
+    "kernel": "7.1.9-arch1-2",
+    "locale": "C.UTF-8",
+    "python": "3.14.7",
+    "scale": 1
+  },
+  "inputHashes": {
+    "measurement.json": "db1d9dc928a5debba465eb3bde084e5e1f240de7cdd0fc7750d022b6be0243a2",
+    "negative-report.json": "f41f6a21b98e2c4757a58f256af015dbcb9ffec33a6244ade8d2f43b8d52db2a"
+  },
+  "negativeCases": {
+    "blur-effect": true,
+    "cairo-region": true,
+    "memory-texture": true,
+    "native-vector-control": false,
+    "original-photo": true,
+    "shader-node": true
+  },
+  "pin": {
+    "cairo": "1.18.4",
+    "gtk": "4.22.4"
+  },
+  "runs": [
+    {
+      "actions": [
+        "button-activate",
+        "close-menu",
+        "destroy-menu",
+        "hide-canvas",
+        "materialize-gamma",
+        "menu-activate",
+        "open-menu",
+        "replace-text",
+        "resize-source",
+        "scalar-selection-only",
+        "select-beta",
+        "show-canvas",
+        "unmaterialize-gamma"
+      ],
+      "frames": 20,
+      "gapOccurrences": 104,
+      "gapReasons": {
+        "nonopaque-srgb-composition": 43,
+        "rounded-clip-on-nonuniform-content": 30,
+        "unsupported-cairo-node": 2,
+        "unsupported-outset-shadow-node": 29
+      },
+      "mappedComplete": 0,
+      "mappedPartial": 17,
+      "style": "default",
+      "submittedNodeCounts": {
+        "border-node": 51,
+        "cairo-node": 2,
+        "clip-node": 15,
+        "color-node": 124,
+        "container-node": 122,
+        "fill-node": 29,
+        "linear-gradient-node": 24,
+        "outset-shadow-node": 29,
+        "rounded-clip-node": 49,
+        "stroke-node": 14,
+        "text-node": 150,
+        "transform-node": 182
+      },
+      "surfaces": [
+        "main-content",
+        "menu-popup"
+      ],
+      "uniqueGapReasons": 4
+    },
+    {
+      "actions": [
+        "button-activate",
+        "close-menu",
+        "destroy-menu",
+        "hide-canvas",
+        "materialize-gamma",
+        "menu-activate",
+        "open-menu",
+        "replace-text",
+        "resize-source",
+        "scalar-selection-only",
+        "select-beta",
+        "show-canvas",
+        "unmaterialize-gamma"
+      ],
+      "frames": 25,
+      "gapOccurrences": 5,
+      "gapReasons": {
+        "unsupported-opacity-node": 5
+      },
+      "mappedComplete": 17,
+      "mappedPartial": 5,
+      "style": "strict",
+      "submittedNodeCounts": {
+        "border-node": 104,
+        "clip-node": 2,
+        "color-node": 361,
+        "container-node": 224,
+        "fill-node": 19,
+        "opacity-node": 7,
+        "stroke-node": 19,
+        "text-node": 164,
+        "transform-node": 222
+      },
+      "surfaces": [
+        "main-content",
+        "menu-popup"
+      ],
+      "uniqueGapReasons": 1
+    }
+  ],
+  "schemaVersion": 1,
+  "scope": "submitted cooperating content and registered popup; no decorations or desktop association",
+  "sourceHashes": {
+    "adapters/gtk4/capture.py": "c3bc67b6568af5c590c60b730b3ecf10fd8a85911510c1890f4216854d255682",
+    "fixtures/gtk/corpus.py": "efaeee50331b23b311790deacec117c67ebc50cd3715dcec1905c5fb12df3b8a",
+    "fixtures/gtk/inventory.py": "eaa51c13968381445ff9c700c8d4443cc47abc77ccd247fc62b76c24ca7d46c3",
+    "fixtures/gtk/negative_source.py": "e57d9b3ff60d240d61036f052e6d03da06d97ee63cb8dbfe9a88c6255fbb52f3"
+  }
+}

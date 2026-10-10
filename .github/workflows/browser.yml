@@ -74,6 +74,11 @@ jobs:
       - run: npm --prefix client-browser exec -- playwright install chromium
       - run: npm --prefix client-browser run build && npm --prefix demos/web run build
       - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
+      - name: Submitted-node coverage with unsupported-content companion
+        run: |
+          python3 fixtures/gtk/measure.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-coverage"
+          python3 fixtures/gtk/negative_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-negatives"
+          python3 fixtures/gtk/inventory.py "$RUNNER_TEMP/rui-coverage/measurement.json" "$RUNNER_TEMP/rui-negatives/negative-report.json" --output "$RUNNER_TEMP/rui-inventory.json"
       - name: Development serving, live edits and hidden-tab lifecycle
         run: python3 demos/web/check.py --xvfb "$(command -v Xvfb)" --timeout 90
       - name: Production serving, live edits and hidden-tab lifecycle
