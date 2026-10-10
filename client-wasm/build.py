@@ -27,7 +27,7 @@ def main():
     version = subprocess.check_output([args.wasm_bindgen, '--version'], text=True).strip()
     if version != f'wasm-bindgen {expected}':
         parser.error(f'expected wasm-bindgen-cli {expected}, got {version}')
-    metadata = json.loads(run('cargo', 'metadata', '--offline', '--locked', '--no-deps', '--format-version', '1', capture_output=True, text=True).stdout)
+    metadata = json.loads(run('cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1', capture_output=True, text=True).stdout)
     target = Path(metadata['target_directory'])
     run('cargo', 'build', '--locked', '--release', '-p', 'rui-client-wasm', '--target', 'wasm32-unknown-unknown')
     package = ROOT / 'pkg'
@@ -40,7 +40,7 @@ def main():
     # Reuse the existing golden trace and native reducer as the independent
     # execution-target baseline. No expected state is inferred in JavaScript.
     golden = (REPOSITORY / 'conformance/golden/semantic.jsonl').read_text()
-    run('cargo', 'build', '--offline', '--locked', '--release', '-p', 'rui-protocol-core', '--example', 'replay')
+    run('cargo', 'build', '--locked', '--release', '-p', 'rui-protocol-core', '--example', 'replay')
     baseline = run(str(target / 'release/examples/replay'), '--full-state', input=golden, text=True, capture_output=True)
     requests = [json.loads(line) for line in golden.splitlines()]
     responses = [json.loads(line) for line in baseline.stdout.splitlines()]

@@ -1,0 +1,88 @@
+name: WASM and browser clients
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  RUI_TEST_BROWSERS: chromium,firefox,webkit
+
+jobs:
+  portable:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.8.1
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install the exact binding generator
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
+          cargo install wasm-bindgen-cli --version "$version" --locked
+      - run: python3 client-wasm/build.py
+      - run: npm --prefix client-wasm ci && npm --prefix client-browser ci && npm --prefix demos/web ci
+      - run: npm --prefix client-wasm exec -- playwright install --with-deps chromium firefox webkit
+      - run: npm --prefix client-wasm test
+      - run: npm --prefix client-browser test
+      - run: npm --prefix demos/web run build
+      - name: Check served production assets
+        run: node demos/web/tests/production.mjs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: portable-browser-diagnostics
+          path: client-browser/test-output/*.json
+          retention-days: 7
+
+  gtk-integration:
+    # This runner supplies the pinned native environment; Ubuntu's default GTK
+    # is not the cooperating adapter's ABI or capture contract.
+    runs-on: [self-hosted, linux, x64, rui-gtk-4.22.4]
+    timeout-minutes: 30
+    env:
+      RUI_TEST_BROWSERS: chromium
+      RUI_BROWSER_HEADED: '1'
+      RUI_BROWSER_HTTPS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.8.1
+      - name: Verify pinned native environment
+        run: |
+          test "$(pkg-config --modversion gtk4)" = 4.22.4
+          test "$(pkg-config --modversion cairo)" = 1.18.4
+          test -x "$(command -v Xvfb)"
+          python3 -c 'import gi, cairo'
+      - name: Install the exact binding generator
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
+          cargo install wasm-bindgen-cli --version "$version" --locked
+      - run: python3 client-wasm/build.py
+      - run: npm --prefix client-browser ci && npm --prefix demos/web ci
+      - run: npm --prefix client-browser exec -- playwright install chromium
+      - run: npm --prefix client-browser run build && npm --prefix demos/web run build
+      - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
+      - name: Development serving, live edits and hidden-tab lifecycle
+        run: python3 demos/web/check.py --xvfb "$(command -v Xvfb)" --timeout 90
+      - name: Production serving, live edits and hidden-tab lifecycle
+        env:
+          RUI_BROWSER_BUILD: '1'
+        run: python3 demos/web/check.py --xvfb "$(command -v Xvfb)" --timeout 90
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: gtk-browser-diagnostics
+          path: client-browser/test-output/timings.json
+          retention-days: 7

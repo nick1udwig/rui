@@ -1,0 +1,165 @@
+{
+  "rust": "1.98.1",
+  "node": "26.8.1",
+  "playwright": "1.63.0",
+  "platform": "Linux workstation; WebKit with isolated Ubuntu compatibility libraries",
+  "reports": [
+    {
+      "suite": "wasm",
+      "runtime": "node",
+      "nativeOraclePrefixes": 11,
+      "wideIntegers": true,
+      "unicode": true,
+      "atomicResources": true,
+      "invalidInput": true,
+      "lifecycleAndBudget": true
+    },
+    {
+      "suite": "wasm",
+      "runtime": "chromium",
+      "version": "153.0.8010.12",
+      "nativeOraclePrefixes": 11,
+      "wideIntegers": true,
+      "unicode": true,
+      "atomicResources": true,
+      "invalidInput": true,
+      "lifecycleAndBudget": true
+    },
+    {
+      "suite": "wasm",
+      "runtime": "firefox",
+      "version": "155.0",
+      "nativeOraclePrefixes": 11,
+      "wideIntegers": true,
+      "unicode": true,
+      "atomicResources": true,
+      "invalidInput": true,
+      "lifecycleAndBudget": true
+    },
+    {
+      "suite": "wasm",
+      "runtime": "node",
+      "nativeOraclePrefixes": 11,
+      "wideIntegers": true,
+      "unicode": true,
+      "atomicResources": true,
+      "invalidInput": true,
+      "lifecycleAndBudget": true
+    },
+    {
+      "suite": "wasm",
+      "runtime": "webkit",
+      "version": "26.6",
+      "nativeOraclePrefixes": 11,
+      "wideIntegers": true,
+      "unicode": true,
+      "atomicResources": true,
+      "invalidInput": true,
+      "lifecycleAndBudget": true
+    },
+    {
+      "suite": "browser",
+      "runtime": "chromium",
+      "version": "153.0.8010.12",
+      "primitives": 9,
+      "linearBlending": true,
+      "isolatedOpacity": true,
+      "clips": true,
+      "sourceGlyphs": true,
+      "unicodeScalars": true,
+      "limitsAndDisposal": true,
+      "boundedTimings": true
+    },
+    {
+      "suite": "browser",
+      "runtime": "firefox",
+      "version": "155.0",
+      "primitives": 9,
+      "linearBlending": true,
+      "isolatedOpacity": true,
+      "clips": true,
+      "sourceGlyphs": true,
+      "unicodeScalars": true,
+      "limitsAndDisposal": true,
+      "boundedTimings": true
+    },
+    {
+      "suite": "browser",
+      "runtime": "webkit",
+      "version": "26.6",
+      "primitives": 9,
+      "linearBlending": true,
+      "isolatedOpacity": true,
+      "clips": true,
+      "sourceGlyphs": true,
+      "unicodeScalars": true,
+      "limitsAndDisposal": true,
+      "boundedTimings": true
+    },
+    {
+      "suite": "production",
+      "runtime": "chromium",
+      "version": "153.0.8010.12",
+      "productionWasm": true,
+      "transportFailure": true
+    },
+    {
+      "suite": "production",
+      "runtime": "firefox",
+      "version": "155.0",
+      "productionWasm": true,
+      "transportFailure": true
+    },
+    {
+      "suite": "production",
+      "runtime": "webkit",
+      "version": "26.6",
+      "productionWasm": true,
+      "transportFailure": true
+    }
+  ],
+  "live": [
+    {
+      "passed": true,
+      "observer": true,
+      "browserActivation": true,
+      "unicodeEdit": true,
+      "hostEdit": true,
+      "reconnect": true,
+      "hiddenTab": true,
+      "https": true,
+      "productionBundle": true,
+      "listen": "0.0.0.0",
+      "clientToHostMs": 202.65775899999971,
+      "hostToBrowserMs": 144.6858940000002,
+      "draw": "Draw 10.1 ms"
+    },
+    {
+      "passed": true,
+      "observer": true,
+      "browserActivation": true,
+      "unicodeEdit": true,
+      "hostEdit": true,
+      "reconnect": true,
+      "hiddenTab": true,
+      "https": true,
+      "productionBundle": false,
+      "listen": "0.0.0.0",
+      "clientToHostMs": 201.34978600000022,
+      "hostToBrowserMs": 198.67925100000002,
+      "draw": "Draw 11.4 ms"
+    }
+  ],
+  "cleanCheckout": {
+    "generatedFilesInitiallyAbsent": true,
+    "lockedInstalls": true,
+    "moduleSha256": "747c81e4be5389e0a76c57a4e4619276764c5266daa5fe64c507d93aca86e4e1"
+  },
+  "sourceHashes": {
+    "client-wasm/build.py": "21760ab0464fa6dde1144a2732cfecf16bef0e4be5a8c5e7835d5a41e11160de",
+    "client-wasm/tests/run.mjs": "f3fd63961fda2c96b76026cc7df28ceb9efaa2227a3da569bb26ac469462bf26",
+    "client-browser/tests/run.mjs": "9188c89233498279e42f523543a769623a3a7ab0fbc6884fd0a33285cb637895",
+    "demos/web/tests/production.mjs": "89c23e23ca787f8bd7dd367fea0264abe56ddd083e6344735577e9bf375c7f6d",
+    ".github/workflows/browser.yml": "bcb3ef0a2bfd84e2f79023b84a507fc212f8175220fc16a8323abf52ac7918b0"
+  }
+}

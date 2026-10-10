@@ -36,11 +36,22 @@ protocol authority errors. See [the measurement procedure](docs/performance.md).
 P1's expanded fault/lifecycle measurement scenarios remain outstanding; this
 series does not mark all four workstreams complete.
 
+L1 adds a clean-checkout WASM/browser CI job pinned to Rust 1.98.1, matching
+wasm-bindgen, Node 26.8.1 and locked npm dependencies. Node, Chromium 153, Firefox
+155 and Playwright WebKit 26.6 execute the generated module; all browser engines
+pass the vector/resource/lifecycle suites and served production asset checks.
+Fresh owned-display HTTPS checks pass for development and production, including
+real hidden-tab release. The separate live job requires provisioning the named
+GTK 4.22.4/Cairo 1.18.4 runner. [Retained local evidence](fixtures/browser/ci-local.json)
+and [runner requirements](docs/browser-ci.md) describe the tested scope; Safari
+and physical mobile devices remain unclaimed.
+
+
 The [implementation plans](docs/implementation-plans.md) expand these four areas into sequenced changes, dependencies, acceptance criteria and validation commands for future implementors.
 
 - **Performance:** the interactive host currently polls every 250 ms and publishes full snapshots. Event-driven source publication and incremental updates can reduce latency and work; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
 - **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
-- **Browser and library completion:** extend negotiated browser capabilities as needed, consolidate the remaining distinct native/browser connection actors, and reduce state-copy/render overhead. The npm package is private and experimental; release/versioning, broader browser compatibility and automated WASM/browser CI remain future work.
+- **Browser and library completion:** extend negotiated browser capabilities as needed, consolidate the remaining distinct native/browser connection actors, and reduce state-copy/render overhead. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
 - **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A semantic UI with a different layout, mobile interaction or accessibility presentation has not been built.
 
 RFC section 14 deliberately defers mobile translation, independent application views, concurrent writers/CRDTs, general GPU streaming, audio/video, clipboard/file transfer, raster asset profiles, executable components, browser-engine capture and cross-compositor standardization. These are optional future scope, not unfinished M0–M5 gates.
