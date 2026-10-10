@@ -27,11 +27,11 @@ jobs:
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
           cargo install wasm-bindgen-cli --version "$version" --locked
       - run: python3 client-wasm/build.py
-      - run: npm --prefix client-wasm ci && npm --prefix client-browser ci && npm --prefix demos/web ci
+      - run: npm --prefix client-wasm ci && npm --prefix client-browser ci && npm --prefix demos/web ci && npm --prefix demos/semantic ci
       - run: npm --prefix client-wasm exec -- playwright install --with-deps chromium firefox webkit
       - run: npm --prefix client-wasm test
       - run: npm --prefix client-browser test
-      - run: npm --prefix demos/web run build
+      - run: npm --prefix demos/web run build && npm --prefix demos/semantic run build
       - name: Check served production assets
         run: node demos/web/tests/production.mjs
       - uses: actions/upload-artifact@v4
@@ -70,7 +70,7 @@ jobs:
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
           cargo install wasm-bindgen-cli --version "$version" --locked
       - run: python3 client-wasm/build.py
-      - run: npm --prefix client-browser ci && npm --prefix demos/web ci
+      - run: npm --prefix client-browser ci && npm --prefix demos/web ci && npm --prefix demos/semantic ci
       - run: npm --prefix client-browser exec -- playwright install chromium
       - run: npm --prefix client-browser run build && npm --prefix demos/web run build
       - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked

@@ -107,8 +107,11 @@ try {
   const credential = await readFile(resolve(identity, "client.credential"));
   const result = await page.evaluate(
     async ({ url, credential }) => {
-      const { BrowserClient, webSocketTransport, text } =
+      const { BrowserClient, webSocketTransport, text, SemanticView } =
         await import("/dist/index.js");
+      const root = document.createElement("div");
+      document.body.append(root);
+      const view = new SemanticView(root);
       const evidence = [],
         events = [];
       let wireBytes = 0;
@@ -189,7 +192,12 @@ try {
           events.push({ ...event });
           if (event.type === "applied" || event.type === "resumed") {
             const state = client.state;
-            if (state) client.semanticReady(state.revision);
+            if (state) {
+              view.render(state);
+              client.semanticReady(state.revision);
+            }
+          } else if (event.type === "reset" || event.type === "disconnected") {
+            view.reset();
           }
         },
       });
@@ -348,6 +356,19 @@ try {
         )
       )
         throw Error("visual/resource/other family traffic");
+      const readOnlyDom = {
+        nodes: root.querySelectorAll("[data-semantic-id]").length,
+        fields: root.querySelectorAll("textarea").length,
+        allFieldsReadOnly: [...root.querySelectorAll("textarea")].every(
+          (e) => e.readOnly,
+        ),
+      };
+      if (
+        readOnlyDom.nodes < 5 ||
+        !readOnlyDom.fields ||
+        !readOnlyDom.allFieldsReadOnly
+      )
+        throw Error("live read-only semantic DOM");
       const capabilities = client.capabilities;
       let revokedValueRejected = null;
       if (checkbox) {
@@ -379,6 +400,9 @@ try {
       if (client.hasControl) throw Error("authority restored on reconnect");
       state = client.state;
       client.dispose();
+      view.dispose();
+      if (root.childNodes.length)
+        throw Error("authorized DOM retained after disposal");
       const normalize = (v) =>
         typeof v === "bigint"
           ? v.toString()
@@ -397,6 +421,7 @@ try {
         passed: true,
         observerRejected,
         canvasConstructed: false,
+        readOnlyDom,
         capabilities,
         effects,
         valueEffect,

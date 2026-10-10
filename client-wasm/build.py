@@ -62,6 +62,11 @@ def main():
     for destination in (package, browser_package):
         (destination / 'contract.json').write_text(json.dumps(complete_model) + '\n')
 
+    semantic_views = []
+    for name in ('corpus', 'editor'):
+        report = json.loads((REPOSITORY / 'fixtures/gtk/semantic-session-golden' / (name + '.json')).read_text())
+        semantic_views.append({'application': name, 'state': report['state']})
+    (browser_package / 'semantic-views.json').write_text(json.dumps(semantic_views) + '\n')
     body = (package / 'rui_client_wasm_bg.wasm').read_bytes()
     print(json.dumps({'wasm_bytes': len(body), 'wasm_gzip_bytes': len(gzip.compress(body, mtime=0)), 'native_oracle_prefixes': len(fixtures)}))
 

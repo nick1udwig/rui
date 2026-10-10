@@ -47,6 +47,8 @@ def stop(process, graceful=False):
 def main():
     signal.signal(signal.SIGTERM, interrupted)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--presentation', choices=('mirror','semantic'), default='mirror')
+    parser.add_argument('--application', choices=('corpus','editor'), default='corpus')
     parser.add_argument('--public-host', default='localhost', help='hostname or IP used in the browser URL')
     parser.add_argument('--listen', default='127.0.0.1:8443', help='Rust host bind address; Vite binds 0.0.0.0:5173')
     parser.add_argument('--cert', type=Path, help='browser-trusted HTTPS certificate')
@@ -64,12 +66,13 @@ def main():
         parser.error('supply both --cert and --key')
     if any(c in args.public_host for c in '/?#@, \t\n'):
         parser.error('--public-host must be a hostname or IP, without a URL scheme or port')
+    demo = 'demos/semantic' if args.presentation == 'semantic' else 'demos/web'
     if not args.skip_build:
         run('cargo', 'build', '--release', '--locked', '-p', 'rui-client-desktop', '--features', 'gtk-demo', '--bin', 'rui-demo')
         run('python3', 'client-wasm/build.py', *(['--wasm-bindgen', args.wasm_bindgen] if args.wasm_bindgen else []))
         run('npm', '--prefix', 'client-browser', 'ci')
         run('npm', '--prefix', 'client-browser', 'run', 'build')
-        run('npm', '--prefix', 'demos/web', 'ci')
+        run('npm', '--prefix', demo, 'ci')
     metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--offline', '--no-deps', '--format-version', '1'], cwd=ROOT))
     binary = Path(metadata['target_directory']) / 'release/rui-demo'
     scheme = 'https' if args.cert else 'http'
@@ -79,7 +82,7 @@ def main():
         identity = Path(temporary) / 'identity'
         try:
             origins = sorted({origin, f'{scheme}://localhost:5173', f'{scheme}://127.0.0.1:5173'})
-            arguments = [str(binary), '--host-only', '--listen', args.listen, '--identity-dir', str(identity)]
+            arguments = [str(binary), '--host-only', '--application', args.application, '--listen', args.listen, '--identity-dir', str(identity)]
             for allowed in origins:
                 arguments += ['--browser-origin', allowed]
             host = subprocess.Popen(arguments, cwd=ROOT, stdin=subprocess.PIPE, text=True, start_new_session=True)
@@ -97,9 +100,10 @@ def main():
             environment = dict(os.environ, RUI_DEMO_IDENTITY=str(identity), RUI_HOST_URL=f'wss://{address}:{port}', RUI_WEB_HOSTS=args.public_host)
             if args.cert:
                 environment.update(RUI_WEB_CERT=str(args.cert.resolve()), RUI_WEB_KEY=str(args.key.resolve()))
-            web = subprocess.Popen(['npm', '--prefix', 'demos/web', 'run', 'dev'], cwd=ROOT, env=environment, start_new_session=True)
+            web = subprocess.Popen(['npm', '--prefix', demo, 'run', 'dev'], cwd=ROOT, env=environment, start_new_session=True)
             print(f'\nOpen {origin} and choose {identity / "client.credential"}.', flush=True)
-            print('Take control, then click a button or edit a text field. Close the host or press Ctrl+C to stop.', flush=True)
+            print('Observe the semantic view.' if args.presentation == 'semantic' else 'Take control, then click a button or edit a text field.', flush=True)
+            print('Close the host or press Ctrl+C to stop.', flush=True)
             while host.poll() is None and web.poll() is None:
                 time.sleep(.1)
             if host.poll() not in (None, 0) or web.poll() not in (None, 0):

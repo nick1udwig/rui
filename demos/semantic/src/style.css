@@ -1,0 +1,97 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #19312e;
+  background: #f5f7f2;
+  line-height: 1.5;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 1080px;
+  padding: clamp(16px, 4vw, 48px);
+  margin: auto;
+}
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.7rem);
+  letter-spacing: -0.025em;
+}
+h2 {
+  font-size: 1.2rem;
+}
+.connection {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+button {
+  padding: 8px 14px;
+  border: 1px solid #53766d;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.6;
+}
+input[type="file"] {
+  max-width: 100%;
+}
+.rui-semantic-node {
+  min-width: 0;
+  margin-block: 12px;
+}
+.rui-role-root,
+.rui-role-group {
+  padding: 16px;
+  border: 1px solid #d1dfd5;
+  border-radius: 12px;
+  background: white;
+}
+.rui-semantic-children {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+.rui-role-list > .rui-semantic-children {
+  display: block;
+}
+.rui-semantic-info {
+  font-size: 0.875rem;
+  color: #45635d;
+  overflow-wrap: anywhere;
+}
+.rui-semantic textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #a8c0b7;
+  border-radius: 8px;
+  resize: vertical;
+}
+.rui-semantic h2,
+.rui-semantic span {
+  overflow-wrap: anywhere;
+}
+[role="dialog"] {
+  border: 2px solid #53766d;
+}
+*:focus-visible {
+  outline: 3px solid #337e70;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .rui-semantic-children {
+    grid-template-columns: 1fr;
+  }
+  .rui-role-root,
+  .rui-role-group {
+    padding: 10px;
+  }
+}

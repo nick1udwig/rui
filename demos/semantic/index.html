@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RUI semantic view</title></head>
+<body><main><header><h1>Host application, local presentation</h1><p>The source owns the state. This read-only view follows semantic ownership and reading order.</p></header>
+<section class="connection"><label>Approved credential <input id="credential" type="file"></label><button id="connect">Connect</button><button id="disconnect" disabled>Disconnect</button></section>
+<p id="status" role="status" aria-live="polite">Choose the credential created by your owned host.</p><div id="view"></div></main><script type="module" src="/src/main.ts"></script></body></html>

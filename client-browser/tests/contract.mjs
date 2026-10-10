@@ -1,5 +1,6 @@
 import init, { Receiver, Session } from "../wasm/rui_client_wasm.js";
 import { BrowserClient } from "../dist/client.js";
+import { SemanticView } from "../dist/semantic.js";
 const assert = (ok, message) => {
   if (!ok) throw Error(message);
 };
@@ -90,6 +91,36 @@ export async function checkContract() {
       values.some((v) => v?.Integer === -0x8000000000000000n),
       "signed integer rounded",
     );
+    const root = document.createElement("div");
+    document.body.append(root);
+    const view = new SemanticView(root);
+    view.render(state);
+    assert(
+      root.textContent.includes("-9223372036854775808") &&
+        root.textContent.includes("1.25"),
+      "typed values omitted by DOM",
+    );
+    assert(
+      root.textContent.includes("Text unavailable") &&
+        root.textContent.includes("Text redacted"),
+      "text availability collapsed",
+    );
+    assert(
+      !root.querySelector("img,script,iframe"),
+      "typed value became markup",
+    );
+    const checkbox = root.querySelector("input[type=checkbox]");
+    assert(
+      checkbox.indeterminate && checkbox.disabled,
+      "unknown/read-only checkbox collapsed",
+    );
+    const name = checkbox.getAttribute("aria-labelledby");
+    assert(
+      document.getElementById(name)?.textContent === "Name",
+      "label relationship unresolved",
+    );
+    view.dispose();
+    root.remove();
   } finally {
     receiver.close();
     assert(receiver.memoryUsed === 0, "contract leaked");

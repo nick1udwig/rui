@@ -45,7 +45,13 @@ try {
       const { checkPixels } = await import("/tests/pixels.mjs");
       const { measure } = await import("/tests/benchmark.mjs");
       const { checkContract } = await import("/tests/contract.mjs");
-      return { ...checkPixels(), ...measure(false), ...(await checkContract()) };
+      const { checkSemanticView } = await import("/tests/semantic.mjs");
+      return {
+        ...checkPixels(),
+        ...measure(false),
+        ...(await checkContract()),
+        ...(await checkSemanticView()),
+      };
     });
     console.log(
       JSON.stringify({ runtime: name, version: browser.version(), ...result }),

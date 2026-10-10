@@ -1,3 +1,11 @@
+S2 implemented: bounded read-only semantic DOM mapping and separate demos/semantic
+consumer, with role/ownership/group/reading-order layout, explicit unavailable/redacted
+text and partial collections, safe remote strings and stable protocol identity keys.
+Three-engine tests cover renamed labels, new IDs/arbitrary geometry, local focus,
+unmapped/removal cleanup and limits. Live corpus/editor checks render before readiness
+and compare exact wire state with Python. See demos/semantic/README.md. Interactive
+DOM controls and responsive/accessibility acceptance remain S3/S4 gates.
+
 L4 enabled semantic increment: typed Boolean SetValue and explicit stable-item/model
 activation APIs, scalar text/selection parameter bounds, a registered native boolean
 source control and private dispatcher/host Boolean schema. Undeclared schemas/types
