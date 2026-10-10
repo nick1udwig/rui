@@ -8,7 +8,7 @@ use rui_protocol_core::{
     resources::{MemoryReservation, ResourceContext, ResourceScope},
     session::ReceiverLimits,
 };
-use rui_transport::{codec, proto as p, TransportError};
+use rui_wire::{codec, proto as p, WireError as TransportError};
 use serde::Serialize;
 use std::collections::VecDeque;
 const PROFILES: &[&str] = &[

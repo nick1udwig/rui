@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }
-rui-transport = { path = "../transport", default-features = false }
+rui-wire = { path = "../wire" }
 prost = "0.13"
 thiserror = "2"
 sha2 = "0.10"

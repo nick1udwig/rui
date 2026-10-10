@@ -1,0 +1,13 @@
+[package]
+name = "rui-wire"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rui-protocol-core = { path = "../protocol-core" }
+prost = "0.13"
+thiserror = "2"
+zeroize = "1"
+
+[build-dependencies]
+prost-build = "0.13"

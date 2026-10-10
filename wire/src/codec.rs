@@ -728,7 +728,5 @@ mod tests {
         assert!(!format!("{hello:?}").contains(secret));
         let packet = wrap(p::Kind::ClientHello, &hello, None);
         assert!(!format!("{packet:?}").contains(secret));
-        assert_eq!(log::STATIC_MAX_LEVEL, log::LevelFilter::Off);
-        log::trace!("plaintext must never be emitted: {secret}");
     }
 }

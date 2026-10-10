@@ -9,6 +9,8 @@ native = ["dep:rui-host-broker", "dep:sha2", "dep:getrandom", "dep:httparse", "d
 
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }
+rui-wire = { path = "../wire" }
+rui-client-core = { path = "../client-core" }
 rui-host-broker = { path = "../host-broker", optional = true }
 prost = "0.13"
 thiserror = "2"
@@ -22,9 +24,6 @@ tokio-rustls = { optional = true, version = "0.26", default-features = false, fe
 rustls = { optional = true, version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tokio-tungstenite = { optional = true, version = "0.30", default-features = false, features = ["handshake"] }
 futures-util = { optional = true, version = "0.3", default-features = false, features = ["sink", "std", "async-await"] }
-
-[build-dependencies]
-prost-build = "0.13"
 
 [dev-dependencies]
 serde_json = "1"

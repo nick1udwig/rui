@@ -925,7 +925,7 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "rui-protocol-core",
- "rui-transport",
+ "rui-wire",
  "serde",
  "sha2",
  "thiserror",
@@ -1025,10 +1025,11 @@ dependencies = [
  "httparse",
  "log",
  "prost",
- "prost-build",
+ "rui-client-core",
  "rui-client-desktop",
  "rui-host-broker",
  "rui-protocol-core",
+ "rui-wire",
  "rustls",
  "serde_json",
  "sha2",
@@ -1036,6 +1037,17 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
+ "zeroize",
+]
+
+[[package]]
+name = "rui-wire"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+ "rui-protocol-core",
+ "thiserror",
  "zeroize",
 ]
 

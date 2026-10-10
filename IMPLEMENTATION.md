@@ -25,6 +25,13 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+L2's first slice extracts `rui-wire` for generated session schema, bounded codec,
+portable errors and redacted/zeroizing ownership. Compatibility transport exports
+preserve existing callers and the dependency cycle is removed. The
+[behavior matrix](docs/client-behavior-matrix.md) records shared behavior, gaps and
+send/cancellation ownership. Full native actor migration remains outstanding;
+its existing queue and supported command families are preserved.
+
 C5 adds bounded read-only observed HTML views, explicit stale/unavailable/partial
 and redacted state, immediate scope clearing and one disposable worker per source.
 Fresh private-bus checks keep a healthy view responsive while another source is
