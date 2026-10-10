@@ -1,10 +1,9 @@
 # Implementation objectives
 
-The authorized scope is RFC milestones M0–M5 and their 79 conformance cases,
-including the P1 measurement cases. Deferred features in RFC section 14 remain
-outside that scope. Completion requires executable evidence, not the existence
-of an API or a test with a matching name. The original design/specification files
-remain historical inputs; acceptance is tracked separately.
+The authorized scope is RFC milestones M0–M5 and their 79 conformance cases, including the P1 measurement cases.
+Deferred features in RFC section 14 remain outside that scope.
+Completion requires executable evidence, not the existence of an API or a test with a matching name.
+The original design/specification files remain historical inputs; acceptance is tracked separately.
 
 | Gate | Required result | Current remaining work |
 |---|---|---|
@@ -15,11 +14,8 @@ remain historical inputs; acceptance is tracked separately.
 | M4 | Explicitly supported isolated compositor/session with geometry/modality/focus/scaling, local takeover and permissioned region input | Actual isolated EIS source/two-mirror baseline, host layout/repeat, topology, cursor and unequal input geometry accepted; direct/local click comparison, stale-wire routing, app-only network denial remain; four causal held-input cleanup variants accepted |
 | M5 | Independent semantic-only client, fault injection, fuzz/property/churn tests, named-hardware measurements | Independent semantic client, generated properties, actual TLS fault/churn checks and named-hardware CPU/network/native latency measurements accepted; final case audit and combined regression remain |
 
-Current parallel tracks extend the accepted foundations: desktop mirrors,
-typed GTK source interactions and lifecycle, and the common command ledger plus
-expanded host/transport integration. Input/IME interpretation and acceptance
-integration are managed alongside those tracks. Features are reviewed and
-corrected before logical commits. Milestones remain open until their complete
-gate is demonstrated.
-See [the complete case audit](conformance/CASES.md) for evidence and remaining
-work for every specified case.
+Current parallel tracks extend the accepted foundations: desktop mirrors, typed GTK source interactions and lifecycle, and the common command ledger plus expanded host/transport integration.
+Input/IME interpretation and acceptance integration are managed alongside those tracks.
+Features are reviewed and corrected before logical commits.
+Milestones remain open until their complete gate is demonstrated.
+See [the complete case audit](conformance/CASES.md) for evidence and remaining work for every specified case.
