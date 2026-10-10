@@ -1,3 +1,10 @@
+L3 contract slice: complete Rust model declarations and owned state copies are
+available to custom transports/renderers. Concurrent credential requests reject;
+listener disposal stops old-generation processing. The complete Python/native/WASM
+serialization fixture covers all six records and maximum-width clocks/typed values.
+See docs/browser-integration.md. Semantic configuration, capability reporting,
+cache-loss APIs and clean external consumer validation are still tracked separately.
+
 # Implementation status
 
 The authorized scope is RFC milestones M0–M5 and their 79 conformance cases, including the P1 measurement cases.

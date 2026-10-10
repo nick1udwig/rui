@@ -69,6 +69,7 @@ export interface BrowserOptions {
   onEvent?: (event: BrowserEvent) => void;
   timings?: Timings;
 }
+export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "disposed";
 export type BrowserEvent =
   | SessionEvent
   | { type: "disconnected" }
@@ -95,6 +96,8 @@ export class BrowserClient {
   private connectReject: ((error: Error) => void) | undefined;
   private connectionDeadline: ReturnType<typeof setTimeout> | undefined;
   private active = false;
+  private connecting = false;
+  private connection: ConnectionState = "idle";
   private disposed = false;
   private visible = document.visibilityState === "visible";
   private canControl = false;
@@ -160,11 +163,17 @@ export class BrowserClient {
     return () => this.listeners.delete(listener);
   }
   private emit(event: BrowserEvent): void {
-    for (const listener of this.listeners) listener(event);
+    const generation = this.generation;
+    for (const listener of [...this.listeners]) {
+      if (!this.listeners.has(listener)) continue;
+      listener(event);
+      if (this.disposed || generation !== this.generation) break;
+    }
   }
   get state(): State | undefined {
-    return this.snapshot;
+    return this.snapshot && structuredClone(this.snapshot);
   }
+  get connectionState(): ConnectionState { return this.connection; }
   get hasControl(): boolean {
     return (
       this.active &&
@@ -190,8 +199,17 @@ export class BrowserClient {
     if (this.active) this.schedule();
   }
   async connect(): Promise<void> {
-    if (this.disposed || this.socket)
+    if (this.disposed || this.socket || this.connecting)
       throw new Error("client is disposed or already connected");
+    this.connecting = true;
+    this.connection = "connecting";
+    try { await this.connectInner(); }
+    finally {
+      this.connecting = false;
+      if (this.connection === "connecting") this.connection = "disconnected";
+    }
+  }
+  private async connectInner(): Promise<void> {
     const generation = ++this.generation;
     const supplied = await this.options.credential();
     const credential = supplied.slice();
@@ -260,6 +278,7 @@ export class BrowserClient {
               this.controlWanted = false;
               this.emit({ type: "control", granted: false });
             }
+            if (generation !== this.generation || this.disposed) return;
             if (event.type === "commandResult") {
               this.causal.result(event.sequence, event.status, event.revision);
               this.options.timings?.result(
@@ -270,6 +289,7 @@ export class BrowserClient {
             }
             if (event.type === "connected") {
               this.canControl = event.can_control;
+              this.connection = "connected";
               clearTimeout(timeout);
               resolve();
             }
@@ -334,6 +354,7 @@ export class BrowserClient {
               this.invalidate();
             }
             if (event.type !== "none") this.emit(event);
+            if (generation !== this.generation || this.disposed) return;
             this.flush();
           } catch (error) {
             fail(error instanceof Error ? error.message : String(error));
@@ -571,6 +592,7 @@ export class BrowserClient {
     this.flush();
   }
   disconnect(): void {
+    if (!this.disposed) this.connection = "disconnected";
     this.options.timings?.disconnect();
     this.resourceStarted = undefined;
     this.connectReject?.(new Error("connection cancelled"));
@@ -596,8 +618,9 @@ export class BrowserClient {
   }
   dispose(): void {
     if (this.disposed) return;
-    this.disconnect();
     this.disposed = true;
+    this.connection = "disposed";
+    this.disconnect();
     document.removeEventListener("visibilitychange", this.visibility);
     this.session.close();
     this.session.free();

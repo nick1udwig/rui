@@ -34,7 +34,7 @@ export interface Radii {
   bottom_left: Size;
 }
 export interface Ref {
-  kind: string;
+  kind: "Surface" | "Scene" | "Semantic" | "Text" | "Binding" | "Session";
   id: Id;
 }
 export interface Stop {
@@ -107,6 +107,8 @@ export interface Scene {
 export interface Surface {
   id: Id;
   version: bigint;
+  role: "Toplevel" | "Popup" | "Tooltip" | "Shell";
+  parent: Ref | null;
   desktop_rect: Rect;
   content_size: Size;
   transform: Affine;
@@ -114,30 +116,70 @@ export interface Surface {
   opacity: number;
   stacking_order: bigint;
   mapped: boolean;
+  focused: boolean;
+  modal_for: Ref | null;
+  semantic_root: Ref | null;
+  input_region: Rect[];
+  routing_token: number[];
+  semantic_coverage: "Rich" | "Partial" | "Opaque";
+  capture_consistency: "Coherent" | "Observed";
+  source_capture_tokens: number[][];
+  unsupported_features: string[];
   scene_root: Ref | null;
   visual_coverage: "Complete" | "Partial" | "Unsupported";
+}
+export type TriState = "False" | "True" | "Unknown";
+export type TypedValue = { Text: string } | { Boolean: boolean } | { Number: number } | { Integer: bigint };
+export interface Action { id: string; schema_version: number }
+export interface Relation {
+  kind: "LabelFor" | "LabelledBy" | "Controls" | "Describes" | "MemberOf";
+  targets: Ref[];
+}
+export interface Collection {
+  version: bigint;
+  items: Ref[];
+  total_count: bigint | null;
+  materialization: "Full" | "Partial";
+  selected_items: Ref[];
 }
 export interface Semantic {
   id: Id;
   version: bigint;
-  role: string;
+  role: "Root" | "Group" | "Button" | "Checkbox" | "TextField" | "Label" | "List" | "ListItem" | "CustomCanvas";
   label: string | null;
-  actions: { id: string; schema_version: number }[];
+  description: string | null;
+  value: TypedValue | null;
+  actions: Action[];
+  children: Ref[];
+  relations: Relation[];
   text: Ref | null;
-  states: Map<string, string>;
+  collection: Collection | null;
+  bindings: Ref[];
+  semantic_group: Ref | null;
+  reading_order: bigint | null;
+  sensitivity: "Public" | "Sensitive" | "Redacted";
+  completeness: "Full" | "Incomplete" | "Opaque";
+  states: ReadonlyMap<"Disabled" | "Checked" | "Selected" | "Expanded" | "ReadOnly", TriState>;
 }
 export interface Text {
   id: Id;
   version: bigint;
   text_version: bigint;
   content: string | null;
-  status: string;
+  status: "Available" | "Unavailable" | "Redacted";
   selection: { anchor: bigint; focus: bigint } | null;
   editable: boolean;
   selectable: boolean;
 }
+export interface Cursor {
+  position: Point;
+  hotspot: Point;
+  appearance: { Shape: "Default" | "Text" | "Pointer" | "Hidden" } | { Outline: Digest };
+}
 export interface SessionState {
   id: Id;
+  version: bigint;
+  cursor: Cursor | null;
   canvas: Rect;
   focus: Ref | null;
   focus_surface: Ref | null;
@@ -145,6 +187,8 @@ export interface SessionState {
 }
 export interface Binding {
   id: Id;
+  version: bigint;
+  scenes: Ref[];
   surface: Ref;
   semantics: Ref[];
   interaction_region: Rect | null;

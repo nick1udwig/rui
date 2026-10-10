@@ -52,6 +52,16 @@ def main():
         fixtures.append({**request, 'accepted': response['accepted'], 'revision': str(state['revision']),
                          'records': [{'id': str(record['id']), 'version': str(record['version'])} for record in records]})
     (package / 'fixtures.json').write_text(json.dumps(fixtures) + '\n')
+    import importlib.util
+    contract_module = importlib.util.spec_from_file_location('rui_contract', ROOT / 'tests/contract.py')
+    contract = importlib.util.module_from_spec(contract_module)
+    import sys
+    sys.path.insert(0, str(REPOSITORY))
+    contract_module.loader.exec_module(contract)
+    complete_model = contract.fixture(target / 'release/examples/replay')
+    for destination in (package, browser_package):
+        (destination / 'contract.json').write_text(json.dumps(complete_model) + '\n')
+
     body = (package / 'rui_client_wasm_bg.wasm').read_bytes()
     print(json.dumps({'wasm_bytes': len(body), 'wasm_gzip_bytes': len(gzip.compress(body, mtime=0)), 'native_oracle_prefixes': len(fixtures)}))
 

@@ -44,7 +44,8 @@ try {
     const result = await page.evaluate(async () => {
       const { checkPixels } = await import("/tests/pixels.mjs");
       const { measure } = await import("/tests/benchmark.mjs");
-      return { ...checkPixels(), ...measure(false) };
+      const { checkContract } = await import("/tests/contract.mjs");
+      return { ...checkPixels(), ...measure(false), ...(await checkContract()) };
     });
     console.log(
       JSON.stringify({ runtime: name, version: browser.version(), ...result }),

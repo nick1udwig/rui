@@ -99,6 +99,11 @@ impl Receiver {
         Ok(self.receiver.state().map_err(error)?.revision)
     }
 
+    /// Owned serialization of all six validated record variants.
+    pub fn state(&self) -> Result<JsValue, JsError> {
+        value(self.receiver.state().map_err(error)?)
+    }
+
     #[wasm_bindgen(js_name = recordIds)]
     pub fn record_ids(&self) -> Result<Vec<u64>, JsError> {
         Ok(self
