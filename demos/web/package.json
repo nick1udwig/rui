@@ -1,0 +1,6 @@
+{
+  "name":"rui-browser-demo","private":true,"version":"0.1.0","type":"module",
+  "scripts":{"dev":"vite --host 0.0.0.0","build":"tsc --noEmit && vite build","preview":"vite preview --host 0.0.0.0"},
+  "dependencies":{"@rui/client-browser":"file:../../client-browser"},
+  "devDependencies":{"vite":"8.3.4","typescript":"5.9.3","@types/node":"26.6.5"}
+}

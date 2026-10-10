@@ -33,6 +33,9 @@ use zeroize::{Zeroize, Zeroizing};
 #[derive(Clone)]
 pub struct ServerConfig {
     pub diagnostics: Option<Arc<Diagnostics>>,
+    /// Exact browser Origins authorized for the upgrade. Empty rejects browsers.
+    /// Offered compression is never selected. Native clients require the limit header.
+    pub allowed_browser_origins: Vec<String>,
     pub max_connections: usize,
     pub max_message_bytes: usize,
     pub handshake_timeout: Duration,
@@ -46,6 +49,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             diagnostics: None,
+            allowed_browser_origins: Vec::new(),
             max_connections: 16,
             max_message_bytes: 1024 * 1024,
             handshake_timeout: Duration::from_secs(5),
@@ -228,7 +232,11 @@ async fn connection(
         .map_err(|_| TransportError::Tls)?;
     let (mut socket, ceiling) = tokio::time::timeout(
         shared.config.handshake_timeout,
-        websocket::server_upgrade(stream, shared.config.max_message_bytes),
+        websocket::server_upgrade(
+            stream,
+            shared.config.max_message_bytes,
+            &shared.config.allowed_browser_origins,
+        ),
     )
     .await
     .map_err(|_| TransportError::Deadline)??;

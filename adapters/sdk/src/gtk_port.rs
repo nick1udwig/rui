@@ -51,6 +51,7 @@ impl Drop for PendingWork {
 }
 enum OwnerRequest {
     Protocol(Request),
+    Refresh,
     #[cfg(feature = "gtk-fixture-hooks")]
     Fixture(FixtureMutation),
 }
@@ -207,6 +208,11 @@ impl GtkProducerPort {
     pub fn memory_budget(&self) -> MemoryBudget {
         self.0.budget.clone()
     }
+    /// Called by the local source integration, never by an unauthenticated peer.
+    /// Serialize local publication with protocol commands on the source owner.
+    pub fn refresh_if_changed(&self, now: u64) -> PortFuture<'_> {
+        self.enqueue(OwnerRequest::Refresh, now, REQUEST_CHARGE)
+    }
     #[cfg(feature = "gtk-fixture-hooks")]
     pub fn trusted_fixture_mutation(&self, mutation: FixtureMutation, now: u64) -> PortFuture<'_> {
         self.enqueue(OwnerRequest::Fixture(mutation), now, REQUEST_CHARGE)
@@ -353,6 +359,15 @@ fn run_owner(mut host: GtkCommandHost, queue: mpsc::Receiver<Work>, priority: Ar
                         request,
                         clock,
                     ),
+                    OwnerRequest::Refresh => {
+                        if !host.source_alive {
+                            Err(TransportError::Closed)
+                        } else {
+                            host.refresh_if_changed()
+                                .map(|_| (PortReply::Done, None))
+                                .map_err(host_error)
+                        }
+                    }
                     #[cfg(feature = "gtk-fixture-hooks")]
                     OwnerRequest::Fixture(mutation) => host
                         .trusted_fixture_mutation(mutation)

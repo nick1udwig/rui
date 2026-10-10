@@ -1,0 +1,12 @@
+[package]
+name = "rui-client-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rui-protocol-core = { path = "../protocol-core" }
+rui-transport = { path = "../transport", default-features = false }
+prost = "0.13"
+thiserror = "2"
+sha2 = "0.10"
+serde = { version = "1", features = ["derive"] }

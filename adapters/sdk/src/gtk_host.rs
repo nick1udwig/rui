@@ -1196,11 +1196,26 @@ impl GtkCommandHost {
         Ok(())
     }
     pub fn refresh_source(&mut self) -> Result<(), GtkHostError> {
+        self.capture_source(false).map(|_| ())
+    }
+    /// Publish local native changes without creating revisions for idle polls.
+    /// This uses the same fresh capture/verification path as admitted commands.
+    pub fn refresh_if_changed(&mut self) -> Result<bool, GtkHostError> {
+        self.capture_source(true)
+    }
+    fn capture_source(&mut self, only_if_changed: bool) -> Result<bool, GtkHostError> {
         let result = (|| {
             let reply = self.pipe.request(&CaptureRequest {
                 request_id: self.pipe.next_request,
-                kind: "capture",
+                kind: if only_if_changed {
+                    "capture-if-changed"
+                } else {
+                    "capture"
+                },
             })?;
+            if only_if_changed && reply.status == "unchanged" {
+                return Ok(false);
+            }
             if reply.status != "capture" {
                 return Err(GtkHostError::NativePipe);
             }
@@ -1208,7 +1223,8 @@ impl GtkCommandHost {
             install_capture(&capture, &mut self.source, &self.pipe)?;
             self.capture = capture;
             self.publish_all()?;
-            self.pipe.acknowledge_capture(&self.capture)
+            self.pipe.acknowledge_capture(&self.capture)?;
+            Ok(true)
         })();
         if result.is_err() {
             self.mark_source_unavailable(0)?;

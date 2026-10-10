@@ -66,6 +66,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Replay<S> {
 pub(crate) async fn server_upgrade<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
     maximum: usize,
+    allowed_browser_origins: &[String],
 ) -> Result<(WebSocketStream<Replay<S>>, usize), TransportError> {
     let mut header = Vec::with_capacity(1024);
     while !header.ends_with(b"\r\n\r\n") {
@@ -88,13 +89,30 @@ pub(crate) async fn server_upgrade<S: AsyncRead + AsyncWrite + Unpin>(
         .iter()
         .filter(|h| h.name.eq_ignore_ascii_case(LIMIT_HEADER))
         .collect();
-    if values.len() != 1 {
-        return Err(TransportError::Protocol);
-    }
-    let requested = std::str::from_utf8(values[0].value)
-        .map_err(|_| TransportError::Protocol)?
-        .parse::<usize>()
-        .map_err(|_| TransportError::Protocol)?;
+    let origins: Vec<_> = request
+        .headers
+        .iter()
+        .filter(|h| h.name.eq_ignore_ascii_case("origin"))
+        .collect();
+    let browser = match origins.as_slice() {
+        [] => false,
+        [origin]
+            if allowed_browser_origins
+                .iter()
+                .any(|allowed| allowed.as_bytes() == origin.value) =>
+        {
+            true
+        }
+        _ => return Err(TransportError::Authentication),
+    };
+    let requested = match values.as_slice() {
+        [] if browser => maximum,
+        [value] => std::str::from_utf8(value.value)
+            .map_err(|_| TransportError::Protocol)?
+            .parse::<usize>()
+            .map_err(|_| TransportError::Protocol)?,
+        _ => return Err(TransportError::Protocol),
+    };
     let ceiling = requested.min(maximum);
     if ceiling < MIN_MESSAGE {
         return Err(TransportError::Limit);
@@ -108,7 +126,7 @@ pub(crate) async fn server_upgrade<S: AsyncRead + AsyncWrite + Unpin>(
         |request: &tokio_tungstenite::tungstenite::handshake::server::Request,
          mut response: tokio_tungstenite::tungstenite::handshake::server::Response| {
             if request.uri().path() != "/rui"
-                || request.headers().contains_key("sec-websocket-extensions")
+                || (!browser && request.headers().contains_key("sec-websocket-extensions"))
                 || request
                     .headers()
                     .get("sec-websocket-protocol")
@@ -344,7 +362,7 @@ mod tests {
     #[tokio::test]
     async fn compression_extension_and_text_are_rejected() {
         let (mut client, server) = tokio::io::duplex(4096);
-        let handler = tokio::spawn(server_upgrade(server, 512));
+        let handler = tokio::spawn(server_upgrade(server, 512, &[]));
         client.write_all(b"GET /rui HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Protocol: rui.v1\r\nSec-WebSocket-Extensions: permessage-deflate\r\nx-rui-envelope-limit: 512\r\n\r\n").await.unwrap();
         assert!(handler.await.unwrap().is_err());
         let (peer, reader) = tokio::io::duplex(4096);
@@ -387,5 +405,54 @@ mod subprotocol_test {
                 .is_err()
         );
         remote.await.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod browser_tests {
+    use super::*;
+    async fn upgrade(origin: Option<&str>, allowed: Vec<String>) -> bool {
+        let (client, server) = tokio::io::duplex(8192);
+        let host = tokio::spawn(async move { server_upgrade(server, 512, &allowed).await });
+        let mut request = "wss://localhost/rui".into_client_request().unwrap();
+        request
+            .headers_mut()
+            .insert("sec-websocket-protocol", "rui.v1".parse().unwrap());
+        request.headers_mut().insert(
+            "sec-websocket-extensions",
+            "permessage-deflate; client_max_window_bits"
+                .parse()
+                .unwrap(),
+        );
+        if let Some(origin) = origin {
+            request
+                .headers_mut()
+                .insert("origin", origin.parse().unwrap());
+        }
+        let result = tokio_tungstenite::client_async(request, client).await;
+        match result {
+            Ok((_socket, response)) => {
+                assert!(!response.headers().contains_key("sec-websocket-extensions"));
+                assert_eq!(
+                    response.headers().get("sec-websocket-protocol").unwrap(),
+                    "rui.v1"
+                );
+                assert_eq!(host.await.unwrap().unwrap().1, 512);
+                true
+            }
+            Err(_) => {
+                assert!(host.await.unwrap().is_err());
+                false
+            }
+        }
+    }
+    #[tokio::test]
+    async fn browser_origin_is_exact_opt_in_and_compression_is_never_selected() {
+        let allow = vec!["http://localhost:5173".into()];
+        assert!(upgrade(Some("http://localhost:5173"), allow.clone()).await);
+        assert!(!upgrade(Some("http://localhost:5173"), vec![]).await);
+        assert!(!upgrade(Some("http://localhost.evil:5173"), allow.clone()).await);
+        assert!(!upgrade(Some("http://localhost:5174"), allow.clone()).await);
+        assert!(!upgrade(None, allow).await);
     }
 }

@@ -1,0 +1,15 @@
+{
+  "name": "@rui/client-wasm-feasibility",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:wasm": "python3 build.py",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node tests/run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,10 +1,8 @@
 # Conformance acceptance evidence
 
-All 79 cases from the unchanged historical `conformance.yaml` are accepted for
-the declared fixtures and backend: 77 P0 cases and both P1 measurements. This
-audit maps each case once to its implementation, retained evidence and regression
-coverage. Acceptance is limited to the measured constrained GTK corpus and
-isolated session backend; it does not extend to arbitrary applications or desktops.
+All 79 cases from the unchanged historical `conformance.yaml` are accepted for the declared fixtures and backend: 77 P0 cases and both P1 measurements.
+This audit maps each case once to its implementation, retained evidence and regression coverage.
+Acceptance is limited to the measured constrained GTK corpus and isolated session backend; it does not extend to arbitrary applications or desktops.
 The P1 measurements report the missed provisional 60 Hz budget explicitly.
 [STATUS.md](STATUS.md) records milestone scope and final verification.
 

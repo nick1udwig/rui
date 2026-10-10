@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "ESNext.Disposable", "DOM"],
+    "strict": true,
+    "rootDir": "tests",
+    "outDir": "test-dist",
+    "noEmitOnError": true
+  },
+  "include": ["tests/smoke.ts"]
+}

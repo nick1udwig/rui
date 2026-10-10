@@ -154,6 +154,25 @@ class NativeBoundsTests(unittest.TestCase):
                 self.assertEqual(len(dispatcher.artifacts), 1)
                 self.assertFalse((output / name).exists())
 
+    def test_local_poll_only_captures_changed_source_and_respects_consumption(self):
+        dispatcher = NativeDispatcher.__new__(NativeDispatcher)
+        dispatcher.corpus = SimpleNamespace(source=SimpleNamespace(source_revision=12))
+        dispatcher.captured_source_revision = 12
+        dispatcher.promised_artifact = None
+        dispatcher.pending = None
+        replies, captures = [], []
+        dispatcher.reply = lambda request_id, status: replies.append((request_id, status))
+        dispatcher.request_capture = lambda: captures.append(dispatcher.pending)
+        dispatcher.handle({'request_id': 1, 'kind': 'capture-if-changed'})
+        self.assertEqual(replies, [(1, 'unchanged')])
+        self.assertEqual(captures, [])
+        dispatcher.corpus.source.source_revision += 1
+        dispatcher.handle({'request_id': 2, 'kind': 'capture-if-changed'})
+        self.assertEqual(captures, [(2, 'capture')])
+        dispatcher.promised_artifact = 'whole-0002.json'
+        with self.assertRaisesRegex(ValueError, 'private-unconsumed-capture'):
+            dispatcher.handle({'request_id': 3, 'kind': 'capture-if-changed'})
+
 
 if __name__ == '__main__':
     unittest.main()

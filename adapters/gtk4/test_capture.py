@@ -115,6 +115,24 @@ class CaptureBoundsTests(unittest.TestCase):
             self.assertIn(surface, source.retired_object_ids)
             self.assertEqual(list(Path(directory).iterdir()), [])
 
+    def test_gtk_caret_opacity_endpoints_are_exact_and_partial_opacity_still_declines(self):
+        paint = Gdk.RGBA()
+        paint.parse('#111111')
+        bounds = Graphene.Rect().init(0, 0, 1, 16)
+        child = Gsk.ColorNode.new(paint, bounds)
+        for opacity in (0.0, 0.5, 1.0):
+            exporter = Exporter(CoherentSource(), 'caret', 1)
+            node = Gsk.OpacityNode.new(child, opacity)
+            root = exporter.export(node)
+            record = next(record for record in exporter.scene if record['id'] == root)
+            self.assertEqual(record['primitive']['type'], 'Group')
+            if opacity == 0.5:
+                self.assertEqual([gap['reason'] for gap in exporter.gaps], ['unsupported-opacity-node'])
+            else:
+                self.assertEqual(exporter.gaps, [])
+                self.assertEqual(len(record['children']), int(opacity))
+                self.assertTrue(all(record['opacity'] == 1 for record in exporter.scene))
+
     def test_supported_deep_native_tree_is_classified_before_python_recursion(self):
         paint = Gdk.RGBA()
         paint.parse('#ffffff')
