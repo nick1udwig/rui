@@ -329,6 +329,8 @@ export class BrowserClient {
             }
             if (event.type === "reset") {
               this.causal.clear();
+              this.renderer.reset?.();
+              this.snapshot = undefined;
               this.invalidate();
             }
             if (event.type !== "none") this.emit(event);
@@ -578,6 +580,8 @@ export class BrowserClient {
     ++this.generation;
     this.active = false;
     this.causal.clear();
+    this.renderer.reset?.();
+    this.snapshot = undefined;
     this.canControl = false;
     this.acquisition = false;
     this.controlWanted = false;

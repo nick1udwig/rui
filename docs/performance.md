@@ -1,5 +1,11 @@
 # Integrated load measurements
 
+The [P4 browser optimization](browser-render-performance.md) retains three-run
+[before](../fixtures/performance/browser-p4-before/summary.json) and
+[after](../fixtures/performance/browser-p4-after/summary.json) small-demo reports,
+plus a separately measured renderer fixture. They do not supersede the native
+large-workload contract or establish the remaining end-to-end targets.
+
 ## Stage instrumentation and warm browser runner (P1)
 
 Set `RUI_TIMINGS=4096` (at most 16,384 samples) to enable numeric native/source

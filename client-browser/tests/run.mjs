@@ -43,7 +43,8 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     const result = await page.evaluate(async () => {
       const { checkPixels } = await import("/tests/pixels.mjs");
-      return checkPixels();
+      const { measure } = await import("/tests/benchmark.mjs");
+      return { ...checkPixels(), ...measure(false) };
     });
     console.log(
       JSON.stringify({ runtime: name, version: browser.version(), ...result }),

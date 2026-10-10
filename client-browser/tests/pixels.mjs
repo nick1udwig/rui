@@ -344,6 +344,85 @@ export function checkPixels() {
     rejected = true;
   }
   assert(rejected, "split surrogate accepted");
+  const viewport = { width: 32, height: 32, origin: { x: 0, y: 0 }, scale: 1 };
+  renderer.dispose();
+  renderer = new CanvasRenderer(canvas, 1 << 20);
+  const warm = state([scene(3, solid(red))]);
+  renderer.render(warm, viewport, () => rvp());
+  const first = renderer.allocationStats();
+  for (let i = 0; i < 40; i++) {
+    const changed = state([scene(3, solid(i % 2 ? green : blue))]);
+    changed.revision = BigInt(i + 2);
+    renderer.render(changed, viewport, () => rvp());
+    close(
+      pixel(canvas, 4, 4),
+      i % 2 ? [0, 255, 0, 255] : [0, 0, 255, 255],
+      "paint-only update",
+    );
+  }
+  const warmStats = renderer.allocationStats();
+  assert(
+    warmStats.frameAllocations === first.frameAllocations &&
+      warmStats.outputAllocations === first.outputAllocations,
+    "warm frame allocation churn",
+  );
+  assert(
+    warmStats.maskBuilds === first.maskBuilds && warmStats.maskHits >= 40,
+    "paint-only update rebuilt coverage",
+  );
+  // Clear pixels after removal, then recompute clipping/transform under same ID.
+  renderer.render(state([scene(3, "Group")]), viewport, () => rvp());
+  close(
+    pixel(canvas, 4, 4),
+    [0, 0, 0, 0],
+    "retired pixels survived reused frame",
+  );
+  renderer.render(
+    state([
+      scene(
+        3,
+        solid(red),
+        [],
+        0.5,
+        { ...I, tx: 8 },
+        { x: 0, y: 0, width: 8, height: 8 },
+      ),
+    ]),
+    viewport,
+    () => rvp(),
+  );
+  close(pixel(canvas, 4, 4), [0, 0, 0, 0], "old transform mask survived");
+  close(
+    pixel(canvas, 10, 4),
+    [255, 0, 0, 128],
+    "changed transform and opacity",
+  );
+  assert(
+    renderer.allocationStats().peakBytes <= 1 << 20,
+    "owned renderer ceiling exceeded",
+  );
+  renderer.reset();
+  assert(
+    renderer.allocationStats().ownedBytes === 0,
+    "scope reset retained derived ownership",
+  );
+  renderer.render(state([scene(3, solid(green))]), viewport, () => rvp());
+  close(
+    pixel(canvas, 4, 4),
+    [0, 255, 0, 255],
+    "same ID after scope reset reused unrelated pixels",
+  );
+  for (const size of [16, 48, 32])
+    renderer.render(
+      state([scene(3, solid(red))]),
+      { ...viewport, width: size, height: size },
+      () => rvp(),
+    );
+  renderer.dispose();
+  assert(
+    renderer.allocationStats().ownedBytes === 0,
+    "disposed renderer retains buffers",
+  );
   let limited = false;
   try {
     renderer.render(
@@ -370,5 +449,6 @@ export function checkPixels() {
     unicodeScalars: true,
     limitsAndDisposal: true,
     boundedTimings: true,
+    frameAndCoverageReuse: true,
   };
 }

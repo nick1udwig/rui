@@ -43,7 +43,7 @@ unbind();
 client.dispose();
 ```
 
-The credential provider belongs to the caller. Credentials never enter a URL, browser storage or the bundle. `client.disconnect()` retains committed state and unresolved commands; `dispose()` releases the Rust receiver, event listeners, timers, canvas and renderer caches. Caller-retained state copies remain caller-owned.
+The credential provider belongs to the caller. Credentials never enter a URL, browser storage or the bundle. `client.disconnect()` clears JavaScript state and renderer buffers while Rust retains its guarded committed state and unresolved commands; `dispose()` releases the Rust receiver, event listeners, timers, canvas and renderer caches. Caller-retained state copies remain caller-owned.
 
 An ambiguous command is queried after reconnect. `retryPending()` explicitly resends its original bytes, including the original sequence and lease; it never recreates an edit under new authority. A new epoch retires old pending commands. No automatic reconnect or automatic new control grant is inferred.
 
@@ -54,6 +54,8 @@ IDs, revisions, versions and scalar indices use `bigint`. Public command methods
 `renderer.browser-canvas-coverage-linear.v1` uses Canvas for vector coverage. Paint is composited separately in premultiplied linear sRGB, including isolated group/surface opacity and premultiplied gradient interpolation. The final transfer uses a 16-bit lookup with less than one output-byte error. No DOM fonts, text reshaping, screenshots or transmitted raster resources are used. Local coverage masks and output pixels are renderer-owned diagnostic/display data.
 
 Browser coverage can differ from the pinned native Cairo reference; this is a separate experimental renderer profile, not a claim of bit-identical Cairo output. Glyphs use the host's verified outline, size and position. Unsupported fonts or incomplete mapped surfaces fail explicitly.
+
+Custom renderers should implement `reset()` to clear scope-bound pixels and caches on reset or disconnect. `CanvasRenderer` reuses its linear/output buffers and geometry coverage, with full repaint each frame. Color-only changes reuse coverage; all transforms, clips, path identities and stroke geometry remain in the cache key. Its fourth constructor argument `false` selects the allocation/paint reference path for pixel comparisons. `allocationStats()` reports bounded owned references; browser allocator capacity and native backend allocations remain separate.
 
 The renderer bounds its viewport to 4,194,304 pixels, work to 67,108,864 pixel visits per frame, depth to 128, path bodies to 4 MiB/65,536 commands and working buffers plus caches to 64 MiB. Rust's negotiated ledger is separate from JavaScript copies, native browser socket buffers and allocator heap capacity. The default socket adapter rejects messages above the negotiated ceiling before the WASM copy and bounds outgoing buffered bytes; the browser may allocate an incoming WebSocket frame before delivering it to JavaScript.
 

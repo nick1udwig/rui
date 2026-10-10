@@ -127,6 +127,8 @@ export interface Renderer {
     resources: (digest: Digest) => Uint8Array,
   ): void;
   dispose(): void;
+  /** Discard all scope-bound derived state before reset/reconnect/revocation. */
+  reset?(): void;
 }
 /** Canvas provides vector coverage only. All paint interpolation, compositing,
  * isolated opacity and display transfer are explicit premultiplied linear sRGB.
@@ -139,11 +141,20 @@ export class CanvasRenderer implements Renderer {
   private masks = new Map<string, Mask>();
   private cacheBytes = 0;
   private workingBytes = 0;
+  private bufferBytes = 0;
+  private frame: Float32Array | undefined;
+  private image: ImageData | undefined;
+  private frameAllocations = 0;
+  private outputAllocations = 0;
+  private maskBuilds = 0;
+  private maskHits = 0;
+  private peakBytes = 0;
   private work = 0;
   constructor(
     readonly canvas: HTMLCanvasElement,
     readonly memoryLimit = 64 * 1024 * 1024,
     readonly timings?: Timings,
+    readonly optimized = true,
   ) {
     const output = canvas.getContext("2d"),
       context = this.scratch.getContext("2d", { willReadFrequently: true });
@@ -152,14 +163,19 @@ export class CanvasRenderer implements Renderer {
     this.context = context;
   }
   private charge(n: number): void {
-    this.workingBytes += n;
-    if (this.workingBytes + this.cacheBytes > this.memoryLimit) {
+    const working = this.workingBytes + n;
+    if (working + this.cacheBytes + this.bufferBytes > this.memoryLimit) {
       this.paths.clear();
       this.masks.clear();
       this.cacheBytes = 0;
-      if (this.workingBytes > this.memoryLimit)
+      if (working + this.bufferBytes > this.memoryLimit)
         throw new Error("renderer memory limit");
     }
+    this.workingBytes = working;
+    this.peakBytes = Math.max(
+      this.peakBytes,
+      this.workingBytes + this.cacheBytes + this.bufferBytes,
+    );
   }
   private path(d: Digest, resources: (digest: Digest) => Uint8Array): Path {
     const k = key(d),
@@ -332,6 +348,8 @@ export class CanvasRenderer implements Renderer {
       if (depth > 128) throw new Error("scene depth limit");
       const m = multiply(parent, scene.transform),
         c = scene.clip ? [...clips, { matrix: m, rect: scene.clip }] : clips;
+      // The compiled graph is independently owned JS memory, beyond pixels.
+      this.charge(512 + c.length * 160 + scene.children.length * 32);
       const children = scene.children.map((ref) => {
         const r = state.records.get(ref.id);
         if (!r || !("Scene" in r)) throw new Error("missing scene");
@@ -400,10 +418,39 @@ export class CanvasRenderer implements Renderer {
       nodes.length,
     );
     const composed = this.timings ? performance.now() : 0;
-    this.charge(width * height * 24);
+    const bytes = width * height * 24;
+    let frameData: Float32Array;
+    let image: ImageData;
+    if (this.optimized) {
+      if (
+        !this.frame ||
+        this.image?.width !== width ||
+        this.image?.height !== height
+      ) {
+        // Retain the old allocation through replacement to account for overlap.
+        this.charge(bytes);
+        const replacement = new Float32Array(width * height * 4);
+        const output = this.output.createImageData(width, height);
+        this.frame = replacement;
+        this.image = output;
+        this.frameAllocations++;
+        this.outputAllocations++;
+        this.bufferBytes = bytes;
+        this.workingBytes -= bytes;
+      }
+      frameData = this.frame;
+      image = this.image!;
+      frameData.fill(0);
+    } else {
+      this.charge(bytes);
+      frameData = new Float32Array(width * height * 4);
+      image = this.output.createImageData(width, height);
+      this.frameAllocations++;
+      this.outputAllocations++;
+    }
     const frame: Layer = {
       bounds: screen,
-      data: new Float32Array(width * height * 4),
+      data: frameData,
     };
     for (const node of nodes) this.draw(node, frame, resources);
     this.timings?.record(
@@ -413,8 +460,7 @@ export class CanvasRenderer implements Renderer {
       this.work,
     );
     const converted = this.timings ? performance.now() : 0;
-    const image = this.output.createImageData(width, height),
-      out = image.data;
+    const out = image.data;
     for (let i = 0; i < out.length; i += 4) {
       const a = frame.data[i + 3];
       out[i] = display(a ? frame.data[i] / a : 0);
@@ -466,11 +512,14 @@ export class CanvasRenderer implements Renderer {
       return;
     }
     const cacheKey = JSON.stringify(
-      [String(node.id), node.matrix, node.clips, b, node.primitive],
+      this.optimized
+        ? [node.matrix, node.clips, b, coverageGeometry(node.primitive)]
+        : [String(node.id), node.matrix, node.clips, b, node.primitive],
       (_, value) => (typeof value === "bigint" ? String(value) : value),
     );
     let mask = this.masks.get(cacheKey);
     if (!mask) {
+      this.maskBuilds++;
       this.charge(pixels * 5);
       this.scratch.width = b.width;
       this.scratch.height = b.height;
@@ -498,21 +547,30 @@ export class CanvasRenderer implements Renderer {
       for (let i = 0; i < pixels; i++) data[i] = raw[i * 4 + 3];
       mask = { bounds: b, data };
       this.workingBytes -= pixels * 5;
-      this.charge(pixels);
-      this.workingBytes -= pixels;
-      this.cacheBytes += pixels;
+      const retained = pixels + cacheKey.length * 2 + 256;
+      this.charge(retained);
+      this.workingBytes -= retained;
+      this.cacheBytes += retained;
       this.masks.set(cacheKey, mask);
-    }
+    } else this.maskHits++;
     const p = node.primitive,
       constant = Object.values(p)[0].color as Color | undefined;
     const inv = constant ? identity : inverse(node.matrix);
+    const scratch: Color = { red: 0, green: 0, blue: 0, alpha: 0 };
     for (let y = 0; y < b.height; y++)
       for (let x = 0; x < b.width; x++) {
         const alpha = (mask.data[y * b.width + x] / 255) * node.opacity;
         if (!alpha) continue;
         const c =
           constant ??
-          paint(p, point(inv, { x: b.x + x + 0.5, y: b.y + y + 0.5 }));
+          (this.optimized
+            ? paintInto(
+                p,
+                inv.xx * (b.x + x + 0.5) + inv.xy * (b.y + y + 0.5) + inv.tx,
+                inv.yx * (b.x + x + 0.5) + inv.yy * (b.y + y + 0.5) + inv.ty,
+                scratch,
+              )
+            : paint(p, point(inv, { x: b.x + x + 0.5, y: b.y + y + 0.5 })));
         const i =
           ((b.y + y - target.bounds.y) * target.bounds.width +
             b.x +
@@ -596,15 +654,58 @@ export class CanvasRenderer implements Renderer {
     const r = Object.values(p)[0].rect;
     ctx.fillRect(r.x, r.y, r.width, r.height);
   }
-  dispose(): void {
+  allocationStats(): {
+    ownedBytes: number;
+    peakBytes: number;
+    frameAllocations: number;
+    outputAllocations: number;
+    maskBuilds: number;
+    maskHits: number;
+  } {
+    return {
+      ownedBytes: this.bufferBytes + this.cacheBytes + this.workingBytes,
+      peakBytes: this.peakBytes,
+      frameAllocations: this.frameAllocations,
+      outputAllocations: this.outputAllocations,
+      maskBuilds: this.maskBuilds,
+      maskHits: this.maskHits,
+    };
+  }
+  reset(): void {
     this.paths.clear();
     this.masks.clear();
     this.cacheBytes = 0;
+    this.frame?.fill(0);
+    this.image?.data.fill(0);
+    this.frame = undefined;
+    this.image = undefined;
+    this.bufferBytes = 0;
+    this.workingBytes = 0;
     this.scratch.width = 0;
     this.scratch.height = 0;
     this.canvas.width = 0;
     this.canvas.height = 0;
   }
+  dispose(): void {
+    this.reset();
+  }
+}
+/** Coverage does not depend on paint colors, gradient stops or scalar clusters.
+ * Shape, transforms, clips, outline identity and stroke geometry remain keyed. */
+function coverageGeometry(p: Exclude<Primitive, "Group">): unknown {
+  if ("LinearGradient" in p || "RadialGradient" in p || "SolidRect" in p)
+    return { Rect: Object.values(p)[0].rect };
+  if ("GlyphRun" in p) {
+    const {
+      color: _color,
+      scalar_clusters: _clusters,
+      ...geometry
+    } = p.GlyphRun;
+    return { GlyphRun: geometry };
+  }
+  const [kind, fields] = Object.entries(p)[0];
+  const { color: _color, ...geometry } = fields;
+  return { [kind]: geometry };
 }
 function unionPoint(b: Rect, x: number, y: number): Rect {
   if (b === empty) return { x, y, width: 0, height: 0 };
@@ -719,6 +820,38 @@ function paint(p: Primitive, pos: Point): Color {
     );
   }
   return Object.values(p)[0].color;
+}
+function paintInto(p: Primitive, x: number, y: number, output: Color): Color {
+  let stops: Stop[], t: number;
+  if (p !== "Group" && "LinearGradient" in p) {
+    const g = p.LinearGradient,
+      dx = g.end.x - g.start.x,
+      dy = g.end.y - g.start.y;
+    stops = g.stops;
+    t = ((x - g.start.x) * dx + (y - g.start.y) * dy) / (dx * dx + dy * dy);
+  } else if (p !== "Group" && "RadialGradient" in p) {
+    const g = p.RadialGradient;
+    stops = g.stops;
+    t =
+      (Math.hypot(x - g.center.x, y - g.center.y) - g.inner_radius) /
+      (g.outer_radius - g.inner_radius);
+  } else throw new Error("non-gradient paint");
+  if (t < 0) return stops[0].color;
+  if (t > 1) return stops[stops.length - 1].color;
+  let left = stops[0];
+  for (let i = 1; i < stops.length; i++) {
+    const right = stops[i];
+    if (t < right.offset) {
+      const f = (t - left.offset) / (right.offset - left.offset);
+      output.red = left.color.red * (1 - f) + right.color.red * f;
+      output.green = left.color.green * (1 - f) + right.color.green * f;
+      output.blue = left.color.blue * (1 - f) + right.color.blue * f;
+      output.alpha = left.color.alpha * (1 - f) + right.color.alpha * f;
+      return output;
+    }
+    left = right;
+  }
+  return left.color;
 }
 function composite(source: Layer, target: Layer, opacity: number): void {
   const b = source.bounds;

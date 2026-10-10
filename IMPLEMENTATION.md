@@ -74,6 +74,20 @@ replay agrees at all eight retained prefixes (one snapshot, seven transactions).
 GTK retained reconnect and general permission-redaction projections remain outside
 this adapter's scope.
 
+P4's first measured optimization reuses browser linear/output buffers, keeps
+coverage across paint-only changes, and removes per-pixel gradient allocations.
+It preserves full-frame linear composition and the native renderer contract.
+Owned graph/key/buffer overlap is charged under the unchanged ceiling, and scope
+reset/disconnect clears JS state and derived pixels/caches. All three engines
+pass exact cached/reference comparisons and lifecycle/ownership regressions;
+production HTTPS host/browser edits, hidden-tab release and reconnect pass.
+Three 600-frame synthetic runs reduce draw p95 from 5.0–5.3 ms to 3.4–3.5 ms.
+The three 200-action demo comparisons show reduced composition cost, but the
+source-action harness remains about 153 ms p95 and browser latency varies.
+[Reports and limits](docs/browser-render-performance.md) distinguish drawing
+from presentation; generation-bound export, damage and the large native cost
+remain later measured optimizations.
+
 The [implementation plans](docs/implementation-plans.md) expand these four areas into sequenced changes, dependencies, acceptance criteria and validation commands for future implementors.
 
 - **Performance:** the interactive host now captures from dirty notifications and publishes validated warm transactions. Client state export and rendering still need measured optimization; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
