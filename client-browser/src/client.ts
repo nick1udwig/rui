@@ -1,3 +1,4 @@
+import { CausalWait } from "./causal.js";
 import type { Timings } from "./timing.js";
 import init, { Session } from "../wasm/rui_client_wasm.js";
 import { CanvasRenderer, type Renderer } from "./renderer.js";
@@ -100,6 +101,7 @@ export class BrowserClient {
   private acquisition = false;
   private controlWanted = false;
   private snapshot: State | undefined;
+  private causal = new CausalWait();
   private viewport: Viewport;
   private viewportExplicit = false;
   private displayedRevision: bigint | undefined;
@@ -173,7 +175,7 @@ export class BrowserClient {
     );
   }
   get pendingCommands(): number {
-    return this.session.pendingCommands;
+    return Math.max(this.session.pendingCommands, Number(this.causal.pending));
   }
   get memoryUsed(): number {
     return this.session.memoryUsed;
@@ -258,12 +260,14 @@ export class BrowserClient {
               this.controlWanted = false;
               this.emit({ type: "control", granted: false });
             }
-            if (event.type === "commandResult")
+            if (event.type === "commandResult") {
+              this.causal.result(event.sequence, event.status, event.revision);
               this.options.timings?.result(
                 event.sequence,
                 event.revision,
                 event.status,
               );
+            }
             if (event.type === "connected") {
               this.canControl = event.can_control;
               clearTimeout(timeout);
@@ -323,7 +327,10 @@ export class BrowserClient {
               }
               this.schedule();
             }
-            if (event.type === "reset") this.invalidate();
+            if (event.type === "reset") {
+              this.causal.clear();
+              this.invalidate();
+            }
             if (event.type !== "none") this.emit(event);
             this.flush();
           } catch (error) {
@@ -420,6 +427,7 @@ export class BrowserClient {
             );
             this.session.presented(state.revision);
             this.displayedRevision = state.revision;
+            this.causal.present(state.revision);
             this.options.timings?.present(state.revision);
             this.flush();
             this.emit({
@@ -481,7 +489,9 @@ export class BrowserClient {
   activate(target: Id): bigint {
     assertUint64(target);
     if (!this.hasControl) throw new Error("control unavailable");
+    if (this.pendingCommands) throw new Error("wait for the preceding command");
     const seq = this.session.activate(target);
+    this.causal.begin(seq);
     this.options.timings?.command(seq);
     this.flush();
     return seq;
@@ -489,7 +499,9 @@ export class BrowserClient {
   focus(target: Id): bigint {
     assertUint64(target);
     if (!this.hasControl) throw new Error("control unavailable");
+    if (this.pendingCommands) throw new Error("wait for the preceding command");
     const seq = this.session.focus(target);
+    this.causal.begin(seq);
     this.options.timings?.command(seq);
     this.flush();
     return seq;
@@ -527,6 +539,7 @@ export class BrowserClient {
     if (!(capture.token instanceof Uint8Array) || capture.token.length !== 32)
       throw new Error("invalid edit capture");
     if (!this.hasControl) throw new Error("control unavailable");
+    if (this.pendingCommands) throw new Error("wait for the preceding command");
     const seq = this.session.replaceText(
       capture.target,
       capture.revision,
@@ -534,6 +547,7 @@ export class BrowserClient {
       content,
       capture.token,
     );
+    this.causal.begin(seq);
     this.options.timings?.command(seq);
     this.flush();
     return seq;
@@ -543,7 +557,9 @@ export class BrowserClient {
     assertUint64(anchor);
     assertUint64(focus);
     if (!this.hasControl) throw new Error("control unavailable");
+    if (this.pendingCommands) throw new Error("wait for the preceding command");
     const seq = this.session.setSelection(target, anchor, focus);
+    this.causal.begin(seq);
     this.options.timings?.command(seq);
     this.flush();
     return seq;
@@ -561,6 +577,7 @@ export class BrowserClient {
     this.connectionDeadline = undefined;
     ++this.generation;
     this.active = false;
+    this.causal.clear();
     this.canControl = false;
     this.acquisition = false;
     this.controlWanted = false;

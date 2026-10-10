@@ -1,3 +1,4 @@
+import { CausalWait } from "../dist/causal.js";
 import { Timings } from "../dist/timing.js";
 import { CanvasRenderer } from "../dist/renderer.js";
 import { scalarOffset } from "../dist/model.js";
@@ -85,6 +86,28 @@ function rvp(
   return bytes;
 }
 export function checkPixels() {
+  const causal = new CausalWait();
+  causal.begin(1n);
+  causal.result(1n, "Applied", 3n);
+  causal.present(2n);
+  assert(causal.pending, "result bypassed causal presentation");
+  causal.present(3n);
+  assert(!causal.pending, "causal presentation did not release");
+  causal.begin(2n);
+  causal.present(5n);
+  causal.result(2n, "Applied", 4n);
+  assert(!causal.pending, "presentation-before-result blocked edit");
+  causal.begin(3n);
+  causal.result(9n, "Rejected", null);
+  assert(causal.pending, "foreign result retired command");
+  causal.result(3n, "Unknown", null);
+  assert(causal.pending, "unknown outcome permitted fresh edit");
+  causal.clear();
+  causal.begin(4n);
+  causal.result(4n, "Applied", 4n);
+  assert(causal.pending, "old scope presentation unlocked command");
+  causal.result(4n, "Rejected", null);
+  assert(!causal.pending, "rejection blocked known context");
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
   const timings = new Timings(5);

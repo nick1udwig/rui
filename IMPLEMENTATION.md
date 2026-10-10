@@ -64,7 +64,8 @@ separate from captured native clocks; old public revisions cannot be translated
 into a fresh native guard after an ABA. Snapshot fallback covers initial views,
 source replacement and recovery. Fresh native Unicode, restart, whole-view,
 selection/focus, TLS composition and headed production HTTPS browser checks pass.
-The browser's draft capture now waits for the current presentation opportunity.
+The browser's draft capture now waits for the current presentation opportunity
+and for an admitted command's causal frame when its result arrives first.
 Larger-than-message publication and every transaction chunk cut, missing-resource,
 cache-loss, stalled-view and allocation regressions pass. Independent Python/Rust
 replay agrees at all eight retained prefixes (one snapshot, seven transactions).

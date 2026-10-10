@@ -31,7 +31,10 @@ use snapshots. Disconnect destroys the GTK view; GTK retained-delta resume is
 unsupported. View readiness clears on installation and requires current Applied
 plus Presented or SemanticReady. A partial visual update cannot reuse an older
 frame's control authority. Mirror draft capture likewise waits for current
-presentation, not just application.
+presentation, not just application. A bounded single-command wait handles both
+result-before-frame and frame-before-result ordering; receiving a Focus result
+alone cannot unlock an edit from its preceding capture. Unknown outcomes remain
+blocked under the exact command ledger.
 
 Whole publication limits differ from socket message limits. A locally retained
 envelope is decoded through `receive_publication_envelope`; the assembler and
