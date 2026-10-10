@@ -216,6 +216,16 @@ class Exporter:
             if int(node.get_transform().get_category()) < int(Gsk.TransformCategory.__enum_values__[3]):
                 raise Unsupported("non-2d-transform")
             return self.record(path, {"type": "Group"}, [self.export(node.get_child(), path + "/child")], list(node.get_transform().to_2d()))
+        if isinstance(node, Gsk.OpacityNode):
+            # GTK also wraps a fully opaque/hidden caret in an opacity node.
+            # These endpoints have exact source semantics without introducing
+            # the unsupported sRGB partial-opacity compositing contract.
+            opacity = node.get_opacity()
+            if opacity == 1:
+                return self.record(path, {"type": "Group"}, [self.export(node.get_child(), path + "/child")])
+            if opacity == 0:
+                return self.record(path, {"type": "Group"})
+            raise Unsupported("unsupported-opacity-node")
         if isinstance(node, Gsk.ColorNode):
             return self.record(path, {"type": "SolidRect", "rect": rect(node.get_bounds()), "color": color(node.get_color())})
         if isinstance(node, Gsk.ClipNode):

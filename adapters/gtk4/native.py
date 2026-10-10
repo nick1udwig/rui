@@ -56,7 +56,7 @@ def decode_request(body):
 
 
 class NativeDispatcher:
-    def __init__(self, corpus, *, fixture_hooks=False, whole=None):
+    def __init__(self, corpus, *, fixture_hooks=False, whole=None, watchdog_seconds=30):
         self.corpus = corpus
         self.whole = whole
         self.source_generation = int(os.environ.get("RUI_PRIVATE_SOURCE_GENERATION", "1"))
@@ -85,6 +85,7 @@ class NativeDispatcher:
         self.closed = False
         self.current_artifact = None
         self.promised_artifact = None
+        self.captured_source_revision = None
         self.artifacts = {}
         self.composition = NativeComposition(self.composition_context, self.fence, whole.budget if whole is not None else None)
         GLib.timeout_add(10, self.poll_composition)
@@ -107,7 +108,8 @@ class NativeDispatcher:
         # A source/pipe stall terminates this controlled process rather than
         # keeping an admission ambiguous indefinitely. The host has its own
         # deadline and never automatically retries a possibly dispatched call.
-        GLib.timeout_add_seconds(30, self.watchdog)
+        if watchdog_seconds:
+            GLib.timeout_add_seconds(watchdog_seconds, self.watchdog)
 
     def observed_callback(self, *_):
         self.native_callbacks += 1
@@ -148,6 +150,7 @@ class NativeDispatcher:
             view = view[count:]
 
     def captured(self, capture, frame):
+        self.captured_source_revision = frame['source_revision']
         if self.original_capture:
             self.original_capture(capture, frame)
         label = f"{capture.surface_key}-{frame['revision']:04d}"
@@ -164,6 +167,7 @@ class NativeDispatcher:
         self.prune_artifacts()
 
     def whole_captured(self, whole, frame, label):
+        self.captured_source_revision = frame['source_revision']
         files = {label + '.json', label + '.bin', label + '.local.png', label + '.local.bgra'} | {digest + '.rvp' for digest in frame['resources']}
         for surface in frame['surfaces']:
             if surface['mapped']:
@@ -260,7 +264,10 @@ class NativeDispatcher:
                 self.composition.active['guard']['deadline_ns'] = request['deadline_ns']
             self.reply(request_id, 'control')
             return
-        if kind == 'capture':
+        if kind == 'capture-if-changed' and self.captured_source_revision == self.corpus.source.source_revision:
+            self.reply(request_id, 'unchanged')
+            return
+        if kind in ('capture', 'capture-if-changed'):
             self.pending = (request_id, 'capture')
             self.request_capture()
             return

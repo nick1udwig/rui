@@ -6,11 +6,17 @@ edition.workspace = true
 [features]
 desktop = ["dep:gtk4", "dep:rui-transport", "dep:tokio", "dep:prost"]
 gtk-source-probe = ["desktop", "rui-producer-sdk/transport", "rui-producer-sdk/gtk-fixture-hooks"]
+gtk-demo = ["desktop", "dep:rui-producer-sdk", "rui-producer-sdk/transport"]
 
 [[bin]]
 name = "rui-mirror"
 path = "src/bin/rui-mirror.rs"
 required-features = ["desktop"]
+
+[[bin]]
+name = "rui-demo"
+path = "src/bin/rui-demo.rs"
+required-features = ["gtk-demo"]
 
 [[example]]
 name = "native_ime_probe"
@@ -43,6 +49,7 @@ gtk4 = { version = "=0.9.7", optional = true }
 rui-transport = { path = "../transport", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }
 prost = { version = "0.13", optional = true }
+rui-producer-sdk = { path = "../adapters/sdk", optional = true }
 
 [build-dependencies]
 cc = "1"

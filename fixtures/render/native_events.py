@@ -31,6 +31,8 @@ def main():
     x.XTranslateCoordinates.argtypes = [ptr, ulong, ulong, integer, integer, ctypes.POINTER(integer), ctypes.POINTER(integer), ctypes.POINTER(ulong)]
     x.XGetGeometry.argtypes = [ptr, ulong, ctypes.POINTER(ulong), ctypes.POINTER(integer), ctypes.POINTER(integer), ctypes.POINTER(unsigned), ctypes.POINTER(unsigned), ctypes.POINTER(unsigned), ctypes.POINTER(unsigned)]
     x.XResizeWindow.argtypes = [ptr, ulong, unsigned, unsigned]
+    x.XInternAtom.argtypes = [ptr, ctypes.c_char_p, integer]; x.XInternAtom.restype = ulong
+    x.XSendEvent.argtypes = [ptr, ulong, integer, ctypes.c_long, ptr]
     x.XFlush.argtypes = [ptr]; x.XCloseDisplay.argtypes = [ptr]
     xtst.XTestFakeKeyEvent.argtypes = [ptr, unsigned, integer, ulong]
     xtst.XTestFakeButtonEvent.argtypes = [ptr, unsigned, integer, ulong]
@@ -85,7 +87,23 @@ def main():
             if not code or not xtst.XTestFakeKeyEvent(connection, code, pressed, 0):
                 raise RuntimeError('private native key injection failed')
 
-        if operation == 'keys':
+        if operation == 'close' and len(args) == 2:
+            class ClientMessage(ctypes.Structure):
+                _fields_ = [('type', integer), ('serial', ulong), ('send_event', integer),
+                            ('display', ptr), ('window', ulong), ('message_type', ulong),
+                            ('format', integer), ('data', ctypes.c_long * 5)]
+            class Event(ctypes.Union):
+                _fields_ = [('client', ClientMessage), ('padding', ctypes.c_long * 24)]
+            event = Event()
+            event.client.type = 33
+            event.client.display = connection
+            event.client.window = window
+            event.client.message_type = x.XInternAtom(connection, b'WM_PROTOCOLS', 0)
+            event.client.format = 32
+            event.client.data[0] = x.XInternAtom(connection, b'WM_DELETE_WINDOW', 0)
+            if not x.XSendEvent(connection, window, 0, 0, ctypes.byref(event)):
+                raise RuntimeError('private window close failed')
+        elif operation == 'keys':
             held = set()
             try:
                 for name in args[2:]:
