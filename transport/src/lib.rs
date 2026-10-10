@@ -3,18 +3,29 @@
 pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/rui.session.v1.rs"));
 }
+#[cfg(feature = "native")]
 mod client;
 pub mod codec;
+#[cfg(feature = "native")]
 pub mod diagnostics;
+#[cfg(feature = "native")]
 pub mod pairing;
+#[cfg(feature = "native")]
 pub mod producer;
+#[cfg(feature = "native")]
 mod server;
+#[cfg(feature = "native")]
 mod source_delivery;
+#[cfg(feature = "native")]
 mod tls;
+#[cfg(feature = "native")]
 mod websocket;
+#[cfg(feature = "native")]
 pub use client::{ClientEvent, NetworkClient, OpenedView, RetainedClientView};
+#[cfg(feature = "native")]
 pub use server::{ProducerServerHandle, ServerConfig, ServerHandle};
 use thiserror::Error;
+#[cfg(feature = "native")]
 pub use tls::HostIdentity;
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TransportError {

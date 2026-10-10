@@ -659,13 +659,24 @@ async fn live_control_retries_preserve_grants_and_old_release_cannot_revoke_new_
 
         let old_command = activate(&client, 3, &current, 1, 1).encode_to_vec();
         client.submit(&old_command).await.unwrap();
-        match client.receive().await.unwrap() {
-            ClientEvent::CommandResult(result) => {
-                assert_eq!(result.status, "Rejected");
-                assert_eq!(result.rejection, "StaleControl");
-                assert!(result.source_commit.is_empty());
+        loop {
+            match client.receive().await.unwrap() {
+                ClientEvent::CommandResult(result) => {
+                    assert_eq!(result.status, "Rejected");
+                    assert_eq!(result.rejection, "StaleControl");
+                    assert!(result.source_commit.is_empty());
+                    break;
+                }
+                // Source notifications may interleave with the command reply.
+                // Only the released old lease is allowed here; a notice for the
+                // fresh grant would demonstrate the regression under test.
+                ClientEvent::ControlRevoked(notice) => {
+                    assert_eq!(notice.lease_id, current.lease_id);
+                    assert_eq!(notice.generation, current.generation);
+                    assert_eq!(notice.reason, "Released");
+                }
+                event => panic!("unexpected old-generation result: {event:?}"),
             }
-            event => panic!("unexpected old-generation result: {event:?}"),
         }
         assert_eq!(server.host.lock().await.diagnostics().counter, 0);
         let fresh_command = activate(&client, 3, &fresh, 2, 1).encode_to_vec();
