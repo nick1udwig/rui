@@ -7,13 +7,13 @@ migration; unsupported portable behavior must be explicit before removing native
 
 | Behavior | Native transport | Portable actor at this slice |
 | --- | --- | --- |
-| Wire versions/profiles/permissions | caller hello, negotiated subset, typed grants | fixed browser subset, permission gate; configuration needed for semantic-only |
+| Wire versions/profiles/permissions | caller hello, negotiated subset, typed grants | explicit mirror/semantic-only profile subsets, permission/action gate; arbitrary native negotiation pending |
 | View selection | explicit selection and canvas policy | explicit selection, host-canvas policy |
-| Readiness | Applied, actual Presented or SemanticReady | Applied and actual Presented; SemanticReady pending S1 |
+| Readiness | Applied, actual Presented or SemanticReady | Applied, actual Presented and explicit current SemanticReady |
 | Publication/chunk assembly | Rust ViewReceiver | same Rust ViewReceiver and exact publication hashes |
-| Resources | bounded paging, eviction/cache loss, retained pins | verified offers/bodies, bounded initial requests; eviction/cache-loss API gap |
+| Resources | bounded paging, eviction/cache loss, retained pins | same shared bounded request cursor, verified offers/bodies, live cache loss/eviction and retained cache-loss resume |
 | Resume/reset | retained receiver with caller hello, changed scope fallback | retained receiver and exact pending command queries, same-scope limits/profile check |
-| Semantic commands | shared builders; exact bytes | shared builders, activation/focus/text/selection only |
+| Semantic commands | shared builders; exact bytes | shared builders, activation/focus/text/selection/typed values and stable-item/model actions |
 | Raw input/composition/resize | supported when negotiated and native adapter proves it | builders shared; no portable capability claim |
 | Leases | native integration manages request IDs, held-input cleanup | actor manages acquire/renew/release and stale-response fencing |
 | Queued sends | charged sink admission, submitted marker across cancelled await | bounded charged synchronous queue; generation fencing in browser |
@@ -28,7 +28,7 @@ browser buffered-byte limits and connection generations remain platform duties.
 Neither path declares presentation from packet receipt or Applied.
 
 The native queue remains because its cancellation and all command families are
-already proven. Full `NetworkClient` migration is outstanding and is not implied
+already proven. Resource paging/cursor ownership is now shared, while full `NetworkClient` migration is outstanding and is not implied
 by the crate extraction. The plan allows semantic session/library work to proceed
 before that migration; existing native integration gates must pass before duplicate
 actor behavior can be deleted. Protocol transcripts and codec rejection tests

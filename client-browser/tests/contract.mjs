@@ -441,6 +441,15 @@ async function semanticSession() {
       ),
     );
     assert(session.hasControl, "semantic lease unavailable");
+    assert(session.resourcesReady, "resource-free semantic graph not ready");
+    assert(
+      session.resourceCacheLost().type === "none" && session.hasControl,
+      "resource-free cache loss disturbed readiness/authority",
+    );
+    assert(
+      !session.evictUnpinnedResource(),
+      "resource-free eviction invented a body",
+    );
     throws(() => session.hitTest(0, 0, 10, 10, 0, 0, 1));
     const seq = session.activate(1n);
     assert(seq === 1n, "command sequence changed");

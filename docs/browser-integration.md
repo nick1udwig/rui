@@ -50,12 +50,29 @@ copies; caller/renderer JavaScript allocations have their own limits. Renderer
 inputs are an owned generation-bound export and must be treated as read-only.
 
 Custom renderers implement `render(state, viewport, resource)` synchronously and
-`dispose`, optionally `reset`. Missing/corrupt resources fail rendering and close the
-connection; the Rust receiver requests/verifies resources before committing. A local
-viewport change requests a full repaint without a source command. Explicit resource
-cache-loss/eviction APIs remain L2/L3 gaps; owned negotiated capabilities are exposed. These gaps
-they must not be simulated by mutating the exported state. The complete serialization
-fixture is encoded by Python, independently decoded by Python and native Rust, then
-compared field-for-field to actual WASM output in three browsers, including uint64
-maximum and int64 minimum. The L5 clean consumer gate will exercise this API outside
-the repository before distribution is claimed.
+`dispose`, optionally `reset`. The callback and public `resourceBytes(digest)` return
+owned verified bytes; missing/unauthorized/disconnected resource IDs reject. Consumers
+own returned copies. `resourcesReady` indicates whether the committed graph's closure
+is verified. `refresh` requests a full current-frame repaint without a source command.
+A custom renderer failure closes the connection, so errors need explicit consumer
+recovery rather than a false presentation acknowledgement.
+
+`resourceCacheLost` is a trusted local policy signal. It rejects while a publication
+is staged, preserves committed records/exact commands, clears visual readiness and
+renderer caches, announces loss and requests the live closure in bounded pages.
+Rendering pauses while required bodies are missing. Verified refill resends Applied;
+only a following actual frame opportunity restores mirror presentation readiness.
+A resource-free graph is a no-op and does not disturb semantic readiness. Retained
+resume with a lost closure likewise waits for verified bodies rather than acknowledging
+an unusable revision. `evictUnpinnedResource` removes at most one retired body and
+returns its digest; current/candidate dependencies remain pinned. These APIs do not
+grant resource authorization or change the source. Reconnect still requires explicit
+authority acquisition.
+
+Complete Python/native/WASM serialization and three-engine lifecycle tests cover all
+record variants and maximum-width clocks/typed values. Shared core tests exercise a
+512-body closure and repeated cache loss with 1024-byte messages, unique bounded
+request pages, unchanged revision and zero ownership after disposal. Fresh live
+editor evidence uses the public API to pause an active mirror lease, restore exact
+owned bytes, and wait for actual presentation. The L5 clean consumer gate remains
+required before distribution is claimed.

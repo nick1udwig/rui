@@ -343,6 +343,54 @@ try {
   );
   credential.fill(0);
   second.fill(0);
+  if (process.env.RUI_RESOURCE_RECOVERY === "1") {
+    await page.evaluate(async () => {
+      const { team, wait, normalize, same } = window.team,
+        [, m] = team;
+      m.client.requestControl();
+      await wait(() => m.client.hasControl);
+      const state = m.client.state,
+        before = JSON.stringify(normalize(state));
+      const presented = m.events.filter((e) => e.type === "presented").length;
+      const glyph = [...state.records.values()].find(
+        (r) =>
+          "Scene" in r &&
+          typeof r.Scene.primitive === "object" &&
+          r.Scene.primitive.GlyphRun,
+      )?.Scene.primitive.GlyphRun;
+      if (!glyph || !("Outline" in glyph.font))
+        throw Error("source outline body missing");
+      const digest = new Uint8Array(glyph.font.Outline),
+        owned = m.client.resourceBytes(digest),
+        first = owned[0];
+      owned[0] ^= 255;
+      if (m.client.resourceBytes(digest)[0] !== first)
+        throw Error("resource getter returned mutable live bytes");
+      m.client.resourceCacheLost();
+      if (
+        m.client.hasControl ||
+        m.client.resourcesReady ||
+        JSON.stringify(normalize(m.client.state)) !== before
+      )
+        throw Error("cache loss did not preserve records and pause authority");
+      m.client.refresh();
+      await wait(
+        () =>
+          m.client.resourcesReady &&
+          m.client.hasControl &&
+          m.events.filter((e) => e.type === "presented").length > presented &&
+          same(),
+      );
+      if (JSON.stringify(normalize(m.client.state)) !== before)
+        throw Error("cache recovery changed committed records");
+      if (m.client.resourceBytes(digest)[0] !== first)
+        throw Error("cache refill did not restore exact verified bytes");
+      m.client.releaseControl();
+      await wait(() => !m.client.hasControl);
+      window.team.resourceRecovery = true;
+    });
+  }
+
   await page.evaluate(async () => {
     const { team, wait, button, field, nodes, action, settled, same, text } =
         window.team,
@@ -737,6 +785,7 @@ try {
         controlSwapped: true,
         authorizedProjectionConverged: true,
         delayedResultsIsolated: true,
+        resourceRecovery: window.team.resourceRecovery ?? false,
         localViewports: [320, 800, 1440],
         modalAndReplacement: window.team.modalAndReplacement ?? false,
         partialCollection: window.team.application === "editor",

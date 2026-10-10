@@ -1,3 +1,11 @@
+L2/L3 resource slice: native and portable clients share the bounded request cursor;
+portable live cache loss/eviction and retained cache-loss resume preserve records and
+exact commands while pausing readiness until verified closure/presentation. Public
+browser APIs expose owned resource copies, resource readiness and explicit full-frame
+refresh. A 512-body/1024-byte-message regression, native TLS recovery/cancellation,
+three-engine WASM tests and fresh owned editor recovery pass. Full native actor
+migration and distributed external-consumer acceptance remain outstanding.
+
 S5 implemented for two owned sources: distinct approved semantic/mirror clients
 perform the generic three-effect scenario, exchange one lease and converge. Fresh
 exact traces independently replay both authorized projections through reset/reconnect,

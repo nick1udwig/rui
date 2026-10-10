@@ -93,8 +93,8 @@ jobs:
           python3 demos/semantic/session_check.py --dom-controls --xvfb "$(command -v Xvfb)" --application editor --output "$RUNNER_TEMP/rui-semantic-editor"
       - name: Distinct semantic and mirror clients with lifecycle faults
         run: |
-          python3 demos/semantic/presentation_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-presentation-corpus"
-          python3 demos/semantic/presentation_check.py --xvfb "$(command -v Xvfb)" --application editor --output "$RUNNER_TEMP/rui-presentation-editor"
+          RUI_RESOURCE_RECOVERY=1 python3 demos/semantic/presentation_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-presentation-corpus"
+          RUI_RESOURCE_RECOVERY=1 python3 demos/semantic/presentation_check.py --xvfb "$(command -v Xvfb)" --application editor --output "$RUNNER_TEMP/rui-presentation-editor"
       - name: Read-only observed applications on private accessibility bus
         run: python3 fixtures/atspi/native_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-observed"
       - name: Development serving, live edits and hidden-tab lifecycle

@@ -1,8 +1,9 @@
 use crate::{codec, pairing::Credential, proto as p, tls, websocket, TransportError};
 use futures_util::SinkExt;
 use prost::Message;
+use rui_client_core::resource_requests::ResourceRequests;
 use rui_protocol_core::commands::{CommandFamily, Id};
-use rui_protocol_core::receiver::{NeededResources, ReceiveOutcome, ReceiverConfig, ViewReceiver};
+use rui_protocol_core::receiver::{ReceiveOutcome, ReceiverConfig, ViewReceiver};
 use rui_protocol_core::resources::{
     MemoryBudget, MemoryReservation, ResourceContext, ResourceScope,
 };
@@ -142,9 +143,7 @@ pub struct NetworkClient {
     pub profiles: Vec<String>,
     context: ResourceContext,
     receiver: ViewReceiver,
-    needed: Option<NeededResources>,
-    needed_requested: usize,
-    announce_evictions: bool,
+    resources: ResourceRequests,
     deadline: Duration,
     pending: PendingReplies,
     awaiting_resume: Option<u64>,
@@ -436,9 +435,7 @@ impl NetworkClient {
             profiles: server.selected_profiles,
             context,
             receiver,
-            needed: None,
-            needed_requested: 0,
-            announce_evictions: false,
+            resources: ResourceRequests::default(),
             deadline,
             pending,
             awaiting_resume: hello.resume.as_ref().map(|r| r.acknowledged_revision),
@@ -578,7 +575,7 @@ impl NetworkClient {
             profiles,
             mut receiver,
             pending,
-            needed,
+            resources,
             ..
         } = self;
         receiver.disconnect();
@@ -590,7 +587,7 @@ impl NetworkClient {
             .flatten()
             .is_some()
         {}
-        drop(needed);
+        drop(resources);
         drop(pending);
         drop(socket);
         RetainedClientView {
@@ -758,61 +755,39 @@ impl NetworkClient {
     fn outcome(&mut self, outcome: ReceiveOutcome) -> Result<ClientEvent, TransportError> {
         match outcome {
             ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
-                self.needed = None;
-                self.needed_requested = 0;
-                self.announce_evictions = false;
+                self.resources.clear();
                 self.queue(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
                 Ok(ClientEvent::Applied { revision })
             }
             ReceiveOutcome::NeedResources {
                 revision, missing, ..
             } => {
-                self.needed = Some(missing);
-                self.needed_requested = 0;
+                self.resources.begin(missing, false)?;
                 self.queue_resource_request()?;
                 Ok(ClientEvent::ResourcesNeeded { revision })
             }
         }
     }
     fn queue_resource_request(&mut self) -> Result<(), TransportError> {
-        let Some(needed) = &self.needed else {
+        let Some(page) = self.resources.page(self.limits.envelope_bytes)? else {
             return Ok(());
         };
-        if self.needed_requested >= needed.len() {
-            return Ok(());
-        }
-        let maximum = self.limits.envelope_bytes.saturating_sub(256) / 40;
-        if maximum == 0 || needed.len() > 512 {
-            return Err(TransportError::Limit);
-        }
-        let start = self.needed_requested;
-        let count = (needed.len() - start).min(maximum);
         let binding = self.binding();
-        if self.announce_evictions {
-            self.pending
-                .enqueue_with(p::Kind::ResourceEvicted, count * 34, binding, || {
-                    p::ResourceIds {
-                        digests: needed
-                            .iter()
-                            .skip(start)
-                            .take(count)
-                            .map(|d| d.to_vec())
-                            .collect(),
-                    }
-                })?;
+        if page.announce_evictions {
+            self.pending.enqueue_with(
+                p::Kind::ResourceEvicted,
+                ResourceRequests::payload_len(page),
+                binding,
+                || self.resources.payload(page),
+            )?;
         }
-        self.pending
-            .enqueue_with(p::Kind::NeedResources, count * 34, binding, || {
-                p::ResourceIds {
-                    digests: needed
-                        .iter()
-                        .skip(start)
-                        .take(count)
-                        .map(|d| d.to_vec())
-                        .collect(),
-                }
-            })?;
-        self.needed_requested += count;
+        self.pending.enqueue_with(
+            p::Kind::NeedResources,
+            ResourceRequests::payload_len(page),
+            binding,
+            || self.resources.payload(page),
+        )?;
+        self.resources.queued(page);
         Ok(())
     }
     /// Ordinary cache pressure releases one retired, unpinned entry. Current
@@ -883,9 +858,7 @@ impl NetworkClient {
                 .revision;
             self.queue(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
         } else {
-            self.needed = Some(missing);
-            self.needed_requested = 0;
-            self.announce_evictions = true;
+            self.resources.begin(missing, true)?;
             self.queue_resource_request()?;
         }
         self.flush_pending().await
@@ -980,11 +953,7 @@ impl NetworkClient {
                 }
                 p::Kind::ResourceOffer => {
                     let offer = codec::resource_offer(codec::decode(&packet.payload, ceiling)?)?;
-                    if !self
-                        .needed
-                        .as_ref()
-                        .is_some_and(|needed| needed.contains(&offer.digest))
-                    {
+                    if !self.resources.contains(&offer.digest) {
                         return Err(TransportError::Authentication);
                     }
                     self.receiver
@@ -1033,7 +1002,7 @@ impl NetworkClient {
                         }
                         return self.outcome(outcome);
                     }
-                    if self.needed.is_some()
+                    if self.resources.active()
                         && !self.receiver.has_pending_publication()
                         && self
                             .receiver
@@ -1088,9 +1057,7 @@ impl NetworkClient {
                         if missing.is_empty() {
                             self.resume_applied = Some(revision);
                         } else {
-                            self.needed = Some(missing);
-                            self.needed_requested = 0;
-                            self.announce_evictions = true;
+                            self.resources.begin(missing, true)?;
                             self.resume_needed = Some(revision);
                             self.queue_resource_request()?;
                         }

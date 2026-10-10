@@ -204,7 +204,6 @@ impl Receiver {
             .map_err(error)?
             .to_vec())
     }
-
     #[wasm_bindgen(getter, js_name = memoryUsed)]
     pub fn memory_used(&self) -> usize {
         self.receiver.memory_used()
@@ -308,6 +307,12 @@ impl Session {
     pub fn memory_used(&self) -> usize {
         self.inner.memory_used()
     }
+    #[wasm_bindgen(getter, js_name = resourcesReady)]
+    pub fn resources_ready(&self) -> bool {
+        self.inner
+            .receiver()
+            .is_ok_and(|r| r.resources_ready().unwrap_or(false))
+    }
     /// Copy only the committed graph. IDs, clocks and scalar indices are BigInt.
     pub fn state(&self) -> Result<JsValue, JsError> {
         value(self.inner.state().map_err(error)?)
@@ -322,6 +327,19 @@ impl Session {
             .map_err(error)?
             .to_vec())
     }
+    #[wasm_bindgen(js_name = resourceCacheLost)]
+    pub fn resource_cache_lost(&mut self) -> Result<JsValue, JsError> {
+        value(&self.inner.resource_cache_lost().map_err(error)?)
+    }
+    #[wasm_bindgen(js_name = evictUnpinnedResource)]
+    pub fn evict_unpinned_resource(&mut self) -> Result<Option<Vec<u8>>, JsError> {
+        Ok(self
+            .inner
+            .evict_unpinned_resource()
+            .map_err(error)?
+            .map(|d| d.to_vec()))
+    }
+
     pub fn capabilities(&self) -> Result<JsValue, JsError> {
         value(&self.inner.capabilities())
     }

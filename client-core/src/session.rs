@@ -1,10 +1,11 @@
 //! Bounded session actor; caller supplies authenticated ordered bytes, clock and presentation.
+use crate::resource_requests::ResourceRequests;
 use crate::{command_queue::CommandQueue, interaction, wire_command::wire_command, Viewport};
 use prost::Message;
 use rui_protocol_core::{
     commands::{Arguments, CommandFamily, Id},
     model::{Point, Record, State},
-    receiver::{NeededResources, ReceiveOutcome, ReceiverConfig, ViewReceiver},
+    receiver::{ReceiveOutcome, ReceiverConfig, ViewReceiver},
     resources::{MemoryReservation, ResourceContext, ResourceScope},
     session::ReceiverLimits,
 };
@@ -98,7 +99,7 @@ pub struct Session {
     context: Option<ResourceContext>,
     receiver: Option<ViewReceiver>,
     commands: Option<CommandQueue>,
-    missing: Option<NeededResources>,
+    resources: ResourceRequests,
     outbound: VecDeque<Outbound>,
     outbound_bytes: usize,
     connected: bool,
@@ -135,7 +136,7 @@ impl Session {
             context: None,
             receiver: None,
             commands: None,
-            missing: None,
+            resources: ResourceRequests::default(),
             outbound: VecDeque::new(),
             outbound_bytes: 0,
             connected: false,
@@ -273,7 +274,7 @@ impl Session {
     fn outcome(&mut self, outcome: ReceiveOutcome) -> Result<Event, TransportError> {
         match outcome {
             ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
-                self.missing = None;
+                self.resources.clear();
                 self.ready = None;
                 self.send(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
                 Ok(Event::Applied { revision })
@@ -282,23 +283,79 @@ impl Session {
                 revision, missing, ..
             } => {
                 self.ready = None;
-                if missing.len() > 512 {
-                    return Err(TransportError::Limit);
-                }
-                let page = (self.limits.envelope_bytes.saturating_sub(256) / 40).max(1);
-                let digests: Vec<_> = missing.iter().map(|d| d.to_vec()).collect();
-                for chunk in digests.chunks(page) {
-                    self.send(
-                        p::Kind::NeedResources,
-                        &p::ResourceIds {
-                            digests: chunk.to_vec(),
-                        },
-                    )?;
-                }
-                self.missing = Some(missing);
+                self.resources.begin(missing, false)?;
+                self.queue_resource_request()?;
                 Ok(Event::ResourcesNeeded { revision })
             }
         }
+    }
+    fn queue_resource_request(&mut self) -> Result<(), TransportError> {
+        let Some(page) = self.resources.page(self.limits.envelope_bytes)? else {
+            return Ok(());
+        };
+        if page.announce_evictions {
+            self.send(p::Kind::ResourceEvicted, &self.resources.payload(page))?;
+        }
+        self.send(p::Kind::NeedResources, &self.resources.payload(page))?;
+        self.resources.queued(page);
+        Ok(())
+    }
+    /// Trusted local cache-loss policy; committed records and exact commands survive.
+    pub fn resource_cache_lost(&mut self) -> Result<Event, TransportError> {
+        if !self.connected || self.receiver()?.has_pending_publication() {
+            return Err(TransportError::Receiver);
+        }
+        if self
+            .receiver()?
+            .cache_bytes()
+            .map_err(|_| TransportError::Receiver)?
+            == 0
+            && self
+                .receiver()?
+                .resources_ready()
+                .map_err(|_| TransportError::Receiver)?
+        {
+            return Ok(Event::None);
+        }
+        self.receiver
+            .as_mut()
+            .unwrap()
+            .resource_cache_lost()
+            .map_err(|_| TransportError::Receiver)?;
+        self.ready = None;
+        let missing = self
+            .receiver()?
+            .missing_live_resources()
+            .map_err(|_| TransportError::Receiver)?;
+        let revision = self.state()?.revision;
+        if missing.is_empty() {
+            return self.outcome(ReceiveOutcome::Applied { revision });
+        }
+        self.resources.begin(missing, true)?;
+        self.queue_resource_request()?;
+        Ok(Event::ResourcesNeeded { revision })
+    }
+    /// Evict one unpinned retired entry, retaining current/candidate closure pins.
+    pub fn evict_unpinned_resource(&mut self) -> Result<Option<[u8; 32]>, TransportError> {
+        if !self.connected {
+            return Err(TransportError::Closed);
+        }
+        let Some(evicted) = self
+            .receiver
+            .as_mut()
+            .ok_or(TransportError::Closed)?
+            .evict_one_unpinned_resource()
+            .map_err(|_| TransportError::Receiver)?
+        else {
+            return Ok(None);
+        };
+        self.send(
+            p::Kind::ResourceEvicted,
+            &p::ResourceIds {
+                digests: vec![evicted.digest.to_vec()],
+            },
+        )?;
+        Ok(Some(evicted.digest))
     }
     fn handshake(&mut self, raw: &[u8]) -> Result<Event, TransportError> {
         let initial: p::Packet = codec::decode(raw, self.limits.envelope_bytes)?;
@@ -500,7 +557,7 @@ impl Session {
             }
             p::Kind::ResourceOffer => {
                 let o = codec::resource_offer(codec::decode(&packet.payload, ceiling)?)?;
-                if !self.missing.as_ref().is_some_and(|m| m.contains(&o.digest)) {
+                if !self.resources.contains(&o.digest) {
                     return Err(TransportError::Authentication);
                 }
                 receiver
@@ -533,9 +590,21 @@ impl Session {
                         digests: vec![digest.to_vec()],
                     },
                 )?;
+                self.queue_resource_request()?;
                 match outcome {
-                    Some(ReceiveOutcome::NeedResources { .. }) | None => Ok(Event::None),
+                    Some(ReceiveOutcome::NeedResources { .. }) => Ok(Event::None),
                     Some(o) => self.outcome(o),
+                    None if self.resources.active()
+                        && !self.receiver()?.has_pending_publication()
+                        && self
+                            .receiver()?
+                            .resources_ready()
+                            .map_err(|_| TransportError::Receiver)? =>
+                    {
+                        let revision = self.state()?.revision;
+                        self.outcome(ReceiveOutcome::Applied { revision })
+                    }
+                    None => Ok(Event::None),
                 }
             }
             p::Kind::ResumeAccepted => {
@@ -551,7 +620,22 @@ impl Session {
                     return Err(TransportError::Protocol);
                 }
                 if r.through_revision == revision {
-                    self.outcome(ReceiveOutcome::Applied { revision })?;
+                    if self
+                        .receiver()?
+                        .resources_ready()
+                        .map_err(|_| TransportError::Receiver)?
+                    {
+                        self.outcome(ReceiveOutcome::Applied { revision })?;
+                    } else {
+                        let missing = self
+                            .receiver()?
+                            .missing_live_resources()
+                            .map_err(|_| TransportError::Receiver)?;
+                        self.resources.begin(missing, true)?;
+                        self.ready = None;
+                        self.queue_resource_request()?;
+                        return Ok(Event::ResourcesNeeded { revision });
+                    }
                 }
                 Ok(Event::Resumed)
             }
@@ -857,7 +941,7 @@ impl Session {
         self.request = None;
         self.cancelled_request = None;
         self.ready = None;
-        self.missing = None;
+        self.resources.clear();
         for f in &mut self.outbound {
             f.bytes.fill(0);
         }
@@ -1251,6 +1335,285 @@ mod tests {
                 p::Kind::AppliedAck as i32
             ]
         );
+    }
+    #[test]
+    fn cache_loss_preserves_commands_and_requires_verified_closure_then_presentation() {
+        let mut s = session(true);
+        publish(&mut s, 1, None, false);
+        drain(&mut s);
+        s.presented(1).unwrap();
+        drain(&mut s);
+        grant(&mut s);
+        s.command(1, "Activate", Arguments::None).unwrap();
+        let original = drain(&mut s).pop().unwrap().payload.clone();
+        let mut bytes = b"RVP1".to_vec();
+        bytes.extend(1u32.to_be_bytes());
+        bytes.push(1);
+        bytes.extend(0f64.to_be_bytes());
+        bytes.extend(0f64.to_be_bytes());
+        let digest = resource_digest(
+            ResourceKind::VectorPath,
+            1,
+            ResourceProvenance::AuthoredVector,
+            &bytes,
+        );
+        publish(&mut s, 2, Some(digest), false);
+        drain(&mut s);
+        let refill = |s: &mut Session| {
+            s.receive(&bound(
+                p::Kind::ResourceOffer,
+                &p::ResourceOffer {
+                    digest: digest.to_vec(),
+                    kind: 1,
+                    format_version: 1,
+                    total_bytes: bytes.len() as u64,
+                    chunk_count: 1,
+                    provenance: 1,
+                },
+            ))
+            .unwrap();
+            s.receive(&bound(
+                p::Kind::ResourceChunk,
+                &p::ResourceChunk {
+                    digest: digest.to_vec(),
+                    index: 0,
+                    data: bytes.clone(),
+                },
+            ))
+            .unwrap();
+            s.receive(&bound(
+                p::Kind::ResourceComplete,
+                &p::ResourceComplete {
+                    digest: digest.to_vec(),
+                },
+            ))
+            .unwrap()
+        };
+        assert!(matches!(refill(&mut s), Event::Applied { revision: 2 }));
+        drain(&mut s);
+        s.presented(2).unwrap();
+        drain(&mut s);
+        assert!(s.has_control());
+        assert_eq!(s.pending_commands(), 1);
+        assert!(matches!(
+            s.resource_cache_lost().unwrap(),
+            Event::ResourcesNeeded { revision: 2 }
+        ));
+        assert!(!s.has_control());
+        assert_eq!(s.state().unwrap().revision, 2);
+        assert_eq!(s.pending_commands(), 1);
+        assert!(s.presented(2).is_err());
+        let frames = drain(&mut s);
+        assert_eq!(
+            frames.iter().map(|p| p.kind).collect::<Vec<_>>(),
+            vec![
+                p::Kind::ResourceEvicted as i32,
+                p::Kind::NeedResources as i32
+            ]
+        );
+        for p in frames {
+            assert_eq!(
+                codec::decode::<p::ResourceIds>(&p.payload, s.ceiling())
+                    .unwrap()
+                    .digests,
+                vec![digest.to_vec()]
+            );
+        }
+        assert!(matches!(refill(&mut s), Event::Applied { revision: 2 }));
+        drain(&mut s);
+        assert!(!s.has_control());
+        s.presented(2).unwrap();
+        drain(&mut s);
+        assert!(s.has_control());
+        s.retry_pending().unwrap();
+        assert_eq!(drain(&mut s).pop().unwrap().payload, original);
+        s.resource_cache_lost().unwrap();
+        drain(&mut s);
+        s.disconnect();
+        s.start(&[7; 32]).unwrap();
+        drain(&mut s);
+        s.receive(&hello(2, true)).unwrap();
+        drain(&mut s);
+        assert!(matches!(
+            s.receive(&bound(
+                p::Kind::ResumeAccepted,
+                &p::ResumeAccepted {
+                    from_revision: 2,
+                    through_revision: 2,
+                    requires_resources: true,
+                }
+            ))
+            .unwrap(),
+            Event::ResourcesNeeded { revision: 2 }
+        ));
+        assert!(!s.has_control());
+        drain(&mut s);
+        assert!(matches!(refill(&mut s), Event::Applied { revision: 2 }));
+        drain(&mut s);
+        assert!(!s.has_control(), "recovery silently restored the old lease");
+        assert!(s.evict_unpinned_resource().unwrap().is_none());
+        s.close();
+        assert_eq!(s.memory_used(), 0);
+    }
+    #[test]
+    fn paged_512_body_closure_and_cache_loss_never_eagerly_fill_the_queue() {
+        let mut s = Session::new([3; 16], "fixture".into()).unwrap();
+        s.start(&[7; 32]).unwrap();
+        drain(&mut s);
+        let packet: p::Packet = codec::decode(&hello(2, false), 128 << 10).unwrap();
+        let mut server: p::ServerHello = codec::decode(&packet.payload, 128 << 10).unwrap();
+        server.negotiated_limits.as_mut().unwrap().envelope_bytes = 1024;
+        s.receive(&bound(p::Kind::ServerHello, &server)).unwrap();
+        drain(&mut s);
+        let mut bodies = Vec::new();
+        let mut records = Vec::new();
+        for i in 0..512 {
+            let mut bytes = b"RVP1".to_vec();
+            bytes.extend(1u32.to_be_bytes());
+            bytes.push(1);
+            bytes.extend((i as f64).to_be_bytes());
+            bytes.extend(0f64.to_be_bytes());
+            let digest = resource_digest(
+                ResourceKind::VectorPath,
+                1,
+                ResourceProvenance::AuthoredVector,
+                &bytes,
+            );
+            let mut r = record(1, Some(digest));
+            if let Some(pb::record::Record::Scene(n)) = &mut r.record {
+                n.id = i + 2;
+            }
+            records.push(r);
+            bodies.push((digest, bytes));
+        }
+        let payload = pb::Snapshot {
+            revision: 1,
+            records,
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let hash = publication_digest(&payload);
+        let publication = vec![6; 16];
+        s.receive(&bound(
+            p::Kind::SnapshotBegin,
+            &p::PublicationBegin {
+                publication_id: publication.clone(),
+                base_revision: 0,
+                revision: 1,
+                total_bytes: payload.len() as u64,
+                chunk_count: payload.chunks(256).count() as u32,
+                digest: hash.to_vec(),
+                item_count: 512,
+            },
+        ))
+        .unwrap();
+        for (i, data) in payload.chunks(256).enumerate() {
+            s.receive(&bound(
+                p::Kind::PublicationChunk,
+                &p::PublicationChunk {
+                    publication_id: publication.clone(),
+                    index: i as u32,
+                    data: data.to_vec(),
+                },
+            ))
+            .unwrap();
+        }
+        assert!(matches!(
+            s.receive(&bound(
+                p::Kind::PublicationCommit,
+                &p::PublicationCommit {
+                    publication_id: publication,
+                    total_bytes: payload.len() as u64,
+                    chunk_count: payload.chunks(256).count() as u32,
+                    digest: hash.to_vec(),
+                    item_count: 512,
+                }
+            ))
+            .unwrap(),
+            Event::ResourcesNeeded { revision: 1 }
+        ));
+        for lost in [false, true] {
+            if lost {
+                assert!(matches!(
+                    s.resource_cache_lost().unwrap(),
+                    Event::ResourcesNeeded { revision: 1 }
+                ));
+            }
+            let mut requested = std::collections::BTreeSet::new();
+            let mut evicted = std::collections::BTreeSet::new();
+            let mut applied = 0;
+            for index in 0..512 {
+                let frames = drain(&mut s);
+                if index == 0 {
+                    assert_eq!(frames.len(), if lost { 2 } else { 1 });
+                }
+                for p in frames {
+                    assert!(p.encoded_len() <= 1024);
+                    if p.kind == p::Kind::NeedResources as i32
+                        || p.kind == p::Kind::ResourceEvicted as i32
+                    {
+                        let ids: p::ResourceIds = codec::decode(&p.payload, 1024).unwrap();
+                        let set = if p.kind == p::Kind::NeedResources as i32 {
+                            &mut requested
+                        } else {
+                            &mut evicted
+                        };
+                        for d in ids.digests {
+                            assert!(set.insert(d), "duplicate resource page");
+                        }
+                    }
+                }
+                let (digest, bytes) = bodies
+                    .iter()
+                    .find(|(d, _)| {
+                        requested.contains(d.as_slice())
+                            && !s.receiver().unwrap().read_resource(*d).is_ok()
+                    })
+                    .unwrap();
+                s.receive(&bound(
+                    p::Kind::ResourceOffer,
+                    &p::ResourceOffer {
+                        digest: digest.to_vec(),
+                        kind: 1,
+                        format_version: 1,
+                        total_bytes: bytes.len() as u64,
+                        chunk_count: 1,
+                        provenance: 1,
+                    },
+                ))
+                .unwrap();
+                s.receive(&bound(
+                    p::Kind::ResourceChunk,
+                    &p::ResourceChunk {
+                        digest: digest.to_vec(),
+                        index: 0,
+                        data: bytes.clone(),
+                    },
+                ))
+                .unwrap();
+                if matches!(
+                    s.receive(&bound(
+                        p::Kind::ResourceComplete,
+                        &p::ResourceComplete {
+                            digest: digest.to_vec()
+                        }
+                    ))
+                    .unwrap(),
+                    Event::Applied { revision: 1 }
+                ) {
+                    applied += 1;
+                }
+            }
+            assert_eq!(requested.len(), 512);
+            assert_eq!(evicted.len(), if lost { 512 } else { 0 });
+            assert_eq!(applied, 1);
+            assert!(s.receiver().unwrap().resources_ready().unwrap());
+            drain(&mut s);
+            s.presented(1).unwrap();
+            drain(&mut s);
+        }
+        s.close();
+        assert_eq!(s.memory_used(), 0);
     }
     #[test]
     fn unsolicited_resources_and_malformed_packets_fail_closed() {

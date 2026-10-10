@@ -210,8 +210,44 @@ export class BrowserClient {
   get memoryUsed(): number {
     return this.session.memoryUsed;
   }
+  get resourcesReady(): boolean {
+    return this.session.resourcesReady;
+  }
   get geometry(): Viewport {
     return { ...this.viewport, origin: { ...this.viewport.origin } };
+  }
+  /** Owned verified bytes for a custom renderer; unauthorized/missing IDs reject. */
+  resourceBytes(digest: Uint8Array): Uint8Array {
+    if (!(digest instanceof Uint8Array) || digest.length !== 32)
+      throw new RangeError("resource digest");
+    return this.session.resourceBytes(digest);
+  }
+  /** Repaint the current committed graph without requesting source layout. */
+  refresh(): void {
+    if (this.options.mode === "semanticOnly")
+      throw new Error("semantic consumers accept state explicitly");
+    this.invalidate();
+    this.schedule();
+  }
+  /** Trusted local cache-loss policy. It preserves records and exact commands. */
+  resourceCacheLost(): void {
+    const event = this.session.resourceCacheLost() as SessionEvent;
+    if (event.type === "resourcesNeeded" || event.type === "applied") {
+      this.invalidate();
+      this.renderer?.reset?.();
+      if (event.type === "applied") {
+        this.snapshot = this.session.state() as State;
+        this.schedule();
+      }
+      this.emit(event);
+    }
+    this.flush();
+  }
+  /** Evict one retired unpinned body; live and pending closure pins remain. */
+  evictUnpinnedResource(): Uint8Array | undefined {
+    const digest = this.session.evictUnpinnedResource();
+    this.flush();
+    return digest;
   }
   setViewport(viewport: Viewport): void {
     if (this.options.mode === "semanticOnly")
@@ -441,7 +477,14 @@ export class BrowserClient {
   }
   private schedule(): void {
     if (this.options.mode === "semanticOnly") return;
-    if (!this.visible || !this.active || !this.snapshot || this.frame) return;
+    if (
+      !this.visible ||
+      !this.active ||
+      !this.snapshot ||
+      this.frame ||
+      !this.resourcesReady
+    )
+      return;
     const generation = this.generation;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
@@ -630,9 +673,9 @@ export class BrowserClient {
   commitEdit(capture: EditCapture, content: string): bigint {
     if (
       typeof content !== "string" ||
-      content.length > (16 << 10) ||
+      content.length > 16 << 10 ||
       content.includes("\0") ||
-      new TextEncoder().encode(content).length > (16 << 10)
+      new TextEncoder().encode(content).length > 16 << 10
     )
       throw new RangeError("text commit limit");
     assertUint64(capture.target);

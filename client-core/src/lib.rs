@@ -2,6 +2,7 @@
 pub mod command_queue;
 pub mod composition;
 pub mod interaction;
+pub mod resource_requests;
 pub mod session;
 pub mod source_controls;
 pub mod typing;
