@@ -222,6 +222,11 @@ impl Frame {
         self.display_pixels(Some(LinearPixel::from_color(background)))
     }
     fn display_pixels(self, background: Option<LinearPixel>) -> Result<RgbaFrame, RenderError> {
+        let _timing = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::OutputConversion,
+            self.revision,
+            self.pixels.len(),
+        );
         let length = self
             .pixels
             .len()
@@ -598,7 +603,17 @@ impl Renderer {
         viewport: Viewport,
         resources: &impl ResourceProvider,
     ) -> Result<Frame, RenderError> {
+        let _timing = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Render,
+            state.revision,
+            state.records.len(),
+        );
         self.validate_viewport(viewport)?;
+        let preparation = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Preparation,
+            state.revision,
+            state.records.len(),
+        );
         let mut plan = self.plan(state)?;
         let mut visited = BTreeSet::new();
         let index = self.prepare(
@@ -624,6 +639,12 @@ impl Renderer {
             clip: None,
             opacity: 1.0,
         });
+        drop(preparation);
+        let _composition = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Composition,
+            state.revision,
+            state.records.len(),
+        );
         self.raster(state.revision, viewport, &plan)
     }
     pub fn render_view(
@@ -632,7 +653,17 @@ impl Renderer {
         viewport: Viewport,
         resources: &impl ResourceProvider,
     ) -> Result<Frame, RenderError> {
+        let _timing = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Render,
+            state.revision,
+            state.records.len(),
+        );
         self.validate_viewport(viewport)?;
+        let preparation = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Preparation,
+            state.revision,
+            state.records.len(),
+        );
         let mut plan = self.plan(state)?;
         let mut visited = BTreeSet::new();
         let mut surfaces = state
@@ -765,6 +796,12 @@ impl Renderer {
                 }
             }
         }
+        drop(preparation);
+        let _composition = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Composition,
+            state.revision,
+            state.records.len(),
+        );
         self.raster(state.revision, viewport, &plan)
     }
     fn plan<'a>(&self, state: &'a State) -> Result<Plan<'a>, RenderError> {

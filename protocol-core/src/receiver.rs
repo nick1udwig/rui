@@ -406,6 +406,20 @@ impl ViewReceiver {
         commit: PublicationCommit,
         authorize_declared: bool,
     ) -> Result<ReceiveOutcome, ReceiverError> {
+        let _timing = crate::timing::span(
+            crate::timing::Stage::ReplicaApplication,
+            self.inner
+                .as_ref()
+                .and_then(|i| i.active.as_ref())
+                .map(|a| match a.begin.kind {
+                    crate::publication::PublicationKind::Snapshot { revision } => revision,
+                    crate::publication::PublicationKind::Transaction { new_revision, .. } => {
+                        new_revision
+                    }
+                })
+                .unwrap_or(0),
+            1,
+        );
         self.check(context)?;
         let inner = self.inner.as_mut().unwrap();
         if let Some(active) = &inner.active {

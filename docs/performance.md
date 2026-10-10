@@ -1,5 +1,61 @@
 # Integrated load measurements
 
+## Stage instrumentation and warm browser runner (P1)
+
+Set `RUI_TIMINGS=4096` (at most 16,384 samples) to enable numeric native/source
+timings. `RUI_TIMINGS_REPORT` selects the Rust host report;
+`RUI_SOURCE_TIMINGS_REPORT` selects the cooperating source report, requested on
+the ordered private pipe before source disposal. Neither records packet bodies,
+credentials or application text. Old samples are overwritten with a drop count.
+Diagnostics have a separate bounded allocation from the negotiated wire ledger.
+
+The browser accepts an optional `Timings` recorder and the demo enables one with
+`?timings`. It records receipt/reducer work, resource waiting, committed-state
+export, render preparation, composition/coverage, output conversion, submission
+and the following visible animation-frame opportunity. Command results correlate
+with causal presentation even when the result arrives after the frame. Lost
+connections discard bounded correlation state without declaring presentation.
+Native render preparation, composition and output conversion are measured
+separately; GTK snapshot-to-after-paint is an actual native opportunity.
+
+Source callback-to-capture, capture scheduling/completion, projection, encoding,
+resource closure and native outgoing acknowledgement queue residence use local
+monotonic clocks. Nested totals overlap: do not add capture, projection and
+encoding, or receipt and replica application, as disjoint intervals. Zero-revision
+queue samples concern protocol replies rather than an identifiable publication.
+Queue cancellation and socket buffering remain distinct from admission timings.
+
+Build release binaries, WASM and the production Vite bundle before running:
+
+```sh
+RUI_WASM_CHROMIUM=/path/to/chromium python3 demos/web/performance.py \
+  --xvfb /path/to/Xvfb --output /tmp/rui-performance-NEW
+```
+
+The runner uses three independent runs, five warmups and 200 measured actions
+per origin per run. Its bounded workload deadline is separate from the ordinary
+45-second correctness harness. Raw stage samples, hardware/compiler/native and
+browser versions, source hashes, viewport/network conditions, correctness results
+and round-trip percentiles are retained as JSON. Harness action samples include
+native-event delivery and polling and end when the causal presentation listener
+updates the UI. Screenshots are outside those loops. Local spans never subtract
+host and browser timestamps.
+
+This first P1 series establishes the small-demo runner and instrumentation for
+the existing large fixture. Expanded cold/reset/cache-loss, lifecycle memory,
+throttled-reader and isolated steady-render reports are still required before
+claiming the entire P1 completion boundary. Existing evidence below remains
+historical and is not replaced by these new measurements.
+
+The [three retained baseline runs](../fixtures/performance/browser-p1/summary.json)
+contain 200 warm browser and 200 warm source actions each on the recorded
+i7-1280P, Chromium 151, GTK 4.22.4/Cairo 1.18.4 and Rust 1.98.1 environment.
+Browser harness p95 ranges from 173.3 to 185.7 ms; source harness p95 ranges from
+296.3 to 302.2 ms. The source measurements include the existing 250 ms polling
+schedule. Neither origin meets the future small-demo gate under this procedure.
+Raw reports include causal command timing and stage samples; they make no
+physical scanout or general 60 Hz claim.
+
 The [retained report](../fixtures/performance/integrated.json) measures the actual TLS publication/resource path on an Intel Core i7-1280P, with Rust 1.98.1 and the pinned Pango/Cairo outline provider.
 It records native versions, source/font hashes, ceilings and measurement conditions.
 Other compiler/native test work ran concurrently; these are observed development-machine timings.

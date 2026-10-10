@@ -1,3 +1,4 @@
+import type { Timings } from "./timing.js";
 import init, { Session } from "../wasm/rui_client_wasm.js";
 import { CanvasRenderer, type Renderer } from "./renderer.js";
 import {
@@ -65,6 +66,7 @@ export interface BrowserOptions {
   allowInsecure?: boolean;
   scale?: number;
   onEvent?: (event: BrowserEvent) => void;
+  timings?: Timings;
 }
 export type BrowserEvent =
   | SessionEvent
@@ -101,6 +103,7 @@ export class BrowserClient {
   private viewport: Viewport;
   private viewportExplicit = false;
   private displayedRevision: bigint | undefined;
+  private resourceStarted: number | undefined;
   private listeners = new Set<(event: BrowserEvent) => void>();
   private visibility = () => {
     const visible = document.visibilityState === "visible";
@@ -119,7 +122,9 @@ export class BrowserClient {
   };
   private constructor(private options: BrowserOptions) {
     this.session = new Session(options.clientId, options.selection);
-    this.renderer = options.renderer ?? new CanvasRenderer(options.canvas);
+    this.renderer =
+      options.renderer ??
+      new CanvasRenderer(options.canvas, undefined, options.timings);
     this.viewport = {
       width: 1,
       height: 1,
@@ -228,9 +233,37 @@ export class BrowserClient {
             return;
           }
           try {
+            const received = this.options.timings ? performance.now() : 0;
             const event = this.session.receive(
               new Uint8Array(bytes),
             ) as SessionEvent;
+            this.options.timings?.record(
+              "receipt",
+              this.session.revision,
+              performance.now() - received,
+              bytes.byteLength,
+            );
+            if (
+              this.options.timings &&
+              event.type === "resourcesNeeded" &&
+              this.resourceStarted === undefined
+            )
+              this.resourceStarted = performance.now();
+            if (event.type === "control") {
+              this.acquisition = false;
+              if (!event.granted) this.controlWanted = false;
+            }
+            if (event.type === "error") {
+              this.acquisition = false;
+              this.controlWanted = false;
+              this.emit({ type: "control", granted: false });
+            }
+            if (event.type === "commandResult")
+              this.options.timings?.result(
+                event.sequence,
+                event.revision,
+                event.status,
+              );
             if (event.type === "connected") {
               this.canControl = event.can_control;
               clearTimeout(timeout);
@@ -259,7 +292,22 @@ export class BrowserClient {
               if (!event.granted) this.controlWanted = false;
             }
             if (event.type === "applied" || event.type === "resumed") {
+              if (this.resourceStarted !== undefined) {
+                this.options.timings?.record(
+                  "resourceWait",
+                  this.session.revision,
+                  performance.now() - this.resourceStarted,
+                );
+                this.resourceStarted = undefined;
+              }
+              const exported = this.options.timings ? performance.now() : 0;
               this.snapshot = this.session.state() as State;
+              this.options.timings?.record(
+                "wasmExport",
+                this.session.revision,
+                performance.now() - exported,
+                this.snapshot.records.size,
+              );
               this.invalidate();
               const session = [...this.snapshot.records.values()].find(
                 (r) => "Session" in r,
@@ -365,8 +413,14 @@ export class BrowserClient {
           )
             return;
           try {
+            this.options.timings?.record(
+              "presentationOpportunity",
+              state.revision,
+              performance.now() - started - renderMs,
+            );
             this.session.presented(state.revision);
             this.displayedRevision = state.revision;
+            this.options.timings?.present(state.revision);
             this.flush();
             this.emit({
               type: "presented",
@@ -428,6 +482,7 @@ export class BrowserClient {
     assertUint64(target);
     if (!this.hasControl) throw new Error("control unavailable");
     const seq = this.session.activate(target);
+    this.options.timings?.command(seq);
     this.flush();
     return seq;
   }
@@ -435,6 +490,7 @@ export class BrowserClient {
     assertUint64(target);
     if (!this.hasControl) throw new Error("control unavailable");
     const seq = this.session.focus(target);
+    this.options.timings?.command(seq);
     this.flush();
     return seq;
   }
@@ -477,6 +533,7 @@ export class BrowserClient {
       content,
       capture.token,
     );
+    this.options.timings?.command(seq);
     this.flush();
     return seq;
   }
@@ -486,6 +543,7 @@ export class BrowserClient {
     assertUint64(focus);
     if (!this.hasControl) throw new Error("control unavailable");
     const seq = this.session.setSelection(target, anchor, focus);
+    this.options.timings?.command(seq);
     this.flush();
     return seq;
   }
@@ -494,6 +552,8 @@ export class BrowserClient {
     this.flush();
   }
   disconnect(): void {
+    this.options.timings?.disconnect();
+    this.resourceStarted = undefined;
     this.connectReject?.(new Error("connection cancelled"));
     this.connectReject = undefined;
     if (this.connectionDeadline) clearTimeout(this.connectionDeadline);

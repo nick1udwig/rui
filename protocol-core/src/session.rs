@@ -1455,7 +1455,7 @@ impl SessionBroker {
         now: u64,
     ) -> Result<ControlLease, SessionError> {
         self.tick(now);
-        self.check_control_scope(client, view, lease, generation, true)?;
+        self.check_lease_scope(client, view, lease, generation)?;
         let payload = RequestPayload::Renew { lease, generation };
         if let Some(RequestResult::Grant(grant)) = self.prior_request(client, request, &payload)? {
             return Ok(grant);
@@ -1542,6 +1542,25 @@ impl SessionBroker {
     ) -> Result<(), SessionError> {
         let conn = self.connection(client, view)?;
         if !conn.input_ready(allow_semantic) {
+            return Err(SessionError::Unauthorized);
+        }
+        self.check_lease_scope(client, view, lease, generation)
+    }
+    // Renewal preserves an existing authority scope during publication. Input
+    // readiness is checked separately for every command and new acquisition.
+    fn check_lease_scope(
+        &self,
+        client: &AuthenticatedClient,
+        view: Id,
+        lease: Id,
+        generation: u64,
+    ) -> Result<(), SessionError> {
+        if !self
+            .connection(client, view)?
+            .authorization
+            .permissions
+            .can_control
+        {
             return Err(SessionError::Unauthorized);
         }
         let active = self.active.as_ref().ok_or(SessionError::StaleControl)?;

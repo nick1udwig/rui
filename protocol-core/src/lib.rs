@@ -6,5 +6,6 @@ pub mod publication;
 pub mod receiver;
 pub mod resources;
 pub mod session;
+pub mod timing;
 pub mod transcript;
 pub mod wire;

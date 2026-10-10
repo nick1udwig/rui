@@ -1,3 +1,4 @@
+import { Timings } from "@rui/client-browser";
 import {
   BrowserClient,
   bindPointer,
@@ -22,6 +23,13 @@ const status = element("status"),
 const draft = element<HTMLTextAreaElement>("draft"),
   apply = element<HTMLButtonElement>("apply"),
   editStatus = element("edit-status");
+const timings = new URLSearchParams(location.search).has("timings")
+  ? new Timings(16384)
+  : undefined;
+if (timings)
+  Object.defineProperty(window, "ruiTimings", {
+    value: () => timings.report(),
+  });
 let file: File | undefined,
   client: BrowserClient | undefined,
   unbind: (() => void) | undefined,
@@ -83,6 +91,7 @@ connect.onclick = async () => {
         clientId: new Uint8Array(16).fill(3),
         selection: "fixture",
         canvas,
+        timings,
         credential: async () => {
           if (!file || file.size !== 32)
             throw new Error("expected the 32-byte client.credential file");

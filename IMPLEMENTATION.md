@@ -25,6 +25,17 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+The first P1 series adds bounded opt-in source/host/replica/render timings and a
+release browser performance runner with three runs and 200 warm actions per
+origin. Timing-ring, causal-result ordering, authority/resource-wait, browser
+pixel, producer and actual HTTPS production-bundle checks cover the new paths.
+Sustained measurement exposed a lease-renewal/readiness race: renewal now checks
+the live lease independently of command readiness, while acquisition and input
+remain readiness-gated. The browser also clears its displayed control state on
+protocol authority errors. See [the measurement procedure](docs/performance.md).
+P1's expanded fault/lifecycle measurement scenarios remain outstanding; this
+series does not mark all four workstreams complete.
+
 The [implementation plans](docs/implementation-plans.md) expand these four areas into sequenced changes, dependencies, acceptance criteria and validation commands for future implementors.
 
 - **Performance:** the interactive host currently polls every 250 ms and publishes full snapshots. Event-driven source publication and incremental updates can reduce latency and work; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.

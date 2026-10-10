@@ -1,3 +1,4 @@
+import type { Timings } from "./timing.js";
 import type {
   Affine,
   Color,
@@ -142,6 +143,7 @@ export class CanvasRenderer implements Renderer {
   constructor(
     readonly canvas: HTMLCanvasElement,
     readonly memoryLimit = 64 * 1024 * 1024,
+    readonly timings?: Timings,
   ) {
     const output = canvas.getContext("2d"),
       context = this.scratch.getContext("2d", { willReadFrequently: true });
@@ -295,6 +297,7 @@ export class CanvasRenderer implements Renderer {
     viewport: Viewport,
     resources: (digest: Digest) => Uint8Array,
   ): void {
+    const prepared = this.timings ? performance.now() : 0;
     const { width, height, scale, origin } = viewport;
     if (
       !Number.isInteger(width) ||
@@ -390,12 +393,26 @@ export class CanvasRenderer implements Renderer {
         opacity: s.opacity,
       };
     });
+    this.timings?.record(
+      "preparation",
+      state.revision,
+      performance.now() - prepared,
+      nodes.length,
+    );
+    const composed = this.timings ? performance.now() : 0;
     this.charge(width * height * 24);
     const frame: Layer = {
       bounds: screen,
       data: new Float32Array(width * height * 4),
     };
     for (const node of nodes) this.draw(node, frame, resources);
+    this.timings?.record(
+      "composition",
+      state.revision,
+      performance.now() - composed,
+      this.work,
+    );
+    const converted = this.timings ? performance.now() : 0;
     const image = this.output.createImageData(width, height),
       out = image.data;
     for (let i = 0; i < out.length; i += 4) {
@@ -405,9 +422,22 @@ export class CanvasRenderer implements Renderer {
       out[i + 2] = display(a ? frame.data[i + 2] / a : 0);
       out[i + 3] = Math.round(Math.max(0, Math.min(1, a)) * 255);
     }
+    this.timings?.record(
+      "outputConversion",
+      state.revision,
+      performance.now() - converted,
+      width * height,
+    );
+    const submitted = this.timings ? performance.now() : 0;
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
     this.output.putImageData(image, 0, 0);
+    this.timings?.record(
+      "submission",
+      state.revision,
+      performance.now() - submitted,
+      width * height,
+    );
     this.scratch.width = 0;
     this.scratch.height = 0;
     this.workingBytes = 0;

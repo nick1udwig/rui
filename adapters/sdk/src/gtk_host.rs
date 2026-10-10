@@ -117,6 +117,12 @@ struct NativePipe {
 impl Drop for NativePipe {
     fn drop(&mut self) {
         self.fence.invalidate();
+        if std::env::var_os("RUI_SOURCE_TIMINGS_REPORT").is_some() && !self.failed {
+            let _ = self.request(&CaptureRequest {
+                request_id: self.next_request,
+                kind: "timings",
+            });
+        }
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         let _ = self.child.kill();
         let _ = self.child.wait();
@@ -1204,6 +1210,11 @@ impl GtkCommandHost {
         self.capture_source(true)
     }
     fn capture_source(&mut self, only_if_changed: bool) -> Result<bool, GtkHostError> {
+        let _timing = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Capture,
+            self.source.state().map(|s| s.revision).unwrap_or(0),
+            1,
+        );
         let result = (|| {
             let reply = self.pipe.request(&CaptureRequest {
                 request_id: self.pipe.next_request,
@@ -1936,6 +1947,11 @@ fn publish(
     views: &mut BTreeMap<Id, View>,
     projection: Projection<'_>,
 ) -> Result<(), GtkHostError> {
+    let _timing = rui_protocol_core::timing::span(
+        rui_protocol_core::timing::Stage::Projection,
+        source.state().map(|s| s.revision).unwrap_or(0),
+        views.len(),
+    );
     let Projection {
         identities,
         offset: source_offset,
@@ -2039,6 +2055,11 @@ fn publish_snapshot(
                 ];
             }
             let closure = retain_closure(&snapshot, source, sessions, &view.negotiated)?;
+            let encoding = rui_protocol_core::timing::span(
+                rui_protocol_core::timing::Stage::Encoding,
+                snapshot.revision,
+                snapshot.records.len(),
+            );
             let bytes = pb::Envelope {
                 protocol_version: 1,
                 session_id: view.negotiated.session_id.to_vec(),
@@ -2049,6 +2070,7 @@ fn publish_snapshot(
                 required_features: snapshot.required_features.clone(),
             }
             .encode_to_vec();
+            drop(encoding);
             if bytes.len() > view.negotiated.limits.envelope_bytes
                 || snapshot.records.len() > view.negotiated.limits.records
             {
@@ -2091,6 +2113,11 @@ fn retain_closure(
     sessions: &SessionBroker,
     negotiated: &NegotiatedSession,
 ) -> Result<rui_protocol_core::session::PublicationAttachment, GtkHostError> {
+    let _timing = rui_protocol_core::timing::span(
+        rui_protocol_core::timing::Stage::ResourceClosure,
+        snapshot.revision,
+        snapshot.records.len(),
+    );
     let mut charge = 8192usize;
     for digest in &snapshot.required_resources {
         let digest: ResourceDigest = digest

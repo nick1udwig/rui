@@ -289,6 +289,11 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
     port.shutdown();
     port.flush_lifecycle(0).await?;
     drop(port);
+    if let Ok(path) = std::env::var("RUI_TIMINGS_REPORT") {
+        if let Some(report) = rui_protocol_core::timing::inspect(serde_json::to_vec) {
+            fs::write(path, report?)?;
+        }
+    }
     result
 }
 

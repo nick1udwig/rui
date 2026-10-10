@@ -26,7 +26,7 @@ jobs:
       - run: cargo clippy -p rui-producer-sdk --features transport,gtk-fixture-hooks --all-targets --locked -- -D warnings
       - run: cargo test -p rui-producer-sdk --features transport,gtk-fixture-hooks --all-targets --locked
       - run: python3 conformance/check.py
-      - run: python3 -m unittest adapters.sdk.test_producer
+      - run: python3 -m unittest adapters.sdk.test_producer adapters.sdk.test_timing
       - run: python3 -m unittest adapters.atspi.test_observer adapters.atspi.test_trace
       - run: python3 -m unittest conformance.test_shrink
       - run: python3 -m unittest conformance.test_semantic_client

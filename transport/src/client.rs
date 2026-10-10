@@ -153,9 +153,17 @@ pub struct NetworkClient {
 }
 
 struct PendingReply {
+    timing: Option<rui_protocol_core::timing::Span>,
     encoded: Bytes,
     submitted: bool,
     _memory: MemoryReservation,
+}
+impl Drop for PendingReply {
+    fn drop(&mut self) {
+        if let Some(timing) = self.timing.as_mut() {
+            timing.discard();
+        }
+    }
 }
 struct PendingReplies {
     entries: VecDeque<PendingReply>,
@@ -283,6 +291,11 @@ impl PendingReplies {
         }
         let encoded = packet.encode_to_vec().into();
         self.entries.push_back(PendingReply {
+            timing: Some(rui_protocol_core::timing::span(
+                rui_protocol_core::timing::Stage::OutboundQueue,
+                0,
+                bytes,
+            )),
             encoded,
             submitted: false,
             _memory: memory,
@@ -303,6 +316,7 @@ impl PendingReplies {
                 // feed completes synchronously with start_send. There is no
                 // cancellation boundary between sink admission and this flag.
                 reply.submitted = true;
+                reply.timing.take();
             }
             socket
                 .flush()
@@ -943,6 +957,11 @@ impl NetworkClient {
                 p::Kind::PublicationCommit => {
                     let commit: p::PublicationCommit = codec::decode(&packet.payload, ceiling)?;
                     let id = codec::id(&commit.publication_id)?;
+                    let _timing = rui_protocol_core::timing::span(
+                        rui_protocol_core::timing::Stage::ReplicaApplication,
+                        self.receiver.state().map(|s| s.revision).unwrap_or(0),
+                        1,
+                    );
                     let outcome = self
                         .receiver
                         .commit_authenticated_publication(

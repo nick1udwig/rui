@@ -1410,3 +1410,48 @@ fn retained_transaction_ack_survives_history_eviction_but_rejects_forged_scope()
         Err(SessionError::WrongView)
     );
 }
+
+#[test]
+fn renewal_during_resource_wait_preserves_scope_without_authorizing_input() {
+    let mut broker = broker();
+    let session = connect(&mut broker, 3, "alice", true);
+    usable(&mut broker, &session, 30);
+    let lease = broker
+        .acquire_control(&session.client, session.view_id, [1; 16], 0)
+        .unwrap();
+    broker
+        .mark_resources_missing(&session.client, session.view_id)
+        .unwrap();
+    let renewed = broker
+        .renew_control(
+            &session.client,
+            session.view_id,
+            [2; 16],
+            lease.lease_id,
+            lease.generation,
+            2000,
+        )
+        .unwrap();
+    assert_eq!(renewed.generation, lease.generation);
+    assert_eq!(renewed.expires_at_ms, 7000);
+    assert_eq!(
+        broker.acquire_control(&session.client, session.view_id, [3; 16], 2001),
+        Err(SessionError::Unauthorized)
+    );
+    assert_eq!(
+        broker.record_button(&renewed, 1, true, 2001),
+        Err(SessionError::Unauthorized)
+    );
+    broker.revoke_control(2002);
+    assert_eq!(
+        broker.renew_control(
+            &session.client,
+            session.view_id,
+            [4; 16],
+            lease.lease_id,
+            lease.generation,
+            2003
+        ),
+        Err(SessionError::StaleControl)
+    );
+}

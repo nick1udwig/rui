@@ -4,6 +4,8 @@ Authentication, projection policy and actual source provenance belong to the
 caller. This SDK does not scrape pixels, authenticate, fetch assets or render.
 """
 from __future__ import annotations
+from adapters.sdk.timing import timings
+import time
 
 import hashlib
 import json
@@ -330,6 +332,10 @@ class CoherentSource:
 
     def changed(self):
         self.source_revision += 1
+        if timings:
+            if getattr(self, "timing_dirty_started", None) is None:
+                self.timing_dirty_started = time.monotonic_ns()
+            timings.record("dirty", self.source_revision)
 
     def model_clock(self, kind, identifier, state):
         previous, version = self._models.get((kind, identifier), (state, 1))

@@ -12,6 +12,7 @@ import time
 
 from gi.repository import GLib, Gtk
 
+from adapters.sdk.timing import timings, write_report
 from adapters.gtk4.state import NativeAction, SourceRejected, editable_text
 from adapters.gtk4.native_fence import NativeFence
 from adapters.gtk4.composition import NativeComposition
@@ -86,6 +87,7 @@ class NativeDispatcher:
         self.current_artifact = None
         self.promised_artifact = None
         self.captured_source_revision = None
+        self.capture_started = None
         self.artifacts = {}
         self.composition = NativeComposition(self.composition_context, self.fence, whole.budget if whole is not None else None)
         GLib.timeout_add(10, self.poll_composition)
@@ -113,6 +115,8 @@ class NativeDispatcher:
 
     def observed_callback(self, *_):
         self.native_callbacks += 1
+        if timings:
+            timings.record("callback", self.corpus.source.source_revision)
         self.composition.poll()
 
     def poll_composition(self):
@@ -128,6 +132,7 @@ class NativeDispatcher:
 
     def close(self):
         self.closed = True
+        write_report()
         self.composition.close()
         self.fence.close()
         if self.fence_memory:
@@ -150,6 +155,14 @@ class NativeDispatcher:
             view = view[count:]
 
     def captured(self, capture, frame):
+        if timings and self.capture_started is not None:
+            timings.record("coherentCapture", frame["source_revision"], self.capture_started)
+            self.capture_started = None
+        dirty_started = getattr(self.corpus.source, "timing_dirty_started", None)
+        if timings and dirty_started is not None:
+            timings.record("callbackToCapture", frame["source_revision"], dirty_started)
+            if frame["source_revision"] == self.corpus.source.source_revision:
+                self.corpus.source.timing_dirty_started = None
         self.captured_source_revision = frame['source_revision']
         if self.original_capture:
             self.original_capture(capture, frame)
@@ -167,6 +180,14 @@ class NativeDispatcher:
         self.prune_artifacts()
 
     def whole_captured(self, whole, frame, label):
+        if timings and self.capture_started is not None:
+            timings.record("coherentCapture", frame["source_revision"], self.capture_started)
+            self.capture_started = None
+        dirty_started = getattr(self.corpus.source, "timing_dirty_started", None)
+        if timings and dirty_started is not None:
+            timings.record("callbackToCapture", frame["source_revision"], dirty_started)
+            if frame["source_revision"] == self.corpus.source.source_revision:
+                self.corpus.source.timing_dirty_started = None
         self.captured_source_revision = frame['source_revision']
         files = {label + '.json', label + '.bin', label + '.local.png', label + '.local.bgra'} | {digest + '.rvp' for digest in frame['resources']}
         for surface in frame['surfaces']:
@@ -184,6 +205,9 @@ class NativeDispatcher:
         self.prune_artifacts()
 
     def request_capture(self):
+        if timings:
+            self.capture_started = time.monotonic_ns()
+            timings.record("captureScheduling", self.corpus.source.source_revision)
         if self.whole is None:
             self.corpus.capture.queue_draw()
         elif not self.closed:
@@ -246,6 +270,10 @@ class NativeDispatcher:
     def handle(self, request):
         request_id = request['request_id']
         kind = request['kind']
+        if kind == "timings" and timings:
+            write_report()
+            self.reply(request_id, "timings")
+            return
         if kind == 'consumed':
             if request['artifact'] != self.promised_artifact:
                 raise ValueError('private-capture-owner-mismatch')

@@ -16,7 +16,7 @@ from fixtures.gtk.compare import CRITERIA, bounded_read, native_glyph_geometry, 
 from fixtures.gtk.composition_trace import verify_controller
 
 
-def run_private(xvfb, command):
+def run_private(xvfb, command, *, timeout=45):
     """Owned displays and service-free private bus; deadline kills all children."""
     with tempfile.TemporaryDirectory(prefix='rui-gtk-mirror-display-') as runtime:
         displays = [':' + str(25000 + os.getpid() % 19000), ':' + str(45000 + os.getpid() % 19000)]
@@ -40,7 +40,7 @@ def run_private(xvfb, command):
                     raise RuntimeError(log.read(8192))
                 child = subprocess.Popen(['dbus-run-session', '--config-file=' + str(config), '--', *command], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
                 try:
-                    stdout, stderr = child.communicate(timeout=45)
+                    stdout, stderr = child.communicate(timeout=timeout)
                 except subprocess.TimeoutExpired:
                     os.killpg(child.pid, signal.SIGTERM)
                     try:

@@ -1,3 +1,4 @@
+import { Timings } from "../dist/timing.js";
 import { CanvasRenderer } from "../dist/renderer.js";
 import { scalarOffset } from "../dist/model.js";
 function assert(ok, message) {
@@ -86,7 +87,42 @@ function rvp(
 export function checkPixels() {
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
-  let renderer = new CanvasRenderer(canvas);
+  const timings = new Timings(5);
+  for (let i = 0; i < 8; i++) timings.record("receipt", BigInt(i), i);
+  const report = timings.report();
+  assert(
+    report.dropped === 3 && report.samples[0].revision === "3",
+    "timing ring overflow",
+  );
+  report.samples[0].revision = "0";
+  assert(
+    timings.report().samples[0].revision === "3",
+    "timing report aliases recorder",
+  );
+  timings.clear();
+  timings.command(1n);
+  timings.present(7n);
+  timings.result(1n, 7n, "Applied");
+  assert(
+    timings.report().stages.actionToPresentation.count === 1,
+    "late causal result lost presentation",
+  );
+  timings.command(2n);
+  timings.result(2n, null, "Rejected");
+  timings.present(8n);
+  assert(
+    timings.report().stages.actionToPresentation.count === 1,
+    "rejection claimed presentation",
+  );
+  timings.command(3n);
+  timings.disconnect();
+  timings.present(9n);
+  assert(
+    timings.report().correlationDropped === 1,
+    "disconnect retained timing command",
+  );
+  timings.clear();
+  let renderer = new CanvasRenderer(canvas, undefined, timings);
   const render = (records, resource = () => rvp()) => {
     renderer.dispose();
     renderer = new CanvasRenderer(canvas);
@@ -310,5 +346,6 @@ export function checkPixels() {
     sourceGlyphs: true,
     unicodeScalars: true,
     limitsAndDisposal: true,
+    boundedTimings: true,
   };
 }

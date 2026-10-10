@@ -14,6 +14,7 @@ mod imp {
         pub texture: RefCell<Option<gdk::MemoryTexture>>,
         pub stamp: Cell<Option<Stamp>>,
         pub snapshot_stamp: Cell<Option<Stamp>>,
+        pub snapshot_time: Cell<i64>,
         pub actual_stamp: Cell<Option<Stamp>>,
         pub routing: RefCell<Option<std::sync::Arc<physical_dispatch::PresentedRouting>>>,
         pub snapshot_routing: RefCell<Option<std::sync::Arc<physical_dispatch::PresentedRouting>>>,
@@ -63,6 +64,9 @@ mod imp {
                         stamp.viewport.height as f32,
                     ),
                 );
+                if self.snapshot_stamp.get().map(|s| s.serial) != Some(stamp.serial) {
+                    self.snapshot_time.set(glib::monotonic_time());
+                }
                 self.snapshot_stamp.set(Some(stamp));
                 self.snapshot_routing.replace(self.routing.borrow().clone());
             }
@@ -1217,6 +1221,7 @@ pub fn run_many(options: Vec<Options>) -> Result<(), Box<dyn std::error::Error>>
                                             canvas.imp().actual_routing.replace(canvas.imp().snapshot_routing.borrow().clone());
                                                 if submitted.get() != Some(stamp.serial) {
                                                     if enqueue(&sender, UiCommand::Presented(stamp), &label) {
+                                                        rui_protocol_core::timing::elapsed(rui_protocol_core::timing::Stage::NativePresentation, stamp.revision, std::time::Duration::from_micros((glib::monotonic_time()-canvas.imp().snapshot_time.get()).max(0) as u64), 1);
                                                         submitted.set(Some(stamp.serial));
                                                         if let (Some(observations), Some(window)) = (&observations, window.upgrade()) {
                                                             if let Some(origin) =

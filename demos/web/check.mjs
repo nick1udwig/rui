@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, mkdir } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  mkdir,
+  writeFile,
+} from "node:fs/promises";
 import { spawn, execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
+import { tmpdir, cpus, release } from "node:os";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { chromium } from "../../client-browser/node_modules/playwright/index.mjs";
@@ -23,8 +30,8 @@ function start(command, args, env = {}) {
     stdio: ["pipe", "pipe", "pipe"],
   });
   processes.push(p);
-  p.stdout.on("data", (b) => (logs += b));
-  p.stderr.on("data", (b) => (logs += b));
+  p.stdout.on("data", (b) => (logs = (logs + b).slice(-65536)));
+  p.stderr.on("data", (b) => (logs = (logs + b).slice(-65536)));
   return p;
 }
 async function wait(read, condition = Boolean) {
@@ -73,15 +80,23 @@ function native(operation, ...args) {
   );
 }
 try {
-  const host = start(resolve(root, "target/release/rui-demo"), [
-    "--host-only",
-    "--listen",
-    "0.0.0.0:0",
-    "--identity-dir",
-    identity,
-    "--browser-origin",
-    origin,
-  ]);
+  const host = start(
+    resolve(root, "target/release/rui-demo"),
+    [
+      "--host-only",
+      "--listen",
+      "0.0.0.0:0",
+      "--identity-dir",
+      identity,
+      "--browser-origin",
+      origin,
+    ],
+    {
+      RUI_TIMINGS: "16384",
+      RUI_TIMINGS_REPORT: resolve(temporary, "host-timings.json"),
+      RUI_SOURCE_TIMINGS_REPORT: resolve(temporary, "source-timings.json"),
+    },
+  );
   let frame = await wait(newest);
   await wait(
     () => logs,
@@ -179,7 +194,7 @@ try {
   page.setDefaultTimeout(12000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(origin + "/");
+  await page.goto(origin + "/?timings");
   await page
     .locator("#credential")
     .setInputFiles(resolve(identity, "client.credential"));
@@ -305,7 +320,71 @@ try {
     path: resolve(root, "client-browser/test-output/demo.png"),
     fullPage: true,
   });
+  const actionSamples = [];
+  const actions = Number(process.env.RUI_PERFORMANCE_ACTIONS ?? "0");
+  assert(Number.isInteger(actions) && actions >= 0 && actions <= 1000);
+  let clicks = hiddenTab ? 3 : 2;
+  for (const kind of ["browser", "source"]) {
+    for (let i = 0; i < (actions ? actions + 5 : 0); i++) {
+      const button = target(await newest(), "Increment host counter");
+      if (
+        kind === "browser" &&
+        (await page.locator("#connection").textContent()) !== "Controller"
+      ) {
+        await page.locator("#control").click();
+        await page
+          .locator("#connection")
+          .filter({ hasText: "Controller" })
+          .waitFor();
+      }
+      const before = await page.locator("#revision").textContent();
+      const started = performance.now();
+      if (kind === "browser")
+        await page
+          .locator("#mirror")
+          .click({ position: { x: button.x * 0.75, y: button.y * 0.75 } });
+      else native("click", button.x, button.y);
+      clicks++;
+      await wait(newest, (f) => labeled(f, `Host state: ${clicks} clicks`));
+      await wait(
+        () => page.locator("#revision").textContent(),
+        (s) => s !== before,
+      );
+      if (i >= 5)
+        actionSamples.push({ kind, durationMs: performance.now() - started });
+    }
+  }
   const draw = await page.locator("#timing").textContent();
+  const report = {
+    schemaVersion: 1,
+    browser: browser.version(),
+    hardware: cpus()[0]?.model,
+    kernel: release(),
+    rust: execFileSync("rustc", ["--version"], { encoding: "utf8" }).trim(),
+    native: execFileSync("pkg-config", ["--modversion", "gtk4", "cairo"], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n"),
+    sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim(),
+    sourceDiffHash: createHash("sha256")
+      .update(execFileSync("git", ["diff", "HEAD"]))
+      .digest("hex"),
+    node: process.version,
+    viewport: { width: 1200, height: 1200, scale: 0.75 },
+    network: "loopback TLS with certificate-verifying proxy",
+    build: "release",
+    timing: await page.evaluate(() => window.ruiTimings()),
+    actionSamples,
+    conditions:
+      "action samples include harness polling/native event delivery; end at causal presentation listener, not Applied; screenshot is outside timed loop",
+  };
+  await writeFile(
+    resolve(root, "client-browser/test-output/timings.json"),
+    JSON.stringify(report) + "\n",
+  );
   console.log(
     JSON.stringify({
       passed: true,
@@ -329,6 +408,16 @@ try {
     (v) => v !== null,
   );
   assert.equal(host.exitCode, 0, logs);
+  report.host = JSON.parse(
+    await readFile(resolve(temporary, "host-timings.json"), "utf8"),
+  );
+  report.source = JSON.parse(
+    await readFile(resolve(temporary, "source-timings.json"), "utf8"),
+  );
+  await writeFile(
+    resolve(root, "client-browser/test-output/timings.json"),
+    JSON.stringify(report) + "\n",
+  );
 } catch (error) {
   console.error(logs.slice(-5000));
   try {
@@ -345,7 +434,7 @@ try {
       JSON.stringify({
         revision: f.revision,
         gaps: f.gaps,
-        semantics: f.semantics,
+        semanticCount: f.semantics.length,
         surfaces: f.surfaces.map((s) => ({ key: s.surface_key, gaps: s.gaps })),
       }),
     );
