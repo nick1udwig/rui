@@ -1,3 +1,11 @@
+S1 implemented: explicit portable/browser semantic-only negotiation and SemanticReady;
+no canvas/glyph requirement, Presented/hit-test rejection, exact readiness/authority
+clearing and owned capability metadata. Actual WASM transcripts pass in three engines;
+the live corpus and editor complete semantic button/Unicode/stable-item effects and
+reset/reconnect without authority restoration. Independent Python exact-wire replay
+matches each final projection (six prefixes each across two scopes). See
+docs/semantic-session.md and fixtures/gtk/semantic-session-golden.
+
 L3 contract slice: complete Rust model declarations and owned state copies are
 available to custom transports/renderers. Concurrent credential requests reject;
 listener disposal stops old-generation processing. The complete Python/native/WASM

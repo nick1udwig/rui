@@ -1,0 +1,1474 @@
+{
+  "passed": true,
+  "observerRejected": true,
+  "canvasConstructed": false,
+  "capabilities": {
+    "mode": "semanticOnly",
+    "profiles": [
+      "content.no-raster.v1",
+      "mirror2d.core.v1",
+      "semantics.core.v1",
+      "semantics.only.v1",
+      "text.clock.gtk-editable4224.v1"
+    ],
+    "can_control": true,
+    "actions": [
+      "Activate",
+      "Focus",
+      "ReplaceText",
+      "SetSelection"
+    ]
+  },
+  "effects": [
+    {
+      "operation": "Activate",
+      "target": "5",
+      "sequence": "1"
+    },
+    {
+      "operation": "ReplaceText",
+      "target": "3",
+      "sequence": "3"
+    },
+    {
+      "operation": "ActivateItem",
+      "target": "7",
+      "sequence": "4"
+    }
+  ],
+  "state": {
+    "revision": "5",
+    "records": {
+      "1": {
+        "Semantic": {
+          "id": "1",
+          "version": "1",
+          "role": "Root",
+          "label": "GTK corpus",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "2"
+            },
+            {
+              "kind": "Semantic",
+              "id": "3"
+            },
+            {
+              "kind": "Semantic",
+              "id": "5"
+            },
+            {
+              "kind": "Semantic",
+              "id": "13"
+            },
+            {
+              "kind": "Semantic",
+              "id": "15"
+            },
+            {
+              "kind": "Semantic",
+              "id": "16"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "2": {
+        "Semantic": {
+          "id": "2",
+          "version": "3",
+          "role": "Label",
+          "label": "Host state: 1 clicks",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "3": {
+        "Semantic": {
+          "id": "3",
+          "version": "1",
+          "role": "TextField",
+          "label": "Editable text",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False",
+            "ReadOnly": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ReplaceText",
+              "schema_version": 1
+            },
+            {
+              "id": "SetSelection",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": {
+            "kind": "Text",
+            "id": "21"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "5": {
+        "Semantic": {
+          "id": "5",
+          "version": "2",
+          "role": "Button",
+          "label": "Increment host counter",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "7": {
+        "Semantic": {
+          "id": "7",
+          "version": "2",
+          "role": "ListItem",
+          "label": "Alpha",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "True"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "9": {
+        "Semantic": {
+          "id": "9",
+          "version": "1",
+          "role": "ListItem",
+          "label": "Beta",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "11": {
+        "Semantic": {
+          "id": "11",
+          "version": "1",
+          "role": "ListItem",
+          "label": "Gamma",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "13": {
+        "Semantic": {
+          "id": "13",
+          "version": "2",
+          "role": "List",
+          "label": "Stable-ID list",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "7"
+            },
+            {
+              "kind": "Semantic",
+              "id": "9"
+            },
+            {
+              "kind": "Semantic",
+              "id": "11"
+            }
+          ],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ScrollTo",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": {
+            "version": "2",
+            "items": [
+              {
+                "kind": "Semantic",
+                "id": "7"
+              },
+              {
+                "kind": "Semantic",
+                "id": "9"
+              },
+              {
+                "kind": "Semantic",
+                "id": "11"
+              }
+            ],
+            "total_count": "3",
+            "materialization": "Full",
+            "selected_items": [
+              {
+                "kind": "Semantic",
+                "id": "7"
+              }
+            ]
+          },
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "15": {
+        "Semantic": {
+          "id": "15",
+          "version": "1",
+          "role": "CustomCanvas",
+          "label": "Source-authored vector canvas",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "16": {
+        "Semantic": {
+          "id": "16",
+          "version": "1",
+          "role": "Button",
+          "label": "Ordinary GTK menu",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "18": {
+        "Semantic": {
+          "id": "18",
+          "version": "1",
+          "role": "Root",
+          "label": "Menu popup",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "19"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "19": {
+        "Semantic": {
+          "id": "19",
+          "version": "1",
+          "role": "Button",
+          "label": "Menu source action",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "21": {
+        "Text": {
+          "id": "21",
+          "version": "7",
+          "text_version": "5",
+          "status": "Available",
+          "content": "Semantic A\ud83d\ude00e\u0301\u05d0\u05d1",
+          "selection": {
+            "anchor": "15",
+            "focus": "15"
+          },
+          "editable": true,
+          "selectable": true
+        }
+      },
+      "22": {
+        "Semantic": {
+          "id": "22",
+          "version": "1",
+          "role": "Root",
+          "label": "Controlled tooltip root",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "23"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "23": {
+        "Semantic": {
+          "id": "23",
+          "version": "1",
+          "role": "Label",
+          "label": "Controlled native tooltip",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "24": {
+        "Semantic": {
+          "id": "24",
+          "version": "1",
+          "role": "Root",
+          "label": "Native transient modal",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "25"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "25": {
+        "Semantic": {
+          "id": "25",
+          "version": "1",
+          "role": "TextField",
+          "label": "Modal entry",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Focus",
+              "schema_version": 1
+            },
+            {
+              "id": "ReplaceText",
+              "schema_version": 1
+            },
+            {
+              "id": "SetSelection",
+              "schema_version": 1
+            }
+          ],
+          "text": {
+            "kind": "Text",
+            "id": "34"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "29": {
+        "Session": {
+          "id": "29",
+          "version": "5",
+          "canvas": {
+            "x": 0,
+            "y": 0,
+            "width": 720,
+            "height": 600
+          },
+          "cursor": null,
+          "focus": {
+            "kind": "Semantic",
+            "id": "3"
+          },
+          "focus_surface": {
+            "kind": "Surface",
+            "id": "30"
+          },
+          "focus_generation": "9"
+        }
+      },
+      "30": {
+        "Surface": {
+          "id": "30",
+          "version": "5",
+          "role": "Toplevel",
+          "parent": null,
+          "desktop_rect": {
+            "x": 0,
+            "y": 0,
+            "width": 520,
+            "height": 540
+          },
+          "content_size": {
+            "width": 520,
+            "height": 540
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "0",
+          "mapped": true,
+          "focused": true,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "1"
+          },
+          "input_region": [],
+          "routing_token": [
+            252,
+            30,
+            12,
+            205,
+            219,
+            231,
+            2,
+            23,
+            130,
+            222,
+            5,
+            217,
+            96,
+            33,
+            247,
+            194
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              50,
+              100,
+              52,
+              53,
+              98,
+              56,
+              57,
+              54,
+              56,
+              54,
+              102,
+              102,
+              52,
+              53,
+              100,
+              100,
+              56,
+              101,
+              97,
+              102,
+              97,
+              57,
+              50,
+              51,
+              102,
+              52,
+              97,
+              50,
+              98,
+              102,
+              49,
+              99,
+              58,
+              109,
+              97,
+              105,
+              110,
+              45,
+              99,
+              111,
+              110,
+              116,
+              101,
+              110,
+              116,
+              58,
+              52,
+              53,
+              58,
+              53
+            ]
+          ],
+          "unsupported_features": [
+            "color-glyphs",
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "31": {
+        "Surface": {
+          "id": "31",
+          "version": "5",
+          "role": "Popup",
+          "parent": {
+            "kind": "Surface",
+            "id": "30"
+          },
+          "desktop_rect": {
+            "x": 40,
+            "y": 330,
+            "width": 0,
+            "height": 0
+          },
+          "content_size": {
+            "width": 0,
+            "height": 0
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "1",
+          "mapped": false,
+          "focused": false,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "18"
+          },
+          "input_region": [],
+          "routing_token": [
+            86,
+            82,
+            193,
+            136,
+            217,
+            21,
+            70,
+            42,
+            65,
+            240,
+            120,
+            52,
+            134,
+            44,
+            199,
+            60
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              50,
+              100,
+              52,
+              53,
+              98,
+              56,
+              57,
+              54,
+              56,
+              54,
+              102,
+              102,
+              52,
+              53,
+              100,
+              100,
+              56,
+              101,
+              97,
+              102,
+              97,
+              57,
+              50,
+              51,
+              102,
+              52,
+              97,
+              50,
+              98,
+              102,
+              49,
+              99,
+              58,
+              109,
+              101,
+              110,
+              117,
+              45,
+              112,
+              111,
+              112,
+              117,
+              112,
+              58,
+              52,
+              53,
+              58,
+              117,
+              110,
+              109,
+              97,
+              112,
+              112,
+              101,
+              100,
+              58,
+              53
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "32": {
+        "Surface": {
+          "id": "32",
+          "version": "5",
+          "role": "Tooltip",
+          "parent": {
+            "kind": "Surface",
+            "id": "30"
+          },
+          "desktop_rect": {
+            "x": 300,
+            "y": 300,
+            "width": 0,
+            "height": 0
+          },
+          "content_size": {
+            "width": 0,
+            "height": 0
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "2",
+          "mapped": false,
+          "focused": false,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "22"
+          },
+          "input_region": [],
+          "routing_token": [
+            156,
+            218,
+            159,
+            38,
+            14,
+            140,
+            106,
+            239,
+            156,
+            96,
+            63,
+            82,
+            199,
+            89,
+            57,
+            194
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              50,
+              100,
+              52,
+              53,
+              98,
+              56,
+              57,
+              54,
+              56,
+              54,
+              102,
+              102,
+              52,
+              53,
+              100,
+              100,
+              56,
+              101,
+              97,
+              102,
+              97,
+              57,
+              50,
+              51,
+              102,
+              52,
+              97,
+              50,
+              98,
+              102,
+              49,
+              99,
+              58,
+              116,
+              111,
+              111,
+              108,
+              116,
+              105,
+              112,
+              58,
+              52,
+              53,
+              58,
+              117,
+              110,
+              109,
+              97,
+              112,
+              112,
+              101,
+              100,
+              58,
+              53
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "33": {
+        "Surface": {
+          "id": "33",
+          "version": "5",
+          "role": "Toplevel",
+          "parent": {
+            "kind": "Surface",
+            "id": "30"
+          },
+          "desktop_rect": {
+            "x": 120,
+            "y": 40,
+            "width": 0,
+            "height": 0
+          },
+          "content_size": {
+            "width": 0,
+            "height": 0
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "3",
+          "mapped": false,
+          "focused": false,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "24"
+          },
+          "input_region": [],
+          "routing_token": [
+            141,
+            91,
+            32,
+            180,
+            254,
+            181,
+            123,
+            225,
+            134,
+            198,
+            250,
+            235,
+            203,
+            222,
+            127,
+            168
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              50,
+              100,
+              52,
+              53,
+              98,
+              56,
+              57,
+              54,
+              56,
+              54,
+              102,
+              102,
+              52,
+              53,
+              100,
+              100,
+              56,
+              101,
+              97,
+              102,
+              97,
+              57,
+              50,
+              51,
+              102,
+              52,
+              97,
+              50,
+              98,
+              102,
+              49,
+              99,
+              58,
+              109,
+              111,
+              100,
+              97,
+              108,
+              58,
+              52,
+              53,
+              58,
+              117,
+              110,
+              109,
+              97,
+              112,
+              112,
+              101,
+              100,
+              58,
+              53
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "34": {
+        "Text": {
+          "id": "34",
+          "version": "1",
+          "text_version": "1",
+          "status": "Available",
+          "content": "Modal scalar text: \ud834\udd1e e\u0301 \u05e9\u05dc\u05d5\u05dd",
+          "selection": {
+            "anchor": "0",
+            "focus": "28"
+          },
+          "editable": true,
+          "selectable": true
+        }
+      }
+    },
+    "retired": []
+  },
+  "evidence": [
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280232de0108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e7631121e746578742e636c6f636b2e67746b2d6564697461626c65343232342e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d064880012230080110011a0841637469766174651a05466f6375731a0b5265706c616365546578741a0c53657453656c656374696f6e2a1087b8c483f2c237a5aa9c6eb160e86535"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280432400a1001010101010101010000000000000001110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c792a0b73656d616e7469632e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280a323d0a10e9fbbe8acdf2adb99560ffde07e207ce180120f40e280130173a202ad9016561ab4ba5bac35694f8345dd2c76896742833f8f0b300fc402f9cae99"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280c32890f0a10e9fbbe8acdf2adb99560ffde07e207ce1af40e080112d9010ad601081e100118012a12190000000000408040210000000000e080403212090000000000408040110000000000e080403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031001820112190000000000408040210000000000e080408a011010c7f1f33e15c9a0351946d9ef8b4c4e900103980101a00101aa013232643435623839363836666634356464386561666139323366346132626631633a6d61696e2d636f6e74656e743a33313a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12bd010aba01081f1001180222040801101e2a12090000000000004440110000000000a0744032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110a1b72060b38c492947dc0ae30fe8469b900103980101a00101aa013932643435623839363836666634356464386561666139323366346132626631633a6d656e752d706f7075703a33313a756e6d61707065643a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12ba010ab70108201001180322040801101e2a12090000000000c07240110000000000c0724032003a1209000000000000f03f21000000000000f03f49000000000000f03f50047a04080310168a01107264710d521f78ca3e771f201e31b450900103980101a00101aa013632643435623839363836666634356464386561666139323366346132626631633a746f6f6c7469703a33313a756e6d61707065643a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12b8010ab50108211001180122040801101e2a12090000000000005e4011000000000000444032003a1209000000000000f03f21000000000000f03f49000000000000f03f50067a04080310188a0110983b37b5f19343f6ec22d7a04a9717c3900103980101a00101aa013432643435623839363836666634356464386561666139323366346132626631633a6d6f64616c3a33313a756e6d61707065643a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e123e1a3c080110011801220a47544b20636f7270757342040803100242040803100342040803100542040803100d42040803100f42040803101080010188010112241a220802100218062214486f73742073746174653a203020636c69636b73800101880101125d1a5b080310011805220d4564697461626c6520746578743a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0408041015800101880101123a1a380805100218032216496e6372656d656e7420686f737420636f756e7465723a0408011001520c0a084163746976617465100180010188010112341a320807100118082205416c7068613a0408031001520c0a084163746976617465100152090a05466f637573100180010188010112331a310809100118082204426574613a0408031001520c0a084163746976617465100152090a05466f637573100180010188010112341a32080b10011808220547616d6d613a0408031001520c0a084163746976617465100152090a05466f637573100180010188010112581a56080d10011807220e537461626c652d4944206c69737442040803100742040803100942040803100b520c0a085363726f6c6c546f10016218080112040803100712040803100912040803100b18032001800101880101122d1a2b080f10011809221d536f757263652d617574686f72656420766563746f722063616e766173800101880101122f1a2d08101001180322114f7264696e6172792047544b206d656e75520c0a084163746976617465100180010188010112201a1e081210011801220a4d656e7520706f70757042040803101380010188010112301a2e08131001180322124d656e7520736f7572636520616374696f6e520c0a0841637469766174651001800101880101122d1a2b0816100118012217436f6e74726f6c6c656420746f6f6c74697020726f6f7442040803101780010188010112291a270817100118062219436f6e74726f6c6c6564206e617469766520746f6f6c746970800101880101122c1a2a08181001180122164e6174697665207472616e7369656e74206d6f64616c420408031019800101880101124f1a4d081910011805220b4d6f64616c20656e74727952090a05466f6375731001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e10015a04080410228001018801011233223108151004180320012a1f456469742074686973207465787420696e206569746865722077696e646f773202101f380140011238223608221001180120012a244d6f64616c207363616c617220746578743a20f09d849e2065cc8120d7a9d79cd795d79d3202101c3801400112283226081d10011a12190000000000808640210000000000c082402a040803100332040801101e3809221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280d323b0a10e9fbbe8acdf2adb99560ffde07e207ce10f40e180120172a202ad9016561ab4ba5bac35694f8345dd2c76896742833f8f0b300fc402f9cae99"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001281e32020801"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282332020801"
+    },
+    {
+      "direction": "sent",
+      "kind": 40,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282832120a1003030303030303030000000000000001"
+    },
+    {
+      "direction": "received",
+      "kind": 41,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282932550a102d45b89686ff45dd0000000000000001100118ba29220841637469766174652205466f637573220b5265706c61636554657874220c53657453656c656374696f6e2a1003030303030303030000000000000001"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001283232620a102d45b89686ff45dd8eafa923f4a2bf1c1210010101010101010100000000000000011a100303030303030303030303030303030320012a102d45b89686ff45dd00000000000000013001380542084163746976617465480150015a0208026200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a100101010101010101000000000000000120012836323a080112074170706c696564222b32643435623839363836666634356464386561666139323366346132626631633a77686f6c653a33353a322802"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280b323f0a10ad9dc4e12faf84587d88c410725e384c10011802208807280130053a209646ce123a2e5bbf8a265bb97bbfa0ef7e6a25e872264a1c39b738ff491ed74d"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280c329d070a10ad9dc4e12faf84587d88c410725e384c1a8807080110021adc010ad9010ad601081e100218012a12190000000000408040210000000000e080403212090000000000408040110000000000e080403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031001820112190000000000408040210000000000e080408a0110f531261cf77f349b1e12a39a504c2047900103980101a00101aa013232643435623839363836666634356464386561666139323366346132626631633a6d61696e2d636f6e74656e743a33353a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ac0010abd010aba01081f1002180222040801101e2a12090000000000004440110000000000a0744032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01102a6089b9dd025bc37d1985a7185aeab9900103980101a00101aa013932643435623839363836666634356464386561666139323366346132626631633a6d656e752d706f7075703a33353a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab70108201002180322040801101e2a12090000000000c07240110000000000c0724032003a1209000000000000f03f21000000000000f03f49000000000000f03f50047a04080310168a0110765d5216d79aa7ed851be66a85b9257a900103980101a00101aa013632643435623839363836666634356464386561666139323366346132626631633a746f6f6c7469703a33353a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abb010ab8010ab50108211002180122040801101e2a12090000000000005e4011000000000000444032003a1209000000000000f03f21000000000000f03f49000000000000f03f50067a04080310188a0110eb99d284f1d7b44deb6fd9a228042770900103980101a00101aa013432643435623839363836666634356464386561666139323366346132626631633a6d6f64616c3a33353a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a260a241a220802100318062214486f73742073746174653a203120636c69636b738001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280d323b0a10ad9dc4e12faf84587d88c410725e384c108807180120052a209646ce123a2e5bbf8a265bb97bbfa0ef7e6a25e872264a1c39b738ff491ed74d"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001281e32020802"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282332020802"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a100101010101010101000000000000000120012832325f0a102d45b89686ff45dd8eafa923f4a2bf1c1210010101010101010100000000000000011a100303030303030303030303030303030320022a102d45b89686ff45dd0000000000000001300138034205466f637573480150025a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a100101010101010101000000000000000120012836323a080212074170706c696564222b32643435623839363836666634356464386561666139323366346132626631633a77686f6c653a33353a332803"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280b323f0a105720e07623f5cb20d15ca367638c93a51002180320e006280130043a208882001573e83d2c87eed66a0265b3c017c58545a1018c20ba7bcd0ff4dd7a6b"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280c32f5060a105720e07623f5cb20d15ca367638c93a51ae006080210031adc010ad9010ad601081e100318012a12190000000000408040210000000000e080403212090000000000408040110000000000e080403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031001820112190000000000408040210000000000e080408a0110f100e3a7b237a9886b0168c17b0bd63d900103980101a00101aa013232643435623839363836666634356464386561666139323366346132626631633a6d61696e2d636f6e74656e743a33353a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ac0010abd010aba01081f1003180222040801101e2a12090000000000004440110000000000a0744032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110a9743fa256fe53db04d4efb6d865f33c900103980101a00101aa013932643435623839363836666634356464386561666139323366346132626631633a6d656e752d706f7075703a33353a756e6d61707065643a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab70108201003180322040801101e2a12090000000000c07240110000000000c0724032003a1209000000000000f03f21000000000000f03f49000000000000f03f50047a04080310168a011014cea84f0dfcfdbd31c308509be1c897900103980101a00101aa013632643435623839363836666634356464386561666139323366346132626631633a746f6f6c7469703a33353a756e6d61707065643a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abb010ab8010ab50108211003180122040801101e2a12090000000000005e4011000000000000444032003a1209000000000000f03f21000000000000f03f49000000000000f03f50067a04080310188a0110693c0c5348482882f50951f3ca709730900103980101a00101aa013432643435623839363836666634356464386561666139323366346132626631633a6d6f64616c3a33353a756e6d61707065643a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280d323b0a105720e07623f5cb20d15ca367638c93a510e006180120042a208882001573e83d2c87eed66a0265b3c017c58545a1018c20ba7bcd0ff4dd7a6b"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001281e32020803"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282332020803"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a1001010101010101010000000000000001200128323282010a102d45b89686ff45dd8eafa923f4a2bf1c1210010101010101010100000000000000011a100303030303030303030303030303030320032a102d45b89686ff45dd000000000000000130013803420b5265706c61636554657874480150035a060801100320097219101f1a1553656d616e7469632041f09f988065cc81d790d791"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a100101010101010101000000000000000120012836323a080312074170706c696564222b32643435623839363836666634356464386561666139323366346132626631633a77686f6c653a34323a342804"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280b323f0a10fe3e29ff580cfef1ca52e8e25f5c7ee610031804208907280130053a20aba2c7a9178985e9ef01da74bdc6ed021e634fda94600eb5b4749fcf5fbf79d1"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280c329e070a10fe3e29ff580cfef1ca52e8e25f5c7ee61a8907080310041ad6010ad3010ad001081e100418012a12190000000000408040210000000000e080403212090000000000408040110000000000e080403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310018a011016cffeaefb27543907c893c9869f0137900103980101a00101aa013232643435623839363836666634356464386561666139323366346132626631633a6d61696e2d636f6e74656e743a34323a34b2010c636f6c6f722d676c79706873b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ac0010abd010aba01081f1004180222040801101e2a12090000000000004440110000000000a0744032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01104e6b088e92c057adc4d15c78e9a551a3900103980101a00101aa013932643435623839363836666634356464386561666139323366346132626631633a6d656e752d706f7075703a34323a756e6d61707065643a34b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab70108201004180322040801101e2a12090000000000c07240110000000000c0724032003a1209000000000000f03f21000000000000f03f49000000000000f03f50047a04080310168a01103231af30b483d27cf22e1b4f09a1c1f6900103980101a00101aa013632643435623839363836666634356464386561666139323366346132626631633a746f6f6c7469703a34323a756e6d61707065643a34b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abb010ab8010ab50108211004180122040801101e2a12090000000000005e4011000000000000444032003a1209000000000000f03f21000000000000f03f49000000000000f03f50067a04080310188a01102ebb33cadbc3703d6db89581f32fd5ac900103980101a00101aa013432643435623839363836666634356464386561666139323366346132626631633a6d6f64616c3a34323a756e6d61707065643a34b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a2d0a2b222908151005180420012a1553656d616e7469632041f09f988065cc81d790d7913204080f100f380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280d323b0a10fe3e29ff580cfef1ca52e8e25f5c7ee6108907180120052a20aba2c7a9178985e9ef01da74bdc6ed021e634fda94600eb5b4749fcf5fbf79d1"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001281e32020804"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282332020804"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001283232640a102d45b89686ff45dd8eafa923f4a2bf1c1210010101010101010100000000000000011a100303030303030303030303030303030320042a102d45b89686ff45dd00000000000000013001380742084163746976617465480150045a04080118016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a100101010101010101000000000000000120012836323a080412074170706c696564222b32643435623839363836666634356464386561666139323366346132626631633a77686f6c653a34353a352805"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280b323f0a102adabd81642e83f4c4fa2d524de4e7bf1004180520f407280130063a20441481f042a84f1e0a5e02e1fb04a9dfe111a43cd41a806bcc0d10a0674cbafb"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280c3289080a102adabd81642e83f4c4fa2d524de4e7bf1af407080410051ad6010ad3010ad001081e100518012a12190000000000408040210000000000e080403212090000000000408040110000000000e080403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310018a0110fc1e0ccddbe7021782de05d96021f7c2900103980101a00101aa013232643435623839363836666634356464386561666139323366346132626631633a6d61696e2d636f6e74656e743a34353a35b2010c636f6c6f722d676c79706873b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ac0010abd010aba01081f1005180222040801101e2a12090000000000004440110000000000a0744032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01105652c188d915462a41f07834862cc73c900103980101a00101aa013932643435623839363836666634356464386561666139323366346132626631633a6d656e752d706f7075703a34353a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab70108201005180322040801101e2a12090000000000c07240110000000000c0724032003a1209000000000000f03f21000000000000f03f49000000000000f03f50047a04080310168a01109cda9f260e8c6aef9c603f52c75939c2900103980101a00101aa013632643435623839363836666634356464386561666139323366346132626631633a746f6f6c7469703a34353a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abb010ab8010ab50108211005180122040801101e2a12090000000000005e4011000000000000444032003a1209000000000000f03f21000000000000f03f49000000000000f03f50067a04080310188a01108d5b20b4feb57be186c6faebcbde7fa8900103980101a00101aa013432643435623839363836666634356464386561666139323366346132626631633a6d6f64616c3a34353a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a360a341a320807100218082205416c7068613a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a600a5e1a5c080d10021807220e537461626c652d4944206c69737442040803100742040803100942040803100b520c0a085363726f6c6c546f1001621e080212040803100712040803100912040803100b180320012a04080310078001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001280d323b0a102adabd81642e83f4c4fa2d524de4e7bf10f407180120062a20441481f042a84f1e0a5e02e1fb04a9dfe111a43cd41a806bcc0d10a0674cbafb"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001281e32020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000012001282332020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 8,
+      "hex": "20012808321a0a1850524f44554345525f434f4e4e454354494f4e5f42555359"
+    },
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001280232de0108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e7631121e746578742e636c6f636b2e67746b2d6564697461626c65343232342e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d064880012230080110011a0841637469766174651a05466f6375731a0b5265706c616365546578741a0c53657453656c656374696f6e2a1087b8c483f2c237a5aa9c6eb160e86535"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001280432400a1001010101010101010000000000000002110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c792a0b73656d616e7469632e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 34,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a100101010101010101000000000000000220012822320d0a0b566965774368616e676564"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001280a323d0a103dbdcd6e97840cdb6b1d6aa247244d57180520ec0e280130173a20c08409faa0d36c4e680ed2646c6886b5fa08043de923b33bf3ba64c591735199"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001280c32810f0a103dbdcd6e97840cdb6b1d6aa247244d571aec0e080512d3010ad001081e100518012a12190000000000408040210000000000e080403212090000000000408040110000000000e080403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310018a0110fc1e0ccddbe7021782de05d96021f7c2900103980101a00101aa013232643435623839363836666634356464386561666139323366346132626631633a6d61696e2d636f6e74656e743a34353a35b2010c636f6c6f722d676c79706873b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12bd010aba01081f1005180222040801101e2a12090000000000004440110000000000a0744032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01105652c188d915462a41f07834862cc73c900103980101a00101aa013932643435623839363836666634356464386561666139323366346132626631633a6d656e752d706f7075703a34353a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12ba010ab70108201005180322040801101e2a12090000000000c07240110000000000c0724032003a1209000000000000f03f21000000000000f03f49000000000000f03f50047a04080310168a01109cda9f260e8c6aef9c603f52c75939c2900103980101a00101aa013632643435623839363836666634356464386561666139323366346132626631633a746f6f6c7469703a34353a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12b8010ab50108211005180122040801101e2a12090000000000005e4011000000000000444032003a1209000000000000f03f21000000000000f03f49000000000000f03f50067a04080310188a01108d5b20b4feb57be186c6faebcbde7fa8900103980101a00101aa013432643435623839363836666634356464386561666139323366346132626631633a6d6f64616c3a34353a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e123e1a3c080110011801220a47544b20636f7270757342040803100242040803100342040803100542040803100d42040803100f42040803101080010188010112241a220802100318062214486f73742073746174653a203120636c69636b73800101880101125d1a5b080310011805220d4564697461626c6520746578743a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0408041015800101880101123a1a380805100218032216496e6372656d656e7420686f737420636f756e7465723a0408011001520c0a084163746976617465100180010188010112341a320807100218082205416c7068613a0408031002520c0a084163746976617465100152090a05466f637573100180010188010112331a310809100118082204426574613a0408031001520c0a084163746976617465100152090a05466f637573100180010188010112341a32080b10011808220547616d6d613a0408031001520c0a084163746976617465100152090a05466f6375731001800101880101125e1a5c080d10021807220e537461626c652d4944206c69737442040803100742040803100942040803100b520c0a085363726f6c6c546f1001621e080212040803100712040803100912040803100b180320012a0408031007800101880101122d1a2b080f10011809221d536f757263652d617574686f72656420766563746f722063616e766173800101880101122f1a2d08101001180322114f7264696e6172792047544b206d656e75520c0a084163746976617465100180010188010112201a1e081210011801220a4d656e7520706f70757042040803101380010188010112301a2e08131001180322124d656e7520736f7572636520616374696f6e520c0a0841637469766174651001800101880101122d1a2b0816100118012217436f6e74726f6c6c656420746f6f6c74697020726f6f7442040803101780010188010112291a270817100118062219436f6e74726f6c6c6564206e617469766520746f6f6c746970800101880101122c1a2a08181001180122164e6174697665207472616e7369656e74206d6f64616c420408031019800101880101124f1a4d081910011805220b4d6f64616c20656e74727952090a05466f6375731001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e10015a0408041022800101880101122b222908151007180520012a1553656d616e7469632041f09f988065cc81d790d7913204080f100f380140011238223608221001180120012a244d6f64616c207363616c617220746578743a20f09d849e2065cc8120d7a9d79cd795d79d3202101c3801400112283226081d10051a12190000000000808640210000000000c082402a040803100332040801101e3809221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001280d323b0a103dbdcd6e97840cdb6b1d6aa247244d5710ec0e180120172a20c08409faa0d36c4e680ed2646c6886b5fa08043de923b33bf3ba64c591735199"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001281e32020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a100101010101010101010101010101010112102d45b89686ff45dd8eafa923f4a2bf1c1a10010101010101010100000000000000022001282332020805"
+    }
+  ],
+  "events": [
+    {
+      "type": "connected",
+      "can_control": true
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "applied",
+      "revision": "1"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "1"
+    },
+    {
+      "type": "control",
+      "granted": true
+    },
+    {
+      "type": "commandResult",
+      "sequence": "1",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "2d45b89686ff45dd8eafa923f4a2bf1c:whole:35:2",
+      "revision": "2"
+    },
+    {
+      "type": "applied",
+      "revision": "2"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "2"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "2",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "2d45b89686ff45dd8eafa923f4a2bf1c:whole:35:3",
+      "revision": "3"
+    },
+    {
+      "type": "applied",
+      "revision": "3"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "3"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "3",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "2d45b89686ff45dd8eafa923f4a2bf1c:whole:42:4",
+      "revision": "4"
+    },
+    {
+      "type": "applied",
+      "revision": "4"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "4"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "4",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "2d45b89686ff45dd8eafa923f4a2bf1c:whole:45:5",
+      "revision": "5"
+    },
+    {
+      "type": "applied",
+      "revision": "5"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "5"
+    },
+    {
+      "type": "disconnected"
+    },
+    {
+      "type": "control",
+      "granted": false
+    },
+    {
+      "type": "failure",
+      "message": "host is still closing the previous connection; reconnect shortly"
+    },
+    {
+      "type": "disconnected"
+    },
+    {
+      "type": "connected",
+      "can_control": true
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "reset"
+    },
+    {
+      "type": "applied",
+      "revision": "5"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "5"
+    },
+    {
+      "type": "disconnected"
+    }
+  ],
+  "application": "corpus",
+  "browser": "151.0.7922.173",
+  "pinScope": "owned-test-certificate-SPKI",
+  "sourceRevision": 45,
+  "independentPythonPrefixes": 6,
+  "independentScopes": 2
+}

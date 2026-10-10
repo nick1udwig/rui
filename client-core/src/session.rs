@@ -24,6 +24,32 @@ const REQUIRED: &[&str] = &[
     "content.no-raster.v1",
     "glyph.outline-single.v1",
 ];
+const SEMANTIC_PROFILES: &[&str] = &[
+    "mirror2d.core.v1",
+    "semantics.core.v1",
+    "content.no-raster.v1",
+    "semantics.only.v1",
+    "text.clock.gtk-editable4224.v1",
+];
+const SEMANTIC_REQUIRED: &[&str] = &[
+    "mirror2d.core.v1",
+    "semantics.core.v1",
+    "content.no-raster.v1",
+    "semantics.only.v1",
+];
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PresentationMode {
+    Mirror,
+    SemanticOnly,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct Capabilities {
+    pub mode: PresentationMode,
+    pub profiles: Vec<String>,
+    pub can_control: bool,
+    pub actions: Vec<String>,
+}
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Event {
@@ -65,6 +91,8 @@ struct Outbound {
 /// Credentials are only copied into the outgoing handshake, never retained here.
 pub struct Session {
     client: Id,
+    mode: PresentationMode,
+    allowed_actions: Vec<String>,
     selection: String,
     limits: ReceiverLimits,
     context: Option<ResourceContext>,
@@ -84,15 +112,24 @@ pub struct Session {
     serial: u64,
     renewed_at: u64,
     profiles: Vec<String>,
-    presented: Option<u64>,
+    ready: Option<u64>,
 }
 impl Session {
     pub fn new(client: Id, selection: String) -> Result<Self, TransportError> {
+        Self::with_mode(client, selection, PresentationMode::Mirror)
+    }
+    pub fn with_mode(
+        client: Id,
+        selection: String,
+        mode: PresentationMode,
+    ) -> Result<Self, TransportError> {
         if client == [0; 16] || selection.is_empty() || selection.len() > 256 {
             return Err(TransportError::Protocol);
         }
         Ok(Self {
             client,
+            mode,
+            allowed_actions: Vec::new(),
             selection,
             limits: ReceiverLimits::default(),
             context: None,
@@ -112,8 +149,28 @@ impl Session {
             serial: 1,
             renewed_at: 0,
             profiles: Vec::new(),
-            presented: None,
+            ready: None,
         })
+    }
+    fn supported_profiles(&self) -> &'static [&'static str] {
+        match self.mode {
+            PresentationMode::Mirror => PROFILES,
+            PresentationMode::SemanticOnly => SEMANTIC_PROFILES,
+        }
+    }
+    fn required_profiles(&self) -> &'static [&'static str] {
+        match self.mode {
+            PresentationMode::Mirror => REQUIRED,
+            PresentationMode::SemanticOnly => SEMANTIC_REQUIRED,
+        }
+    }
+    pub fn capabilities(&self) -> Capabilities {
+        Capabilities {
+            mode: self.mode,
+            profiles: self.profiles.clone(),
+            can_control: self.can_control,
+            actions: self.allowed_actions.clone(),
+        }
     }
     pub fn start(&mut self, credential: &[u8]) -> Result<(), TransportError> {
         if self.connected || self.starting || credential.len() != 32 {
@@ -133,8 +190,16 @@ impl Session {
             credential: credential.to_vec(),
             client_instance_id: self.client.to_vec(),
             supported_versions: vec![1],
-            supported_profiles: PROFILES.iter().map(|s| (*s).into()).collect(),
-            required_profiles: REQUIRED.iter().map(|s| (*s).into()).collect(),
+            supported_profiles: self
+                .supported_profiles()
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
+            required_profiles: self
+                .required_profiles()
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
             receiver_limits: Some(codec::wire_limits(&self.limits)),
             resume,
             fresh_view: false,
@@ -200,7 +265,7 @@ impl Session {
     pub fn has_control(&self) -> bool {
         self.connected
             && self.lease.is_some()
-            && self.presented == self.state().ok().map(|s| s.revision)
+            && self.ready == self.state().ok().map(|s| s.revision)
     }
     pub fn pending_commands(&self) -> usize {
         self.commands.as_ref().map_or(0, CommandQueue::len)
@@ -209,13 +274,14 @@ impl Session {
         match outcome {
             ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
                 self.missing = None;
-                self.presented = None;
+                self.ready = None;
                 self.send(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
                 Ok(Event::Applied { revision })
             }
             ReceiveOutcome::NeedResources {
                 revision, missing, ..
             } => {
+                self.ready = None;
                 if missing.len() > 512 {
                     return Err(TransportError::Limit);
                 }
@@ -254,8 +320,9 @@ impl Session {
             || hello
                 .selected_profiles
                 .iter()
-                .any(|s| !PROFILES.contains(&s.as_str()))
-            || REQUIRED
+                .any(|s| !self.supported_profiles().contains(&s.as_str()))
+            || self
+                .required_profiles()
                 .iter()
                 .any(|s| !hello.selected_profiles.iter().any(|p| p == s))
         {
@@ -330,13 +397,18 @@ impl Session {
         self.limits = limits;
         self.profiles = hello.selected_profiles;
         self.can_control = permissions.can_control;
+        self.allowed_actions = permissions.actions;
         self.connected = true;
         self.starting = false;
         self.send(
             p::Kind::OpenView,
             &p::OpenView {
                 selection: self.selection.clone(),
-                mirror_canvas_policy: "host-canvas".into(),
+                mirror_canvas_policy: match self.mode {
+                    PresentationMode::Mirror => "host-canvas",
+                    PresentationMode::SemanticOnly => "semantic-only",
+                }
+                .into(),
             },
         )?;
         let pending: Vec<_> = self
@@ -488,7 +560,7 @@ impl Session {
                 if self.awaiting_resume.take().is_none() {
                     return Err(TransportError::Protocol);
                 }
-                self.presented = None;
+                self.ready = None;
                 Ok(Event::Reset)
             }
             p::Kind::ControlGranted => {
@@ -557,6 +629,9 @@ impl Session {
         }
     }
     pub fn presented(&mut self, revision: u64) -> Result<(), TransportError> {
+        if self.mode != PresentationMode::Mirror {
+            return Err(TransportError::Authority);
+        }
         if !self.connected || self.state()?.revision != revision {
             return Err(TransportError::Receiver);
         }
@@ -566,7 +641,24 @@ impl Session {
             .mark_presented(revision)
             .map_err(|_| TransportError::Receiver)?;
         self.send(p::Kind::PresentedAck, &p::RevisionAck { revision })?;
-        self.presented = Some(revision);
+        self.ready = Some(revision);
+        Ok(())
+    }
+    /// A semantic consumer explicitly accepted this exact validated revision.
+    /// This never marks visual presentation and cannot authorize other families.
+    pub fn semantic_ready(&mut self, revision: u64) -> Result<(), TransportError> {
+        if self.mode != PresentationMode::SemanticOnly
+            || !self.connected
+            || self.state()?.revision != revision
+            || !self
+                .receiver()?
+                .resources_ready()
+                .map_err(|_| TransportError::Receiver)?
+        {
+            return Err(TransportError::Authority);
+        }
+        self.send(p::Kind::SemanticReady, &p::RevisionAck { revision })?;
+        self.ready = Some(revision);
         Ok(())
     }
     fn request_id(&mut self) -> Result<Id, TransportError> {
@@ -576,9 +668,7 @@ impl Session {
         Ok(id)
     }
     pub fn acquire(&mut self, now: u64) -> Result<(), TransportError> {
-        if !self.can_control
-            || self.presented != Some(self.state()?.revision)
-            || self.request.is_some()
+        if !self.can_control || self.ready != Some(self.state()?.revision) || self.request.is_some()
         {
             return Err(TransportError::Authority);
         }
@@ -615,7 +705,7 @@ impl Session {
         Ok(())
     }
     pub fn release(&mut self) -> Result<(), TransportError> {
-        self.presented = None;
+        self.ready = None;
         self.cancelled_request = self.request.take();
         if let Some(g) = self.lease.take() {
             let id = self.request_id()?;
@@ -631,9 +721,12 @@ impl Session {
         Ok(())
     }
     pub fn hit_test(&self, viewport: Viewport, point: Point) -> Result<u64, TransportError> {
+        if self.mode != PresentationMode::Mirror {
+            return Err(TransportError::Authority);
+        }
         interaction::hit_test(
             self.state()?,
-            self.presented.ok_or(TransportError::Authority)?,
+            self.ready.ok_or(TransportError::Authority)?,
             viewport,
             point,
         )
@@ -659,6 +752,9 @@ impl Session {
     /// Opaque capture stamp covers identity, authority, focus, selection and all
     /// source clocks. A draft cannot survive a release/regrant or context ABA.
     pub fn edit_token(&self, target: u64) -> Result<[u8; 32], TransportError> {
+        if !self.has_control() {
+            return Err(TransportError::Authority);
+        }
         use sha2::{Digest, Sha256};
         let captured =
             interaction::editing_context(self.state()?, target, &self.command_binding()?)
@@ -689,7 +785,7 @@ impl Session {
         action: &str,
         args: Arguments,
     ) -> Result<u64, TransportError> {
-        if self.presented != Some(self.state()?.revision) || self.pending_commands() != 0 {
+        if self.ready != Some(self.state()?.revision) || self.pending_commands() != 0 {
             return Err(TransportError::Authority);
         }
         if !self
@@ -738,10 +834,11 @@ impl Session {
         self.connected = false;
         self.starting = false;
         self.can_control = false;
+        self.allowed_actions.clear();
         self.lease = None;
         self.request = None;
         self.cancelled_request = None;
-        self.presented = None;
+        self.ready = None;
         self.missing = None;
         for f in &mut self.outbound {
             f.bytes.fill(0);
@@ -945,6 +1042,93 @@ mod tests {
         };
         s.receive(&bound(p::Kind::ControlGranted, &grant)).unwrap();
         grant
+    }
+    #[test]
+    fn semantic_mode_negotiates_existing_override_and_never_presents() {
+        let mut s =
+            Session::with_mode([3; 16], "owned".into(), PresentationMode::SemanticOnly).unwrap();
+        s.start(&[7; 32]).unwrap();
+        let packet: p::Packet = codec::decode(&s.next_outbound().unwrap(), s.ceiling()).unwrap();
+        let client: p::ClientHello = codec::decode(&packet.payload, s.ceiling()).unwrap();
+        assert!(client
+            .required_profiles
+            .iter()
+            .any(|p| p == "mirror2d.core.v1"));
+        assert!(client
+            .required_profiles
+            .iter()
+            .any(|p| p == "semantics.only.v1"));
+        assert!(
+            !client.supported_profiles.iter().any(|p| p.contains("glyph")
+                || p.contains("raw")
+                || p.contains("composition")
+                || p.contains("resize"))
+        );
+        let packet: p::Packet = codec::decode(&hello(2, true), s.ceiling()).unwrap();
+        let mut server: p::ServerHello = codec::decode(&packet.payload, s.ceiling()).unwrap();
+        server.selected_profiles = SEMANTIC_PROFILES.iter().map(|p| (*p).into()).collect();
+        s.receive(&bound(p::Kind::ServerHello, &server)).unwrap();
+        let frames = drain(&mut s);
+        let open: p::OpenView = codec::decode(&frames[0].payload, s.ceiling()).unwrap();
+        assert_eq!(open.mirror_canvas_policy, "semantic-only");
+        publish(&mut s, 1, None, false);
+        drain(&mut s);
+        assert!(s.acquire(0).is_err());
+        assert!(s.presented(1).is_err());
+        assert!(s.semantic_ready(2).is_err());
+        s.semantic_ready(1).unwrap();
+        assert_eq!(drain(&mut s)[0].kind, p::Kind::SemanticReady as i32);
+        grant(&mut s);
+        assert!(s.has_control());
+        assert!(s
+            .hit_test(Viewport::new(10, 10), Point { x: 1., y: 1. })
+            .is_err());
+        let sequence = s.command(1, "Activate", Arguments::None).unwrap();
+        let packets = drain(&mut s);
+        assert!(packets
+            .iter()
+            .all(|p| p.kind != p::Kind::PresentedAck as i32));
+        assert_eq!(packets[0].kind, p::Kind::SemanticCommand as i32);
+        let command = pb::SemanticCommand::decode(packets[0].payload.as_slice()).unwrap();
+        assert_eq!(command.command_seq, sequence);
+        assert_eq!(command.target_id, 1);
+        assert_eq!(command.observed_view_revision, 1);
+        s.receive(&bound(
+            p::Kind::CommandResult,
+            &p::CommandResult {
+                command_seq: sequence,
+                status: "Applied".into(),
+                resulting_view_revision: Some(2),
+                ..Default::default()
+            },
+        ))
+        .unwrap();
+        publish(&mut s, 2, None, true);
+        drain(&mut s);
+        assert!(!s.has_control());
+        assert!(s.command(1, "Activate", Arguments::None).is_err());
+        s.semantic_ready(2).unwrap();
+        drain(&mut s);
+        assert!(s.has_control());
+        s.release().unwrap();
+        drain(&mut s);
+        assert!(!s.has_control());
+        s.disconnect();
+        assert!(s.semantic_ready(2).is_err());
+        s.start(&[7; 32]).unwrap();
+        drain(&mut s);
+        s.receive(&bound(p::Kind::ServerHello, &server)).unwrap();
+        drain(&mut s);
+        s.receive(&bound(
+            p::Kind::ResetRequired,
+            &p::ResetRequired {
+                reason: "test".into(),
+            },
+        ))
+        .unwrap();
+        assert!(s.acquire(0).is_err());
+        s.close();
+        assert_eq!(s.memory_used(), 0);
     }
     #[test]
     fn snapshots_transactions_and_presentation_are_distinct() {

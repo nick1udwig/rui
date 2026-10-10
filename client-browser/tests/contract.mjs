@@ -1,4 +1,4 @@
-import init, { Receiver } from '../wasm/rui_client_wasm.js';
+import init, { Receiver, Session } from '../wasm/rui_client_wasm.js';
 import { BrowserClient } from '../dist/client.js';
 const assert=(ok,message)=>{if(!ok)throw Error(message)};
 const enc=new TextEncoder();
@@ -45,7 +45,7 @@ export async function checkContract(){
   assert(client.connectionState==='connected','connection state missing');
   const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',payload));
   let laterCalled=false;
-  client.subscribe(event=>{if(event.type==='applied')client.dispose();});
+  client.subscribe(event=>{if(event.type==='applied'){const copy=client.state;copy.records.clear();assert(client.state.records.size>0,'consumer mutated the retained export');client.dispose();}});
   client.subscribe(event=>{if(event.type==='applied')laterCalled=true;});
   const publication=new Uint8Array(16).fill(9);
   const meta=join(blob(1,publication),scalar(3,0xffffffffffffffffn),scalar(4,payload.length),scalar(5,1),scalar(6,fixture.state.records?Object.keys(fixture.state.records).length:0),blob(7,digest));
@@ -56,5 +56,38 @@ export async function checkContract(){
   const count=admitted.length;callbacks.opened();callbacks.message(hello.buffer);
   assert(admitted.length===count,'stale transport callback emitted bytes');
   canvas.remove();
-  return {completeModel:true,maximumWidthIntegers:true,independentPythonOracle:true,concurrentConnect:true,listenerDisposal:true,generationFencing:true};
+  await semanticSession();
+  return {completeModel:true,maximumWidthIntegers:true,independentPythonOracle:true,concurrentConnect:true,listenerDisposal:true,generationFencing:true,ownedStateCopies:true,semanticReady:true,semanticNeverPresented:true};
+}
+
+async function semanticSession(){
+  const session=new Session(ids[2],"owned",true);
+  const pick=(bytes,wanted)=>{let at=0;const u=()=>{let out=0n,shift=0n;while(at<bytes.length){const b=bytes[at++];out|=BigInt(b&127)<<shift;if(!(b&128))return out;shift+=7n;}throw Error('truncated');};while(at<bytes.length){const key=Number(u()),tag=key>>3,type=key&7;let value;if(type===0)value=u();else if(type===2){const length=Number(u());value=bytes.slice(at,at+length);at+=length;}else throw Error('test field');if(tag===wanted)return value;}};
+  const drain=()=>{const frames=[];let frame;while(frame=session.nextOutbound())frames.push(frame);return frames;};
+  const throws=(fn)=>{let threw=false;try{fn()}catch{threw=true}assert(threw,'unsupported semantic operation admitted');};
+  try{
+    session.start(new Uint8Array(32).fill(7));const hello=drain()[0];
+    const encoded=new TextDecoder().decode(hello);assert(encoded.includes('semantics.only.v1')&&!encoded.includes('glyph.outline'),'semantic hello changed contract');
+    const profiles=['mirror2d.core.v1','semantics.core.v1','content.no-raster.v1','semantics.only.v1'];
+    const limits=[1<<20,32<<10,16<<20,64<<20,16<<20,128<<20,8<<20,100000,128];
+    session.receive(packet(2,join(scalar(1,1),...profiles.map(p=>blob(2,p)),blob(3,join(...limits.map((v,i)=>scalar(i+1,v)))),blob(4,join(scalar(1,1),scalar(2,1),blob(3,'Activate'))),blob(5,ids[2]))));
+    const open=drain()[0];assert(new TextDecoder().decode(open).includes('semantic-only'),'semantic OpenView absent');
+    const node=blob(3,join(scalar(1,1),scalar(2,1),scalar(3,3),blob(10,join(blob(1,'Activate'),scalar(2,1))),scalar(16,1),scalar(17,1)));
+    const payload=join(scalar(1,1),blob(2,node)),pub=new Uint8Array(16).fill(12);
+    const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',payload));
+    session.receive(packet(10,join(blob(1,pub),scalar(3,1),scalar(4,payload.length),scalar(5,1),scalar(6,1),blob(7,digest))));
+    session.receive(packet(12,join(blob(1,pub),blob(3,payload))));
+    session.receive(packet(13,join(blob(1,pub),scalar(2,payload.length),scalar(3,1),scalar(4,1),blob(5,digest))));
+    assert(drain().every(bytes=>Number(pick(bytes,5))===30),'Applied differed');
+    throws(()=>session.acquire(0n));throws(()=>session.presented(1n));throws(()=>session.semanticReady(2n));
+    session.semanticReady(1n);assert(Number(pick(drain()[0],5))===35,'SemanticReady absent');
+    session.acquire(0n);const acquire=drain()[0],request=pick(pick(acquire,6),1);
+    session.receive(packet(41,join(blob(1,new Uint8Array(16).fill(8)),scalar(2,1),scalar(3,5000),blob(4,'Activate'),blob(5,request))));
+    assert(session.hasControl,'semantic lease unavailable');
+    throws(()=>session.hitTest(0,0,10,10,0,0,1));
+    const seq=session.activate(1n);assert(seq===1n,'command sequence changed');
+    assert(Number(pick(drain()[0],5))===50,'semantic command absent');
+    assert([...session.state().records.values()].every(r=>'Semantic'in r),'visual record required');
+    session.disconnect();assert(!session.hasControl,'disconnect retained lease');throws(()=>session.semanticReady(1n));
+  }finally{session.close();assert(session.memoryUsed===0,'semantic reservations leaked');session.free();}
 }

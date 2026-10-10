@@ -4,7 +4,8 @@
 Module import constructs no DOM. Construction requires a browser document, a
 caller-owned credential provider, explicit source selection and a presentation
 adapter. `canvas` supplies the default `CanvasRenderer`; `renderer` and `transport`
-can be replaced independently. Semantic-only options/readiness are the next slice.
+can be replaced independently. `mode: semanticOnly` requires neither canvas nor renderer;
+its consumer explicitly calls `semanticReady` after accepting a current revision.
 
 The default transport verifies certificates through the browser and requires the
 `rui.v1` subprotocol. Credentials are copied into the handshake, cleared after use
@@ -52,7 +53,7 @@ Custom renderers implement `render(state, viewport, resource)` synchronously and
 `dispose`, optionally `reset`. Missing/corrupt resources fail rendering and close the
 connection; the Rust receiver requests/verifies resources before committing. A local
 viewport change requests a full repaint without a source command. Explicit resource
-cache-loss/eviction APIs and richer negotiated capability reporting remain L2/L3 gaps;
+cache-loss/eviction APIs remain L2/L3 gaps; owned negotiated capabilities are exposed. These gaps
 they must not be simulated by mutating the exported state. The complete serialization
 fixture is encoded by Python, independently decoded by Python and native Rust, then
 compared field-for-field to actual WASM output in three browsers, including uint64

@@ -87,6 +87,10 @@ jobs:
         run: |
           cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check --locked
           python3 fixtures/gtk/native_check.py --case editor --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-editor"
+      - name: Semantic-only portable session on both owned applications
+        run: |
+          python3 demos/semantic/session_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-semantic-corpus"
+          python3 demos/semantic/session_check.py --xvfb "$(command -v Xvfb)" --application editor --output "$RUNNER_TEMP/rui-semantic-editor"
       - name: Read-only observed applications on private accessibility bus
         run: python3 fixtures/atspi/native_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-observed"
       - name: Development serving, live edits and hidden-tab lifecycle

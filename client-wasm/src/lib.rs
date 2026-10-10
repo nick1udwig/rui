@@ -260,9 +260,22 @@ fn value<T: serde::Serialize>(input: &T) -> Result<JsValue, JsError> {
 #[wasm_bindgen]
 impl Session {
     #[wasm_bindgen(constructor)]
-    pub fn new(client: &[u8], selection: String) -> Result<Session, JsError> {
+    pub fn new(
+        client: &[u8],
+        selection: String,
+        semantic_only: Option<bool>,
+    ) -> Result<Session, JsError> {
         Ok(Self {
-            inner: rui_client_core::session::Session::new(id(client)?, selection).map_err(error)?,
+            inner: rui_client_core::session::Session::with_mode(
+                id(client)?,
+                selection,
+                if semantic_only.unwrap_or(false) {
+                    rui_client_core::session::PresentationMode::SemanticOnly
+                } else {
+                    rui_client_core::session::PresentationMode::Mirror
+                },
+            )
+            .map_err(error)?,
         })
     }
     pub fn start(&mut self, credential: &[u8]) -> Result<(), JsError> {
@@ -308,6 +321,13 @@ impl Session {
             .read_resource(id(digest)?)
             .map_err(error)?
             .to_vec())
+    }
+    pub fn capabilities(&self) -> Result<JsValue, JsError> {
+        value(&self.inner.capabilities())
+    }
+    #[wasm_bindgen(js_name = semanticReady)]
+    pub fn semantic_ready(&mut self, revision: u64) -> Result<(), JsError> {
+        self.inner.semantic_ready(revision).map_err(error)
     }
     pub fn presented(&mut self, revision: u64) -> Result<(), JsError> {
         self.inner.presented(revision).map_err(error)

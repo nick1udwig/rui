@@ -56,23 +56,27 @@ export const webSocketTransport: TransportFactory = (url, callbacks) => {
     close: () => ws.close(),
   };
 };
-export interface BrowserOptions {
+export interface CommonOptions {
   url: string;
   clientId: Uint8Array;
   credential: () => Promise<Uint8Array>;
   selection: string;
-  canvas: HTMLCanvasElement;
-  renderer?: Renderer;
   transport?: TransportFactory;
   allowInsecure?: boolean;
   scale?: number;
   onEvent?: (event: BrowserEvent) => void;
   timings?: Timings;
 }
+export type BrowserOptions = CommonOptions & (
+  { mode?: "mirror"; canvas: HTMLCanvasElement; renderer?: Renderer } |
+  { mode: "semanticOnly"; canvas?: never; renderer?: never }
+);
+export interface Capabilities { mode: "mirror" | "semanticOnly"; profiles: string[]; can_control: boolean; actions: string[] }
 export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "disposed";
 export type BrowserEvent =
   | SessionEvent
   | { type: "disconnected" }
+  | { type: "semanticReady"; revision: bigint }
   | { type: "presented"; revision: bigint; renderMs: number }
   | { type: "failure"; message: string };
 export interface EditCapture {
@@ -88,7 +92,7 @@ let initialization: Promise<unknown> | undefined;
 export class BrowserClient {
   private session: Session;
   private socket: BinaryTransport | undefined;
-  private renderer: Renderer;
+  private renderer: Renderer | undefined;
   private generation = 0;
   private frame = 0;
   private presentation = 0;
@@ -126,10 +130,9 @@ export class BrowserClient {
     } else if (this.active && this.session.revision > 0n) this.schedule();
   };
   private constructor(private options: BrowserOptions) {
-    this.session = new Session(options.clientId, options.selection);
-    this.renderer =
-      options.renderer ??
-      new CanvasRenderer(options.canvas, undefined, options.timings);
+    this.session = new Session(options.clientId, options.selection, options.mode === "semanticOnly");
+    if (options.mode !== "semanticOnly") this.renderer =
+      options.renderer ?? new CanvasRenderer(options.canvas, undefined, options.timings);
     this.viewport = {
       width: 1,
       height: 1,
@@ -173,6 +176,7 @@ export class BrowserClient {
   get state(): State | undefined {
     return this.snapshot && structuredClone(this.snapshot);
   }
+  get capabilities(): Capabilities { return this.session.capabilities() as Capabilities; }
   get connectionState(): ConnectionState { return this.connection; }
   get hasControl(): boolean {
     return (
@@ -193,6 +197,7 @@ export class BrowserClient {
     return { ...this.viewport, origin: { ...this.viewport.origin } };
   }
   setViewport(viewport: Viewport): void {
+    if (this.options.mode === "semanticOnly") throw new Error("semantic layout is local to the consumer");
     this.viewportExplicit = true;
     this.viewport = { ...viewport, origin: { ...viewport.origin } };
     this.invalidate();
@@ -349,7 +354,7 @@ export class BrowserClient {
             }
             if (event.type === "reset") {
               this.causal.clear();
-              this.renderer.reset?.();
+              this.renderer?.reset?.();
               this.snapshot = undefined;
               this.invalidate();
             }
@@ -416,6 +421,7 @@ export class BrowserClient {
     this.presentation = 0;
   }
   private schedule(): void {
+    if (this.options.mode === "semanticOnly") return;
     if (!this.visible || !this.active || !this.snapshot || this.frame) return;
     const generation = this.generation;
     this.frame = requestAnimationFrame(() => {
@@ -424,7 +430,7 @@ export class BrowserClient {
       if (!state || !this.visible || generation !== this.generation) return;
       try {
         const started = performance.now();
-        this.renderer.render(state, this.viewport, (d) =>
+        this.renderer!.render(state, this.viewport, (d) =>
           this.session.resourceBytes(new Uint8Array(d)),
         );
         const renderMs = performance.now() - started;
@@ -438,8 +444,8 @@ export class BrowserClient {
             !this.active ||
             generation !== this.generation ||
             state.revision !== this.session.revision ||
-            !this.options.canvas.isConnected ||
-            !this.options.canvas.getClientRects().length
+            !this.options.canvas?.isConnected ||
+            !this.options.canvas?.getClientRects().length
           )
             return;
           try {
@@ -469,6 +475,21 @@ export class BrowserClient {
       }
     });
   }
+  /** Call after a semantic consumer has accepted the current committed model. */
+  semanticReady(revision: bigint): void {
+    assertUint64(revision);
+    this.visibility();
+    if (this.options.mode !== "semanticOnly" || !this.active || !this.visible ||
+        !this.snapshot || this.snapshot.revision !== revision)
+      throw new Error("semantic readiness unavailable");
+    this.session.semanticReady(revision);
+    this.displayedRevision = revision;
+    this.causal.present(revision);
+    this.flush();
+    const generation = this.generation;
+    this.emit({ type: "semanticReady", revision });
+    if (generation === this.generation && !this.disposed && this.controlWanted) this.requestControl();
+  }
   requestControl(): void {
     this.visibility();
     this.controlWanted = true;
@@ -496,6 +517,7 @@ export class BrowserClient {
     this.emit({ type: "control", granted: false });
   }
   targetAt(x: number, y: number): Id {
+    if (this.options.mode === "semanticOnly") throw new Error("semantic targets use identities");
     if (this.displayedRevision !== this.session.revision)
       throw new Error("wait for presentation");
     const v = this.viewport;
@@ -602,7 +624,7 @@ export class BrowserClient {
     ++this.generation;
     this.active = false;
     this.causal.clear();
-    this.renderer.reset?.();
+    this.renderer?.reset?.();
     this.snapshot = undefined;
     this.canControl = false;
     this.acquisition = false;
@@ -624,7 +646,7 @@ export class BrowserClient {
     document.removeEventListener("visibilitychange", this.visibility);
     this.session.close();
     this.session.free();
-    this.renderer.dispose();
+    this.renderer?.dispose();
     this.snapshot = undefined;
     this.listeners.clear();
   }
