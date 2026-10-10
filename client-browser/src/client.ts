@@ -67,12 +67,19 @@ export interface CommonOptions {
   onEvent?: (event: BrowserEvent) => void;
   timings?: Timings;
 }
-export type BrowserOptions = CommonOptions & (
-  { mode?: "mirror"; canvas: HTMLCanvasElement; renderer?: Renderer } |
-  { mode: "semanticOnly"; canvas?: never; renderer?: never }
-);
-export interface Capabilities { mode: "mirror" | "semanticOnly"; profiles: string[]; can_control: boolean; actions: string[] }
-export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "disposed";
+export type BrowserOptions = CommonOptions &
+  (
+    | { mode?: "mirror"; canvas: HTMLCanvasElement; renderer?: Renderer }
+    | { mode: "semanticOnly"; canvas?: never; renderer?: never }
+  );
+export interface Capabilities {
+  mode: "mirror" | "semanticOnly";
+  profiles: string[];
+  can_control: boolean;
+  actions: string[];
+}
+export type ConnectionState =
+  "idle" | "connecting" | "connected" | "disconnected" | "disposed";
 export type BrowserEvent =
   | SessionEvent
   | { type: "disconnected" }
@@ -130,9 +137,15 @@ export class BrowserClient {
     } else if (this.active && this.session.revision > 0n) this.schedule();
   };
   private constructor(private options: BrowserOptions) {
-    this.session = new Session(options.clientId, options.selection, options.mode === "semanticOnly");
-    if (options.mode !== "semanticOnly") this.renderer =
-      options.renderer ?? new CanvasRenderer(options.canvas, undefined, options.timings);
+    this.session = new Session(
+      options.clientId,
+      options.selection,
+      options.mode === "semanticOnly",
+    );
+    if (options.mode !== "semanticOnly")
+      this.renderer =
+        options.renderer ??
+        new CanvasRenderer(options.canvas, undefined, options.timings);
     this.viewport = {
       width: 1,
       height: 1,
@@ -176,8 +189,12 @@ export class BrowserClient {
   get state(): State | undefined {
     return this.snapshot && structuredClone(this.snapshot);
   }
-  get capabilities(): Capabilities { return this.session.capabilities() as Capabilities; }
-  get connectionState(): ConnectionState { return this.connection; }
+  get capabilities(): Capabilities {
+    return this.session.capabilities() as Capabilities;
+  }
+  get connectionState(): ConnectionState {
+    return this.connection;
+  }
   get hasControl(): boolean {
     return (
       this.active &&
@@ -197,7 +214,8 @@ export class BrowserClient {
     return { ...this.viewport, origin: { ...this.viewport.origin } };
   }
   setViewport(viewport: Viewport): void {
-    if (this.options.mode === "semanticOnly") throw new Error("semantic layout is local to the consumer");
+    if (this.options.mode === "semanticOnly")
+      throw new Error("semantic layout is local to the consumer");
     this.viewportExplicit = true;
     this.viewport = { ...viewport, origin: { ...viewport.origin } };
     this.invalidate();
@@ -208,8 +226,9 @@ export class BrowserClient {
       throw new Error("client is disposed or already connected");
     this.connecting = true;
     this.connection = "connecting";
-    try { await this.connectInner(); }
-    finally {
+    try {
+      await this.connectInner();
+    } finally {
       this.connecting = false;
       if (this.connection === "connecting") this.connection = "disconnected";
     }
@@ -479,8 +498,13 @@ export class BrowserClient {
   semanticReady(revision: bigint): void {
     assertUint64(revision);
     this.visibility();
-    if (this.options.mode !== "semanticOnly" || !this.active || !this.visible ||
-        !this.snapshot || this.snapshot.revision !== revision)
+    if (
+      this.options.mode !== "semanticOnly" ||
+      !this.active ||
+      !this.visible ||
+      !this.snapshot ||
+      this.snapshot.revision !== revision
+    )
       throw new Error("semantic readiness unavailable");
     this.session.semanticReady(revision);
     this.displayedRevision = revision;
@@ -488,7 +512,8 @@ export class BrowserClient {
     this.flush();
     const generation = this.generation;
     this.emit({ type: "semanticReady", revision });
-    if (generation === this.generation && !this.disposed && this.controlWanted) this.requestControl();
+    if (generation === this.generation && !this.disposed && this.controlWanted)
+      this.requestControl();
   }
   requestControl(): void {
     this.visibility();
@@ -517,7 +542,8 @@ export class BrowserClient {
     this.emit({ type: "control", granted: false });
   }
   targetAt(x: number, y: number): Id {
-    if (this.options.mode === "semanticOnly") throw new Error("semantic targets use identities");
+    if (this.options.mode === "semanticOnly")
+      throw new Error("semantic targets use identities");
     if (this.displayedRevision !== this.session.revision)
       throw new Error("wait for presentation");
     const v = this.viewport;
@@ -546,6 +572,30 @@ export class BrowserClient {
     if (!this.hasControl) throw new Error("control unavailable");
     if (this.pendingCommands) throw new Error("wait for the preceding command");
     const seq = this.session.focus(target);
+    this.causal.begin(seq);
+    this.options.timings?.command(seq);
+    this.flush();
+    return seq;
+  }
+  setChecked(target: Id, checked: boolean): bigint {
+    assertUint64(target);
+    if (typeof checked !== "boolean")
+      throw new TypeError("expected a boolean value");
+    if (!this.hasControl || this.pendingCommands)
+      throw new Error("wait for current control and readiness");
+    const seq = this.session.setChecked(target, checked);
+    this.causal.begin(seq);
+    this.options.timings?.command(seq);
+    this.flush();
+    return seq;
+  }
+  activateItem(collection: Id, item: Id, modelVersion: bigint): bigint {
+    assertUint64(collection);
+    assertUint64(item);
+    assertUint64(modelVersion);
+    if (!this.hasControl || this.pendingCommands)
+      throw new Error("wait for current control and readiness");
+    const seq = this.session.activateItem(collection, item, modelVersion);
     this.causal.begin(seq);
     this.options.timings?.command(seq);
     this.flush();

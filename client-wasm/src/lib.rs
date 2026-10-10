@@ -386,6 +386,27 @@ impl Session {
             )
             .map_err(error)
     }
+    #[wasm_bindgen(js_name = setChecked)]
+    pub fn set_checked(&mut self, target: u64, checked: bool) -> Result<u64, JsError> {
+        self.inner
+            .command(
+                target,
+                "SetValue",
+                rui_protocol_core::commands::Arguments::Checked(checked),
+            )
+            .map_err(error)
+    }
+    #[wasm_bindgen(js_name = activateItem)]
+    pub fn activate_item(
+        &mut self,
+        collection: u64,
+        item: u64,
+        version: u64,
+    ) -> Result<u64, JsError> {
+        self.inner
+            .activate_item(collection, item, version)
+            .map_err(error)
+    }
     #[wasm_bindgen(js_name = editToken)]
     pub fn edit_token(&self, target: u64) -> Result<Vec<u8>, JsError> {
         Ok(self.inner.edit_token(target).map_err(error)?.to_vec())

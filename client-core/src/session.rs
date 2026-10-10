@@ -813,6 +813,21 @@ impl Session {
         ))?;
         Ok(seq)
     }
+    pub fn activate_item(
+        &mut self,
+        collection: u64,
+        item: u64,
+        version: u64,
+    ) -> Result<u64, TransportError> {
+        let Some(Record::Semantic(owner)) = self.state()?.records.get(&collection) else {
+            return Err(TransportError::Authority);
+        };
+        let model = owner.collection.as_ref().ok_or(TransportError::Authority)?;
+        if model.version != version || !model.items.iter().any(|r| r.id == item) {
+            return Err(TransportError::Authority);
+        }
+        self.command(item, "Activate", Arguments::None)
+    }
     /// Explicit recovery resends only the original command bytes, including
     /// original epoch, lease, view and sequence. Never manufacture a fresh edit.
     pub fn retry_pending(&mut self) -> Result<(), TransportError> {

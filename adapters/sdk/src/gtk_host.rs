@@ -362,6 +362,7 @@ struct SourceGuard {
 #[serde(untagged)]
 enum NativeArguments<'a> {
     None {},
+    Checked { checked: bool },
     Text { start: u64, end: u64, text: &'a str },
     Selection { anchor: u64, focus: u64 },
     Scroll { x: f64, y: f64 },
@@ -1793,6 +1794,7 @@ fn authority(source: &ViewReceiver, view: Id) -> Result<SemanticAuthority, GtkHo
         }
     }
     let allowed_actions: BTreeSet<_> = [
+        "SetValue",
         "Activate",
         "ReplaceText",
         "SetSelection",
@@ -1857,7 +1859,15 @@ fn authority(source: &ViewReceiver, view: Id) -> Result<SemanticAuthority, GtkHo
                 text_scalar_count: text
                     .and_then(|text| text.content.as_ref())
                     .map(|text| text.chars().count() as u64),
-                value_schema: None,
+                value_schema: if matches!(
+                    semantic.value,
+                    Some(rui_protocol_core::model::TypedValue::Boolean(_))
+                ) && semantic.role == SemanticRole::Checkbox
+                {
+                    Some(rui_protocol_core::commands::ValueSchema::Boolean)
+                } else {
+                    None
+                },
                 actions,
             },
         );
@@ -1943,6 +1953,7 @@ fn native_command<'a>(
     };
     let arguments = match &command.arguments {
         Arguments::None => NativeArguments::None {},
+        Arguments::Checked(checked) => NativeArguments::Checked { checked: *checked },
         Arguments::ReplaceText { start, end, text } => NativeArguments::Text {
             start: *start,
             end: *end,

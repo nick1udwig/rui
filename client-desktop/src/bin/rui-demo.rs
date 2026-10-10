@@ -195,10 +195,17 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
                 can_control: true,
                 // Use queued semantic edits for the manual playground. The
                 // native wire composition scenarios keep their separate tests.
-                actions: ["Activate", "Focus", "ReplaceText", "SetSelection"]
-                    .into_iter()
-                    .map(str::to_owned)
-                    .collect(),
+                actions: [
+                    "Activate",
+                    "Focus",
+                    "ReplaceText",
+                    "SetSelection",
+                    "SetValue",
+                    "ScrollTo",
+                ]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
             },
         },
     )?;

@@ -41,6 +41,15 @@ class Controls:
         self.source.register(key,3,lambda:{'label':widget.get_label(),'states':{1:1 if widget.is_sensitive() else 2}},parent=parent,actions=['Activate','Focus'])
         self.registry.bind(key,widget,self.surface)
 
+    def checkbox(self, key, widget, parent):
+        if not isinstance(widget, (Gtk.ToggleButton, Gtk.CheckButton)):
+            raise ValueError('registered boolean widget required')
+        self.source.register(key,4,lambda:{'label':widget.get_label(),'value':bool(widget.get_active()),
+            'states':{1:1 if widget.is_sensitive() else 2,2:2 if widget.get_active() else 1}},
+            parent=parent,actions=['SetValue','Focus'])
+        self.registry.bind(key,widget,self.surface)
+        widget.connect('toggled',lambda *_:self.source.changed())
+
     def entry(self, key, widget, parent, label, *, private=False):
         def read():
             if private:

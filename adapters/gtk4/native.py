@@ -505,6 +505,9 @@ class NativeDispatcher:
                     raise SourceRejected('native-text-ceiling')
             elif not all(0 <= arguments[name] <= count for name in ('anchor', 'focus')):
                 raise SourceRejected('native-selection-range')
+        elif action == 'SetValue':
+            if not isinstance(widget, (Gtk.ToggleButton, Gtk.CheckButton)) or type(arguments.get('checked')) is not bool or set(arguments) != {'checked'}:
+                raise SourceRejected('unsupported-native-boolean-value')
         elif action == 'Activate' and not isinstance(widget, (Gtk.Button, Gtk.MenuButton, Gtk.ListBoxRow, NativeAction)):
             raise SourceRejected('unsupported-native-activation')
         elif action == 'ScrollTo' and (not isinstance(widget, (Gtk.ListBox, Gtk.ScrolledWindow)) or widget.get_ancestor(Gtk.ScrolledWindow) is None):
@@ -554,6 +557,10 @@ class NativeDispatcher:
                 widget.emit('clicked')
             else:
                 widget.get_parent().select_row(widget)
+        elif action == 'SetValue':
+            widget.set_active(arguments['checked'])
+            if widget.get_active() != arguments['checked']:
+                raise RuntimeError('native boolean differs after dispatch')
         elif action == 'Focus':
             if not widget.grab_focus():
                 raise RuntimeError('native focus declined after dispatch')

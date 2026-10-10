@@ -1,3 +1,10 @@
+L4 enabled semantic increment: typed Boolean SetValue and explicit stable-item/model
+activation APIs, scalar text/selection parameter bounds, a registered native boolean
+source control and private dispatcher/host Boolean schema. Undeclared schemas/types
+and stale collection versions fail before dispatch; release blocks value mutation.
+Raw/browser keyboard/composition/resize/fingerprint capabilities remain disabled,
+with the tested subset and limitations recorded in docs/browser-capabilities.md.
+
 S1 implemented: explicit portable/browser semantic-only negotiation and SemanticReady;
 no canvas/glyph requirement, Presented/hit-test rejection, exact readiness/authority
 clearing and owned capability metadata. Actual WASM transcripts pass in three engines;

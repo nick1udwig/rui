@@ -385,3 +385,44 @@ fn stable_item_activation_uses_unique_published_collection_owner_clock() {
         Err(InteractionError::Unsupported)
     );
 }
+
+#[test]
+fn value_and_text_parameters_fail_before_building_a_command() {
+    let mut s = fixture();
+    let binding = CommandBinding {
+        epoch: [1; 16],
+        view: [2; 16],
+        client: [3; 16],
+        lease: [4; 16],
+        generation: 1,
+        sequence: 1,
+    };
+    let Record::Semantic(node) = s.records.get_mut(&20).unwrap() else {
+        panic!()
+    };
+    node.role = SemanticRole::Checkbox;
+    node.value = Some(TypedValue::Boolean(false));
+    node.actions = vec![Action {
+        id: "SetValue".into(),
+        schema_version: 1,
+    }];
+    assert!(command(&s, 20, "SetValue", Arguments::Checked(true), binding).is_ok());
+    for value in [
+        Arguments::Number(f64::NAN),
+        Arguments::Number(1.),
+        Arguments::ValueText("true".into()),
+    ] {
+        assert_eq!(
+            command(&s, 20, "SetValue", value, binding).unwrap_err(),
+            InteractionError::Unsupported
+        );
+    }
+    let Record::Semantic(node) = s.records.get_mut(&20).unwrap() else {
+        panic!()
+    };
+    node.actions[0].schema_version = 2;
+    assert_eq!(
+        command(&s, 20, "SetValue", Arguments::Checked(true), binding).unwrap_err(),
+        InteractionError::Unsupported
+    );
+}

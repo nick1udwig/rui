@@ -417,7 +417,18 @@ pub fn command(
             preconditions.model_version = collection_version(state, node)?;
         }
         ("Focus", Arguments::None) => {}
-        ("SetValue", Arguments::Checked(_) | Arguments::Number(_) | Arguments::ValueText(_)) => {}
+        ("SetValue", Arguments::Checked(_))
+            if matches!(node.value, Some(TypedValue::Boolean(_))) => {}
+        ("SetValue", Arguments::Number(value))
+            if value.is_finite()
+                && matches!(
+                    node.value,
+                    Some(TypedValue::Number(_) | TypedValue::Integer(_))
+                ) => {}
+        ("SetValue", Arguments::ValueText(value))
+            if value.len() <= 16 << 10
+                && !value.contains('\0')
+                && matches!(node.value, Some(TypedValue::Text(_))) => {}
         ("ReplaceText", Arguments::ReplaceText { .. })
         | ("SetSelection", Arguments::Selection { .. }) => {
             let reference = node.text.ok_or(InteractionError::Unsupported)?;
@@ -430,6 +441,21 @@ pub fn command(
                 || (action.id == "SetSelection" && !text.selectable)
             {
                 return Err(InteractionError::Unsupported);
+            }
+            let count = text
+                .content
+                .as_ref()
+                .ok_or(InteractionError::Unsupported)?
+                .chars()
+                .count() as u64;
+            match &args {
+                Arguments::ReplaceText { start, end, text }
+                    if start <= end
+                        && *end <= count
+                        && text.len() <= 16 << 10
+                        && !text.contains('\0') => {}
+                Arguments::Selection { anchor, focus } if *anchor <= count && *focus <= count => {}
+                _ => return Err(InteractionError::Unsupported),
             }
             preconditions.text_version = Some(text.text_version);
             let focus = state

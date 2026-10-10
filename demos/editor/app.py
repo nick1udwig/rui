@@ -68,6 +68,8 @@ class Editor:
             self.title.connect('changed',lambda *_:self.edit('title',self.title.get_text()))
             self.title.grab_focus();source.changed()
         rebuild.connect('clicked',replace_control)
+        reviewed=Gtk.ToggleButton(label='Reviewed');form.append(reviewed)
+        controls.checkbox('reviewed',reviewed,'document-form')
         private=Gtk.Entry(text='local private secret');private.set_visibility(False);form.append(private)
         controls.entry('private-field',private,'document-form','Private field',private=True)
         main=CaptureWidget(source,layout,'main-content','documents-root',output)
