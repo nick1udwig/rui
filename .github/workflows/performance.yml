@@ -1,0 +1,42 @@
+name: Controlled performance gates
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    # Explicit provisioning is required. Ordinary CI never enforces timings.
+    runs-on: [self-hosted, linux, x64, rui-perf-i7-1280p]
+    timeout-minutes: 30
+    env:
+      RUI_WASM_CHROMIUM: /usr/bin/chromium
+      RUI_BROWSER_HEADED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.8.1
+      - name: Build all artifacts before measuring
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
+          cargo install wasm-bindgen-cli --version "$version" --locked
+          cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
+          python3 client-wasm/build.py
+          npm --prefix client-browser ci
+          npm --prefix demos/web ci
+          npm --prefix client-browser run build
+          npm --prefix demos/web run build
+      - name: Measure frozen workload and evaluate original goals
+        run: |
+          python3 demos/web/performance.py --xvfb /usr/bin/Xvfb --output "$RUNNER_TEMP/rui-performance"
+          python3 ci/performance-gate.py "$RUNNER_TEMP/rui-performance" --output "$RUNNER_TEMP/rui-performance/gates.json" --enforce --runner rui-perf-i7-1280p
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: controlled-performance-evidence
+          path: ${{ runner.temp }}/rui-performance/*.json
+          retention-days: 30

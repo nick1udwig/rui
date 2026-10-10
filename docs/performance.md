@@ -1,5 +1,8 @@
 # Integrated load measurements
 
+The [controlled performance gates](performance-gates.md) freeze the small-demo
+procedure and preserve the currently unmet action targets.
+
 The [P4 browser optimization](browser-render-performance.md) retains three-run
 [before](../fixtures/performance/browser-p4-before/summary.json) and
 [after](../fixtures/performance/browser-p4-after/summary.json) small-demo reports,

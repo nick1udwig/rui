@@ -25,6 +25,13 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+P5 adds a frozen small-demo evaluator and an opt-in named-runner workflow.
+Retained three-run results pass the 16.67 ms draw budget and fail the unchanged
+100/150 ms action goals. Ordinary CI validates evidence and correlation rather
+than enforcing shared-machine timings. [The gate contract](docs/performance-gates.md)
+records the remaining capture cost, runner provisioning, expanded P1 measurements
+and large-native 60 Hz gap.
+
 The first P1 series adds bounded opt-in source/host/replica/render timings and a
 release browser performance runner with three runs and 200 warm actions per
 origin. Timing-ring, causal-result ordering, authority/resource-wait, browser

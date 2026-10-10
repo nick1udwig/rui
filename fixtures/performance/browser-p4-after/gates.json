@@ -1,0 +1,69 @@
+{
+  "runner": "rui-perf-i7-1280p",
+  "runs": [
+    {
+      "browser": {
+        "p50": 130.0267079999976,
+        "p95": 134.1458700000003,
+        "p99": 178.85196299999734,
+        "passed": false
+      },
+      "source": {
+        "p50": 145.90103300000192,
+        "p95": 152.9081090000036,
+        "p99": 160.11466099999961,
+        "passed": false
+      },
+      "draw": {
+        "p50": 9.099999964237213,
+        "p95": 11.5,
+        "p99": 14.899999976158142,
+        "passed": true
+      }
+    },
+    {
+      "browser": {
+        "p50": 131.65794900000037,
+        "p95": 186.47177899999951,
+        "p99": 199.56873700000142,
+        "passed": false
+      },
+      "source": {
+        "p50": 146.1600069999986,
+        "p95": 153.813897,
+        "p99": 155.40668300000107,
+        "passed": false
+      },
+      "draw": {
+        "p50": 9.199999988079071,
+        "p95": 12.400000035762787,
+        "p99": 13.5,
+        "passed": true
+      }
+    },
+    {
+      "browser": {
+        "p50": 129.77724300000045,
+        "p95": 135.0919810000014,
+        "p99": 183.81195800000205,
+        "passed": false
+      },
+      "source": {
+        "p50": 146.592521999999,
+        "p95": 153.55988300000172,
+        "p99": 155.27422300000035,
+        "passed": false
+      },
+      "draw": {
+        "p50": 9.099999964237213,
+        "p95": 11.800000011920929,
+        "p99": 13.400000035762787,
+        "passed": true
+      }
+    }
+  ],
+  "passed": false,
+  "scope": "small GTK loopback demo; action samples include harness polling/native injection and end at causal presentation; draw is separate",
+  "large60Hz": "outstanding: native large fixture still exceeds 16.67 ms",
+  "expandedFaultMeasurements": "P1 cold/reset/cache-loss/throttled-reader/lifecycle timing reports remain required; correctness suites cover these boundaries"
+}
