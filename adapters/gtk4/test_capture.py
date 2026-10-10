@@ -16,6 +16,48 @@ from types import SimpleNamespace
 
 
 class CaptureBoundsTests(unittest.TestCase):
+    def test_square_border_paths_are_bounded_and_inexact_variants_decline(self):
+        colors = []
+        for value in ('#ff0000', '#008800', '#0000ff', '#111111'):
+            paint = Gdk.RGBA(); paint.parse(value); colors.append(paint)
+        bounds = Graphene.Rect().init(3, 5, 100, 80)
+        for rounding, widths, expected in (
+                (0, [6]*4, None),
+                (0, [9, 5, 12, 3], 'nonuniform-border-widths'),
+                (4, [6]*4, 'nonuniform-rounded-border'),
+                (0, [41]*4, 'border-width-not-inward-profile')):
+            exporter = Exporter(CoherentSource(), 'border', 1)
+            outline = Gsk.RoundedRect(); outline.init_from_rect(bounds, rounding)
+            node = Gsk.BorderNode.new(outline, widths, colors)
+            exporter.export(node)
+            if expected:
+                self.assertEqual([g['reason'] for g in exporter.gaps], [expected])
+                self.assertEqual(exporter.resources, set())
+            else:
+                self.assertEqual(exporter.gaps, [])
+                self.assertEqual(len(exporter.resources), 4)
+                self.assertEqual(exporter.extractions['gsk-square-border'], 4)
+                self.assertEqual(sum(r['primitive']['type'] == 'FillPath' for r in exporter.scene), 4)
+        colors[0].alpha = .5
+        exporter = Exporter(CoherentSource(), 'border', 1)
+        outline = Gsk.RoundedRect(); outline.init_from_rect(bounds, 0)
+        exporter.export(Gsk.BorderNode.new(outline, [5]*4, colors))
+        self.assertEqual([g['reason'] for g in exporter.gaps], ['nonopaque-srgb-composition'])
+        self.assertEqual(exporter.resources, set())
+
+    def test_multicolor_border_scale_is_explicitly_partial(self):
+        colors = []
+        for value in ('#ff0000', '#008800', '#0000ff', '#111111'):
+            paint = Gdk.RGBA(); paint.parse(value); colors.append(paint)
+        outline = Gsk.RoundedRect(); outline.init_from_rect(Graphene.Rect().init(3,5,100,80),0)
+        border = Gsk.BorderNode.new(outline,[6]*4,colors)
+        transform = Gsk.Transform.new().scale(1.25,1.25)
+        exporter = Exporter(CoherentSource(),'scaled-border',1)
+        exporter.export(Gsk.TransformNode.new(border,transform))
+        self.assertEqual([g['reason'] for g in exporter.gaps], ['nonuniform-border-not-pixel-aligned'])
+        self.assertEqual(exporter.resources, set())
+        self.assertEqual(exporter.effective_transform, [1,0,0,1,0,0])
+
     def test_refused_binding_registration_leaves_registry_and_identity_state_unchanged(self):
         source = CoherentSource()
         source.register('button', 3, lambda: {}, actions=['Activate'])

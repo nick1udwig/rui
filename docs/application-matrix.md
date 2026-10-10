@@ -27,7 +27,7 @@ partial. The interactive source disables caret blinking and animation.
 | Entry, button and popup under default style | nonopaque sRGB paint, partial opacity | Negotiated source-color/compositing extension or keep partial; current linear profile cannot faithfully substitute |
 | Default button/entry/popup rounded decoration | rounded clips over nonuniform child content | General curved clipping extension with all reducers/renderers; a rounded background alone is insufficient |
 | Default raised controls | outset shadows | Bounded effect vocabulary plus measured source semantics; no texture fallback |
-| Constrained editor control borders | opaque square borders with differing side paint | Exact path lowering into existing primitives is possible; source comparison required in C2 |
+| Constrained editor control borders | opaque square borders with differing side paint | [C2 exact path lowering](gtk-square-borders.md) at pixel-aligned scale 1; unequal widths/rounded or scaled variants remain partial |
 | Photos, Cairo recordings, texture/color glyph/shader content | unavailable source vectors | Outside strict profile; explicit partial/unsupported, never sampled into resources |
 
 Reproduce a coverage run and include its negative companion:

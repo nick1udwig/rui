@@ -118,7 +118,7 @@
   "sourceHashes": {
     "adapters/gtk4/capture.py": "c3bc67b6568af5c590c60b730b3ecf10fd8a85911510c1890f4216854d255682",
     "fixtures/gtk/corpus.py": "efaeee50331b23b311790deacec117c67ebc50cd3715dcec1905c5fb12df3b8a",
-    "fixtures/gtk/inventory.py": "eaa51c13968381445ff9c700c8d4443cc47abc77ccd247fc62b76c24ca7d46c3",
+    "fixtures/gtk/inventory.py": "f2998dbfd8288a744ac579f61c064d73e36e107cb89e5f3a84260ce683936211",
     "fixtures/gtk/negative_source.py": "e57d9b3ff60d240d61036f052e6d03da06d97ee63cb8dbfe9a88c6255fbb52f3"
   }
 }

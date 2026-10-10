@@ -599,6 +599,7 @@ impl CaptureArtifact {
                         }
                         Some("gsk-fill-path") if origin_type == "path" => "fill-node",
                         Some("gsk-stroke-path") if origin_type == "path" => "stroke-node",
+                        Some("gsk-square-border") if origin_type == "path" => "border-node",
                         _ => return Err(CaptureError::Invalid),
                     };
                     if !manifest["gsk_node_bounds"]

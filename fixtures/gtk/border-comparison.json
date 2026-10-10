@@ -1,0 +1,147 @@
+{
+  "calibration": {
+    "initial_exceeded_captures": [],
+    "initial_viewport_mean_max_rgb_error": 3.0,
+    "rationale": "Compact popup has higher source-edge density; calibrated viewport bound4 plus independent edge-mean bound8, retaining zero bad interior pixels and native geometry checks."
+  },
+  "captures": [
+    {
+      "capture": "border-0001.json",
+      "envelope_sha256": "53674b84c3a608b5a4b0e8cf0e9b00e1189c2c7f58abc03b7c90fee2f428f236",
+      "geometry": {
+        "glyphs_checked": 0,
+        "maximum_source_pixel_bounds_error": 0.0
+      },
+      "local_reference_sha256": "9de8aaa3dc889a276e6fb95817aa188cf9d1233e669459a938dd1422bce6e411",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 137,
+        "edge_mean_max_rgb_error": 0.4204119850187266,
+        "edge_pixels": 6408,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 43200,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.06236111111111111
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=1 work=1250256"
+    },
+    {
+      "capture": "border-0002.json",
+      "envelope_sha256": "d5680338d913f01a340c224fb596174e2559494b9066319483781ce8678e92a5",
+      "geometry": {
+        "glyphs_checked": 0,
+        "maximum_source_pixel_bounds_error": 0.0
+      },
+      "local_reference_sha256": "b1bb656a29b03ff8ebb8a2593ad5aa30b25203bfa5fef9fde973ce7f32b03ae3",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 137,
+        "edge_mean_max_rgb_error": 0.6329887218045113,
+        "edge_pixels": 6384,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 43200,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.09354166666666666
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=2 work=1270416"
+    },
+    {
+      "capture": "border-0003.json",
+      "envelope_sha256": "306bd92c80f7d6c0db71cb4e63e9bba046e2bf811cb7daf261f9e5c6590ecf08",
+      "geometry": {
+        "glyphs_checked": 0,
+        "maximum_source_pixel_bounds_error": 0.0
+      },
+      "local_reference_sha256": "e7bc025faaa784679622d5a6b950b6acd96714619f661a4e82bd2041e66dc8f7",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 137,
+        "edge_mean_max_rgb_error": 0.6329887218045113,
+        "edge_pixels": 6384,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 43200,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.09354166666666666
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=3 work=1313617"
+    },
+    {
+      "capture": "border-0004.json",
+      "envelope_sha256": "56682645407ba11ed7c70acb3387785533f8163120a33cb3d7dc25adb310c44f",
+      "geometry": {
+        "glyphs_checked": 0,
+        "maximum_source_pixel_bounds_error": 0.0
+      },
+      "local_reference_sha256": "0102dfbc53dfbb8e42b3a5cee92775808e140fe90b738df036a1b518890bbc2d",
+      "pixels": {
+        "edge_max_alpha_error": 0,
+        "edge_max_rgb_error": 137,
+        "edge_mean_max_rgb_error": 0.29401931649331353,
+        "edge_pixels": 5384,
+        "interior_bad_pixels": 0,
+        "interior_max_channel_error": 0,
+        "passed": true,
+        "pixels": 43200,
+        "viewport_mean_alpha_error": 0.0,
+        "viewport_mean_max_rgb_error": 0.03664351851851852
+      },
+      "renderer": "renderer.cpu-samples2x2.cairo1184.v1 revision=4 work=1269170"
+    }
+  ],
+  "criteria": {
+    "edge_max_alpha_error": 128,
+    "edge_max_rgb_error": 160,
+    "edge_mean_max_rgb_error": 8.0,
+    "interior_max_channel_error": 3,
+    "native_glyph_bounds_max_source_pixel_error": 0.00390625,
+    "profile": "gtk-cairo1184-vs-rui-samples2x2.v1",
+    "source_edge_dilation_pixels": 1,
+    "source_edge_neighbor_threshold": 2,
+    "viewport_mean_alpha_error": 1.0,
+    "viewport_mean_max_rgb_error": 4.0
+  },
+  "environment": {
+    "backend": "owned authenticated Xvfb",
+    "cairo": "1.18.4",
+    "gtk": "4.22.4",
+    "kernel": "7.1.9-arch1-2",
+    "python": "3.14.7",
+    "scale": 1
+  },
+  "files": {
+    "09ef45f4107fb0a6982694c67ea12c7f19f2ba141ca666b392d2cd03eac28928.rvp": "de068b7af224318da73479310627aaf3568020c56d3c32767644312d28b2d603",
+    "53a5fc344201200ed24ecd965a03c157da20cd6a22add881dbb38fa1daf43f21.rvp": "67325a67c2ab296db3c9bae0f58222b0c0ccd5ab4e23450c052c66f77c8be632",
+    "5f7b85f40f1c73fe26ec1d6bba8938c41ce8c44680856abe877199af775cccb6.rvp": "5d12cc04db3f9fe2561dc8c8320bec5e515d628a940b66a90039013440ae1cc1",
+    "6e13f81d177fb8846493a6de351dce14ea8a13e2ffc936f69779ba03de0a8378.rvp": "af758e0bf3422511ed43a067c6dcd77b550a848b6c91da3e37a2a7dd5642285a",
+    "adc6d20c21d747e3a4f45b29bca38769cfa1a7b3d068b0d9cb60ec62474646fd.rvp": "fe3c43ed29fdb2ce8c4c7f71e5540bb8e1f82154fd1476c9d7fac3db7367e479",
+    "b850e6763f39cdffdeddabbadb32290a11dbdaddc8e6395d227c61d6d515191f.rvp": "949696ca5c889600b12ff96dea46a21a27d75ba494a1f183322abf5a59cf1304",
+    "b9b4a0680c6337848e3aeb4b5b7c2da18d47f04e6019dc8362c618b179176e08.rvp": "aea4c472682ba422ea8d7077d161539832632993d398fd75886666c1042192b4",
+    "border-0001.bin": "53674b84c3a608b5a4b0e8cf0e9b00e1189c2c7f58abc03b7c90fee2f428f236",
+    "border-0001.json": "7584efded4f815d44b44c512365b12f9554ab0bfb004455eb1f2f41fa7f3d658",
+    "border-0002.bin": "d5680338d913f01a340c224fb596174e2559494b9066319483781ce8678e92a5",
+    "border-0002.json": "7adc6f1f2deedcfad771e2c34f74643adcb6c0126bbf310a7b45e575731a9734",
+    "border-0003.bin": "306bd92c80f7d6c0db71cb4e63e9bba046e2bf811cb7daf261f9e5c6590ecf08",
+    "border-0003.json": "90346b5617cdc0f8c164bf590a656a01c7219f3e877644b4e3dbfedb59405b59",
+    "border-0004.bin": "56682645407ba11ed7c70acb3387785533f8163120a33cb3d7dc25adb310c44f",
+    "border-0004.json": "2540b18d09c54938bc93f40ac617e0ab2932d30578bebe534c54c12ea533558b",
+    "d244a6e0ad9386afac94f1407a694c3ab305652214293fac769c154ebc55482d.rvp": "24718b9d150f12a24ad1800c96becc7a49fe15a919d0448e3b3b79c59cc91f8f"
+  },
+  "negativeMissingSide": {
+    "rejected": true,
+    "removedPixels": 678
+  },
+  "passed": true,
+  "scope": "registered native surface subtree",
+  "sourceHashes": {
+    "adapters/gtk4/capture.py": "d63d1c5043e2f4b546a54a836663037cbe90c405db1ee7c3fe8015e1f750f79b",
+    "adapters/sdk/src/vector_audit.rs": "e521941e27302b567a5a2b28f4d7ebf683df9138facc7a4154f5f47a22706887",
+    "fixtures/gtk/border_check.py": "7b05969cdf07816edebb7f9f266b60b6c09ad4f751c743d5ef1ce176d65a8bf8",
+    "fixtures/gtk/border_source.py": "e3be380f0a6de5b76052cf6d7263aed3bc07afb4f3cc32ef453aab3762922d1e"
+  }
+}

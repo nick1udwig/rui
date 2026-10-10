@@ -140,6 +140,7 @@ class Exporter:
         self.extractions = Counter()
         self.resource_origins = {}
         self.local_reference_draws = 0
+        self.effective_transform = [1, 0, 0, 1, 0, 0]
 
     def counters(self):
         """Observed operations, including attempts later rolled back.
@@ -166,7 +167,7 @@ class Exporter:
         return identifier
 
     def resource(self, commands, origin, path, glyph=False):
-        if origin not in ("native-pango-glyph-outline", "gsk-fill-path", "gsk-stroke-path"):
+        if origin not in ("native-pango-glyph-outline", "gsk-fill-path", "gsk-stroke-path", "gsk-square-border"):
             raise Unsupported("unrecognized-geometry-source")
         self.extractions[origin] += 1
         resource = path_resource(commands, glyph)
@@ -215,7 +216,16 @@ class Exporter:
         if isinstance(node, Gsk.TransformNode):
             if int(node.get_transform().get_category()) < int(Gsk.TransformCategory.__enum_values__[3]):
                 raise Unsupported("non-2d-transform")
-            return self.record(path, {"type": "Group"}, [self.export(node.get_child(), path + "/child")], list(node.get_transform().to_2d()))
+            transform = list(node.get_transform().to_2d())
+            previous = self.effective_transform
+            a, b, c, d, e, f = previous
+            g, h, i, j, k, l = transform
+            self.effective_transform = [a*g+c*h, b*g+d*h, a*i+c*j, b*i+d*j, a*k+c*l+e, b*k+d*l+f]
+            try:
+                child = self.export(node.get_child(), path + "/child")
+            finally:
+                self.effective_transform = previous
+            return self.record(path, {"type": "Group"}, [child], transform)
         if isinstance(node, Gsk.OpacityNode):
             # GTK also wraps a fully opaque/hidden caret in an opacity node.
             # These endpoints have exact source semantics without introducing
@@ -242,7 +252,35 @@ class Exporter:
         if isinstance(node, Gsk.BorderNode):
             widths, colors = node.get_widths(), node.get_colors()
             if len(set(widths)) != 1 or len({(v.red, v.green, v.blue, v.alpha) for v in colors}) != 1:
-                raise Unsupported("nonuniform-border")
+                outline = node.get_outline()
+                if len(set(widths)) != 1:
+                    raise Unsupported("nonuniform-border-widths")
+                if any(any(pair) for pair in radius(outline)):
+                    raise Unsupported("nonuniform-rounded-border")
+                x, y, width, height = rect(outline.bounds)
+                a, b, c, d, tx, ty = self.effective_transform
+                if ([a, b, c, d] != [1, 0, 0, 1]
+                        or any(not math.isfinite(v) or v != int(v) for v in [tx, ty, x, y, width, height, *widths])):
+                    raise Unsupported("nonuniform-border-not-pixel-aligned")
+                if any(not math.isfinite(v) or v < 0 or v > min(width, height) / 2 for v in widths):
+                    raise Unsupported("border-width-not-inward-profile")
+                paints = [color(value) for value in colors]
+                top, right, bottom, left = widths
+                outer = [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+                inner = [(x + left, y + top), (x + width - right, y + top),
+                         (x + width - right, y + height - bottom), (x + left, y + height - bottom)]
+                children = []
+                for side in range(4):
+                    if widths[side] == 0:
+                        continue
+                    following = (side + 1) % 4
+                    points = [outer[side], outer[following], inner[following], inner[side]]
+                    commands = [(1, points[0]), *[(2, p) for p in points[1:]], (5, ())]
+                    digest = self.resource(commands, "gsk-square-border", path)
+                    children.append(self.record(path + '/side/' + str(side),
+                                                {"type": "FillPath", "resource": digest,
+                                                 "fill_rule": 1, "color": paints[side]}))
+                return self.record(path, {"type": "Group"}, children)
             outline = node.get_outline()
             check_border(outline, widths[0])
             return self.record(path, {"type": "Border", "rect": rect(outline.bounds), "radii": radius(outline), "width": widths[0], "color": color(colors[0])})

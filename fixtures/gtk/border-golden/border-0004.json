@@ -1,0 +1,490 @@
+{
+  "binding": {
+    "epoch": "8c0505004c604fbfbda95eee76825a9c",
+    "session_id": "01010101010101010101010101010101",
+    "view_id": "0000000000000000000000000000000a"
+  },
+  "binding_regions": [],
+  "capture_boundary": "actual-snapshot-vfunc-same-node-append",
+  "capture_duration_ns": 568473,
+  "capture_token": "8c0505004c604fbfbda95eee76825a9c:border:4:4",
+  "envelope_sha256": "56682645407ba11ed7c70acb3387785533f8163120a33cb3d7dc25adb310c44f",
+  "exporter_counters": {
+    "decline_reasons": {},
+    "geometry_extractions": {
+      "gsk-square-border": 4
+    },
+    "local_reference_draws": 1,
+    "node_decisions": {
+      "lowered": 6
+    },
+    "schema": 2,
+    "source_node_types": {
+      "border-node": 1,
+      "clip-node": 1,
+      "color-node": 2,
+      "container-node": 1,
+      "transform-node": 1
+    },
+    "source_nodes_visited": 6,
+    "unsupported_subtrees": 0,
+    "vector_primitive_types": {
+      "FillPath": 4,
+      "Group": 4,
+      "SolidRect": 2
+    },
+    "vector_records_emitted": 10,
+    "vector_resource_bodies": 4
+  },
+  "focused": false,
+  "gaps": [],
+  "geometry_resource_origins": {
+    "09ef45f4107fb0a6982694c67ea12c7f19f2ba141ca666b392d2cd03eac28928": [
+      {
+        "node_path": "root/2/child/child",
+        "origin": "gsk-square-border"
+      }
+    ],
+    "53a5fc344201200ed24ecd965a03c157da20cd6a22add881dbb38fa1daf43f21": [
+      {
+        "node_path": "root/2/child/child",
+        "origin": "gsk-square-border"
+      }
+    ],
+    "5f7b85f40f1c73fe26ec1d6bba8938c41ce8c44680856abe877199af775cccb6": [
+      {
+        "node_path": "root/2/child/child",
+        "origin": "gsk-square-border"
+      }
+    ],
+    "b850e6763f39cdffdeddabbadb32290a11dbdaddc8e6395d227c61d6d515191f": [
+      {
+        "node_path": "root/2/child/child",
+        "origin": "gsk-square-border"
+      }
+    ]
+  },
+  "glyph_source": "native-PangoGlyphInfo+Cairo-source-scaled-font",
+  "gsk_node_bounds": [
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        240.0,
+        180.0
+      ],
+      "path": "root",
+      "type": "container-node"
+    },
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        240.0,
+        180.0
+      ],
+      "path": "root/0",
+      "type": "color-node"
+    },
+    {
+      "bounds": [
+        5.0,
+        5.0,
+        230.0,
+        170.0
+      ],
+      "path": "root/1",
+      "type": "color-node"
+    },
+    {
+      "bounds": [
+        60.0,
+        34.0,
+        96.0,
+        86.0
+      ],
+      "path": "root/2",
+      "type": "clip-node"
+    },
+    {
+      "bounds": [
+        36.0,
+        34.0,
+        120.0,
+        90.0
+      ],
+      "path": "root/2/child",
+      "type": "transform-node"
+    },
+    {
+      "bounds": [
+        24.0,
+        26.0,
+        120.0,
+        90.0
+      ],
+      "path": "root/2/child/child",
+      "type": "border-node"
+    }
+  ],
+  "gsk_node_counts": {
+    "border-node": 1,
+    "clip-node": 1,
+    "color-node": 2,
+    "container-node": 1,
+    "transform-node": 1
+  },
+  "gtk_version": [
+    4,
+    22,
+    4
+  ],
+  "local_reference": {
+    "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB",
+    "height": 180,
+    "scope": "local-comparison-only-never-wire",
+    "sha256": "0102dfbc53dfbb8e42b3a5cee92775808e140fe90b738df036a1b518890bbc2d",
+    "stride": 960,
+    "width": 240
+  },
+  "mapped": true,
+  "protocol_handoff": {
+    "envelope_bytes": 1971,
+    "resource_bytes": 308,
+    "resource_kind_counts": {
+      "1": 4,
+      "2": 0
+    }
+  },
+  "resource_offers": [
+    {
+      "digest": "09ef45f4107fb0a6982694c67ea12c7f19f2ba141ca666b392d2cd03eac28928",
+      "kind": 1,
+      "provenance": 1,
+      "total_bytes": 77,
+      "version": 1
+    },
+    {
+      "digest": "53a5fc344201200ed24ecd965a03c157da20cd6a22add881dbb38fa1daf43f21",
+      "kind": 1,
+      "provenance": 1,
+      "total_bytes": 77,
+      "version": 1
+    },
+    {
+      "digest": "5f7b85f40f1c73fe26ec1d6bba8938c41ce8c44680856abe877199af775cccb6",
+      "kind": 1,
+      "provenance": 1,
+      "total_bytes": 77,
+      "version": 1
+    },
+    {
+      "digest": "b850e6763f39cdffdeddabbadb32290a11dbdaddc8e6395d227c61d6d515191f",
+      "kind": 1,
+      "provenance": 1,
+      "total_bytes": 77,
+      "version": 1
+    }
+  ],
+  "resources": [
+    "09ef45f4107fb0a6982694c67ea12c7f19f2ba141ca666b392d2cd03eac28928",
+    "53a5fc344201200ed24ecd965a03c157da20cd6a22add881dbb38fa1daf43f21",
+    "5f7b85f40f1c73fe26ec1d6bba8938c41ce8c44680856abe877199af775cccb6",
+    "b850e6763f39cdffdeddabbadb32290a11dbdaddc8e6395d227c61d6d515191f"
+  ],
+  "revision": 4,
+  "routing_token": "64f9cc350a46ccd0234ca5de30db0d47",
+  "scene": [
+    {
+      "children": [],
+      "clip": null,
+      "id": 2,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1
+        ],
+        "rect": [
+          0.0,
+          0.0,
+          240.0,
+          180.0
+        ],
+        "type": "SolidRect"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [],
+      "clip": null,
+      "id": 3,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          0.723055143885277,
+          0.723055143885277,
+          0.723055143885277,
+          1
+        ],
+        "rect": [
+          5.0,
+          5.0,
+          230.0,
+          170.0
+        ],
+        "type": "SolidRect"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [],
+      "clip": null,
+      "id": 17,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          1.0,
+          0.0,
+          0.0,
+          1
+        ],
+        "fill_rule": 1,
+        "resource": "5f7b85f40f1c73fe26ec1d6bba8938c41ce8c44680856abe877199af775cccb6",
+        "type": "FillPath"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [],
+      "clip": null,
+      "id": 18,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          0.0,
+          0.2462013546438904,
+          0.0,
+          1
+        ],
+        "fill_rule": 1,
+        "resource": "53a5fc344201200ed24ecd965a03c157da20cd6a22add881dbb38fa1daf43f21",
+        "type": "FillPath"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [],
+      "clip": null,
+      "id": 19,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          0.0,
+          0.0,
+          1.0,
+          1
+        ],
+        "fill_rule": 1,
+        "resource": "b850e6763f39cdffdeddabbadb32290a11dbdaddc8e6395d227c61d6d515191f",
+        "type": "FillPath"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [],
+      "clip": null,
+      "id": 20,
+      "opacity": 1,
+      "primitive": {
+        "color": [
+          0.005605392008655053,
+          0.005605392008655053,
+          0.005605392008655053,
+          1
+        ],
+        "fill_rule": 1,
+        "resource": "09ef45f4107fb0a6982694c67ea12c7f19f2ba141ca666b392d2cd03eac28928",
+        "type": "FillPath"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [
+        17,
+        18,
+        19,
+        20
+      ],
+      "clip": null,
+      "id": 21,
+      "opacity": 1,
+      "primitive": {
+        "type": "Group"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [
+        21
+      ],
+      "clip": null,
+      "id": 16,
+      "opacity": 1,
+      "primitive": {
+        "type": "Group"
+      },
+      "transform": [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        12.0,
+        8.0
+      ],
+      "version": 4
+    },
+    {
+      "children": [
+        16
+      ],
+      "clip": [
+        60.0,
+        30.0,
+        120.0,
+        90.0
+      ],
+      "id": 8,
+      "opacity": 1,
+      "primitive": {
+        "type": "Group"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    },
+    {
+      "children": [
+        2,
+        3,
+        8
+      ],
+      "clip": null,
+      "id": 9,
+      "opacity": 1,
+      "primitive": {
+        "type": "Group"
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "version": 4
+    }
+  ],
+  "scene_root": 9,
+  "semantic_root": 1,
+  "semantics": [
+    {
+      "actions": [],
+      "children": [],
+      "id": 1,
+      "identity": "root",
+      "label": "Square border coverage",
+      "role": 1,
+      "version": 1
+    }
+  ],
+  "session": {
+    "canvas": [
+      0,
+      0,
+      240,
+      180
+    ],
+    "focus": null,
+    "focus_generation": 1,
+    "focus_surface": null,
+    "id": 11,
+    "version": 4
+  },
+  "size": [
+    240,
+    180
+  ],
+  "source_glyph_evidence": [],
+  "source_revision": 4,
+  "surface_id": 10,
+  "surface_key": "border",
+  "surface_role": 1,
+  "uses_glyph_outline": false,
+  "visual_bindings": []
+}

@@ -25,6 +25,13 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+C2 adds bounded authored-path lowering for pixel-aligned, opaque square borders
+with equal widths and differing side paint. Four fresh source comparisons and
+an omitted-side negative pass; Rust replay verifies every retained closure and
+returns ownership to zero. Unsupported scale/width/rounded/alpha variants decline.
+[The coverage contract](docs/gtk-square-borders.md) preserves the unchanged native
+comparison criteria and documents the narrower source-proven subset.
+
 C1 adds the [application/capability matrix](docs/application-matrix.md), a bounded
 submitted-node inventory and mandatory unsupported-content companion checks.
 A fresh owned-display default/constrained census and six native negative cases
