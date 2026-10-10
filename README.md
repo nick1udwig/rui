@@ -7,6 +7,7 @@ The strict profile prohibits transmitted raster content.
 The design is in [RFC.md](RFC.md).
 The original [conformance.yaml](conformance.yaml) defines the intended full system.
 [Implementation acceptance](conformance/STATUS.md) records the accepted milestones and their evidence.
+The [implementation plans](docs/implementation-plans.md) describe the next work on performance, application coverage, reusable clients and semantic presentation.
 
 RFC milestones M0–M5 and all 79 conformance cases are implemented and accepted for the declared fixtures and isolated backend.
 The implementation includes a bounded Rust core, pinned TLS/WebSocket transport, CPU vector rendering, two GTK mirrors, a cooperating GTK producer with native wire composition, and permissioned EIS session input.
