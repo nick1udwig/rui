@@ -1,6 +1,6 @@
 # RUI implementation plans
 
-These plans extend RUI from its accepted controlled prototype toward a faster host, broader source coverage, reusable clients, and a semantic UI that can use a different layout from the host. They define implementation steps and completion evidence for the next developer. They do not mark any of this future work complete.
+These plans extend RUI from its accepted controlled prototype toward a faster host, broader source coverage, reusable clients, and a semantic UI that can use a different layout from the host. They define implementation steps and completion evidence. The implementation record below distinguishes shipped scope from outstanding acceptance; the starting-point descriptions preserve the original baseline.
 
 The starting code is `5272eda` on `master`, reviewed on 2026-10-10. RFC milestones M0–M5 and all 79 original cases are accepted for the declared constrained GTK corpus and isolated session backend. The [acceptance record](../conformance/STATUS.md) remains the record of that scope. The four workstreams below add capabilities and performance goals beyond it.
 
@@ -330,6 +330,53 @@ Cover reconnect/reset, a stale draft, removal and rematerialization, source rest
 Completion: a generic alternative presentation works for two owned applications, its declared capabilities and gaps are documented, and exact traces prove that its commands depend on semantics rather than scene coordinates. Publish this as semantic presentation support for that scope, without extending the claim to arbitrary applications or concurrent collaboration.
 
 ## Validation commands and completion records
+
+### Implementation record, 2026-10-10
+
+The implementation followed the dependency order above, with semantic subsets of
+L2/L3/L4 preceding the semantic UI and full native actor consolidation afterwards.
+Each feature series was tested and committed separately. None changes the accepted
+M0–M5/79-case scope or claims arbitrary desktop/application coverage.
+
+| Step | Implementation commits | Current evidence and declared scope |
+| --- | --- | --- |
+| P1 | `e2826f6`, `916bbdd`, `9275024`, `99718d9` | [Stage/warm measurements](performance.md), [three installed-package lifecycle runs](browser-lifecycle-performance.md), [three frozen large/recovery runs](large-performance.md), conservative public ownership high-water; CPU frames and browser opportunities distinguished |
+| L1 | `0e81a3d` | [Pinned WASM/three-engine and separate GTK CI](browser-ci.md); production assets, MIME/HTTPS/hidden-tab checks; remote self-hosted provisioning unverified |
+| P2 | `c9833ee` | [Dirty notifications](dirty-notifications.md), bounded overflow/restart/coalescing tests and three-run local-action comparison |
+| P3 | `9a54188`, `3fd2dc4` | [Incremental GTK publications](incremental-gtk.md), canonical clocks, independent replay, chunk/cache-loss/stalled-reader tests; GTK reconnect remains snapshot-based |
+| P4 | `6a5f6bc` | [Measured Canvas buffer/mask reuse](browser-render-performance.md), three-run comparison and all pixel cases in three engines; other candidates remain optional measured follow-up |
+| P5 | `e5ae22e` | [Frozen gates](performance-gates.md), evaluator tests and explicit enforcement; small draw passes, original action targets and large 60 Hz remain unmet |
+| C1 | `49a35bb` | [Application/coverage matrix](application-matrix.md), bounded inventory, complete/partial/negative classifications |
+| C2 | `4334c86` | [Square opaque multicolor borders](gtk-square-borders.md), native comparisons and negative controls; default-style gaps remain explicit |
+| C3 | `9acde33` | [Reusable producer API](../adapters/sdk/README.md), corpus and registered editor, native guarded effects and independent publication replay |
+| C4 | `881cd7b` | [Pinned Hyprland feasibility result](additional-session-feasibility.md): raster-only/unproven trusted input boundary; no additional backend advertised |
+| C5 | `92134d8` | [Read-only observed view](../adapters/atspi/README.md), private-bus native check, stale/partial/unavailable/privacy/stall tests; OBSERVED consistency, no control |
+| L2 | `b1515bf`, `b568b5a`, `5cb340c`, `2aac2bd` | [Acyclic dependencies and common actor](client-behavior-matrix.md), bounded resource paging, exact-command/native cancellation/recovery tests, fresh native IME and independent traces |
+| L3 | `3521d56`, `b568b5a`, `fb638ef`, `916bbdd`, `6ef07fb` | [Public integration contract](browser-integration.md), complete owned typed state/resources, disposal diagnostics, idempotent terminal disconnect, real BFCache and installed consumer using public APIs |
+| L4 | `dd09590` | [Explicit browser capability subset](browser-capabilities.md), three-engine preflight and native authority/effect evidence; raw/source IME/keyboard/resize/font increments remain disabled |
+| L5 | `fb638ef`, `916bbdd`, `6ef07fb` | [Private 0.1.1 runtime distribution](browser-distribution.md), [reviewable artifact manifest](../fixtures/browser/release-0.1.1.json), compatibility/assets/API/notices checks and clean installed production consumer; two-machine tailnet acceptance still requires authorized machines |
+| S1 | `181ce03` | [Semantic-only mode/readiness](semantic-session.md), actual WASM/owned two-application three-effect checks, no visual readiness or raw-family authority |
+| S2 | `4f56612` | Generic bounded stable-identity [SemanticView](../demos/semantic/README.md), all owned types and two structurally different native applications |
+| S3 | `4944e23`, `2aac2bd` | Generic guarded controls, explicit source focus, captured Unicode drafts, pending/rejected/ambiguous/revoked outcomes and exact effect tests |
+| S4 | `cca301a` | Responsive 320/800/1440 layouts, long/bidirectional text, 200% text, keyboard and accessibility-tree checks; physical mobile and actual screen-reader acceptance unverified |
+| S5 | `4e05b25`, `b568b5a`, `5cb340c` | [Paired presentations](../demos/semantic/README.md), distinct approved semantic/mirror identities, control swap, lifecycle/source/permission faults and independent authorized-projection replay |
+
+The remaining external acceptance needs two authorized tailnet machines, a physical
+mobile browser and an actual screen-reader environment. Local loopback, viewport
+emulation and accessibility-tree inspection do not satisfy those boundaries. A
+registry publication or project license selection is also a separate release action;
+the package remains private and UNLICENSED.
+
+Final local validation passes: workspace and full SDK-feature tests, workspace/SDK/
+native-feature clippy and formatting; 83 Python tests; 1,275 independent protocol
+prefixes/16 seeds and 144 scene fixtures; typed/full interoperability; corpus/editor
+incremental publication audits and both shared-actor native traces; actual WASM in
+Node/Chromium/Firefox/WebKit; complete browser and installed-tarball suites in three
+engines; production visual/semantic builds and HTTPS assets; real owned GTK installed
+consumer effects and BFCache; three browser lifecycle and three frozen large runs.
+The final private tarball is 358,435 bytes/25 files; its manifest records SHA-256,
+matching API/assets/crate/binding metadata and exact tested exclusions. Generated
+release artifacts remain ignored under `target/release/runtime-artifacts`.
 
 Run commands from the repository root. These are existing entry points at the baseline; new tests introduced by a work item must be added to its CI job and documentation. Native commands require the pinned environment and an owned Xvfb executable. Use a new output directory for capture measurements.
 

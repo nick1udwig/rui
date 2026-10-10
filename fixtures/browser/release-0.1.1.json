@@ -1,0 +1,63 @@
+{
+  "version": "0.1.1",
+  "artifact": "target/release/runtime-artifacts/rui-client-browser-0.1.1.tgz",
+  "sha256": "a71b2c7c66f184aa0e5428051cfdd1be7e0cdc84b5fc55710edfd344a562f5fa",
+  "bytes": 358435,
+  "files": [
+    "package/dist/causal.js",
+    "package/dist/client.js",
+    "package/dist/index.js",
+    "package/dist/model.js",
+    "package/dist/renderer.js",
+    "package/wasm/rui_client_wasm.js",
+    "package/dist/semantic-controls.js",
+    "package/dist/semantic.js",
+    "package/dist/timing.js",
+    "package/compatibility.json",
+    "package/package.json",
+    "package/CHANGELOG.md",
+    "package/README.md",
+    "package/dist/causal.d.ts",
+    "package/dist/client.d.ts",
+    "package/dist/index.d.ts",
+    "package/dist/model.d.ts",
+    "package/dist/renderer.d.ts",
+    "package/wasm/rui_client_wasm_bg.wasm.d.ts",
+    "package/wasm/rui_client_wasm.d.ts",
+    "package/dist/semantic-controls.d.ts",
+    "package/dist/semantic.d.ts",
+    "package/dist/timing.d.ts",
+    "package/THIRD_PARTY_NOTICES.txt",
+    "package/wasm/rui_client_wasm_bg.wasm"
+  ],
+  "wasmBytes": 924817,
+  "wasmGzipBytes": 239729,
+  "compatibility": {
+    "package": "@rui/client-browser",
+    "version": "0.1.1",
+    "crateVersion": "0.1.1",
+    "wire": "RUI/0.1",
+    "wasmBindgen": "0.2.129",
+    "sessionSchemaSha256": "df96e096bda92974b6c6b074b95d99e3f6b1fdb9cf66e945328158dd7355a380",
+    "commandSchemaSha256": "4fb4d636b46ab516653fdde415e451293084768ab1feadfa5a8655a2aaa23d17",
+    "declarations": {
+      "causal.d.ts": "0af138b1651edfccaf9d5516a44da56fa2b3b223970e929e67c29b09ebdcb24e",
+      "client.d.ts": "ea83ecddd868d5cb2671c22c73919853ec69b76ba4a3b1af78f91ec8235668f7",
+      "index.d.ts": "238a2bdcf3961f9bfa929b47aa4ca921592d70c2b24b8cd8903565744b8b6d74",
+      "model.d.ts": "4ead5d9c56c071811b6180a7ae6f9a8674415962c7e89dd736495f8b92239fdf",
+      "renderer.d.ts": "d3fc9da196f105762d2d4ede42ae8893522bfcd34c3060902e1608f0fd9a9635",
+      "semantic-controls.d.ts": "d1eb451689fbc58cc0b99999745f64a0b342a1104b5dac355cd20d3b6e3a32ae",
+      "semantic.d.ts": "e83ae957403d51bcf8d463ced2fe7e6b0fce44d898fbd8f81759c4121984d48a",
+      "timing.d.ts": "78c7072c62125ff5a8911b345690851443b9a19d9e8cc80846ff9d3466b171da"
+    },
+    "assets": {
+      "wasm/rui_client_wasm.js": "6f18ed36d57b10c2ca13f3638b329f9e31c39661d06910c57ff966bbe34f6608",
+      "wasm/rui_client_wasm.d.ts": "2bc5492c23fa85dac3017b6470635b2143e37cc9d565a7b5bd0d6fd51910e934",
+      "wasm/rui_client_wasm_bg.wasm": "9499b5e6c236ec5ba65571946894f323ceb0dc28b7b5748850bfe5d191b91566",
+      "wasm/rui_client_wasm_bg.wasm.d.ts": "ad65bf75ed4d1eb072a91ab236cd67e755007d3f0e6884473ad230b91d014113"
+    },
+    "noticesSha256": "009c2e132c394e4fd98173458c76b94993d43a8743ef937d6e051b704ea25037"
+  },
+  "validated": "Node import/complete declarations; installed non-root production assets and initialization/MIME/CSP in Chromium 153, Firefox 155 and WebKit 26.6; actual owned GTK/Chrome 151 default/replacement adapters and real BFCache; no registry publication",
+  "exclusions": "two-machine tailnet, physical mobile and actual screen-reader acceptance; runtime remains explicit semantic capability subset"
+}
