@@ -1,0 +1,98 @@
+{
+  "engine": "firefox",
+  "version": "155.0",
+  "applications": 2,
+  "viewports": [
+    320,
+    800,
+    1440
+  ],
+  "enlargedText": "200%",
+  "keyboard": true,
+  "localSourceFocusSeparate": true,
+  "accessibility": "aria snapshot",
+  "physicalScreenReader": false,
+  "mobileDevice": false,
+  "observations": [
+    {
+      "application": "corpus",
+      "viewport": 320,
+      "width": 320,
+      "nodes": 12,
+      "unchanged": true,
+      "commands": 0,
+      "dialog": true,
+      "localModal": "false",
+      "partial": true,
+      "accessibleNames": true
+    },
+    {
+      "application": "corpus",
+      "viewport": 800,
+      "width": 800,
+      "nodes": 12,
+      "unchanged": true,
+      "commands": 0,
+      "dialog": true,
+      "localModal": "false",
+      "partial": true,
+      "accessibleNames": true
+    },
+    {
+      "application": "corpus",
+      "viewport": 1440,
+      "width": 1440,
+      "nodes": 12,
+      "unchanged": true,
+      "commands": 0,
+      "dialog": true,
+      "localModal": "false",
+      "partial": true,
+      "accessibleNames": true
+    },
+    {
+      "application": "editor",
+      "viewport": 320,
+      "width": 320,
+      "nodes": 15,
+      "unchanged": true,
+      "commands": 0,
+      "dialog": true,
+      "localModal": "false",
+      "partial": true,
+      "accessibleNames": true
+    },
+    {
+      "application": "editor",
+      "viewport": 800,
+      "width": 800,
+      "nodes": 15,
+      "unchanged": true,
+      "commands": 0,
+      "dialog": true,
+      "localModal": "false",
+      "partial": true,
+      "accessibleNames": true
+    },
+    {
+      "application": "editor",
+      "viewport": 1440,
+      "width": 1440,
+      "nodes": 15,
+      "unchanged": true,
+      "commands": 0,
+      "dialog": true,
+      "localModal": "false",
+      "partial": true,
+      "accessibleNames": true
+    }
+  ],
+  "implementationSha256": {
+    "client-browser/src/semantic.ts": "fec37fef94d44c43a0714f536b227bac30241da3ad97f092443e17fa8a4dfa34",
+    "client-browser/src/semantic-controls.ts": "9161a847e37cd24da8aa6f892e4b4f051b565ad5a3055067d9b0d1ddd1b8338f",
+    "client-browser/tests/layout.mjs": "c075686b4457d728aa595af384fdf8cd8ea91e623c93d38fb248afcbbdeb1ee5",
+    "demos/semantic/src/style.css": "800f9db2be9689da347065bfcf711e42a5e586a8cc8362cd0a28d7921a3be1c8",
+    "Cargo.lock": "f7a5f39fdef5df069d887a2ec26fe4364ed10450cc54deaaa72b4a3df0009ce4",
+    "client-browser/package-lock.json": "1f88b7555c7c6df5a6717b3797f420aaa2fe8ff5a5dfd1020a2e14938c5d4966"
+  }
+}

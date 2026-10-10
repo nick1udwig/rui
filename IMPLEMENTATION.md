@@ -1,3 +1,11 @@
+S4 local implementation: responsive semantic groups/forms/collections and named
+source dialogs, automatic text direction, associated action names/descriptions,
+distinct local/source focus and live pending/error announcements. Two applications
+pass 320/800/1440 px, 200% text, keyboard and browser accessibility checks in all
+three engines, with unchanged source data and no reflow/navigation commands.
+Screenshots were visually inspected. See fixtures/browser/semantic-layout; physical
+screen-reader/mobile-device acceptance remains unverified and is not claimed.
+
 S3 implemented: optional generic SemanticControls maps advertised schema-1 actions
 to guarded public APIs. Explicit source focus precedes immutable edit capture; local
 composition/paste/deletion remain draft state until Apply. Authoritative values stay

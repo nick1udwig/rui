@@ -66,9 +66,11 @@ export class SemanticView {
       node.role === "Root" || node.role === "Group" ? "h2" : "span",
     );
     label.id = element.id + "-name";
+    label.dir = "auto";
     const info = doc.createElement("p");
     info.id = element.id + "-info";
     info.className = "rui-semantic-info";
+    info.dir = "auto";
     const body = doc.createElement("div");
     body.className = "rui-semantic-children";
     element.append(label, info, body);
@@ -79,6 +81,7 @@ export class SemanticView {
       control.setAttribute("aria-labelledby", label.id);
       control.setAttribute("aria-describedby", info.id);
       control.rows = 2;
+      control.dir = "auto";
       element.insertBefore(control, info);
       entry.control = control;
     } else if (node.role === "Checkbox") {
@@ -86,6 +89,7 @@ export class SemanticView {
       control.type = "checkbox";
       control.disabled = true;
       control.setAttribute("aria-labelledby", label.id);
+      control.setAttribute("aria-describedby", info.id);
       element.insertBefore(control, info);
       entry.control = control;
       element.tabIndex = 0;
@@ -198,13 +202,17 @@ export class SemanticView {
       entry.element.dataset.semanticId = String(node.id);
       if (modal) {
         entry.element.setAttribute("role", "dialog");
-        entry.element.setAttribute("aria-modal", "true");
+        // Source modality does not make the observer's local document modal.
+        entry.element.setAttribute("aria-modal", "false");
+        info.push("Source modal window; local navigation remains available");
       } else if (node.role === "Root" || node.role === "Group")
         entry.element.setAttribute("role", "group");
+      if (!modal) entry.element.removeAttribute("aria-modal");
       entry.element.setAttribute("aria-labelledby", entry.label.id);
       entry.element.setAttribute("aria-describedby", entry.info.id);
       entry.element.removeAttribute("aria-controls");
       entry.control?.setAttribute("aria-labelledby", entry.label.id);
+      entry.control?.setAttribute("aria-describedby", entry.info.id);
       if (node.description) info.push(node.description);
       if (node.completeness !== "Full")
         info.push(`Content ${node.completeness.toLowerCase()}`);

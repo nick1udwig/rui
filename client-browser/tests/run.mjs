@@ -2,12 +2,18 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { chromium, firefox, webkit } from "playwright";
+import { checkLayout } from "./layout.mjs";
 const root = resolve(import.meta.dirname, "..");
 const server = createServer(async (req, res) => {
   try {
     if (req.url === "/") {
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end("<!doctype html><title>RUI browser conformance</title>");
+      return;
+    }
+    if (req.url === "/semantic-demo.css") {
+      res.writeHead(200, { "Content-Type": "text/css" });
+      res.end(await readFile(resolve(root, "../demos/semantic/src/style.css")));
       return;
     }
     const path = resolve(
@@ -57,7 +63,12 @@ try {
       };
     });
     console.log(
-      JSON.stringify({ runtime: name, version: browser.version(), ...result }),
+      JSON.stringify({
+        runtime: name,
+        version: browser.version(),
+        ...result,
+        ...(await checkLayout(page, name, browser.version())),
+      }),
     );
     await browser.close();
     browser = undefined;

@@ -4,7 +4,7 @@ import { model } from "./semantic.mjs";
 const assert = (ok, message) => {
   if (!ok) throw Error(message);
 };
-class Client {
+export class Client {
   listeners = new Set();
   held = false;
   ready = 0n;

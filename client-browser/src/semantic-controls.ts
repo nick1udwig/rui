@@ -129,6 +129,10 @@ export class SemanticControls {
           container!.append(control);
         }
         control.textContent = label;
+        control.setAttribute(
+          "aria-label",
+          `${label}: ${node.label ?? node.role}`,
+        );
         control.disabled = !enabled;
         control.onclick = run;
       };
@@ -217,7 +221,7 @@ export class SemanticControls {
           !!this.client.pendingCommands ||
           draft.sequence !== undefined ||
           draft.applied === true ||
-          new TextEncoder().encode(draft.input.value).length > (16 << 10);
+          new TextEncoder().encode(draft.input.value).length > 16 << 10;
         draft.input.readOnly = draft.applied === true;
         draft.input.disabled = draft.sequence !== undefined;
       }
@@ -241,6 +245,7 @@ export class SemanticControls {
       label.textContent = "Local draft";
       input.value = capture.content;
       input.rows = 3;
+      input.dir = "auto";
       input.maxLength = 16384;
       input.setAttribute(
         "aria-label",
@@ -275,7 +280,7 @@ export class SemanticControls {
       apply.onclick = submit;
       input.oninput = () => {
         this.refresh();
-        if (new TextEncoder().encode(input.value).length > (16 << 10))
+        if (new TextEncoder().encode(input.value).length > 16 << 10)
           message.textContent = "Local draft exceeds the 16 KiB commit limit.";
       };
       input.onkeydown = (event) => {

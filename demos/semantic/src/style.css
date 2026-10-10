@@ -7,6 +7,11 @@
 body {
   margin: 0;
 }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 main {
   max-width: 1080px;
   padding: clamp(16px, 4vw, 48px);
@@ -36,6 +41,8 @@ button {
   border-radius: 8px;
   background: white;
   cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 button:disabled {
   opacity: 0.6;
@@ -46,6 +53,11 @@ input[type="file"] {
 .rui-semantic-node {
   min-width: 0;
   margin-block: 12px;
+}
+.rui-semantic,
+.rui-semantic-children,
+.rui-local-draft {
+  min-width: 0;
 }
 .rui-role-root,
 .rui-role-group {
@@ -74,6 +86,7 @@ input[type="file"] {
   border: 1px solid #a8c0b7;
   border-radius: 8px;
   resize: vertical;
+  min-width: 0;
 }
 .rui-semantic h2,
 .rui-semantic span {
@@ -115,8 +128,17 @@ input[type="file"] {
   box-sizing: border-box;
   margin-block: 12px;
   padding: 12px;
+  min-width: 0;
 }
 .rui-semantic-node[data-source-focused="true"] {
   border-inline-start: 3px solid #53766d;
   padding-inline-start: 10px;
+}
+@media (prefers-contrast: more) {
+  button,
+  textarea,
+  .rui-role-root,
+  .rui-role-group {
+    border-color: currentColor;
+  }
 }

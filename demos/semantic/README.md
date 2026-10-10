@@ -77,3 +77,22 @@ Three-engine DOM regressions additionally exercise unknown outcomes, exact UTF-8
 limits and zero mutation from observer navigation. Source-side guard faults remain
 covered by the native application/context tests. S4 layout/device and S5 simultaneous
 presentation acceptance remain outstanding.
+
+Local layout uses semantic groups and reading order: wide groups use an adaptive
+grid, narrow groups/forms stack, collections retain ordered list structure, and
+published mapped modal relationships produce named dialogs. Source modality is
+announced but does not trap observers or mark their whole local page modal. Labels
+and text use automatic direction for bidirectional content. Controls have source
+names/descriptions and visible keyboard focus; action buttons include the source
+name, pending/error status is a polite live region, and source focus has a distinct
+start border. No local resize/scroll/touch gesture is translated to raw source input.
+
+[Three-engine layout evidence](../../fixtures/browser/semantic-layout) covers both
+source-derived applications at 320/800/1440 px, long Unicode/bidirectional labels,
+200% text, partial collections, dialogs, keyboard traversal/Enter activation,
+unchanged source data and zero commands from observer reflow/navigation. Chromium's
+actual accessibility API verifies text names and status roles; all engines verify
+accessible snapshots. Narrow/wide screenshots were visually reviewed. These are
+automated accessibility checks, not a physical screen-reader usability session.
+Physical screen-reader and actual mobile-device acceptance remain unverified;
+Playwright viewport/engine evidence does not establish Safari/iOS/Android support.
