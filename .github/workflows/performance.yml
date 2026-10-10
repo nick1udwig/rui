@@ -7,7 +7,7 @@ jobs:
   benchmark:
     # Explicit provisioning is required. Ordinary CI never enforces timings.
     runs-on: [self-hosted, linux, x64, rui-perf-i7-1280p]
-    timeout-minutes: 30
+    timeout-minutes: 120
     env:
       RUI_WASM_CHROMIUM: /usr/bin/chromium
       RUI_BROWSER_HEADED: '1'
@@ -25,11 +25,16 @@ jobs:
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
           cargo install wasm-bindgen-cli --version "$version" --locked
           cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
+          cargo build --release -p rui-transport --example measure_integrated --locked
           python3 client-wasm/build.py
           npm --prefix client-browser ci
           npm --prefix demos/web ci
           npm --prefix client-browser run build
           npm --prefix demos/web run build
+      - name: Measure retained recovery, lifecycle ownership and large per-client stages
+        run: |
+          python3 ci/measure-lifecycle.py --xvfb /usr/bin/Xvfb --output "$RUNNER_TEMP/rui-lifecycle"
+          python3 ci/measure-large.py --output "$RUNNER_TEMP/rui-large"
       - name: Measure frozen workload and evaluate original goals
         run: |
           python3 demos/web/performance.py --xvfb /usr/bin/Xvfb --output "$RUNNER_TEMP/rui-performance"
@@ -38,5 +43,8 @@ jobs:
         if: always()
         with:
           name: controlled-performance-evidence
-          path: ${{ runner.temp }}/rui-performance/*.json
+          path: |
+            ${{ runner.temp }}/rui-performance/*.json
+            ${{ runner.temp }}/rui-lifecycle/*.json
+            ${{ runner.temp }}/rui-large/*.json
           retention-days: 30

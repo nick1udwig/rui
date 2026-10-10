@@ -53,9 +53,11 @@ host and browser timestamps.
 This first P1 series establishes the small-demo runner and instrumentation for
 the existing large fixture. The [installed-package lifecycle reports](browser-lifecycle-performance.md)
 add cold/reconnect/cache-loss readiness, pending-result recovery, actual hidden-tab
-suppression and 25-cycle ownership/heap stabilization across three runs. Large
-per-client/recovery repetitions remain a separate measurement boundary. Existing
-evidence below remains historical.
+suppression and 25-cycle ownership/heap stabilization across three runs. The
+[three frozen large runs](large-performance.md) add per-client/raw frame samples,
+bounded stopped-reader isolation, cold/retained/cache-loss/fresh-scope recovery and
+ownership. These complete the local P1 scenario reports for the declared fixtures.
+Existing evidence below remains historical.
 
 The [three retained baseline runs](../fixtures/performance/browser-p1/summary.json)
 contain 200 warm browser and 200 warm source actions each on the recorded

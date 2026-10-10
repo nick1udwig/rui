@@ -72,6 +72,52 @@ async fn barrier(c: &mut NetworkClient, nonce: u64) {
     c.send(p::Kind::Ping, &p::Ping { nonce }).await.unwrap();
     assert!(matches!(c.receive().await.unwrap(),ClientEvent::Pong(n) if n==nonce));
 }
+async fn recovered(c: &mut NetworkClient, revision: Option<u64>) -> (bool, usize) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let mut resumed = false;
+        let mut needs = 0;
+        loop {
+            match c.receive().await.unwrap() {
+                ClientEvent::ResumeAccepted(_) => resumed = true,
+                ClientEvent::ViewOpened(_) | ClientEvent::ResourceAvailable => {}
+                ClientEvent::ResourcesNeeded { revision: r } => {
+                    if let Some(expected) = revision {
+                        assert_eq!(r, expected);
+                    }
+                    needs += 1;
+                }
+                ClientEvent::Applied { revision: r } => {
+                    if let Some(expected) = revision {
+                        assert_eq!(r, expected);
+                    }
+                    c.flush_pending().await.unwrap();
+                    return (resumed, needs);
+                }
+                other => panic!("unexpected recovery event {other:?}"),
+            }
+        }
+    })
+    .await
+    .unwrap()
+}
+fn traffic(diagnostics: &Diagnostics, view: [u8; 16]) -> (usize, usize) {
+    let scope = diagnostics
+        .scopes()
+        .unwrap()
+        .into_iter()
+        .find(|s| s.view_id == view)
+        .unwrap();
+    diagnostics
+        .inspect(scope, |entries| {
+            entries.fold((0, 0), |(bytes, bodies), entry| {
+                (
+                    bytes + entry.wire_bytes,
+                    bodies + usize::from(entry.kind == p::Kind::ResourceComplete as u32),
+                )
+            })
+        })
+        .unwrap()
+}
 fn summary(mut samples: Vec<u128>) -> serde_json::Value {
     samples.sort_unstable();
     let at = |p: usize| samples[(samples.len() * p).div_ceil(100).saturating_sub(1)];
@@ -85,9 +131,16 @@ struct Samples {
     encode: Vec<u128>,
     apply: Vec<u128>,
     bytes: Vec<usize>,
+    first_applied: Vec<u128>,
+    second_applied: Vec<u128>,
+    first_render: Vec<u128>,
+    second_render: Vec<u128>,
+    first_cpu_ready: Vec<u128>,
+    second_cpu_ready: Vec<u128>,
 }
 #[tokio::main]
 async fn main() {
+    let recovery_only = std::env::args().nth(1).as_deref() == Some("--recovery-only");
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
@@ -157,7 +210,9 @@ async fn main() {
     .await
     .unwrap();
     let mut clients = Vec::new();
+    let mut cold = Vec::new();
     for (i, credential) in credentials.iter().enumerate() {
+        let connecting = Instant::now();
         let mut c = NetworkClient::connect(
             server.address,
             "localhost".into(),
@@ -169,7 +224,10 @@ async fn main() {
         .unwrap();
         c.open_view().await.unwrap();
         applied(&mut c, 1).await;
+        let applied_us = connecting.elapsed().as_micros();
         barrier(&mut c, 1).await;
+        let (wire_bytes, bodies) = traffic(&diagnostics, c.view_id);
+        cold.push(json!({"client":i + 3,"through_applied_us":applied_us,"scoped_plaintext_wire_bytes":wire_bytes,"resource_bodies":bodies,"receiver_peak_bytes":c.receiver().memory_budget().peak()}));
         assert_eq!(
             c.receiver().state().unwrap().records.len(),
             PERFORMANCE_RECORDS
@@ -219,7 +277,7 @@ async fn main() {
     let mut rows = Vec::new();
     let start = Instant::now();
     let mut revision = 1;
-    for count in [1usize, 20] {
+    for count in [1usize, 20].into_iter().filter(|_| !recovery_only) {
         let mut samples = Samples::default();
         for iteration in 0..110 {
             if iteration % 25 == 0 {
@@ -234,9 +292,15 @@ async fn main() {
                 .advance_performance(count, start.elapsed().as_millis() as u64)
                 .unwrap();
             let publication_us = change.elapsed().as_micros();
-            tokio::join!(
-                applied(&mut first, revision),
-                applied(&mut second, revision)
+            let (first_applied_us, second_applied_us) = tokio::join!(
+                async {
+                    applied(&mut first, revision).await;
+                    change.elapsed().as_micros()
+                },
+                async {
+                    applied(&mut second, revision).await;
+                    change.elapsed().as_micros()
+                }
             );
             let receive_us = change.elapsed().as_micros();
             let rendering = Instant::now();
@@ -247,7 +311,10 @@ async fn main() {
                     first.receiver(),
                 )
                 .unwrap();
+            let first_render_us = rendering.elapsed().as_micros();
+            let first_cpu_ready_us = change.elapsed().as_micros();
             peak_renderer = peak_renderer.max(render_budget.peak());
+            let second_rendering = Instant::now();
             let second_frame = renderer
                 .render_view(
                     second.receiver().state().unwrap(),
@@ -255,6 +322,8 @@ async fn main() {
                     second.receiver(),
                 )
                 .unwrap();
+            let second_render_us = second_rendering.elapsed().as_micros();
+            let second_cpu_ready_us = change.elapsed().as_micros();
             assert_eq!(frame.pixels(), second_frame.pixels());
             peak_renderer = peak_renderer.max(render_budget.peak());
             let render_us = rendering.elapsed().as_micros();
@@ -332,9 +401,16 @@ async fn main() {
                 samples.encode.push(encode_us);
                 samples.apply.push(apply_us);
                 samples.bytes.push(bytes.len());
+                samples.first_applied.push(first_applied_us);
+                samples.second_applied.push(second_applied_us);
+                samples.first_render.push(first_render_us);
+                samples.second_render.push(second_render_us);
+                samples.first_cpu_ready.push(first_cpu_ready_us);
+                samples.second_cpu_ready.push(second_cpu_ready_us);
             }
         }
-        rows.push(json!({"changed_records":count,"publication_all_views":summary(samples.publish),"source_change_to_two_applied":summary(samples.network),"two_cpu_renders":summary(samples.render),"transaction_encode":summary(samples.encode),"independent_apply":summary(samples.apply),"publication_bytes_min":samples.bytes.iter().min(),"publication_bytes_max":samples.bytes.iter().max()}));
+        let raw = json!({"publication":samples.publish,"two_applied":samples.network,"two_renders_and_comparison":samples.render,"encode":samples.encode,"independent_apply":samples.apply,"bytes":samples.bytes,"first_applied":samples.first_applied,"second_applied":samples.second_applied,"first_render":samples.first_render,"second_render":samples.second_render,"first_cpu_ready":samples.first_cpu_ready,"second_cpu_ready":samples.second_cpu_ready});
+        rows.push(json!({"changed_records":count,"publication_all_views":summary(samples.publish),"source_change_to_two_applied":summary(samples.network),"two_cpu_renders":summary(samples.render),"transaction_encode":summary(samples.encode),"independent_apply":summary(samples.apply),"publication_bytes_min":samples.bytes.iter().min(),"publication_bytes_max":samples.bytes.iter().max(),"per_client":[{"applied":summary(samples.first_applied),"cpu_render":summary(samples.first_render),"source_change_to_cpu_frame":summary(samples.first_cpu_ready)},{"applied":summary(samples.second_applied),"cpu_render":summary(samples.second_render),"source_change_to_cpu_frame":summary(samples.second_cpu_ready)}],"raw_sample_units":"microseconds except bytes","raw_samples":raw}));
     }
     barrier(&mut first, 2).await;
     let (resource_bodies, wire_bytes) = diagnostics
@@ -361,7 +437,7 @@ async fn main() {
         .view_status(&auth(5), slow.view_id)
         .unwrap();
     assert!(
-        slow_status.closed.is_some(),
+        recovery_only || slow_status.closed.is_some(),
         "bounded stalled observer must close independently"
     );
     let capture = server
@@ -419,6 +495,98 @@ async fn main() {
             .unwrap(),
         idle_sequence
     );
+    // Recovery follows the frozen warm workload and its resource/idle checks.
+    // A narrower envelope forces a fresh scope without raising any ceiling.
+    let mut recovery = Vec::new();
+    for mode in [
+        "retained_resume",
+        "retained_cache_loss",
+        "forced_fresh_scope",
+    ] {
+        let old_view = first.view_id;
+        let connecting = Instant::now();
+        let mut retained = first.into_retained();
+        if mode == "retained_cache_loss" {
+            retained.lose_resource_cache().unwrap();
+        }
+        let mut negotiation = hello(3);
+        if mode == "forced_fresh_scope" {
+            negotiation.receiver_limits.envelope_bytes = 49152;
+        }
+        first = retained
+            .reconnect(
+                server.address,
+                "localhost".into(),
+                include_bytes!("../tests/data/localhost.der").to_vec(),
+                &credentials[0],
+                negotiation,
+            )
+            .await
+            .unwrap();
+        first.open_view().await.unwrap();
+        let (resumed, needs) = recovered(
+            &mut first,
+            (mode != "forced_fresh_scope").then_some(revision),
+        )
+        .await;
+        let applied_us = connecting.elapsed().as_micros();
+        assert_eq!(resumed, mode != "forced_fresh_scope");
+        assert_eq!(first.view_id == old_view, mode != "forced_fresh_scope");
+        assert_eq!(first.commands().len(), 0);
+        assert_eq!(first.receiver().presented_revision().unwrap(), None);
+        let rendering = Instant::now();
+        let frame = renderer
+            .render_view(
+                first.receiver().state().unwrap(),
+                viewport,
+                first.receiver(),
+            )
+            .unwrap();
+        let render_us = rendering.elapsed().as_micros();
+        let cpu_ready_us = connecting.elapsed().as_micros();
+        let comparison = renderer
+            .render_view(
+                second.receiver().state().unwrap(),
+                viewport,
+                second.receiver(),
+            )
+            .unwrap();
+        assert_eq!(frame.pixels(), comparison.pixels());
+        drop(frame);
+        drop(comparison);
+        if mode != "forced_fresh_scope" {
+            assert_eq!(
+                first.receiver().state().unwrap().records,
+                second.receiver().state().unwrap().records
+            );
+        }
+        // Fresh scopes restart public clocks. Compare their exact records to
+        // their own source projection, and visual content to the healthy peer.
+        let capture = server
+            .host
+            .lock()
+            .await
+            .source_capture(&auth(3), first.view_id)
+            .unwrap();
+        assert_eq!(
+            capture.state().records,
+            first.receiver().state().unwrap().records
+        );
+        drop(capture);
+        barrier(&mut first, 3).await;
+        let after = traffic(&diagnostics, first.view_id);
+        // Diagnostic buffers are connection-owned and disappear on socket
+        // closure, including when the resumed view ID is unchanged.
+        let bodies = after.1;
+        assert_eq!(bodies, usize::from(mode != "retained_resume"));
+        let receiver_peak = first.receiver().memory_budget().peak();
+        let host = server.host.lock().await;
+        let host_peak = host.peak_memory_bytes(&auth(3), first.view_id).unwrap();
+        assert!(receiver_peak <= first.limits.view_memory_bytes);
+        assert!(host_peak <= first.limits.view_memory_bytes);
+        assert!(render_budget.peak() <= 256 << 20);
+        recovery.push(json!({"mode":mode,"through_applied_us":applied_us,"cpu_render_us":render_us,"through_cpu_frame_us":cpu_ready_us,"scoped_plaintext_wire_bytes":after.0,"resource_bodies":bodies,"resource_wait_events":needs,"receiver_peak_bytes":receiver_peak,"host_peak_bytes":host_peak,"renderer_peak_bytes":render_budget.peak(),"pending_commands":0,"presented":false,"same_view":first.view_id == old_view}));
+    }
     let rss = std::fs::read_to_string("/proc/self/status")
         .unwrap()
         .lines()
@@ -440,5 +608,5 @@ async fn main() {
     drop(slow);
     server.shutdown().await;
     assert!(diagnostics.scopes().unwrap().is_empty());
-    println!("{}",serde_json::to_string_pretty(&json!({"stage_timings":rui_protocol_core::timing::inspect(|t| serde_json::to_value(t).unwrap()),"hardware":cpu,"whole_process_peak_rss":rss,"profile":"release CPU/TLS, pinned native Pango/Cairo glyph outline","records":PERFORMANCE_RECORDS,"visible_glyph_cells":PERFORMANCE_GLYPHS,"clients":"two healthy plus one stalled observer","snapshot_bytes":snapshot_bytes,"updates":rows,"one_client_total_plaintext_wire_bytes":wire_bytes,"resource_bodies_cold":resource_bodies,"resource_bodies_warm":0,"warm_resource_cache_hit_rate":1.0,"peak_host_view_bytes":peak_host,"peak_receiver_bytes":peak_client,"sampled_outbound_queue_bytes":peak_queue,"peak_renderer_bytes":peak_renderer,"slow_view_closed":format!("{:?}",slow_status.closed),"released_replay_and_renderer_bytes":0,"idle_publication_bytes_250ms":0,"elapsed_seconds":start.elapsed().as_secs_f64(),"presentation":"CPU frames only; no native Presented or action-to-present latency claim; native GUI gate supplies that separately"})).unwrap());
+    println!("{}",serde_json::to_string_pretty(&json!({"recovery_only":recovery_only,"cold":cold,"recovery":recovery,"recovery_byte_boundary":"per-view plaintext envelopes including ACK/barrier; excludes authentication negotiation and TLS/socket overhead","stage_timings":rui_protocol_core::timing::inspect(|t| serde_json::to_value(t).unwrap()),"hardware":cpu,"whole_process_peak_rss":rss,"profile":"release CPU/TLS, pinned native Pango/Cairo glyph outline","records":PERFORMANCE_RECORDS,"visible_glyph_cells":PERFORMANCE_GLYPHS,"clients":"two healthy plus one stalled observer","snapshot_bytes":snapshot_bytes,"updates":rows,"one_client_total_plaintext_wire_bytes":wire_bytes,"resource_bodies_cold":resource_bodies,"resource_bodies_warm":0,"warm_resource_cache_hit_rate":1.0,"peak_host_view_bytes":peak_host,"peak_receiver_bytes":peak_client,"sampled_outbound_queue_bytes":peak_queue,"peak_renderer_bytes":peak_renderer,"slow_view_closed":format!("{:?}",slow_status.closed),"released_replay_and_renderer_bytes":0,"idle_publication_bytes_250ms":0,"elapsed_seconds":start.elapsed().as_secs_f64(),"presentation":"CPU frames only; no native Presented or action-to-present latency claim; native GUI gate supplies that separately"})).unwrap());
 }

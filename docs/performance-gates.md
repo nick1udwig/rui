@@ -24,9 +24,11 @@ Source callback-to-capture p95 is about 71 ms in the first run, including cohere
 capture p95 of 59 ms; the harness adds polling/injection costs. This identifies
 capture and the measurement overhead as remaining work, rather than changing
 the targets to make the report pass. The milestone's measured scope is the
-small constrained GTK demo; large-native 60 Hz and P1's expanded fault/lifecycle
-measurements remain outstanding. The large fixture's historical report preserves
-zero warm resource bodies, small updates and bounded slow-client isolation.
+small constrained GTK demo. The [expanded browser lifecycle](browser-lifecycle-performance.md)
+and [three frozen large/recovery runs](large-performance.md) now retain separate
+P1 evidence. Large-native CPU render p95 remains 710–724 ms, so its 60 Hz goal
+is outstanding. All three large runs preserve zero warm resource bodies, small
+updates, original ceilings and bounded slow-client isolation.
 
 Ordinary CI tests the evaluator's sample, environment and correlation validation
 without enforcing machine timings. The manual [performance workflow](../.github/workflows/performance.yml)

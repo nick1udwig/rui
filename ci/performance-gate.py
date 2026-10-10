@@ -66,7 +66,7 @@ def evaluate(reports):
             'passed': all(gate['passed'] for row in rows for gate in row.values()),
             'scope': 'small GTK loopback demo; action samples include harness polling/native injection and end at causal presentation; draw is separate',
             'large60Hz': 'outstanding: native large fixture still exceeds 16.67 ms',
-            'expandedFaultMeasurements': 'P1 cold/reset/cache-loss/throttled-reader/lifecycle timing reports remain required; correctness suites cover these boundaries'}
+            'expandedFaultMeasurements': 'Evaluated separately in docs/browser-lifecycle-performance.md and docs/large-performance.md; this small-demo evaluator adds no thresholds for those scenarios'}
 
 
 def main():

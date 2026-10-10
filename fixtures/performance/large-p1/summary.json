@@ -1,0 +1,793 @@
+{
+  "environment": {
+    "kernel": "Linux-7.1.9-arch1-2-x86_64-with-glibc2.44",
+    "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "native": [
+      "4.22.4",
+      "1.18.4",
+      "1.58.2"
+    ],
+    "binarySha256": "59eb1a30a93e9bb660aeb216b3206f92a50022c4a9535d2a954a32c3eec1d548",
+    "sourceSha256": {
+      "Cargo.lock": "6a0d0dd444a7850179e320fc76e10512289c8bf9bf2fcdc497ee7c7458d2085b",
+      "transport/examples/measure_integrated.rs": "620a057c750c134b87bc1cc1bf944525bb6487f137f281ebe9fed44bb5d12ff7",
+      "transport/src/client.rs": "ce087f30340ad11761dde792887dae64c02342712dfe9b84e89692db0277e3b5",
+      "client-core/src/replica.rs": "9fb7c83b2b20bc53ff9de750e72b9f5137d3ec5a470621edbde6eb1746db02c3",
+      "protocol-core/src/receiver.rs": "361615b4f0b57a199e287db0a0c5bb766dc5a0296a9c5fe1ff24a7e237c848a8",
+      "client-desktop/src/renderer.rs": "faed005175a0c68514f95ed069383391582f5959000779241b96395c5e616258",
+      "host-broker/src/lib.rs": "59556473a8819ffdd2407d3aabe4bdf54e5d6d78cbc243aff29f0e84da16c468",
+      "host-broker/src/performance.rs": "8aca7eda7cd4a3bc2d2eaab6abb889ca3b529a46ee0b547e2dbc984a0d19a6e2",
+      "host-broker/src/source_fonts.rs": "fa514c56887b3f7d1f88f0ba5f0c4c41d62bdd24e31eb04ad31cb1eeb8aab7e1",
+      "fixtures/render/native_font.py": "c4e17d79335feada83294ee0d17fe9fda88f43116040cd239aea977f179be31d"
+    },
+    "conditions": "release, loopback TLS, CPU frames, no concurrent builds/tests; existing 10000 records/2500 glyphs, 10 warmup and 100 measured updates per phase; fixed original ceilings"
+  },
+  "runs": [
+    {
+      "run": 1,
+      "wallSeconds": 321.54915009101387,
+      "updates": [
+        {
+          "changed_records": 1,
+          "independent_apply": {
+            "p50": 7262,
+            "p95": 7986,
+            "p99": 8169,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "per_client": [
+            {
+              "applied": {
+                "p50": 30191,
+                "p95": 33463,
+                "p99": 35107,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 693750,
+                "p95": 715057,
+                "p99": 750884,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 724885,
+                "p95": 748270,
+                "p99": 782468,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            },
+            {
+              "applied": {
+                "p50": 24864,
+                "p95": 32164,
+                "p99": 33040,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 692074,
+                "p95": 713509,
+                "p99": 736065,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 1417514,
+                "p95": 1450040,
+                "p99": 1478585,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            }
+          ],
+          "publication_all_views": {
+            "p50": 16371,
+            "p95": 17592,
+            "p99": 18623,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "publication_bytes_max": 237,
+          "publication_bytes_min": 237,
+          "raw_sample_units": "microseconds except bytes",
+          "source_change_to_two_applied": {
+            "p50": 30909,
+            "p95": 33787,
+            "p99": 35433,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "transaction_encode": {
+            "p50": 2,
+            "p95": 3,
+            "p99": 3,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "two_cpu_renders": {
+            "p50": 1387755,
+            "p95": 1418840,
+            "p99": 1448668,
+            "samples": 100,
+            "unit": "microseconds"
+          }
+        },
+        {
+          "changed_records": 20,
+          "independent_apply": {
+            "p50": 7302,
+            "p95": 8094,
+            "p99": 8648,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "per_client": [
+            {
+              "applied": {
+                "p50": 25756,
+                "p95": 28180,
+                "p99": 29908,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 694129,
+                "p95": 712461,
+                "p99": 751144,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 720563,
+                "p95": 740919,
+                "p99": 776632,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            },
+            {
+              "applied": {
+                "p50": 19122,
+                "p95": 26741,
+                "p99": 29093,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 694813,
+                "p95": 710221,
+                "p99": 755717,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 1416631,
+                "p95": 1472609,
+                "p99": 1492038,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            }
+          ],
+          "publication_all_views": {
+            "p50": 11272,
+            "p95": 12285,
+            "p99": 12765,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "publication_bytes_max": 4326,
+          "publication_bytes_min": 4323,
+          "raw_sample_units": "microseconds except bytes",
+          "source_change_to_two_applied": {
+            "p50": 25972,
+            "p95": 28265,
+            "p99": 29909,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "transaction_encode": {
+            "p50": 7,
+            "p95": 8,
+            "p99": 9,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "two_cpu_renders": {
+            "p50": 1392098,
+            "p95": 1447664,
+            "p99": 1464870,
+            "samples": 100,
+            "unit": "microseconds"
+          }
+        }
+      ],
+      "peakRendererBytes": 268124192,
+      "cold": [
+        {
+          "client": 3,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 150078
+        },
+        {
+          "client": 4,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 155836
+        },
+        {
+          "client": 5,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 149629
+        }
+      ],
+      "recovery": [
+        {
+          "cpu_render_us": 686976,
+          "host_peak_bytes": 120563894,
+          "mode": "retained_resume",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62346148,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 0,
+          "resource_wait_events": 0,
+          "same_view": true,
+          "scoped_plaintext_wire_bytes": 441,
+          "through_applied_us": 6844,
+          "through_cpu_frame_us": 693820
+        },
+        {
+          "cpu_render_us": 689580,
+          "host_peak_bytes": 120563894,
+          "mode": "retained_cache_loss",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62346148,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 1,
+          "resource_wait_events": 1,
+          "same_view": true,
+          "scoped_plaintext_wire_bytes": 2012,
+          "through_applied_us": 14947,
+          "through_cpu_frame_us": 704527
+        },
+        {
+          "cpu_render_us": 698936,
+          "host_peak_bytes": 120563894,
+          "mode": "forced_fresh_scope",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62280612,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 1,
+          "resource_wait_events": 1,
+          "same_view": false,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 149443,
+          "through_cpu_frame_us": 848379
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "wallSeconds": 323.7993695109617,
+      "updates": [
+        {
+          "changed_records": 1,
+          "independent_apply": {
+            "p50": 7324,
+            "p95": 8009,
+            "p99": 8218,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "per_client": [
+            {
+              "applied": {
+                "p50": 30566,
+                "p95": 33591,
+                "p99": 36266,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 697287,
+                "p95": 712142,
+                "p99": 750251,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 728645,
+                "p95": 744641,
+                "p99": 780809,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            },
+            {
+              "applied": {
+                "p50": 25057,
+                "p95": 32122,
+                "p99": 35400,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 697159,
+                "p95": 714271,
+                "p99": 757757,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 1427369,
+                "p95": 1474552,
+                "p99": 1499329,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            }
+          ],
+          "publication_all_views": {
+            "p50": 16731,
+            "p95": 18443,
+            "p99": 20635,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "publication_bytes_max": 237,
+          "publication_bytes_min": 237,
+          "raw_sample_units": "microseconds except bytes",
+          "source_change_to_two_applied": {
+            "p50": 31255,
+            "p95": 34262,
+            "p99": 37557,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "transaction_encode": {
+            "p50": 2,
+            "p95": 3,
+            "p99": 3,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "two_cpu_renders": {
+            "p50": 1397493,
+            "p95": 1445885,
+            "p99": 1470762,
+            "samples": 100,
+            "unit": "microseconds"
+          }
+        },
+        {
+          "changed_records": 20,
+          "independent_apply": {
+            "p50": 7486,
+            "p95": 8317,
+            "p99": 8812,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "per_client": [
+            {
+              "applied": {
+                "p50": 25962,
+                "p95": 29285,
+                "p99": 30193,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 698600,
+                "p95": 712527,
+                "p99": 761745,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 725260,
+                "p95": 739751,
+                "p99": 788042,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            },
+            {
+              "applied": {
+                "p50": 19335,
+                "p95": 27297,
+                "p99": 29374,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 696940,
+                "p95": 721970,
+                "p99": 756009,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 1422745,
+                "p95": 1473024,
+                "p99": 1489493,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            }
+          ],
+          "publication_all_views": {
+            "p50": 11449,
+            "p95": 12658,
+            "p99": 14401,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "publication_bytes_max": 4326,
+          "publication_bytes_min": 4323,
+          "raw_sample_units": "microseconds except bytes",
+          "source_change_to_two_applied": {
+            "p50": 26172,
+            "p95": 29499,
+            "p99": 30269,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "transaction_encode": {
+            "p50": 7,
+            "p95": 8,
+            "p99": 9,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "two_cpu_renders": {
+            "p50": 1397842,
+            "p95": 1449097,
+            "p99": 1464841,
+            "samples": 100,
+            "unit": "microseconds"
+          }
+        }
+      ],
+      "peakRendererBytes": 268124192,
+      "cold": [
+        {
+          "client": 3,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 149893
+        },
+        {
+          "client": 4,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 152438
+        },
+        {
+          "client": 5,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 151184
+        }
+      ],
+      "recovery": [
+        {
+          "cpu_render_us": 692890,
+          "host_peak_bytes": 120563894,
+          "mode": "retained_resume",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62346148,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 0,
+          "resource_wait_events": 0,
+          "same_view": true,
+          "scoped_plaintext_wire_bytes": 441,
+          "through_applied_us": 8905,
+          "through_cpu_frame_us": 701795
+        },
+        {
+          "cpu_render_us": 692842,
+          "host_peak_bytes": 120563894,
+          "mode": "retained_cache_loss",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62346148,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 1,
+          "resource_wait_events": 1,
+          "same_view": true,
+          "scoped_plaintext_wire_bytes": 2012,
+          "through_applied_us": 14583,
+          "through_cpu_frame_us": 707426
+        },
+        {
+          "cpu_render_us": 694368,
+          "host_peak_bytes": 120563894,
+          "mode": "forced_fresh_scope",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62280612,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 1,
+          "resource_wait_events": 1,
+          "same_view": false,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 150601,
+          "through_cpu_frame_us": 844970
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "wallSeconds": 321.7529303379706,
+      "updates": [
+        {
+          "changed_records": 1,
+          "independent_apply": {
+            "p50": 7247,
+            "p95": 8084,
+            "p99": 8839,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "per_client": [
+            {
+              "applied": {
+                "p50": 29622,
+                "p95": 32859,
+                "p99": 34290,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 692804,
+                "p95": 711570,
+                "p99": 739751,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 723251,
+                "p95": 741564,
+                "p99": 770226,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            },
+            {
+              "applied": {
+                "p50": 24492,
+                "p95": 31862,
+                "p99": 33840,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 690684,
+                "p95": 713240,
+                "p99": 747556,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 1413428,
+                "p95": 1467478,
+                "p99": 1480511,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            }
+          ],
+          "publication_all_views": {
+            "p50": 15758,
+            "p95": 17710,
+            "p99": 18587,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "publication_bytes_max": 237,
+          "publication_bytes_min": 237,
+          "raw_sample_units": "microseconds except bytes",
+          "source_change_to_two_applied": {
+            "p50": 30171,
+            "p95": 33605,
+            "p99": 34291,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "transaction_encode": {
+            "p50": 2,
+            "p95": 3,
+            "p99": 4,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "two_cpu_renders": {
+            "p50": 1384346,
+            "p95": 1439472,
+            "p99": 1451793,
+            "samples": 100,
+            "unit": "microseconds"
+          }
+        },
+        {
+          "changed_records": 20,
+          "independent_apply": {
+            "p50": 7414,
+            "p95": 8335,
+            "p99": 8872,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "per_client": [
+            {
+              "applied": {
+                "p50": 25062,
+                "p95": 28076,
+                "p99": 32549,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 694512,
+                "p95": 724063,
+                "p99": 767570,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 719761,
+                "p95": 747817,
+                "p99": 792456,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            },
+            {
+              "applied": {
+                "p50": 18983,
+                "p95": 26906,
+                "p99": 28390,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "cpu_render": {
+                "p50": 693208,
+                "p95": 718753,
+                "p99": 746863,
+                "samples": 100,
+                "unit": "microseconds"
+              },
+              "source_change_to_cpu_frame": {
+                "p50": 1413105,
+                "p95": 1471570,
+                "p99": 1513359,
+                "samples": 100,
+                "unit": "microseconds"
+              }
+            }
+          ],
+          "publication_all_views": {
+            "p50": 10759,
+            "p95": 11837,
+            "p99": 14066,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "publication_bytes_max": 4326,
+          "publication_bytes_min": 4323,
+          "raw_sample_units": "microseconds except bytes",
+          "source_change_to_two_applied": {
+            "p50": 25467,
+            "p95": 28637,
+            "p99": 32549,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "transaction_encode": {
+            "p50": 7,
+            "p95": 8,
+            "p99": 11,
+            "samples": 100,
+            "unit": "microseconds"
+          },
+          "two_cpu_renders": {
+            "p50": 1389121,
+            "p95": 1445281,
+            "p99": 1488528,
+            "samples": 100,
+            "unit": "microseconds"
+          }
+        }
+      ],
+      "peakRendererBytes": 268124192,
+      "cold": [
+        {
+          "client": 3,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 147796
+        },
+        {
+          "client": 4,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 148158
+        },
+        {
+          "client": 5,
+          "receiver_peak_bytes": 62346148,
+          "resource_bodies": 1,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 147757
+        }
+      ],
+      "recovery": [
+        {
+          "cpu_render_us": 698127,
+          "host_peak_bytes": 120563894,
+          "mode": "retained_resume",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62346148,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 0,
+          "resource_wait_events": 0,
+          "same_view": true,
+          "scoped_plaintext_wire_bytes": 441,
+          "through_applied_us": 7748,
+          "through_cpu_frame_us": 705876
+        },
+        {
+          "cpu_render_us": 689962,
+          "host_peak_bytes": 120563894,
+          "mode": "retained_cache_loss",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62346148,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 1,
+          "resource_wait_events": 1,
+          "same_view": true,
+          "scoped_plaintext_wire_bytes": 2012,
+          "through_applied_us": 13194,
+          "through_cpu_frame_us": 703157
+        },
+        {
+          "cpu_render_us": 694228,
+          "host_peak_bytes": 120563894,
+          "mode": "forced_fresh_scope",
+          "pending_commands": 0,
+          "presented": false,
+          "receiver_peak_bytes": 62280612,
+          "renderer_peak_bytes": 268124192,
+          "resource_bodies": 1,
+          "resource_wait_events": 1,
+          "same_view": false,
+          "scoped_plaintext_wire_bytes": 999829,
+          "through_applied_us": 151831,
+          "through_cpu_frame_us": 846060
+        }
+      ]
+    }
+  ],
+  "sixtyHzGoal": "Outstanding unless individual CPU render p95 is at most 16667 microseconds; this fixture does not measure native presentation."
+}
