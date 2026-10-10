@@ -190,6 +190,7 @@ class ObservedProjection:
                 body += scalar(18, 3) + scalar(19, 2) + scalar(20, 2)
                 body += text(21, token) + text(21, geometry_token) + text(22, 'native-surface-association-unresolved')
                 encoded.append(blob(1, body))
+                display_nodes = []
                 for key, node in records.items():
                     children = [identifier(('semantic', incarnation, *child)) for child in node['children']]
                     role = 1 if key == root else {43: 3, 7: 4, 29: 6, 31: 7, 32: 8}.get(node['role'], 2)
@@ -205,10 +206,13 @@ class ObservedProjection:
                     semantic += b''.join(blob(8, ref(3, child)) for child in children)
                     semantic += scalar(16, 3 if node['role'] == 40 else 1) + scalar(17, 3 if node['role'] == 40 else 2)
                     encoded.append(blob(3, semantic))
+                    display_nodes.append({'id':item['id'],'role':role,'children':children,
+                                          'name':item.get('label'),'availability':'redacted' if node['role']==40 else 'partial',
+                                          'actions':[]})
                 metadata.append({'surface': surface, 'semantic_root': semantic_root,
                                  'classification': 'OBSERVED', 'source_incarnation': incarnation,
                                  'native_surface_association': 'unresolved', 'input_modes': [],
-                                 'record_count': len(records), 'bounds': bounds})
+                                 'record_count': len(records), 'bounds': bounds, 'nodes':display_nodes})
         if len(encoded) > 2 * MAX_NODES + 8:
             raise ValueError('projection ceiling')
         encoded.append(encode_session({'id': 1, 'version': revision, 'canvas': [0, 0, 800, 600], 'focus_generation': 1}))

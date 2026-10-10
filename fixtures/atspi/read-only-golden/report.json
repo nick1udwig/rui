@@ -1,0 +1,3144 @@
+{
+  "ambiguous_windows": {
+    "distinct_trusted_process_incarnations": true,
+    "same_bounds": true,
+    "same_title": true
+  },
+  "captures": [
+    {
+      "calls": 450,
+      "dropped_events": 0,
+      "events": 0,
+      "name": "initial",
+      "reconciliations": 0,
+      "revision": 1,
+      "surfaces": [
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                4
+              ],
+              "id": 3,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17
+              ],
+              "id": 4,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                18
+              ],
+              "id": 5,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 18,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                19
+              ],
+              "id": 6,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 19,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                20
+              ],
+              "id": 7,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 20,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                21
+              ],
+              "id": 8,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 21,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                22
+              ],
+              "id": 9,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 22,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                23
+              ],
+              "id": 10,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 23,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                24
+              ],
+              "id": 11,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 24,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                25
+              ],
+              "id": 12,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 25,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                26
+              ],
+              "id": 13,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 26,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                27
+              ],
+              "id": 14,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 27,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                28
+              ],
+              "id": 15,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 28,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                29
+              ],
+              "id": 16,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 29,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 17,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 3,
+          "source_incarnation": "0141984708aa485aad4424a3913346a3",
+          "surface": 2
+        },
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                32
+              ],
+              "id": 31,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45
+              ],
+              "id": 32,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                46
+              ],
+              "id": 33,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 46,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                47
+              ],
+              "id": 34,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 47,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                48
+              ],
+              "id": 35,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 48,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                49
+              ],
+              "id": 36,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 49,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                50
+              ],
+              "id": 37,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 50,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                51
+              ],
+              "id": 38,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 51,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                52
+              ],
+              "id": 39,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 52,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                53
+              ],
+              "id": 40,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 53,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                54
+              ],
+              "id": 41,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 54,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                55
+              ],
+              "id": 42,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 55,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                56
+              ],
+              "id": 43,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 56,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                57
+              ],
+              "id": 44,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 57,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 45,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 31,
+          "source_incarnation": "457695e0f910482099d3eb743f494a4d",
+          "surface": 30
+        }
+      ],
+      "worker_peak_rss_kib": 33288
+    },
+    {
+      "calls": 446,
+      "dropped_events": 8,
+      "events": 8,
+      "name": "event-gap",
+      "reconciliations": 0,
+      "revision": 2,
+      "surfaces": [
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                4
+              ],
+              "id": 3,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                17,
+                58
+              ],
+              "id": 4,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                18
+              ],
+              "id": 5,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 18,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                19
+              ],
+              "id": 6,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 19,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                20
+              ],
+              "id": 7,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 20,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                21
+              ],
+              "id": 8,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 21,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                22
+              ],
+              "id": 9,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 22,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                23
+              ],
+              "id": 10,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 23,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                24
+              ],
+              "id": 11,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 24,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                25
+              ],
+              "id": 12,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 25,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                26
+              ],
+              "id": 13,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 26,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                27
+              ],
+              "id": 14,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 27,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                28
+              ],
+              "id": 15,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 28,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 17,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                59
+              ],
+              "id": 58,
+              "name": "Replacement 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 59,
+              "name": "Replacement 1",
+              "role": 6
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 3,
+          "source_incarnation": "0141984708aa485aad4424a3913346a3",
+          "surface": 2
+        },
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                32
+              ],
+              "id": 31,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45
+              ],
+              "id": 32,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                46
+              ],
+              "id": 33,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 46,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                47
+              ],
+              "id": 34,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 47,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                48
+              ],
+              "id": 35,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 48,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                49
+              ],
+              "id": 36,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 49,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                50
+              ],
+              "id": 37,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 50,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                51
+              ],
+              "id": 38,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 51,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                52
+              ],
+              "id": 39,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 52,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                53
+              ],
+              "id": 40,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 53,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                54
+              ],
+              "id": 41,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 54,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                55
+              ],
+              "id": 42,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 55,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                56
+              ],
+              "id": 43,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 56,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                57
+              ],
+              "id": 44,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 57,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 45,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 31,
+          "source_incarnation": "457695e0f910482099d3eb743f494a4d",
+          "surface": 30
+        }
+      ],
+      "worker_peak_rss_kib": 33448
+    },
+    {
+      "calls": 892,
+      "dropped_events": 8,
+      "events": 15,
+      "name": "crawl-race",
+      "reconciliations": 1,
+      "revision": 3,
+      "surfaces": [
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                4
+              ],
+              "id": 3,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                17,
+                60
+              ],
+              "id": 4,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                18
+              ],
+              "id": 5,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 18,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                19
+              ],
+              "id": 6,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 19,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                20
+              ],
+              "id": 7,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 20,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                21
+              ],
+              "id": 8,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 21,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                22
+              ],
+              "id": 9,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 22,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                23
+              ],
+              "id": 10,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 23,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                24
+              ],
+              "id": 11,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 24,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                25
+              ],
+              "id": 12,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 25,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                26
+              ],
+              "id": 13,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 26,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                27
+              ],
+              "id": 14,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 27,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                28
+              ],
+              "id": 15,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 28,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 17,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                61
+              ],
+              "id": 60,
+              "name": "Replacement 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 61,
+              "name": "Replacement 2",
+              "role": 6
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 3,
+          "source_incarnation": "0141984708aa485aad4424a3913346a3",
+          "surface": 2
+        },
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                32
+              ],
+              "id": 31,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45
+              ],
+              "id": 32,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                46
+              ],
+              "id": 33,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 46,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                47
+              ],
+              "id": 34,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 47,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                48
+              ],
+              "id": 35,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 48,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                49
+              ],
+              "id": 36,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 49,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                50
+              ],
+              "id": 37,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 50,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                51
+              ],
+              "id": 38,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 51,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                52
+              ],
+              "id": 39,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 52,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                53
+              ],
+              "id": 40,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 53,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                54
+              ],
+              "id": 41,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 54,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                55
+              ],
+              "id": 42,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 55,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                56
+              ],
+              "id": 43,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 56,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                57
+              ],
+              "id": 44,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 57,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 45,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 31,
+          "source_incarnation": "457695e0f910482099d3eb743f494a4d",
+          "surface": 30
+        }
+      ],
+      "worker_peak_rss_kib": 33448
+    },
+    {
+      "calls": 446,
+      "dropped_events": 8,
+      "events": 15,
+      "name": "recovered",
+      "reconciliations": 0,
+      "revision": 4,
+      "surfaces": [
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                4
+              ],
+              "id": 3,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                17,
+                60
+              ],
+              "id": 4,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                18
+              ],
+              "id": 5,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 18,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                19
+              ],
+              "id": 6,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 19,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                20
+              ],
+              "id": 7,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 20,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                21
+              ],
+              "id": 8,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 21,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                22
+              ],
+              "id": 9,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 22,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                23
+              ],
+              "id": 10,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 23,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                24
+              ],
+              "id": 11,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 24,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                25
+              ],
+              "id": 12,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 25,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                26
+              ],
+              "id": 13,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 26,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                27
+              ],
+              "id": 14,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 27,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                28
+              ],
+              "id": 15,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 28,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 17,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                61
+              ],
+              "id": 60,
+              "name": "Replacement 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 61,
+              "name": "Replacement 2",
+              "role": 6
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 3,
+          "source_incarnation": "0141984708aa485aad4424a3913346a3",
+          "surface": 2
+        },
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                32
+              ],
+              "id": 31,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45
+              ],
+              "id": 32,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                46
+              ],
+              "id": 33,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 46,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                47
+              ],
+              "id": 34,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 47,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                48
+              ],
+              "id": 35,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 48,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                49
+              ],
+              "id": 36,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 49,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                50
+              ],
+              "id": 37,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 50,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                51
+              ],
+              "id": 38,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 51,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                52
+              ],
+              "id": 39,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 52,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                53
+              ],
+              "id": 40,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 53,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                54
+              ],
+              "id": 41,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 54,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                55
+              ],
+              "id": 42,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 55,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                56
+              ],
+              "id": 43,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 56,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                57
+              ],
+              "id": 44,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 57,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 45,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 31,
+          "source_incarnation": "457695e0f910482099d3eb743f494a4d",
+          "surface": 30
+        }
+      ],
+      "worker_peak_rss_kib": 33448
+    },
+    {
+      "calls": 226,
+      "dropped_events": 8,
+      "events": 15,
+      "name": "source-exited",
+      "reconciliations": 0,
+      "revision": 5,
+      "surfaces": [
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                32
+              ],
+              "id": 31,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45
+              ],
+              "id": 32,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                46
+              ],
+              "id": 33,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 46,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                47
+              ],
+              "id": 34,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 47,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                48
+              ],
+              "id": 35,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 48,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                49
+              ],
+              "id": 36,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 49,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                50
+              ],
+              "id": 37,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 50,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                51
+              ],
+              "id": 38,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 51,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                52
+              ],
+              "id": 39,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 52,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                53
+              ],
+              "id": 40,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 53,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                54
+              ],
+              "id": 41,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 54,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                55
+              ],
+              "id": 42,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 55,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                56
+              ],
+              "id": 43,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 56,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                57
+              ],
+              "id": 44,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 57,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 45,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 31,
+          "source_incarnation": "457695e0f910482099d3eb743f494a4d",
+          "surface": 30
+        }
+      ],
+      "worker_peak_rss_kib": 33448
+    },
+    {
+      "calls": 448,
+      "dropped_events": 8,
+      "events": 17,
+      "name": "source-restarted",
+      "reconciliations": 0,
+      "revision": 6,
+      "surfaces": [
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                32
+              ],
+              "id": 31,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45
+              ],
+              "id": 32,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                46
+              ],
+              "id": 33,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 46,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                47
+              ],
+              "id": 34,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 47,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                48
+              ],
+              "id": 35,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 48,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                49
+              ],
+              "id": 36,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 49,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                50
+              ],
+              "id": 37,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 50,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                51
+              ],
+              "id": 38,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 51,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                52
+              ],
+              "id": 39,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 52,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                53
+              ],
+              "id": 40,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 53,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                54
+              ],
+              "id": 41,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 54,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                55
+              ],
+              "id": 42,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 55,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                56
+              ],
+              "id": 43,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 56,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                57
+              ],
+              "id": 44,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 57,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 45,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 31,
+          "source_incarnation": "457695e0f910482099d3eb743f494a4d",
+          "surface": 30
+        },
+        {
+          "bounds": [
+            0,
+            0,
+            240,
+            480
+          ],
+          "classification": "OBSERVED",
+          "input_modes": [],
+          "native_surface_association": "unresolved",
+          "nodes": [
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                64
+              ],
+              "id": 63,
+              "name": "Identical overlapping title",
+              "role": 1
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                65,
+                66,
+                67,
+                68,
+                69,
+                70,
+                71,
+                72,
+                73,
+                74,
+                75,
+                76,
+                77
+              ],
+              "id": 64,
+              "name": "",
+              "role": 2
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                78
+              ],
+              "id": 65,
+              "name": "Row 0",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 78,
+              "name": "Row 0",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                79
+              ],
+              "id": 66,
+              "name": "Row 1",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 79,
+              "name": "Row 1",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                80
+              ],
+              "id": 67,
+              "name": "Row 2",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 80,
+              "name": "Row 2",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                81
+              ],
+              "id": 68,
+              "name": "Row 3",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 81,
+              "name": "Row 3",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                82
+              ],
+              "id": 69,
+              "name": "Row 4",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 82,
+              "name": "Row 4",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                83
+              ],
+              "id": 70,
+              "name": "Row 5",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 83,
+              "name": "Row 5",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                84
+              ],
+              "id": 71,
+              "name": "Row 6",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 84,
+              "name": "Row 6",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                85
+              ],
+              "id": 72,
+              "name": "Row 7",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 85,
+              "name": "Row 7",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                86
+              ],
+              "id": 73,
+              "name": "Row 8",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 86,
+              "name": "Row 8",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                87
+              ],
+              "id": 74,
+              "name": "Row 9",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 87,
+              "name": "Row 9",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                88
+              ],
+              "id": 75,
+              "name": "Row 10",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 88,
+              "name": "Row 10",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [
+                89
+              ],
+              "id": 76,
+              "name": "Row 11",
+              "role": 3
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 89,
+              "name": "Row 11",
+              "role": 6
+            },
+            {
+              "actions": [],
+              "availability": "partial",
+              "children": [],
+              "id": 77,
+              "name": "",
+              "role": 2
+            }
+          ],
+          "record_count": 27,
+          "semantic_root": 63,
+          "source_incarnation": "f862fbf9360e4d8cb1b75cce66a8b00a",
+          "surface": 62
+        }
+      ],
+      "worker_peak_rss_kib": 33448
+    }
+  ],
+  "classification": "OBSERVED",
+  "environment": {
+    "atspi": "2.60.6",
+    "backend": "owned Xvfb/private buses",
+    "gtk": "4.22.4",
+    "kernel": "7.1.9-arch1-2",
+    "python": "3.14.7"
+  },
+  "files": {
+    "crawl-race.bin": "a7225742a005df5fc0e6d3e26a3772aa2504c9a603a45aac0e99cfeb6a042d52",
+    "event-gap.bin": "3b76b3d826395152c7be5b0094f6d2b5daae9a2c575fbbae7f143fedcec69a42",
+    "initial.bin": "65d3af4c845e748ed588506fa300fcbc01c2d67ea947c91819029cad5d7ef965",
+    "recovered.bin": "8d1ad00312ce8abca73b4c0f8173529e2b382236d933c63bda58cded7b578f65",
+    "source-exited.bin": "6f8ec7d96748edd3d6b9402b725baae5da2357951087b70cd571c3a0f1b8083b",
+    "source-restarted.bin": "de11710c811d28f56a3496a49c6a097dd4693b037080878549378a742efd10a4"
+  },
+  "independentReplay": {
+    "allFieldsAgree": true,
+    "prefixes": 6,
+    "retired": 32
+  },
+  "input_modes": [],
+  "limits": {
+    "call_timeout_ms": 200,
+    "calls_per_crawl": 1024,
+    "crawl_seconds": 2,
+    "depth": 16,
+    "in_flight_jobs": 1,
+    "message_bytes": 131072,
+    "nodes_per_frame": 128,
+    "owner_deadline_seconds": 3,
+    "public_ids_lifetime": 4096,
+    "source_incarnations": 8,
+    "worker_address_space_bytes": 268435456
+  },
+  "maximum_poll_ms": 0.31851499807089567,
+  "native_surface_association": "unresolved",
+  "owner_poll_iterations": 470,
+  "read_only_views": {
+    "actions": false,
+    "classification": "OBSERVED",
+    "healthy": "observed",
+    "passwordContentExcluded": true,
+    "scopeReductionClearsContent": true,
+    "stalled": "unavailable",
+    "workers": 2
+  },
+  "restart": {
+    "broker_binding_unchanged": true,
+    "new_incarnation": "f862fbf9360e4d8cb1b75cce66a8b00a",
+    "other_app_stable_ids": 28,
+    "retired_initial_app_ids": 28
+  },
+  "scope": "owned-private-AT-SPI-bus-and-two-GTK-applications",
+  "sourceHashes": {
+    "adapters/atspi/observer.py": "e21df2b9739ce6d9d5ed5d0584e3aeec8fc0bf76f6c646b05b2eb81b682f0ba0",
+    "adapters/atspi/view.py": "39896caf1c9b663e7092ac793eab5f9a2c1b69e1cfd32288a64cfd15e8d9ba05",
+    "adapters/atspi/worker.py": "b0be812424636a5aa43b7d9c3d0c07e513943a6c827b128588c4b310fe917436",
+    "fixtures/atspi/driver.py": "3720b73e563fe73bbae65b342e79c434e3c7a0f6679604786bbe3b6fabd02bfe",
+    "fixtures/atspi/source.py": "374efeb326e278e563cc8021991db297419b100f1ca2e929b5450b10786eb7ef"
+  },
+  "stalled_source": {
+    "owner_poll_iterations": 189,
+    "previous_publication_unchanged": true,
+    "result": "unavailable"
+  }
+}

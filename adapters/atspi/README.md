@@ -14,6 +14,25 @@ A failed or timed-out crawl returns unavailable and leaves the last validated pu
 The caller must expose that availability status.
 This component does not grant control or serve a network session.
 
+`ReadOnlyObservedView` in [view.py](view.py) supplies a bounded read-only HTML
+presentation and exposes the public envelope for Rust/WASM consumers. Give each
+authorized application a separate `WorkerPort` and a trusted PID/incarnation
+scope. Call `refresh()` periodically and `poll()` from the owner loop. State is
+explicitly OBSERVED; it becomes stale after the configured age (two seconds by
+default) and unavailable after failed observation. The last authorized sample
+remains visible with that status. Changing scope immediately clears its content
+and never reassigns an old in-flight result to a new incarnation. A scope change
+that aborts a worker requires the owner to replace that worker before refreshing.
+
+Names use escaped text, unknown roles are informational, password names/content
+are excluded, materialized nodes are partial and no actions or input destinations
+are exposed. The HTML artifact is capped at 256 KiB with the existing graph/depth
+limits. Two isolated views use at most two 256 MiB workers; these native limits
+are separate from Rust allocation reservations. `close()` clears the derived
+content before reaping its worker. No browser URLs or automatic asset fetches are
+created from observed names. This local read-only integration is not an
+authenticated network host or coherent mirror.
+
 The worker subscribes only to selected application object events and compares two complete structural samples.
 It checks parents, child counts, duplicate/cyclic ownership, and children after traversal; at most one bounded retry follows a race.
 Periodic crawls recover missed events.

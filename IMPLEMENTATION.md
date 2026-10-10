@@ -25,6 +25,14 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+C5 adds bounded read-only observed HTML views, explicit stale/unavailable/partial
+and redacted state, immediate scope clearing and one disposable worker per source.
+Fresh private-bus checks keep a healthy view responsive while another source is
+stopped and exclude actual password content. Actions remain disabled; consistency
+remains OBSERVED and native visual/input association unresolved.
+[The observed integration contract](adapters/atspi/README.md) distinguishes this
+local presentation from an authenticated network host or coherent mirror.
+
 C4 records a bounded pinned Hyprland 0.56.2 [feasibility investigation](docs/additional-session-feasibility.md).
 Its reviewed capture hooks expose image buffers; trusted registered-content
 association and app-only input equivalence remain unproven. The plan's negative

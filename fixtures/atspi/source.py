@@ -26,6 +26,8 @@ def main():
         rows = [Gtk.Button(label=f'Row {index}') for index in range(12)]
         for row in rows:
             box.append(row)
+        private = Gtk.Entry(text='never export this secret', visibility=False)
+        box.append(private)
         window = Gtk.ApplicationWindow(application=app, title='Identical overlapping title', child=box,
                                        default_width=240, default_height=480)
         window.present()

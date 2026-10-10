@@ -13,6 +13,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from adapters.atspi.observer import ObservedProjection, WorkerPort
+from adapters.atspi.view import ReadOnlyObservedView
 
 
 class Source:
@@ -49,6 +50,7 @@ def main():
     registry = None
     sources = []
     worker = None
+    views = []
     try:
         address = daemon.stdout.readline().strip()
         os.environ['AT_SPI_BUS_ADDRESS'] = address
@@ -149,6 +151,33 @@ def main():
         assert b_ids <= set(projection.ids.values())
         report['restart'] = {'retired_initial_app_ids': len(a_ids), 'other_app_stable_ids': len(b_ids),
                              'new_incarnation': sources[0].incarnation, 'broker_binding_unchanged': True}
+        for source in sources:
+            view=ReadOnlyObservedView(WorkerPort(address));views.append(view)
+            view.scope({source.process.pid:source.incarnation});view.refresh()
+        def finish_views():
+            end=time.monotonic()+4
+            done=set()
+            while len(done)<len(views) and time.monotonic()<end:
+                for index,view in enumerate(views):
+                    if index not in done and view.poll():done.add(index)
+                time.sleep(.002)
+            assert len(done)==len(views)
+        finish_views()
+        assert all(view.availability=='observed' for view in views)
+        assert all(b'never export this secret' not in view.projection.last_envelope and 'never export this secret' not in view.document() for view in views)
+        os.kill(sources[0].process.pid,signal.SIGSTOP)
+        try:
+            for view in views:view.refresh()
+            finish_views()
+            assert views[0].availability=='unavailable' and views[1].availability=='observed'
+            report['read_only_views']={'stalled':'unavailable','healthy':'observed','workers':2,'actions':False,'classification':'OBSERVED','passwordContentExcluded':True}
+            (output/'healthy-observed.html').write_text(views[1].document())
+            (output/'stalled-observed.html').write_text(views[0].document())
+            views[0].scope({})
+            assert not views[0].projection.last_metadata
+            report['read_only_views']['scopeReductionClearsContent']=True
+        finally:
+            os.kill(sources[0].process.pid,signal.SIGCONT)
         report['limits'] = {'worker_address_space_bytes': 256 << 20, 'message_bytes': 128 << 10,
                             'nodes_per_frame': 128, 'depth': 16, 'calls_per_crawl': 1024,
                             'call_timeout_ms': 200, 'crawl_seconds': 2, 'owner_deadline_seconds': 3,
@@ -161,6 +190,7 @@ def main():
                           'dropped_events': reconciled['dropped_events'], 'race_reconciliations': interrupted['reconciliations'],
                           'stalled_owner_polls': report['stalled_source']['owner_poll_iterations'], 'maximum_poll_ms': maximum_poll * 1000}))
     finally:
+        for view in views:view.close()
         if worker:
             worker.close()
         for source in sources:

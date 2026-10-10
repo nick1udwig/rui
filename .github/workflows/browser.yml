@@ -87,6 +87,8 @@ jobs:
         run: |
           cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check --locked
           python3 fixtures/gtk/native_check.py --case editor --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-editor"
+      - name: Read-only observed applications on private accessibility bus
+        run: python3 fixtures/atspi/native_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-observed"
       - name: Development serving, live edits and hidden-tab lifecycle
         run: python3 demos/web/check.py --xvfb "$(command -v Xvfb)" --timeout 90
       - name: Production serving, live edits and hidden-tab lifecycle
