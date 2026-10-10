@@ -104,8 +104,9 @@ fn retain_capture(host: &GtkCommandHost, directory: &Path) -> Result<()> {
             fs::copy(source.parent().unwrap().join(resource), destination)?;
         }
     }
-    if manifest["capture_boundary"]
-        == "source-thread-all-registered-surfaces-fresh-snapshot-barrier"
+    if manifest["local_reference"].is_object()
+        && manifest["capture_boundary"]
+            == "source-thread-all-registered-surfaces-fresh-snapshot-barrier"
     {
         // Diagnostic pixels have their own finite fixture quota. They never
         // enter the vector trace, protocol resources or consumer cache.
@@ -191,16 +192,20 @@ impl Fixture {
         let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut command = Command::new("python3");
         command
-            .arg(repository.join(
+            .arg(repository.join(if name == "editor" {
+                "demos/editor/app.py"
+            } else {
                 if matches!(name, "whole-native" | "native-context" | "native-fence") {
                     "fixtures/gtk/whole_native_source.py"
                 } else {
                     "fixtures/gtk/native_source.py"
-                },
-            ))
+                }
+            }))
             .arg("--output")
-            .arg(&directory)
-            .arg("--fixture-hooks");
+            .arg(&directory);
+        if name != "editor" {
+            command.arg("--fixture-hooks");
+        }
         let clock = Instant::now();
         let mut host = GtkCommandHost::spawn(command, &directory)?;
         retain_capture(&host, &trace_directory)?;
@@ -209,7 +214,7 @@ impl Fixture {
             hello(4, ReceiverLimits::default()),
             clock.elapsed().as_millis() as u64,
         )?;
-        if matches!(name, "restart" | "whole-native") {
+        if matches!(name, "restart" | "whole-native" | "editor") {
             retain_public(&host, &session.client, &trace_directory)?;
         }
         host.consume_semantics(&session.client)?;
@@ -232,7 +237,7 @@ impl Fixture {
             trace: Vec::new(),
             directory,
             trace_directory,
-            record_public: matches!(name, "restart" | "whole-native"),
+            record_public: matches!(name, "restart" | "whole-native" | "editor"),
         })
     }
     fn now(&self) -> u64 {
@@ -443,7 +448,9 @@ impl Fixture {
                         .starts_with("main-content-")
             })
             .count();
-        assert_eq!(captures, 1, "only current consumed native capture retained");
+        if self.directory.file_name().unwrap() != "editor" {
+            assert_eq!(captures, 1, "only current consumed native capture retained");
+        }
         let result = json!({"commands":self.trace,"native_dispatches":self.host.diagnostics().native_dispatches,"native_callbacks":self.host.diagnostics().native_callbacks,"retained_native_artifact_bytes":retained,"host_reserved_bytes_before_drop":budget.used()});
         drop(self.host);
         assert_eq!(budget.used(), 0);
@@ -680,9 +687,9 @@ fn positive_and_races(root: &Path) -> Result<Value> {
     c.observed_view_revision = old_revision;
     f.host.trusted_fixture_mutation(Mutation::RaceVisual)?;
     f.submit(
-        "unrelated-frame-before-native-dispatch",
+        "old-public-revision-cannot-rebase-native-guards",
         &c,
-        Status::Applied,
+        Status::Rejected,
     )?;
     for _ in 0..24 {
         let c = f.command(button, "Activate", none());
@@ -773,7 +780,12 @@ fn fault(root: &Path, name: &str, operation: Mutation) -> Result<Value> {
         .host
         .acquire_control(&f.session.client, [9; 16], f.now())
         .is_err());
-    let fresh = f.command(button, "Activate", none());
+    // UNKNOWN makes the source unavailable and clears its records. Reuse the
+    // former target guards only to prove a new sequence is denied; this is not
+    // an automatic retry or a fresh editing context.
+    let mut fresh = c.clone();
+    f.sequence += 1;
+    fresh.command_seq = f.sequence;
     let rejected = f.submit("fresh-command-after-unknown", &fresh, Status::Rejected)?;
     assert_eq!(rejected.rejection, Some(Rejection::Unauthorized));
     let budget = f.host.memory_budget();
@@ -1449,6 +1461,152 @@ fn native_fence(root: &Path) -> Result<Value> {
     );
     Ok(report)
 }
+fn editor(root: &Path) -> Result<Value> {
+    use rui_protocol_core::model::{SemanticRole, TextStatus};
+    let mut f = Fixture::new(root, "editor")?;
+    let find = |state: &State, role: SemanticRole, action: &str| {
+        state
+            .records
+            .values()
+            .find_map(|r| match r {
+                Record::Semantic(s)
+                    if s.role == role && s.actions.iter().any(|a| a.id == action) =>
+                {
+                    Some(s.id)
+                }
+                _ => None,
+            })
+            .unwrap()
+    };
+    let button = find(f.state(), SemanticRole::Button, "Activate");
+    let edit = find(f.state(), SemanticRole::TextField, "ReplaceText");
+    let item = f
+        .state()
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Semantic(s) if s.collection.is_some() => {
+                s.collection.as_ref().unwrap().items.last().map(|i| i.id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert!(f.state().records.values().any(|r|matches!(r,Record::Text(t) if t.status==TextStatus::Redacted && t.content.is_none() && !t.editable)));
+    assert!(!serde_json::to_string(f.state())?.contains("local private secret"));
+    let c = f.command(button, "Activate", none());
+    let applied = f.submit("generic-button-native-effect", &c, Status::Applied)?;
+    f.retry("exact-generic-retry", &c, &applied)?;
+    let focus = f.command(edit, "Focus", none());
+    f.submit("generic-focus", &focus, Status::Applied)?;
+    let draft = f.command(
+        edit,
+        "ReplaceText",
+        p::semantic_command::Arguments::ReplaceText(p::TextArguments {
+            start: 0,
+            end: text(f.state(), edit)
+                .content
+                .as_ref()
+                .unwrap()
+                .chars()
+                .count() as u64,
+            text: "New document: café Ω 𝄞".into(),
+        }),
+    );
+    f.submit("generic-unicode-edit", &draft, Status::Applied)?;
+    assert_eq!(
+        text(f.state(), edit).content.as_deref(),
+        Some("New document: café Ω 𝄞")
+    );
+    let select = f.command(item, "Activate", none());
+    let stale = f.command(
+        edit,
+        "ReplaceText",
+        p::semantic_command::Arguments::ReplaceText(p::TextArguments {
+            start: 0,
+            end: 0,
+            text: "stale".into(),
+        }),
+    );
+    f.submit("generic-stable-item-selection", &select, Status::Applied)?;
+    f.submit("draft-before-selection-rejects", &stale, Status::Rejected)?;
+    assert!(f.state().records.values().any(|r|matches!(r,Record::Semantic(s) if s.collection.as_ref().is_some_and(|c|c.selected_items.iter().any(|i|i.id==item)))));
+    assert!(f
+        .host
+        .source_capture_for_diagnostics()
+        .get("local_reference")
+        .is_none());
+    fn descendants(state: &State, id: u64, output: &mut Vec<u64>) {
+        output.push(id);
+        for child in &semantic(state, id).children {
+            descendants(state, child.id, output);
+        }
+    }
+    let main_root = f
+        .state()
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Surface(s) if s.parent.is_none() => s.semantic_root.map(|r| r.id),
+            _ => None,
+        })
+        .unwrap();
+    let mut main_nodes = Vec::new();
+    descendants(f.state(), main_root, &mut main_nodes);
+    let buttons: Vec<_> = main_nodes
+        .into_iter()
+        .filter(|id| semantic(f.state(), *id).role == SemanticRole::Button)
+        .collect();
+    let open = buttons[1];
+    let open_command = f.command(open, "Activate", none());
+    f.submit("generic-open-dialog", &open_command, Status::Applied)?;
+    let blocked = f.command(edit, "Focus", none());
+    f.submit("modal-denies-main-edit", &blocked, Status::Rejected)?;
+    let modal_root = f
+        .state()
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Surface(s) if s.mapped && s.modal_for.is_some() => {
+                s.semantic_root.map(|r| r.id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let mut modal_nodes = Vec::new();
+    descendants(f.state(), modal_root, &mut modal_nodes);
+    let close = modal_nodes
+        .into_iter()
+        .find(|id| semantic(f.state(), *id).role == SemanticRole::Button)
+        .unwrap();
+    for turn in 0..3 {
+        let close_command = f.command(close, "Activate", none());
+        f.submit("generic-close-dialog", &close_command, Status::Applied)?;
+        if turn < 2 {
+            let open_command = f.command(open, "Activate", none());
+            f.submit("generic-reopen-dialog", &open_command, Status::Applied)?;
+        }
+    }
+    let replacement = f.command(buttons[2], "Activate", none());
+    let old_target = f.command(edit, "Focus", none());
+    let old_ids: std::collections::BTreeSet<_> = f.state().records.keys().copied().collect();
+    f.submit("generic-widget-replacement", &replacement, Status::Applied)?;
+    f.submit("retired-widget-guard-denied", &old_target, Status::Rejected)?;
+    let current = f
+        .state()
+        .records
+        .values()
+        .find_map(|r| match r {
+            Record::Semantic(s)
+                if s.role == SemanticRole::TextField && !old_ids.contains(&s.id) =>
+            {
+                Some(s.id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_ne!(current, edit);
+    f.finish()
+}
 fn main() -> Result<()> {
     let root = PathBuf::from(
         std::env::args()
@@ -1456,7 +1614,9 @@ fn main() -> Result<()> {
             .ok_or("usage: gtk_command_check EMPTY_ARTIFACT_DIRECTORY")?,
     );
     fs::create_dir_all(&root)?;
-    let report = if std::env::args().nth(2).as_deref() == Some("native-fence") {
+    let report = if std::env::args().nth(2).as_deref() == Some("editor") {
+        json!({"scope":"generic registered editor controls through core ledger/native guards, coherent capture without raster diagnostics; no TLS or Presented claim", "editor":editor(&root)?})
+    } else if std::env::args().nth(2).as_deref() == Some("native-fence") {
         json!({"scope":"sealed inherited atomic native lifecycle fence with actual core-admitted GTK final guard; trusted invalidation fault; no TLS, wire IME or Presented claim", "native_fence":native_fence(&root)?})
     } else if std::env::args().nth(2).as_deref() == Some("native-context") {
         json!({"scope":"actual core semantic admission and native focus/selection context guards; no TextComposition or Presented claim", "native_context":native_context(&root)?})

@@ -135,10 +135,23 @@ def encode_semantic(record: dict) -> bytes:
     data = scalar(1, record["id"]) + scalar(2, record["version"]) + scalar(3, record["role"])
     if "label" in record:
         data += text(4, record["label"])
+    if record.get("description") is not None:
+        data += text(5, record["description"])
     if "value" in record:
-        data += blob(6, text(1, str(record["value"])))
+        value = record['value']
+        if isinstance(value, bool): encoded = scalar(2, value)
+        elif isinstance(value, int):
+            if not -(1 << 63) <= value < 1 << 63: raise ValueError('typed integer ceiling')
+            encoded = scalar(4, (value << 1) ^ (value >> 63))
+        elif isinstance(value, float):
+            if not math.isfinite(value): raise ValueError('nonfinite typed number')
+            encoded = double(3, value)
+        elif isinstance(value, str): encoded = text(1, value)
+        else: raise ValueError('unsupported typed value')
+        data += blob(6, encoded)
     data += b"".join(blob(8, ref(3, child)) for child in record["children"])
     data += b"".join(blob(7, scalar(1, key) + scalar(2, value)) for key, value in sorted(record.get("states", {}).items()))
+    data += b"".join(blob(9, scalar(1, relation['kind']) + b''.join(blob(2, ref(3, target)) for target in relation['targets'])) for relation in record.get('relations', []))
     data += b"".join(blob(10, text(1, action) + scalar(2, 1)) for action in record.get("actions", []))
     data += b"".join(blob(13, ref(5, binding)) for binding in record.get("visual_bindings", []))
     if record.get("text_model"):
@@ -152,8 +165,9 @@ def encode_semantic(record: dict) -> bytes:
         model += scalar(4, collection["materialization"])
         model += b"".join(blob(5, ref(3, item)) for item in collection["selected_items"])
         data += blob(12, model)
-    # Explicit corpus scope contains only public, complete cooperating semantics.
-    data += scalar(16, 1) + scalar(17, 1)
+    if record.get('semantic_group') is not None: data += blob(14,ref(3,record['semantic_group']))
+    if record.get('reading_order') is not None: data += scalar(15,record['reading_order'])
+    data += scalar(16, record.get('sensitivity',1)) + scalar(17, record.get('completeness',1))
     return blob(3, data)
 
 

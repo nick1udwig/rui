@@ -11,6 +11,7 @@ from gi.repository import Gtk
 
 from fixtures.gtk.corpus import Corpus
 from adapters.gtk4.native import NativeDispatcher
+from fixtures.gtk.native_hooks import CorpusHooks
 from fixtures.gtk.fallback_probe import FallbackProbe
 
 
@@ -30,7 +31,7 @@ def main():
             app.corpus = Corpus(app, args.output, 'strict', timed_actions=False)
             app.corpus.capture.export_probe = probe.report
             app.corpus.popup_capture.export_probe = probe.report
-            app.dispatcher = NativeDispatcher(app.corpus, fixture_hooks=args.fixture_hooks)
+            app.dispatcher = NativeDispatcher(app.corpus.integration, fixture_hooks=CorpusHooks(app.corpus) if args.fixture_hooks else False)
         app.connect('activate', activate)
         return app.run(None)
 

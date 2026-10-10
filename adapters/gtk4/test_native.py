@@ -130,7 +130,7 @@ class NativeBoundsTests(unittest.TestCase):
             output = Path(directory)
             dispatcher = NativeDispatcher.__new__(NativeDispatcher)
             dispatcher.whole = None
-            dispatcher.corpus = SimpleNamespace(output=output)
+            dispatcher.application = SimpleNamespace(output=output)
             dispatcher.current_artifact = 'first.json'
             dispatcher.promised_artifact = 'second.json'
             dispatcher.artifacts = {'first.json': {'first.json', 'first.bin', 'shared.rvp', 'old.rvp'},
@@ -156,7 +156,7 @@ class NativeBoundsTests(unittest.TestCase):
 
     def test_local_poll_only_captures_changed_source_and_respects_consumption(self):
         dispatcher = NativeDispatcher.__new__(NativeDispatcher)
-        dispatcher.corpus = SimpleNamespace(source=SimpleNamespace(source_revision=12))
+        dispatcher.application = SimpleNamespace(source=SimpleNamespace(source_revision=12))
         dispatcher.captured_source_revision = 12
         dispatcher.promised_artifact = None
         dispatcher.pending = None
@@ -166,7 +166,7 @@ class NativeBoundsTests(unittest.TestCase):
         dispatcher.handle({'request_id': 1, 'kind': 'capture-if-changed'})
         self.assertEqual(replies, [(1, 'unchanged')])
         self.assertEqual(captures, [])
-        dispatcher.corpus.source.source_revision += 1
+        dispatcher.application.source.source_revision += 1
         dispatcher.handle({'request_id': 2, 'kind': 'capture-if-changed'})
         self.assertEqual(captures, [(2, 'capture')])
         dispatcher.promised_artifact = 'whole-0002.json'

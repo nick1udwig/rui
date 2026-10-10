@@ -75,7 +75,7 @@ def main():
 
             corpus.capture.add_tick_callback(observe_size)
             corpus.entry.grab_focus()
-            dispatcher = NativeDispatcher(corpus, whole=whole, watchdog_seconds=0)
+            dispatcher = NativeDispatcher(corpus.integration, whole=whole, watchdog_seconds=0)
             app.whole, app.dispatcher = whole, dispatcher
             corpus.window.connect('close-request', lambda *_: (app.quit(), False)[1])
             app.connect('shutdown', lambda *_: dispatcher.close())

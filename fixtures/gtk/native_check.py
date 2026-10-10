@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--xvfb', required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--case', '--scenario', choices=['semantic', 'unicode', 'restart', 'whole-native', 'native-context', 'native-fence'], default='semantic')
+    parser.add_argument('--case', '--scenario', choices=['semantic', 'unicode', 'restart', 'whole-native', 'native-context', 'native-fence', 'editor'], default='semantic')
     args = parser.parse_args()
     command = [str(Path('target/debug/gtk_command_check').resolve()), str(args.output)]
     if args.case != 'semantic':

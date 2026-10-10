@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+from adapters.sdk.producer import encode_semantic
+from conformance.full_reference import record as independently_decode_record
 from pathlib import Path
 from unittest.mock import patch
 import sys
@@ -9,6 +11,21 @@ from adapters.sdk.producer import CoherentSource, encode_snapshot, path_resource
 
 
 class ProducerTests(unittest.TestCase):
+    def test_complete_semantics_preserve_typed_values_relations_and_unknown_fields(self):
+        for value, expected in ((False, {'Boolean':False}),(-9223372036854775808,{'Integer':-9223372036854775808}),(1.25,{'Number':1.25}),('café',{'Text':'café'})):
+            source={'id':1,'version':1,'role':4,'value':value,'description':'description',
+                    'children':[],'relations':[{'kind':2,'targets':[2]}], 'states':{2:3},
+                    'reading_order':18446744073709551615,'semantic_group':3,'completeness':2}
+            actual=independently_decode_record(encode_semantic(source))['Semantic']
+            self.assertEqual(actual['value'],expected)
+            self.assertEqual(actual['description'],'description')
+            self.assertEqual(actual['states'],{'Checked':'Unknown'})
+            self.assertEqual(actual['relations'],[{'kind':'LabelledBy','targets':[{'kind':'Semantic','id':2}]}])
+            self.assertEqual(actual['completeness'],'Incomplete')
+            self.assertEqual(actual['reading_order'],18446744073709551615)
+        for value in (float('nan'),1<<63,None):
+            with self.assertRaises(ValueError): encode_semantic({'id':1,'version':1,'role':4,'value':value,'children':[]})
+
     def test_binding_identity_and_cache_retire_with_object_and_private_profile_denies(self):
         source = CoherentSource()
         source.register('button', 3, lambda: {'label': 'public'}, actions=['Activate'])

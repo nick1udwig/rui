@@ -549,12 +549,15 @@ impl CaptureArtifact {
         if surfaces.is_some_and(|surfaces| surfaces.is_empty() || surfaces.len() > 4) {
             return Err(CaptureError::Invalid);
         }
-        let local_draws = surfaces.map_or(u64::from(manifest["mapped"] == true), |surfaces| {
-            surfaces
-                .iter()
-                .filter(|surface| surface["mapped"] == true)
-                .count() as u64
-        });
+        let local_draws = surfaces.map_or(
+            u64::from(manifest["local_reference"].is_object()),
+            |surfaces| {
+                surfaces
+                    .iter()
+                    .filter(|surface| surface["local_reference"].is_object())
+                    .count() as u64
+            },
+        );
         let schema2 = manifest["exporter_counters"]["schema"] == 2;
         let mut resource_bytes = 0u64;
         let mut kind_counts = BTreeMap::from([("1", 0usize), ("2", 0usize)]);

@@ -58,21 +58,21 @@ def decode_request(body):
 
 
 class NativeDispatcher:
-    def __init__(self, corpus, *, fixture_hooks=False, whole=None, watchdog_seconds=30):
-        self.corpus = corpus
+    def __init__(self, application, *, fixture_hooks=False, whole=None, watchdog_seconds=30):
+        self.application = application
         self.whole = whole
         self.source_generation = int(os.environ.get("RUI_PRIVATE_SOURCE_GENERATION", "1"))
         if not 1 <= self.source_generation <= 5:
             raise ValueError("private-source-generation-ceiling")
-        corpus.source.private_generation = self.source_generation
+        application.source.private_generation = self.source_generation
         self.dirty = DirtyNotifier.inherited(self.source_generation)
-        corpus.source.on_changed = self.dirty.changed
+        application.source.on_changed = self.dirty.changed
         self.fence_memory = None
         try:
             self.fence_memory = whole.budget.reserve(8192) if whole is not None else None
             self.fence = NativeFence.inherited(self.source_generation)
         except Exception:
-            corpus.source.on_changed = None
+            application.source.on_changed = None
             self.dirty.close()
             if self.fence_memory:
                 self.fence_memory.close()
@@ -96,23 +96,24 @@ class NativeDispatcher:
         self.artifacts = {}
         self.composition = NativeComposition(self.composition_context, self.fence, whole.budget if whole is not None else None)
         GLib.timeout_add(10, self.poll_composition)
-        self.original_capture = corpus.capture.on_capture
+        self.original_capture = application.capture.on_capture
         if whole is None:
-            corpus.capture.on_capture = self.captured
+            application.capture.on_capture = self.captured
         else:
             whole.consumer = self.whole_captured
             self.capture_memory = whole.budget.reserve(8 << 20)
             GLib.timeout_add(400, self.request_capture)
-            whole.modal.connect('notify::focus-widget', self.observed_callback)
+            for window in set(application.registry.windows.values()):
+                window.connect('notify::focus-widget', self.observed_callback)
             for capture in whole.captures.values():
                 capture.connect('map', self.observed_callback)
                 capture.connect('unmap', self.observed_callback)
-        for widget, signal in [(corpus.button, 'clicked'), (corpus.entry, 'changed'),
-                               (corpus.list, 'row-selected'), (corpus.window, 'notify::focus-widget')]:
-            widget.connect(signal, self.observed_callback)
         # Registered native objects cover explicit control/property changes.
         # Unobserved animation/custom painting is outside this adapter scope.
-        for widget, _owner in corpus.registry.widgets.values():
+        for widget, _owner in application.registry.widgets.values():
+            signals = ('clicked',) if isinstance(widget, Gtk.Button) else ('row-selected',) if isinstance(widget, Gtk.ListBox) else ('changed',) if isinstance(widget, Gtk.Entry) else ()
+            for signal in signals:
+                widget.connect(signal, self.observed_callback)
             if isinstance(widget, Gtk.Widget):
                 for prop in ("visible", "sensitive", "css-classes"):
                     widget.connect("notify::"+prop, self.observed_callback)
@@ -126,9 +127,9 @@ class NativeDispatcher:
 
     def observed_callback(self, *_):
         self.native_callbacks += 1
-        self.corpus.source.changed()
+        self.application.source.changed()
         if timings:
-            timings.record("callback", self.corpus.source.source_revision)
+            timings.record("callback", self.application.source.source_revision)
         self.composition.poll()
 
     def poll_composition(self):
@@ -139,13 +140,13 @@ class NativeDispatcher:
 
     def watchdog(self):
         self.close()
-        self.corpus.app.quit()
+        self.application.app.quit()
         return False
 
     def close(self):
         self.closed = True
         if getattr(self, "dirty", None):
-            self.corpus.source.on_changed = None
+            self.application.source.on_changed = None
             self.dirty.close()
         write_report()
         self.composition.close()
@@ -173,11 +174,11 @@ class NativeDispatcher:
         if timings and self.capture_started is not None:
             timings.record("coherentCapture", frame["source_revision"], self.capture_started)
             self.capture_started = None
-        dirty_started = getattr(self.corpus.source, "timing_dirty_started", None)
+        dirty_started = getattr(self.application.source, "timing_dirty_started", None)
         if timings and dirty_started is not None:
             timings.record("callbackToCapture", frame["source_revision"], dirty_started)
-            if frame["source_revision"] == self.corpus.source.source_revision:
-                self.corpus.source.timing_dirty_started = None
+            if frame["source_revision"] == self.application.source.source_revision:
+                self.application.source.timing_dirty_started = None
         self.captured_source_revision = frame['source_revision']
         if self.original_capture:
             self.original_capture(capture, frame)
@@ -198,15 +199,17 @@ class NativeDispatcher:
         if timings and self.capture_started is not None:
             timings.record("coherentCapture", frame["source_revision"], self.capture_started)
             self.capture_started = None
-        dirty_started = getattr(self.corpus.source, "timing_dirty_started", None)
+        dirty_started = getattr(self.application.source, "timing_dirty_started", None)
         if timings and dirty_started is not None:
             timings.record("callbackToCapture", frame["source_revision"], dirty_started)
-            if frame["source_revision"] == self.corpus.source.source_revision:
-                self.corpus.source.timing_dirty_started = None
+            if frame["source_revision"] == self.application.source.source_revision:
+                self.application.source.timing_dirty_started = None
         self.captured_source_revision = frame['source_revision']
-        files = {label + '.json', label + '.bin', label + '.local.png', label + '.local.bgra'} | {digest + '.rvp' for digest in frame['resources']}
+        files = {label + '.json', label + '.bin'} | {digest + '.rvp' for digest in frame['resources']}
+        if 'local_reference' in frame:
+            files.update({label + '.local.png', label + '.local.bgra'})
         for surface in frame['surfaces']:
-            if surface['mapped']:
+            if surface['mapped'] and 'local_reference' in surface:
                 prefix = surface['local_reference_label']
                 files.update(prefix + suffix for suffix in ('.json', '.bin', '.local.png', '.local.bgra'))
         self.artifacts[label + '.json'] = files
@@ -222,9 +225,9 @@ class NativeDispatcher:
     def request_capture(self):
         if timings:
             self.capture_started = time.monotonic_ns()
-            timings.record("captureScheduling", self.corpus.source.source_revision)
+            timings.record("captureScheduling", self.application.source.source_revision)
         if self.whole is None:
-            self.corpus.capture.queue_draw()
+            self.application.capture.queue_draw()
         elif not self.closed:
             try:
                 self.whole.barrier.begin()
@@ -240,7 +243,7 @@ class NativeDispatcher:
         keep = set().union(*(files for artifact, files in self.artifacts.items() if artifact in owners))
         obsolete = set().union(*(files for artifact, files in self.artifacts.items() if artifact not in owners)) - keep
         for name in obsolete:
-            (self.corpus.output / name).unlink(missing_ok=True)
+            (self.application.output / name).unlink(missing_ok=True)
         self.artifacts = {name: files for name, files in self.artifacts.items() if name in owners}
         if self.whole is not None:
             quota = self.whole.source.artifact_quota
@@ -250,19 +253,19 @@ class NativeDispatcher:
         # Two retained capture closures, plus the just-written unclaimed frame
         # before pruning: each has <=32MiB vector bodies, <=2MiB metadata/wire,
         # <=4MiB BGRA and <=4MiB+64KiB PNG. Never a sustained artifact history.
-        if sum((self.corpus.output / name).stat().st_size for name in keep) > 128 << 20:
+        if sum((self.application.output / name).stat().st_size for name in keep) > 128 << 20:
             raise ValueError('private-artifact-retention-ceiling')
 
     def readable(self, _fd, condition):
         if condition & (GLib.IO_HUP | GLib.IO_ERR):
             self.close()
-            self.corpus.app.quit()
+            self.application.app.quit()
             return False
         try:
             body = os.read(0, len(self.buffer) - self.used)
             if not body:
                 self.close()
-                self.corpus.app.quit()
+                self.application.app.quit()
                 return False
             self.buffer[self.used:self.used + len(body)] = body
             self.used += len(body)
@@ -278,7 +281,7 @@ class NativeDispatcher:
                     self.handle(request)
         except (ValueError, KeyError, TypeError, OSError):
             self.close()
-            self.corpus.app.quit()
+            self.application.app.quit()
             return False
         return True
 
@@ -293,7 +296,7 @@ class NativeDispatcher:
             if request['artifact'] != self.promised_artifact:
                 raise ValueError('private-capture-owner-mismatch')
             self.current_artifact = self.promised_artifact
-            self.dirty.consumed(self.captured_source_revision, self.corpus.source.source_revision)
+            self.dirty.consumed(self.captured_source_revision, self.application.source.source_revision)
             self.promised_artifact = None
             self.prune_artifacts()
             self.reply(request_id, 'consumed')
@@ -308,7 +311,7 @@ class NativeDispatcher:
                 self.composition.active['guard']['deadline_ns'] = request['deadline_ns']
             self.reply(request_id, 'control')
             return
-        if kind == 'capture-if-changed' and self.captured_source_revision == self.corpus.source.source_revision:
+        if kind == 'capture-if-changed' and self.captured_source_revision == self.application.source.source_revision:
             self.reply(request_id, 'unchanged')
             return
         if kind in ('capture', 'capture-if-changed'):
@@ -316,68 +319,7 @@ class NativeDispatcher:
             self.request_capture()
             return
         if kind == 'fixture' and self.fixture_hooks:
-            operation = request['operation']
-            if operation == 'race-edit':
-                self.race_next = 'edit'
-            elif operation == 'race-destroy':
-                self.race_next = 'destroy'
-            elif operation == 'race-visual':
-                self.race_next = 'visual'
-            elif operation == 'race-model':
-                self.race_next = 'model'
-            elif operation == 'race-source-generation':
-                self.race_next = 'source-generation'
-            elif operation == 'race-focus-cycle' and self.whole is not None:
-                self.race_next = 'focus-cycle'
-            elif operation == 'selection-cycle' and self.whole is not None:
-                widget = self.corpus.registry.widgets['modal-entry'][0]
-                before = editable_text(widget)['selection']
-                delegate = widget.get_delegate() or widget
-                delegate.select_region(0, 1)
-                delegate.select_region(*before)
-                self.composition.poll()
-            elif operation == 'composition-state':
-                self.composition.poll()
-                state = self.composition.diagnostic()
-                state.update(source_generation=self.source_generation, fence_generation=self.fence.current(), native_dispatches=self.native_dispatches, native_callbacks=self.native_callbacks)
-                self.corpus.source.write_artifact(self.corpus.output, 'composition-state.json', json.dumps(state).encode())
-            elif operation == 'composition-focus-cycle' and self.whole is not None:
-                previous = self.whole.modal.get_focus()
-                self.corpus.registry.widgets['modal-close'][0].grab_focus()
-                self.whole.observe_focus()
-                previous.grab_focus()
-                self.whole.observe_focus()
-                self.composition.poll()
-            elif operation == 'composition-remove' and self.whole is not None:
-                self.whole.modal_entry.set_visible(False)
-                self.corpus.registry.retire('modal-entry')
-                self.composition.poll()
-            elif operation == 'composition-empty' and self.whole is not None:
-                self.whole.modal_entry.set_text('')
-                self.composition.poll()
-            elif operation == 'interrupt-whole-capture' and self.whole is not None:
-                self.whole.interrupt = True
-            elif operation in ('lose-after-dispatch', 'stall-after-dispatch', 'uncorrelated-capture', 'crash-after-dispatch'):
-                self.fail_after_dispatch = operation
-            elif operation == 'delay-until-expired':
-                self.delay_until_expired = True
-            elif operation == 'delay-for-fence':
-                self.delay_for_fence = True
-            elif operation == 'disable-button':
-                self.corpus.button.set_sensitive(False)
-            elif operation == 'enable-button':
-                self.corpus.button.set_sensitive(True)
-            elif operation == 'destroy-button':
-                self.corpus.button.set_visible(False)
-                self.corpus.registry.retire('button')
-            elif operation == 'destroy-surface':
-                self.pending = (request_id, 'fixture-capture')
-                self.corpus.capture.retire_source()
-                self.corpus.window.destroy()
-                return
-            else:
-                raise ValueError('unsupported-fixture-operation')
-            self.reply(request_id, 'fixture')
+            self.fixture_hooks.handle(self, request)
             return
         if kind not in ('semantic', 'composition'):
             raise ValueError('unsupported-private-operation')
@@ -394,7 +336,7 @@ class NativeDispatcher:
             return
         if self.delay_for_fence:
             self.delay_for_fence = False
-            self.corpus.source.write_artifact(self.corpus.output, 'native-fence-queued.json', json.dumps({
+            self.application.source.write_artifact(self.application.output, 'native-fence-queued.json', json.dumps({
                 'private_request_id': request_id, 'source_generation': self.source_generation,
                 'control_generation': guard['control_generation'], 'fence_generation': self.fence.current(),
                 'native_dispatches': self.native_dispatches, 'observed_monotonic_ns': time.monotonic_ns()}).encode())
@@ -411,28 +353,8 @@ class NativeDispatcher:
 
             GLib.timeout_add(5, after_invalidation)
             return
-        if self.race_next == 'edit':
-            self.corpus.entry.set_text('local intervening source edit')
-            self.race_next = None
-        elif self.race_next == 'destroy':
-            self.corpus.button.set_visible(False)
-            self.corpus.registry.retire('button')
-            self.race_next = None
-        elif self.race_next == 'visual':
-            self.corpus.canvas.queue_draw()
-            self.corpus.source.changed()
-            self.race_next = None
-        elif self.race_next == 'focus-cycle':
-            self.race_next = None
-            previous = self.whole.modal.get_focus()
-            other = self.corpus.registry.widgets['modal-close'][0]
-            other.grab_focus()
-            self.whole.observe_focus()
-            previous.grab_focus()
-            self.whole.observe_focus()
-        elif self.race_next == 'model':
-            self.corpus.unmaterialize_row()
-            self.race_next = None
+        if self.fixture_hooks:
+            self.fixture_hooks.before_dispatch(self)
         try:
             self.composition.poll()
             if guard['source_generation'] != self.source_generation:
@@ -443,21 +365,23 @@ class NativeDispatcher:
                 raise SourceRejected('retired-native-lifecycle-fence')
             if time.monotonic_ns() >= guard['deadline_ns']:
                 if self.fixture_hooks:
-                    (self.corpus.output / 'native-expiry-receipt.json').write_text(json.dumps({'native_dispatches': self.native_dispatches, 'reason': 'lease-expired-at-native-dispatch'}))
+                    (self.application.output / 'native-expiry-receipt.json').write_text(json.dumps({'native_dispatches': self.native_dispatches, 'reason': 'lease-expired-at-native-dispatch'}))
                 raise SourceRejected('lease-expired-at-native-dispatch')
-            key, widget = self.corpus.registry.resolve_semantic(guard['incarnation'], guard['surface_id'], guard['target_id'])
-            owner = self.corpus.registry.widgets[key][1]
-            if self.whole is not None and self.whole.modal_capture.get_mapped() and owner != 'modal':
-                raise SourceRejected('blocked-by-native-modal')
-            if self.whole is None and self.corpus.popup_capture.get_mapped():
+            key, widget = self.application.registry.resolve_semantic(guard['incarnation'], guard['surface_id'], guard['target_id'])
+            owner = self.application.registry.widgets[key][1]
+            if self.whole is not None:
+                facts = self.whole.oracle()
+                if any(v['mapped'] and v['modal_for'] is not None and key != owner for key,v in facts['surfaces'].items()):
+                    raise SourceRejected('blocked-by-native-modal')
+            if self.whole is None and any(c != self.application.capture and c.get_mapped() for c in self.application.registry.surfaces.values()):
                 # This semantic fixture projects only main content. A native
                 # transient blocks it until a whole-view projection is available.
                 raise SourceRejected('blocked-by-native-popup-modality')
-            capture = self.corpus.registry.surfaces[owner]
+            capture = self.application.registry.surfaces[owner]
             # Actual native reads catch edits/selection/materialization changes
             # even when GTK has not submitted its next visual frame yet.
             capture.source.focus_changed(capture.surface_key, capture.focus_reader())
-            current = self.corpus.source.semantics(capture.semantic_root, capture.frames)
+            current = self.application.source.semantics(capture.semantic_root, capture.frames)
             semantic = next(node for node in current if node['id'] == guard['target_id'])
             if semantic['version'] != guard['target_version']:
                 raise SourceRejected('stale-target-clock')
@@ -471,7 +395,7 @@ class NativeDispatcher:
                     raise SourceRejected('stale-model-clock')
             if guard.get('focus_generation') is not None:
                 if self.whole is None:
-                    current_focus = self.corpus.source._focus.get(owner, (None, 1))[1]
+                    current_focus = self.application.source._focus.get(owner, (None, 1))[1]
                 else:
                     facts = self.whole.oracle()
                     if facts['focus'] != self.whole.previous_focus:
@@ -497,7 +421,7 @@ class NativeDispatcher:
             if kind == 'composition':
                 self.composition.cancel(str(error))
             if self.fixture_hooks and str(error) == 'retired-native-lifecycle-fence':
-                self.corpus.source.write_artifact(self.corpus.output, 'native-fence-receipt.json', json.dumps({
+                self.application.source.write_artifact(self.application.output, 'native-fence-receipt.json', json.dumps({
                     'private_request_id': request_id, 'source_generation': self.source_generation,
                     'control_generation': guard['control_generation'], 'fence_generation': self.fence.current(),
                     'native_dispatches': self.native_dispatches, 'reason': str(error),
@@ -509,7 +433,7 @@ class NativeDispatcher:
             # context. Retire this disposable source before another command.
             self.composition.cancel('native-context-observation-unavailable')
             self.close()
-            self.corpus.app.quit()
+            self.application.app.quit()
             return
         # Every prior check and the native calls share this GTK main-loop turn.
         # No peer callback/crawl can replace the source object between them.
@@ -524,7 +448,7 @@ class NativeDispatcher:
             except Exception:
                 self.composition.cancel('native-composition-allocation-failed')
                 self.close()
-                self.corpus.app.quit()
+                self.application.app.quit()
                 return
             if arguments is None:
                 self.reply(request_id, 'dispatched')
@@ -539,16 +463,16 @@ class NativeDispatcher:
             # Once native execution started, any unexpected source failure is
             # ambiguous. Close the pipe; the Rust ledger records UNKNOWN.
             self.close()
-            self.corpus.app.quit()
+            self.application.app.quit()
             return
         if self.fail_after_dispatch:
-            (self.corpus.output / 'native-fault-receipt.json').write_text(json.dumps({
+            (self.application.output / 'native-fault-receipt.json').write_text(json.dumps({
                 'native_dispatches': self.native_dispatches, 'native_callbacks': self.native_callbacks,
                 'fault': self.fail_after_dispatch, 'scope': 'local-negative-control-never-applied-evidence'}))
             capture.command_cause = None
             if self.fail_after_dispatch == 'uncorrelated-capture':
                 self.fail_after_dispatch = None
-                self.corpus.capture.queue_draw()
+                self.application.capture.queue_draw()
                 return
             self.pending = None
             if self.fail_after_dispatch == 'crash-after-dispatch':
@@ -558,7 +482,7 @@ class NativeDispatcher:
                 os.kill(os.getpid(), signal.SIGKILL)
             if self.fail_after_dispatch == 'lose-after-dispatch':
                 os.close(0)
-                self.corpus.app.quit()
+                self.application.app.quit()
             return
         if self.whole is None:
             self.request_capture()
@@ -583,7 +507,7 @@ class NativeDispatcher:
                 raise SourceRejected('native-selection-range')
         elif action == 'Activate' and not isinstance(widget, (Gtk.Button, Gtk.MenuButton, Gtk.ListBoxRow, NativeAction)):
             raise SourceRejected('unsupported-native-activation')
-        elif action == 'ScrollTo' and key != 'list':
+        elif action == 'ScrollTo' and (not isinstance(widget, (Gtk.ListBox, Gtk.ScrolledWindow)) or widget.get_ancestor(Gtk.ScrolledWindow) is None):
             raise SourceRejected('unsupported-native-scroll')
         elif action not in ('Activate', 'Focus', 'ScrollTo'):
             raise SourceRejected('unsupported-native-action')
@@ -593,9 +517,9 @@ class NativeDispatcher:
             raise SourceRejected('native-composition-requires-whole-visual-context')
         if guard['source_generation'] != self.source_generation or self.control is None or self.control[:2] != (guard['lease_id'], guard['control_generation']):
             raise SourceRejected('retired-native-control-generation')
-        key, widget = self.corpus.registry.resolve_semantic(guard['incarnation'], guard['surface_id'], guard['target_id'])
-        owner = self.corpus.registry.widgets[key][1]
-        capture = self.corpus.registry.surfaces[owner]
+        key, widget = self.application.registry.resolve_semantic(guard['incarnation'], guard['surface_id'], guard['target_id'])
+        owner = self.application.registry.widgets[key][1]
+        capture = self.application.registry.surfaces[owner]
         self.whole.observe_focus()
         if self.whole.previous_focus != (owner, guard['target_id']) or self.whole.focus_generation != guard['focus_generation']:
             raise SourceRejected('stale-native-composition-focus')
@@ -603,7 +527,7 @@ class NativeDispatcher:
             raise SourceRejected('native-text-not-editable')
         scratch = self.whole.budget.reserve(16 << 20)
         try:
-            semantic = next(node for node in self.corpus.source.semantics(capture.semantic_root, capture.frames) if node['id'] == guard['target_id'])
+            semantic = next(node for node in self.application.source.semantics(capture.semantic_root, capture.frames) if node['id'] == guard['target_id'])
             text = semantic.get('text', {})
             if semantic['version'] != guard['target_version'] or text.get('id') != guard['text_record_id'] or text.get('version') != guard['text_record_version'] or text.get('text_version') != guard['text_version'] or text.get('selection') != guard['selection']:
                 raise SourceRejected('stale-native-composition-text-record')

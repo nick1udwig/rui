@@ -384,6 +384,7 @@ class CaptureMixin:
         self.source_alive = True
         self.source_mapped = False
         self.last_frame = None
+        self.diagnostics = True  # opt out without changing coherent source proof
         self.export_probe = None  # optional local diagnostic callback, never wire
         self.capture_transaction = None  # trusted serialized source actor only
 
@@ -456,26 +457,28 @@ class CaptureMixin:
             if not hasattr(surface, "get_position_x"):
                 raise RuntimeError("popup backend cannot supply explicit parent-relative geometry")
             frame["origin"] = [surface.get_position_x(), surface.get_position_y()]
-        # Local test diagnostic only: these image bytes never enter scene,
-        # envelope, resource offers or provenance. The exact submitted node is
-        # independently rasterized by the pinned native Cairo/GSK implementation.
-        width, height = self.get_width(), self.get_height()
-        if width <= 0 or height <= 0 or width * height > 1_048_576:
-            raise RuntimeError("local diagnostic pixel ceiling")
-        reference = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
-        node.draw(cairo.Context(reference))
-        exporter.local_reference_draws += 1
-        reference.flush()
-        raw = bytes(reference.get_data())
-        frame["local_reference"] = {"width": width, "height": height, "stride": reference.get_stride(), "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB", "sha256": hashlib.sha256(raw).hexdigest(), "scope": "local-comparison-only-never-wire"}
+        if self.diagnostics:
+            # Local test diagnostic only: these image bytes never enter scene,
+            # envelope, resource offers or provenance. The exact submitted node is
+            # independently rasterized by the pinned native Cairo/GSK implementation.
+            width, height = self.get_width(), self.get_height()
+            if width <= 0 or height <= 0 or width * height > 1_048_576:
+                raise RuntimeError("local diagnostic pixel ceiling")
+            reference = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+            node.draw(cairo.Context(reference))
+            exporter.local_reference_draws += 1
+            reference.flush()
+            raw = bytes(reference.get_data())
+            frame["local_reference"] = {"width": width, "height": height, "stride": reference.get_stride(), "format": "cairo-ARGB32-native-little-endian-BGRA-premultiplied-sRGB", "sha256": hashlib.sha256(raw).hexdigest(), "scope": "local-comparison-only-never-wire"}
         frame["exporter_counters"] = exporter.counters()
         if self.export_probe:
             frame["fallback_probe"] = self.export_probe()
         label = self.source.write(self.output, frame)
-        png = io.BytesIO()
-        reference.write_to_png(png)
-        self.source.write_artifact(self.output, label + ".local.png", png.getvalue())
-        self.source.write_artifact(self.output, label + ".local.bgra", raw)
+        if self.diagnostics:
+            png = io.BytesIO()
+            reference.write_to_png(png)
+            self.source.write_artifact(self.output, label + ".local.png", png.getvalue())
+            self.source.write_artifact(self.output, label + ".local.bgra", raw)
         self.captures.append({"label": label, "source_revision": source_revision, "counts": counts, "gaps": frame["gaps"]})
         # Publish bookkeeping before an observer can synchronously unmap or
         # destroy the native source. Such a lifecycle publication owns the new

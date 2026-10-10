@@ -157,6 +157,16 @@ class CaptureBoundsTests(unittest.TestCase):
             self.assertIn(surface, source.retired_object_ids)
             self.assertEqual(list(Path(directory).iterdir()), [])
 
+    def test_optional_diagnostics_keep_coherent_vector_capture_without_images(self):
+        source = CoherentSource(); source.register('root',1,lambda:{})
+        with tempfile.TemporaryDirectory() as directory:
+            capture = self.capture_fixture(source,directory)
+            capture.diagnostics = False
+            self.submit(capture)
+            self.assertNotIn('local_reference',capture.last_frame)
+            self.assertEqual(capture.last_frame['exporter_counters']['local_reference_draws'],0)
+            self.assertEqual(sorted(p.suffix for p in Path(directory).iterdir()),['.bin','.json'])
+
     def test_gtk_caret_opacity_endpoints_are_exact_and_partial_opacity_still_declines(self):
         paint = Gdk.RGBA()
         paint.parse('#111111')

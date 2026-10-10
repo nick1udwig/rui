@@ -14,20 +14,11 @@ from gi.repository import Gtk, Gsk, Gdk, Graphene, GLib, Gio
 
 from adapters.gtk4.capture import CaptureWidget, CapturePopover
 from adapters.sdk.producer import CoherentSource
+from adapters.gtk4.application import GtkApplicationSource
 from adapters.gtk4.state import NativeRegistry, editable_text
 
 
-STRICT_CSS = b"""
-* { animation: none; transition: none; box-shadow: none; text-shadow: none;
-    background-image: none; border-radius: 0; font-family: 'Liberation Sans';
-    font-size: 14px; color: #111111; opacity: 1; outline-style: none;
-    outline-width: 0; border-color: #444444; }
-window, box, list, row, scrolledwindow, viewport, popover, contents, stack {
-    background-color: #ffffff; }
-button, entry, text, menubutton, modelbutton {
-    background-color: #eeeeee; border: 1px solid #444444; padding: 4px; }
-selection { background-color: #aaaaaa; color: #000000; }
-"""
+from adapters.gtk4.styles import STRICT_CSS
 
 
 def rgba(value):
@@ -137,6 +128,7 @@ class Corpus:
         self.registry.bind("menu-popup", self.popup_capture, "menu-popup")
         self.registry.surface("main-content", self.capture)
         self.registry.surface("menu-popup", self.popup_capture)
+        self.integration = GtkApplicationSource(app, self.source, self.registry, self.capture, output)
         self.window.set_child(self.capture)
         self.window.present()
         if not timed_actions:

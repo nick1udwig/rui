@@ -65,6 +65,12 @@ class NativeRegistry:
             widget.action.connect('notify::enabled', lambda *_: self.source.changed())
         else:
             widget.connect('notify::sensitive', lambda *_: self.source.changed())
+            for prop in ('visible', 'css-classes'):
+                widget.connect('notify::'+prop, lambda *_: self.source.changed())
+            if isinstance(widget, Gtk.Button):
+                widget.connect('clicked', lambda *_: self.source.changed())
+            if isinstance(widget, Gtk.ListBox):
+                widget.connect('row-selected', lambda *_: self.source.changed())
             if isinstance(widget, Gtk.Entry):
                 for signal in ('changed', 'notify::cursor-position', 'notify::selection-bound'):
                     widget.connect(signal, lambda *_, k=key, owner=surface: self.observe_text(k, owner))

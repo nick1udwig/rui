@@ -22,13 +22,14 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 const CLIENT_ID: [u8; 16] = [3; 16];
 const CLIENT_HEX: &str = "03030303030303030303030303030303";
 const USAGE: &str =
-    "usage: rui-demo [--host-only] [--listen ADDRESS:PORT] [--identity-dir NEW_DIRECTORY] [--browser-origin EXACT_ORIGIN]";
+    "usage: rui-demo [--host-only] [--application corpus|editor] [--listen ADDRESS:PORT] [--identity-dir NEW_DIRECTORY] [--browser-origin EXACT_ORIGIN]";
 
 struct Config {
     host_only: bool,
     browser_origins: Vec<String>,
     address: SocketAddr,
     directory: PathBuf,
+    application: String,
 }
 impl Config {
     fn parse() -> Result<Option<Self>, Error> {
@@ -36,6 +37,7 @@ impl Config {
         let mut browser_origins = Vec::new();
         let mut address = "127.0.0.1:0".parse()?;
         let mut directory = None;
+        let mut application = String::from("corpus");
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -44,6 +46,12 @@ impl Config {
                     return Ok(None);
                 }
                 "--host-only" => host_only = true,
+                "--application" => {
+                    application = args.next().ok_or(USAGE)?;
+                    if !matches!(application.as_str(), "corpus" | "editor") {
+                        return Err(USAGE.into());
+                    }
+                }
                 "--browser-origin" => browser_origins.push(args.next().ok_or(USAGE)?),
                 "--listen" => address = args.next().ok_or(USAGE)?.parse()?,
                 "--identity-dir" => directory = Some(PathBuf::from(args.next().ok_or(USAGE)?)),
@@ -65,6 +73,7 @@ impl Config {
             browser_origins,
             address,
             directory,
+            application,
         }))
     }
 }
@@ -165,7 +174,11 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
     let source_directory = directory.0.join("source");
     let mut source = Command::new("python3");
     source
-        .arg(repository.join("demos/gtk_host.py"))
+        .arg(repository.join(if config.application == "editor" {
+            "demos/editor/app.py"
+        } else {
+            "demos/gtk_host.py"
+        }))
         .arg("--output")
         .arg(&source_directory);
     let host = GtkCommandHost::spawn(source, &source_directory)?;

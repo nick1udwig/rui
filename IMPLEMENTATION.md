@@ -25,6 +25,16 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+C3 extracts registered application/surface APIs, common coherent assembly and
+control helpers, moving corpus-specific fault hooks out of native dispatch.
+The second owned document editor uses the SDK without fixture imports. Generic
+source-admitted button, Unicode text/list, dialog/modality and widget replacement
+checks pass; private text is redacted and screenshot diagnostics are optional.
+Original whole-view, restart, native-context and production HTTPS regressions
+pass. [The integration contract](adapters/gtk4/README.md) retains bounded verified
+artifact IPC and source/native guards; in-memory IPC and arbitrary GTK applications
+remain unclaimed.
+
 C2 adds bounded authored-path lowering for pixel-aligned, opaque square borders
 with equal widths and differing side paint. Four fresh source comparisons and
 an omitted-side negative pass; Rust replay verifies every retained closure and

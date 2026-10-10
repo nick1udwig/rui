@@ -9,6 +9,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk
 from adapters.gtk4.native import NativeDispatcher
+from fixtures.gtk.native_hooks import CorpusHooks
 from adapters.gtk4.state import NativeAction
 from fixtures.gtk.fallback_probe import FallbackProbe
 from fixtures.gtk.whole_view import WholeView
@@ -70,7 +71,7 @@ def main():
             action.connect('activate', menu_action)
             for capture in whole.captures.values():
                 capture.export_probe = probe.report
-            dispatcher = NativeDispatcher(corpus, fixture_hooks=args.fixture_hooks, whole=whole)
+            dispatcher = NativeDispatcher(corpus.integration, fixture_hooks=CorpusHooks(corpus) if args.fixture_hooks else False, whole=whole)
             for widget, signal in [(whole.modal_entry, 'changed'), (close, 'clicked'),
                                    (retire, 'clicked'), (action, 'activate')]:
                 widget.connect(signal, dispatcher.observed_callback)
