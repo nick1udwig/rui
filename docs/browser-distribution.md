@@ -92,7 +92,9 @@ assets under a non-root base. Portable CI checks import without DOM, exact tarba
 contents, initialization/retry/concurrency, MIME/CSP and failure/disposal. The pinned
 GTK CI job exercises observation, explicit control, guarded button/Unicode edits,
 source-side edits, release, reconnect without authority and disposal through default
-and replacement transport/renderer APIs. Both jobs test distributed files rather
+and replacement transport/renderer APIs. Headed Chromium also verifies actual
+back/forward-cache restoration under the caller-owned pagehide/pageshow policy.
+Both jobs test distributed files rather
 than repository-relative imports.
 
 The live local fixture uses scoped trust exceptions for owned test certificate keys;

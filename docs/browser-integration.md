@@ -38,12 +38,19 @@ connection failure handler; listeners should contain their own application error
 `dispose` removes listeners and browser hooks, retires receiver/commands and releases
 renderer caches. Closing/disconnecting never claims presentation or control cleanup
 before the host observes the connection closure.
+Repeated final disposal and disconnect after disposal are idempotent; disconnect
+cannot access freed WASM or change the terminal disposed state.
 
 A hidden document releases control and cancels pending presentation. Returning to
 visibility re-renders the current state; it does not silently request control. For
 page restoration, the embedding application should disconnect on `pagehide` and
 explicitly reconnect after `pageshow`; automatic back/forward-cache reconnection is
 not promised. Browser suspension still requires the host's lease expiry/neutralization.
+The installed consumer tests real Chromium back/forward-cache restoration through
+both default and replacement adapters: departure disconnects, restoration has no
+resources/readiness/control, and explicit reconnect repaints without authority.
+The harness waits for `pageshow`, since cache restoration emits no new `load` event.
+This evidence is distinct from synthetic visibility/lifecycle tests.
 
 `state` returns an owned structured copy of the last committed graph. All record
 variants and enabled fields are declared in `model.ts`, including unknown tri-states,

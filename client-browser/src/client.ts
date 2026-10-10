@@ -807,6 +807,10 @@ export class BrowserClient {
     this.flush();
   }
   disconnect(): void {
+    if (this.disposed) return;
+    this.disconnectInner();
+  }
+  private disconnectInner(): void {
     if (!this.disposed) this.connection = "disconnected";
     this.options.timings?.disconnect();
     this.resourceStarted = undefined;
@@ -835,7 +839,7 @@ export class BrowserClient {
     if (this.disposed) return;
     this.disposed = true;
     this.connection = "disposed";
-    this.disconnect();
+    this.disconnectInner();
     document.removeEventListener("visibilitychange", this.visibility);
     this.session.close();
     this.session.free();

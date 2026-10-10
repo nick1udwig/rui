@@ -37,6 +37,8 @@ let activeMeasurement:
     }
   | undefined;
 let holdingResults = false;
+let pageShows = 0,
+  restoredFromCache = 0;
 let heldFrames: ArrayBuffer[] = [];
 let heldBytes = 0;
 let reconnectBusyRetries = 0;
@@ -151,6 +153,8 @@ function inspected() {
     results: events.filter((e) => e.type === "commandResult"),
     events: events.slice(-12),
     state,
+    pageShows,
+    restoredFromCache,
   };
 }
 const consumer = {
@@ -266,7 +270,7 @@ const consumer = {
     client = await BrowserClient.create(options);
     status.textContent = "Client created";
   },
-  connect: () => client!.connect(),
+  connect: () => connectWithCloseRetry(),
   inspect: inspected,
   requestControl: () => client!.requestControl(),
   releaseControl: () => client!.releaseControl(),
@@ -360,3 +364,12 @@ declare global {
   }
 }
 window.consumer = consumer;
+// Page restoration is caller-owned: preserve the actor ledger when cached,
+// disconnect on departure, then explicitly connect after returning.
+window.addEventListener("pagehide", () => {
+  if (client) consumer.disconnect();
+});
+window.addEventListener("pageshow", (event) => {
+  pageShows++;
+  if (event.persisted) restoredFromCache++;
+});

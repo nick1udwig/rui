@@ -1,0 +1,12 @@
+{
+  "environment": "i7-1280P; Linux 7.1.9 Arch; system Chromium 151.0.7922.173 actual owned X11 display; Rust 1.98.1; GTK 4.22.4/Cairo 1.18.4; installed 0.1.1 runtime; loopback production HTTPS/WSS",
+  "sourceSha256": {
+    "client-browser/src/client.ts": "4e7dc894e5f84800725a7380d8b3c5c37bbdde391b16d26771f73db32e823bcd",
+    "client-browser/tests/consumer/main.ts": "f044cc1800dc470bb27a58b1a64c208b76d6456418202eae0c61e490710c8b7c",
+    "client-browser/tests/package-live.mjs": "082b8d24e97bcdb1b70743b9ff843d2c26a194b4be88d3d1d81054269ccff8de",
+    "client-browser/tests/contract.mjs": "a089476bc16f6ac69533766f2f715086dd276db23426f37423f9e95271e0e45b",
+    "client-browser/scripts/api-baseline.json": "2811d9229d83ee217576f6a906794191fa60bb2e327d985997d49187e9afe01e"
+  },
+  "checks": "three-engine contract and real installed-package BFCache restore/default and replacement adapters; idempotent disconnect after disposed; no authority restoration",
+  "exclusions": "physical mobile/screen-reader/two-machine tailnet"
+}

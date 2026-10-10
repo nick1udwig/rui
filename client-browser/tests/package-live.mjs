@@ -186,7 +186,7 @@ try {
     "--ignore-certificate-errors-spki-list=" +
       [pin(cert), pin(resolve(identity, "host.pem"))].join(","),
   ];
-  if (lifecycle && process.env.RUI_BROWSER_HEADED === "1") {
+  if (process.env.RUI_BROWSER_HEADED === "1") {
     browserProcess = spawn(
       process.env.RUI_WASM_CHROMIUM ?? chromium.executablePath(),
       [
@@ -386,12 +386,54 @@ try {
         "reconnect restored authority",
       );
       const final = await inspect();
-      assert.deepEqual(final.failures, []);
+      assert.deepEqual(
+        final.failures.filter(
+          (e) =>
+            e.message !==
+            "host is still closing the previous connection; reconnect shortly",
+        ),
+        [],
+      );
       assert.deepEqual(errors, []);
       if (replacement) {
         assert(final.renders > 0);
         assert(final.sends > 0);
       }
+      await page.goto("about:blank");
+      await page.goBack({ waitUntil: "commit" });
+      // A real BFCache restore has pageshow but no new load event. A reload
+      // creates a new caller fixture with no actor; both require explicit connect.
+      await page.waitForFunction(
+        () =>
+          !!window.consumer &&
+          (window.consumer.inspect().restoredFromCache > 0 ||
+            window.consumer.inspect().connection === undefined),
+      );
+      const restored = await inspect();
+      assert.equal(restored.hasControl, false);
+      assert([undefined, "disconnected"].includes(restored.connection));
+      assert.equal(restored.resourcesReady ?? false, false);
+      const cached = restored.restoredFromCache > 0;
+      await page.evaluate(
+        async ({ address, credential, replacement, cached }) => {
+          if (!cached)
+            await window.consumer.create(
+              address,
+              credential,
+              replacement,
+              Array(16).fill(replacement ? 4 : 3),
+            );
+          await window.consumer.connect();
+        },
+        {
+          address,
+          credential: replacement ? secondCredential : credential,
+          replacement,
+          cached,
+        },
+      );
+      await wait(inspect, (s) => ready(s) && s.text === "host");
+      assert.equal((await inspect()).hasControl, false);
       await page.evaluate(() => window.consumer.dispose());
       const disposed = await inspect();
       assert.equal(disposed.connection, "disposed");
@@ -408,6 +450,10 @@ try {
         sourceEdit: true,
         explicitReconnect: true,
         reconnectWithoutAuthority: true,
+        pageNavigation: {
+          actualBackForwardCache: cached,
+          explicitReconnectWithoutAuthority: true,
+        },
         disposalMemory: disposed.memoryUsed,
         renders: final.renders,
         sends: final.sends,

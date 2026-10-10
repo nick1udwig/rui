@@ -252,6 +252,13 @@ export async function checkContract() {
     "event disposal did not stop delivery",
   );
   const count = admitted.length;
+  client.disconnect();
+  client.disconnect();
+  client.dispose();
+  assert(
+    client.connectionState === "disposed",
+    "terminal disconnect changed disposed state",
+  );
   assert(
     client.memoryPeak === 0 && client.memoryUsed === 0,
     "disposed status accessed retained WASM ownership",
