@@ -56,6 +56,7 @@ enum OwnerRequest {
     Fixture(FixtureMutation),
 }
 struct Priority {
+    source_alive: AtomicBool,
     identity: Arc<()>,
     scopes: Mutex<[Option<Arc<Scope>>; MAX_CLIENTS]>,
     fence: Mutex<NativeFence>,
@@ -157,6 +158,7 @@ impl GtkProducerPort {
         let owner_stack = budget.reserve(2 << 20)?;
         let watcher_stack = budget.reserve(256 << 10)?;
         let priority = Arc::new(Priority {
+            source_alive: AtomicBool::new(host.source_alive),
             identity: Arc::new(()),
             scopes: Mutex::new(std::array::from_fn(|_| None)),
             fence: Mutex::new(host.pipe.fence.clone()),
@@ -204,6 +206,9 @@ impl GtkProducerPort {
             priority,
             budget,
         })))
+    }
+    pub fn source_alive(&self) -> bool {
+        self.0.priority.source_alive.load(Ordering::Acquire)
     }
     pub fn memory_budget(&self) -> MemoryBudget {
         self.0.budget.clone()
@@ -334,6 +339,12 @@ fn run_owner(mut host: GtkCommandHost, queue: mpsc::Receiver<Work>, priority: Ar
         if priority.stopped.load(Ordering::Acquire) {
             break;
         }
+        if host.source_alive {
+            let _ = host.refresh_notified();
+        }
+        priority
+            .source_alive
+            .store(host.source_alive, Ordering::Release);
         match queue.recv_timeout(Duration::from_millis(5)) {
             Ok(work) => {
                 if work.reply.is_closed() {

@@ -47,9 +47,20 @@ and [runner requirements](docs/browser-ci.md) describe the tested scope; Safari
 and physical mobile devices remain unclaimed.
 
 
+P2 replaces periodic demo capture with bounded incarnation/generation datagram
+wakeups on the serialized source owner. Capture consumption reconciles newer
+changes, overflow retains level-triggered dirtiness, and source supervision stays
+independent. Burst/overflow/stale-source tests and fresh native restart, context,
+whole-view, demo and HTTPS browser checks pass. The retained three-run
+[comparison](fixtures/performance/browser-p2/summary.json) records source harness
+p95 of 153–154 ms versus 296–302 ms before P2. Full snapshots remain the GTK wire
+publication path pending P3. [Invalidation scope](docs/dirty-notifications.md)
+excludes unregistered animation/custom-paint changes rather than promising their
+detection.
+
 The [implementation plans](docs/implementation-plans.md) expand these four areas into sequenced changes, dependencies, acceptance criteria and validation commands for future implementors.
 
-- **Performance:** the interactive host currently polls every 250 ms and publishes full snapshots. Event-driven source publication and incremental updates can reduce latency and work; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
+- **Performance:** the interactive host now captures from dirty notifications and still publishes full snapshots. Incremental updates can reduce bandwidth and application work; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
 - **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
 - **Browser and library completion:** extend negotiated browser capabilities as needed, consolidate the remaining distinct native/browser connection actors, and reduce state-copy/render overhead. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
 - **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A semantic UI with a different layout, mobile interaction or accessibility presentation has not been built.

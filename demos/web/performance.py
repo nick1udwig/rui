@@ -31,7 +31,7 @@ def main():
         stdout = run_private(str(args.xvfb.resolve()), ['node', str(ROOT/'demos/web/check.mjs')], timeout=min(1800, 120+args.actions*3))
         report = json.loads((ROOT/'client-browser/test-output/timings.json').read_text())
         report['correctness'] = json.loads(stdout.strip().splitlines()[-1])
-        report['sourceHashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/n for n in ('adapters/gtk4/native.py', 'adapters/sdk/producer.py', 'adapters/sdk/timing.py', 'adapters/sdk/src/gtk_host.rs', 'protocol-core/src/timing.rs', 'client-browser/src/client.ts', 'client-browser/src/renderer.ts', 'client-browser/src/timing.ts', 'demos/web/check.mjs')]}
+        report['sourceHashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/n for n in ('adapters/gtk4/native.py', 'adapters/sdk/producer.py', 'adapters/sdk/timing.py', 'adapters/sdk/src/gtk_host.rs', 'adapters/sdk/src/gtk_port.rs', 'adapters/sdk/src/source_notify.rs', 'adapters/sdk/invalidation.py', 'client-desktop/src/bin/rui-demo.rs', 'protocol-core/src/timing.rs', 'client-browser/src/client.ts', 'client-browser/src/renderer.ts', 'client-browser/src/timing.ts', 'demos/web/check.mjs')]}
         (args.output/f'run-{run+1}.json').write_text(json.dumps(report)+'\n')
         row = {'run': run+1}
         for kind in ('browser', 'source'):

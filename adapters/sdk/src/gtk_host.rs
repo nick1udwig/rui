@@ -103,6 +103,7 @@ struct NativeCapture {
     _memory: MemoryReservation,
 }
 struct NativePipe {
+    dirty: Option<crate::source_notify::DirtyNotifications>,
     fence: NativeFence,
     child: Child,
     socket: UnixStream,
@@ -173,6 +174,12 @@ impl NativePipe {
         if reply.status != "consumed" {
             return Err(GtkHostError::NativePipe);
         }
+        if let (Some(dirty), Some(generation)) = (
+            self.dirty.as_mut(),
+            capture.artifact.manifest()["source_revision"].as_u64(),
+        ) {
+            dirty.acknowledged(generation);
+        }
         Ok(())
     }
     fn spawn(
@@ -185,6 +192,9 @@ impl NativePipe {
         // serde containers throughout the one permitted round trip.
         let working = budget.reserve(1 << 20)?;
         let fence = NativeFence::new(&budget, source_generation)?;
+        let (dirty, dirty_peer) =
+            crate::source_notify::DirtyNotifications::new(&budget, source_generation)?;
+        crate::source_notify::DirtyNotifications::inherit(&dirty_peer, &mut command);
         fence.inherit(&mut command);
         let (socket, child_socket) = UnixStream::pair()?;
         command
@@ -195,7 +205,9 @@ impl NativePipe {
             .stdin(Stdio::from(OwnedFd::from(child_socket)))
             .stdout(Stdio::null());
         let child = command.spawn()?;
+        drop(dirty_peer);
         let mut pipe = Self {
+            dirty: Some(dirty),
             fence,
             child,
             socket,
@@ -1206,6 +1218,22 @@ impl GtkCommandHost {
     }
     /// Publish local native changes without creating revisions for idle polls.
     /// This uses the same fresh capture/verification path as admitted commands.
+    /// Drain bounded dirty wakeups; capture and commands share this source owner.
+    /// Callers without GtkProducerPort may integrate this into their event loop.
+    pub fn refresh_notified(&mut self) -> Result<bool, GtkHostError> {
+        let dirty = match self.pipe.dirty.as_mut().map(|d| d.take()).transpose() {
+            Ok(dirty) => dirty.unwrap_or(false),
+            Err(error) => {
+                self.mark_source_unavailable(0)?;
+                return Err(error.into());
+            }
+        };
+        if dirty {
+            self.refresh_if_changed()
+        } else {
+            Ok(false)
+        }
+    }
     pub fn refresh_if_changed(&mut self) -> Result<bool, GtkHostError> {
         self.capture_source(true)
     }
@@ -2296,6 +2324,7 @@ mod tests {
         std::fs::create_dir_all(&directory).unwrap();
         let (socket, _peer) = UnixStream::pair().unwrap();
         let pipe = NativePipe {
+            dirty: None,
             fence: NativeFence::new(&budget, 1).unwrap(),
             child: ProcessCommand::new("true").spawn().unwrap(),
             socket,
@@ -2666,6 +2695,7 @@ mod tests {
             let (socket, mut peer) = UnixStream::pair().unwrap();
             let child = ProcessCommand::new("true").spawn().unwrap();
             let mut pipe = NativePipe {
+                dirty: None,
                 fence: NativeFence::new(&budget, 2).unwrap(),
                 child,
                 socket,

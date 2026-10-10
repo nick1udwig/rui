@@ -4,7 +4,7 @@ use rui_producer_sdk::gtk_host::{GtkCommandHost, GtkProducerPort};
 use rui_protocol_core::session::{Permissions, VerifiedAuthorization};
 use rui_transport::{
     pairing::PairingAuthority, producer::ProducerPort, HostIdentity, ProducerServerHandle,
-    ServerConfig, TransportError,
+    ServerConfig,
 };
 use std::{
     fs::{self, OpenOptions},
@@ -254,13 +254,13 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
         })
         .map_err(|_| "demo window launcher closed")?;
     let origin = Instant::now();
-    let mut refresh = tokio::time::interval(Duration::from_millis(250));
-    refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut supervision = tokio::time::interval(Duration::from_millis(250));
+    supervision.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut client_initialized = config.host_only;
     let result = loop {
         tokio::select! {
             _ = stop_rx.changed() => break Ok(()),
-            _ = refresh.tick() => {
+            _ = supervision.tick() => {
                 if !client_initialized {
                     let current = *observed.borrow();
                     if current.displayed.is_some() {
@@ -272,12 +272,7 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
                         break Err(format!("demo client did not display its initial view: {current:?}").into());
                     }
                 }
-                let now = u64::try_from(origin.elapsed().as_millis()).unwrap_or(u64::MAX);
-                match port.refresh_if_changed(now).await {
-                    Ok(_) => {},
-                    Err(TransportError::Closed) => break Ok(()),
-                    Err(error) => break Err(error.into()),
-                }
+                if !port.source_alive() { break Ok(()); }
             }
         }
     };

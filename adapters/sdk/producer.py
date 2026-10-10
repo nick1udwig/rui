@@ -249,6 +249,7 @@ class CoherentSource:
     """
     def __init__(self):
         self.identity = uuid.uuid4().hex
+        self.on_changed = None
         self.source_revision = 1
         self._ids = {}
         self._next_id = 1
@@ -332,6 +333,8 @@ class CoherentSource:
 
     def changed(self):
         self.source_revision += 1
+        if self.on_changed:
+            self.on_changed(self.source_revision)
         if timings:
             if getattr(self, "timing_dirty_started", None) is None:
                 self.timing_dirty_started = time.monotonic_ns()

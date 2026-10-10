@@ -3,6 +3,7 @@
 pub mod gtk_host;
 mod native_fence;
 mod source_identity;
+mod source_notify;
 pub mod vector_audit;
 use rui_protocol_core::model::{GlyphFont, Primitive, Record};
 use rui_protocol_core::receiver::{ReceiveOutcome, ReceiverConfig, ReceiverError, ViewReceiver};

@@ -51,10 +51,18 @@ The [three retained baseline runs](../fixtures/performance/browser-p1/summary.js
 contain 200 warm browser and 200 warm source actions each on the recorded
 i7-1280P, Chromium 151, GTK 4.22.4/Cairo 1.18.4 and Rust 1.98.1 environment.
 Browser harness p95 ranges from 173.3 to 185.7 ms; source harness p95 ranges from
-296.3 to 302.2 ms. The source measurements include the existing 250 ms polling
+296.3 to 302.2 ms. The source measurements include the pre-P2 250 ms polling
 schedule. Neither origin meets the future small-demo gate under this procedure.
 Raw reports include causal command timing and stage samples; they make no
 physical scanout or general 60 Hz claim.
+
+The [P2 comparison](../fixtures/performance/browser-p2/summary.json) repeats the
+same procedure after notification-driven capture. Source harness p95 is
+153.4–154.2 ms and p99 is 154.9–157.0 ms. Browser harness p95 varies from
+133.0–186.2 ms; this does not establish a consistent browser-origin speedup.
+Native-event delivery and 50 ms harness polling remain in these round trips.
+The scheduling delay is removed but the future 100 ms target remains unmet.
+
 
 The [retained report](../fixtures/performance/integrated.json) measures the actual TLS publication/resource path on an Intel Core i7-1280P, with Rust 1.98.1 and the pinned Pango/Cairo outline provider.
 It records native versions, source/font hashes, ceilings and measurement conditions.

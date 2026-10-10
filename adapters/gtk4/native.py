@@ -12,6 +12,7 @@ import time
 
 from gi.repository import GLib, Gtk
 
+from adapters.sdk.invalidation import DirtyNotifier
 from adapters.sdk.timing import timings, write_report
 from adapters.gtk4.state import NativeAction, SourceRejected, editable_text
 from adapters.gtk4.native_fence import NativeFence
@@ -64,11 +65,15 @@ class NativeDispatcher:
         if not 1 <= self.source_generation <= 5:
             raise ValueError("private-source-generation-ceiling")
         corpus.source.private_generation = self.source_generation
+        self.dirty = DirtyNotifier.inherited(self.source_generation)
+        corpus.source.on_changed = self.dirty.changed
         self.fence_memory = None
         try:
             self.fence_memory = whole.budget.reserve(8192) if whole is not None else None
             self.fence = NativeFence.inherited(self.source_generation)
         except Exception:
+            corpus.source.on_changed = None
+            self.dirty.close()
             if self.fence_memory:
                 self.fence_memory.close()
             raise
@@ -105,6 +110,12 @@ class NativeDispatcher:
         for widget, signal in [(corpus.button, 'clicked'), (corpus.entry, 'changed'),
                                (corpus.list, 'row-selected'), (corpus.window, 'notify::focus-widget')]:
             widget.connect(signal, self.observed_callback)
+        # Registered native objects cover explicit control/property changes.
+        # Unobserved animation/custom painting is outside this adapter scope.
+        for widget, _owner in corpus.registry.widgets.values():
+            if isinstance(widget, Gtk.Widget):
+                for prop in ("visible", "sensitive", "css-classes"):
+                    widget.connect("notify::"+prop, self.observed_callback)
         os.set_blocking(0, False)
         GLib.io_add_watch(0, GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, self.readable)
         # A source/pipe stall terminates this controlled process rather than
@@ -115,6 +126,7 @@ class NativeDispatcher:
 
     def observed_callback(self, *_):
         self.native_callbacks += 1
+        self.corpus.source.changed()
         if timings:
             timings.record("callback", self.corpus.source.source_revision)
         self.composition.poll()
@@ -132,6 +144,9 @@ class NativeDispatcher:
 
     def close(self):
         self.closed = True
+        if getattr(self, "dirty", None):
+            self.corpus.source.on_changed = None
+            self.dirty.close()
         write_report()
         self.composition.close()
         self.fence.close()
@@ -278,6 +293,7 @@ class NativeDispatcher:
             if request['artifact'] != self.promised_artifact:
                 raise ValueError('private-capture-owner-mismatch')
             self.current_artifact = self.promised_artifact
+            self.dirty.consumed(self.captured_source_revision, self.corpus.source.source_revision)
             self.promised_artifact = None
             self.prune_artifacts()
             self.reply(request_id, 'consumed')

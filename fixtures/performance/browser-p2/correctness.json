@@ -1,0 +1,39 @@
+{
+  "nativeDemo": {
+    "scenario": "local",
+    "passed": true,
+    "final_source_revision": 12
+  },
+  "browser": {
+    "passed": true,
+    "observer": true,
+    "browserActivation": true,
+    "unicodeEdit": true,
+    "hostEdit": true,
+    "reconnect": true,
+    "hiddenTab": true,
+    "https": true,
+    "productionBundle": true,
+    "listen": "0.0.0.0",
+    "clientToHostMs": 185.7661280000002,
+    "hostToBrowserMs": 97.29192400000011,
+    "draw": "Draw 13.7 ms"
+  },
+  "nativeCases": {
+    "restart": {
+      "passed": true,
+      "command": "python3 fixtures/gtk/native_check.py --scenario restart",
+      "sourceHashes": null
+    },
+    "native-context": {
+      "passed": true,
+      "command": "python3 fixtures/gtk/native_check.py --scenario native-context",
+      "sourceHashes": null
+    },
+    "whole-native": {
+      "passed": true,
+      "command": "python3 fixtures/gtk/native_check.py --scenario whole-native",
+      "sourceHashes": null
+    }
+  }
+}
