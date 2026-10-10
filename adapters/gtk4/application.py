@@ -104,6 +104,15 @@ class RegisteredApplication(CoherentView):
         capture.connect('unmap',lambda *_,c=capture:c.publish_lifecycle())
         for signal in ('map','unmap'): capture.connect(signal,self.observe_focus)
         window.connect('notify::focus-widget',self.observe_focus)
+        last_size=None
+        def observe_size(widget,_clock):
+            nonlocal last_size
+            if not widget.source_alive:return False
+            size=(widget.get_width(),widget.get_height())
+            if size!=last_size:
+                last_size=size;self.source.changed()
+            return True
+        capture.add_tick_callback(observe_size)
         self.source.identifier('surface:'+key)
 
     def integration(self, main):

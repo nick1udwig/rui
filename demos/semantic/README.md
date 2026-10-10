@@ -96,3 +96,29 @@ accessible snapshots. Narrow/wide screenshots were visually reviewed. These are
 automated accessibility checks, not a physical screen-reader usability session.
 Physical screen-reader and actual mobile-device acceptance remain unverified;
 Playwright viewport/engine evidence does not establish Safari/iOS/Android support.
+
+The S5 presentation check provisions separate approved identities/credentials and
+connects a semantic DOM controller plus an actual Canvas mirror observer to the
+same owned host. It discovers targets from semantic ownership/roles/actions, swaps
+the lease and runs the button/Unicode/stable-item effects from both clients. It
+checks delayed semantic delivery while the mirror progresses, mid-draft release,
+local/native geometry changes, reset/reconnect without authority restoration,
+source replacement with retired targets, and permission reduction to a read-only
+credential. The editor also transmits a two-of-ten partial collection and exercises
+a real source modal plus retired/rematerialized text control. Both exact authorized
+projections are independently replayed by Python at every publication prefix.
+
+```sh
+python3 demos/semantic/presentation_check.py --xvfb /path/to/Xvfb --output /tmp/rui-presentation-corpus
+python3 demos/semantic/presentation_check.py --application editor --xvfb /path/to/Xvfb --output /tmp/rui-presentation-editor
+```
+
+[Retained boundary evidence](../../fixtures/gtk/presentation-boundary) compares
+authorized source values and each client's full projection, rather than assuming
+private fields or visual records are identical. Semantic traffic has no Scene,
+Binding, glyph-resource download, Presented, raw/composition/resize command. The
+mirror reports actual presentation opportunities. Unicode visual acceptance uses
+source outline fonts; [a fresh color-glyph negative](../../fixtures/browser/semantic-color-glyph-negative.json)
+records emoji rejection as incomplete visuals, with no raster fallback. This scope
+covers the two cooperating applications and one writer, not arbitrary applications
+or concurrent collaboration. Device and external two-machine checks remain separate.

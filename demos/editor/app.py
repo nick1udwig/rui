@@ -16,9 +16,11 @@ from adapters.gtk4.styles import STRICT_CSS
 
 
 class Editor:
-    def __init__(self,app,output,*,diagnostics=False):
+    def __init__(self,app,output,*,diagnostics=False,partial_documents=False):
         self.app=app;self.source=CoherentSource()
         self.documents=[{'title':'Field notes','body':'café Ω 𝄞 é שלום'}, {'title':'Tasks','body':'Read, write, review'}]
+        if partial_documents:
+            self.documents.extend({'title':f'Archive {i}','body':'Not materialized in this view'} for i in range(8))
         self.selected=0;self.saves=0;self.loading=False
         self.window=Gtk.ApplicationWindow(application=app,title='RUI document editor')
         self.window.set_default_size(620,360)
@@ -37,8 +39,8 @@ class Editor:
         self.rows={}
         controls.collection('documents',self.list,'documents-root',lambda:{'label':'Documents','collection':{
             'items':list(self.rows),'selected_items':[k for k,r in self.rows.items() if r.is_selected()],
-            'total_count':len(self.documents),'materialization':1}})
-        for index,document in enumerate(self.documents):
+            'total_count':len(self.documents),'materialization':2 if partial_documents else 1}})
+        for index,document in enumerate(self.documents[:2]):
             key='document-'+str(index);row=Gtk.ListBoxRow();row.set_child(Gtk.Label(label=document['title']))
             self.list.append(row);self.rows[key]=row
             controls.item(key,row,'documents',lambda d=document:d['title'])
@@ -105,9 +107,9 @@ class Editor:
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True)
-    parser.add_argument('--diagnostics',action='store_true');args=parser.parse_args()
+    parser.add_argument('--diagnostics',action='store_true');parser.add_argument('--partial-documents',action='store_true');args=parser.parse_args()
     app=Gtk.Application(application_id='org.rui.DocumentEditor',flags=Gio.ApplicationFlags.NON_UNIQUE)
-    app.connect('activate',lambda app:setattr(app,'editor',Editor(app,args.output,diagnostics=args.diagnostics)))
+    app.connect('activate',lambda app:setattr(app,'editor',Editor(app,args.output,diagnostics=args.diagnostics,partial_documents=args.partial_documents)))
     return app.run(None)
 
 

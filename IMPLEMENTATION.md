@@ -1,3 +1,14 @@
+S5 implemented for two owned sources: distinct approved semantic/mirror clients
+perform the generic three-effect scenario, exchange one lease and converge. Fresh
+exact traces independently replay both authorized projections through reset/reconnect,
+delayed delivery, stale capture, source geometry changes, source replacement and
+read-only permission reduction. The editor additionally proves native modal changes,
+retirement/rematerialization and two-of-ten partial collection semantics. This found
+and fixed missing registered size invalidation. Trusted source replacement switches
+the native fence and revokes control while retaining the broker/ledger. See
+fixtures/gtk/presentation-boundary and demos/semantic/README.md. Strict color glyphs
+remain declined; real device/external-machine claims remain unverified.
+
 S4 local implementation: responsive semantic groups/forms/collections and named
 source dialogs, automatic text direction, associated action names/descriptions,
 distinct local/source focus and live pending/error announcements. Two applications
@@ -53,7 +64,7 @@ cache-loss APIs and clean external consumer validation are still tracked separat
 
 # Implementation status
 
-The authorized scope is RFC milestones M0–M5 and their 79 conformance cases, including the P1 measurement cases.
+The historical prototype acceptance covers RFC milestones M0–M5 and their 79 conformance cases, including the original performance cases.
 Deferred features in RFC section 14 remain outside that scope.
 Completion requires executable evidence, not the existence of an API or a test with a matching name.
 The original design/specification files remain historical inputs; acceptance is tracked in [conformance/STATUS.md](conformance/STATUS.md) and [the case audit](conformance/CASES.md).
@@ -197,6 +208,6 @@ The [implementation plans](docs/implementation-plans.md) expand these four areas
 - **Performance:** the interactive host now captures from dirty notifications and publishes validated warm transactions. Client state export and rendering still need measured optimization; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
 - **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
 - **Browser and library completion:** extend negotiated browser capabilities as needed, consolidate the remaining distinct native/browser connection actors, and reduce state-copy/render overhead. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
-- **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A semantic UI with a different layout, mobile interaction or accessibility presentation has not been built.
+- **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A generic semantic DOM presentation now covers two owned applications; physical mobile/screen-reader and external-machine acceptance remains outstanding.
 
 RFC section 14 deliberately defers mobile translation, independent application views, concurrent writers/CRDTs, general GPU streaming, audio/video, clipboard/file transfer, raster asset profiles, executable components, browser-engine capture and cross-compositor standardization. These are optional future scope, not unfinished M0–M5 gates.

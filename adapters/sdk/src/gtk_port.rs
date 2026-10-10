@@ -52,6 +52,10 @@ impl Drop for PendingWork {
 enum OwnerRequest {
     Protocol(Request),
     Refresh,
+    Restart {
+        command: ProcessCommand,
+        directory: PathBuf,
+    },
     #[cfg(feature = "gtk-fixture-hooks")]
     Fixture(FixtureMutation),
 }
@@ -218,6 +222,47 @@ impl GtkProducerPort {
     pub fn refresh_if_changed(&self, now: u64) -> PortFuture<'_> {
         self.enqueue(OwnerRequest::Refresh, now, REQUEST_CHARGE)
     }
+    /// Trusted source supervisor replacement, serialized with capture/dispatch.
+    /// This operation is never exposed as a peer command. Existing views and
+    /// exact command ledgers survive; old source authority and identities retire.
+    pub fn restart_source(
+        &self,
+        command: ProcessCommand,
+        directory: PathBuf,
+        now: u64,
+    ) -> PortFuture<'_> {
+        let mut bytes = command
+            .get_program()
+            .as_encoded_bytes()
+            .len()
+            .saturating_add(directory.as_os_str().as_encoded_bytes().len());
+        let mut count = 0usize;
+        for arg in command.get_args() {
+            count += 1;
+            bytes = bytes.saturating_add(arg.as_encoded_bytes().len());
+            if count > 128 || bytes > 64 << 10 {
+                return Box::pin(async { Err(TransportError::Limit) });
+            }
+        }
+        count = 0;
+        for (key, value) in command.get_envs() {
+            count += 1;
+            bytes = bytes
+                .saturating_add(key.as_encoded_bytes().len())
+                .saturating_add(value.map_or(0, |v| v.as_encoded_bytes().len()));
+            if count > 128 || bytes > 64 << 10 {
+                return Box::pin(async { Err(TransportError::Limit) });
+            }
+        }
+        if bytes > 64 << 10 {
+            return Box::pin(async { Err(TransportError::Limit) });
+        }
+        self.enqueue(
+            OwnerRequest::Restart { command, directory },
+            now,
+            REQUEST_CHARGE,
+        )
+    }
     #[cfg(feature = "gtk-fixture-hooks")]
     pub fn trusted_fixture_mutation(&self, mutation: FixtureMutation, now: u64) -> PortFuture<'_> {
         self.enqueue(OwnerRequest::Fixture(mutation), now, REQUEST_CHARGE)
@@ -379,6 +424,17 @@ fn run_owner(mut host: GtkCommandHost, queue: mpsc::Receiver<Work>, priority: Ar
                                 .map_err(host_error)
                         }
                     }
+                    OwnerRequest::Restart { command, directory } => {
+                        let old = host.native_lease.as_ref().map(|(lease, _)| lease.clone());
+                        let result = host.restart_source(command, directory, clock);
+                        *priority.fence.lock().unwrap_or_else(|p| p.into_inner()) =
+                            host.pipe.fence.clone();
+                        priority.controller.store(0, Ordering::Release);
+                        if let Some(old) = old {
+                            notify_revocation(&priority, &old, "SourceReplacement");
+                        }
+                        result.map(|_| (PortReply::Done, None)).map_err(host_error)
+                    }
                     #[cfg(feature = "gtk-fixture-hooks")]
                     OwnerRequest::Fixture(mutation) => host
                         .trusted_fixture_mutation(mutation)
@@ -451,26 +507,29 @@ fn drain(
             .as_ref()
             .is_none_or(|(lease, _)| lease.generation != old.generation)
         {
-            let scopes = priority
-                .scopes
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .clone();
-            for scope in scopes
-                .into_iter()
-                .flatten()
-                .filter(|scope| scope.valid() && scope.client == old.client)
-            {
-                *scope.revoked.lock().unwrap_or_else(|p| p.into_inner()) = Some(Revoked {
-                    lease: old.lease_id,
-                    generation: old.generation,
-                    reason: "NativeLifecycle".into(),
-                });
-            }
+            notify_revocation(priority, &old, "NativeLifecycle");
         }
     }
     priority.drained.fetch_max(target, Ordering::AcqRel);
     priority.wake.notify_waiters();
+}
+fn notify_revocation(priority: &Priority, old: &ControlLease, reason: &str) {
+    let scopes = priority
+        .scopes
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone();
+    for scope in scopes
+        .into_iter()
+        .flatten()
+        .filter(|scope| scope.valid() && scope.client == old.client)
+    {
+        *scope.revoked.lock().unwrap_or_else(|p| p.into_inner()) = Some(Revoked {
+            lease: old.lease_id,
+            generation: old.generation,
+            reason: reason.into(),
+        });
+    }
 }
 fn scope_for<'a>(
     priority: &Priority,

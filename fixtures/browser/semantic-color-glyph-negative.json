@@ -1,0 +1,11 @@
+{
+  "application": "owned corpus v1",
+  "gtk": "4.22.4",
+  "cairo": "1.18.4",
+  "browser": "Chromium 151.0.7922.173",
+  "sourceText": "Semantic team 😀 é אב",
+  "observedGap": {"node_type": "text-node", "reason": "color-glyphs", "path": "main-content/root/child/2/child/2/child/3", "bounds": [97.26171875,2.015625,17.4677734375,16.4404296875]},
+  "semanticResult": "Applied and SemanticReady for revision 4",
+  "mirrorResult": "Applied revision 4, then incomplete visual coverage failure and disconnect; no Presented for that frame",
+  "scope": "S5 live owned-display companion observation; no arbitrary emoji/color-font support or raster fallback claim"
+}

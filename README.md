@@ -143,3 +143,15 @@ The retained [two-mirror report](fixtures/render/native-corpus.json) contains so
 Unsupported required variants fail explicitly.
 The measured GTK scope is cooperating content under declared styles; it does not establish arbitrary application or whole-desktop coverage.
 See the [case audit](conformance/CASES.md) for the accepted integration, visual, recovery and hardening evidence.
+
+The owned host can provision a second approved identity with `--second-client`.
+Its separate file is `second-client.credential`, for instance ID
+`04040404040404040404040404040404`; the original uses ID `03` repeated sixteen
+times. Both can request the single control lease, so release before handoff. These
+files are caller-owned secrets; keep them out of URLs and bundles. With this option,
+the host's local stdin console accepts `restart` (bounded owned source replacement)
+and `observer-first` (revoke/reprovision client 03 as read-only). The latter replaces
+its credential file; reload it explicitly before reconnecting. Commands are local
+operator actions and have no network endpoint. Enter still stops the demo.
+`--application editor --partial-collection` materializes two of ten real owned
+documents and advertises a partial collection.

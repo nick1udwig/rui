@@ -21,8 +21,9 @@ use tokio::sync::watch;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 const CLIENT_ID: [u8; 16] = [3; 16];
 const CLIENT_HEX: &str = "03030303030303030303030303030303";
+const SECOND_CLIENT_ID: [u8; 16] = [4; 16];
 const USAGE: &str =
-    "usage: rui-demo [--host-only] [--application corpus|editor] [--listen ADDRESS:PORT] [--identity-dir NEW_DIRECTORY] [--browser-origin EXACT_ORIGIN]";
+    "usage: rui-demo [--host-only] [--second-client] [--partial-collection] [--application corpus|editor] [--listen ADDRESS:PORT] [--identity-dir NEW_DIRECTORY] [--browser-origin EXACT_ORIGIN]";
 
 struct Config {
     host_only: bool,
@@ -30,10 +31,14 @@ struct Config {
     address: SocketAddr,
     directory: PathBuf,
     application: String,
+    second_client: bool,
+    partial_collection: bool,
 }
 impl Config {
     fn parse() -> Result<Option<Self>, Error> {
         let mut host_only = false;
+        let mut second_client = false;
+        let mut partial_collection = false;
         let mut browser_origins = Vec::new();
         let mut address = "127.0.0.1:0".parse()?;
         let mut directory = None;
@@ -46,6 +51,8 @@ impl Config {
                     return Ok(None);
                 }
                 "--host-only" => host_only = true,
+                "--second-client" => second_client = true,
+                "--partial-collection" => partial_collection = true,
                 "--application" => {
                     application = args.next().ok_or(USAGE)?;
                     if !matches!(application.as_str(), "corpus" | "editor") {
@@ -57,6 +64,9 @@ impl Config {
                 "--identity-dir" => directory = Some(PathBuf::from(args.next().ok_or(USAGE)?)),
                 _ => return Err(USAGE.into()),
             }
+        }
+        if partial_collection && application != "editor" {
+            return Err("--partial-collection requires --application editor".into());
         }
         let directory = directory.unwrap_or_else(|| {
             std::env::temp_dir().join(format!(
@@ -74,6 +84,8 @@ impl Config {
             address,
             directory,
             application,
+            second_client,
+            partial_collection,
         }))
     }
 }
@@ -164,6 +176,32 @@ fn identity(directory: &Path) -> Result<HostIdentity, Error> {
 struct Ready {
     options: Options,
     stop: watch::Sender<bool>,
+    console: tokio::sync::mpsc::Sender<ConsoleAction>,
+    second_client: bool,
+}
+enum ConsoleAction {
+    Restart,
+    ObserverFirst,
+}
+fn source_command(
+    repository: &Path,
+    application: &str,
+    directory: &Path,
+    partial: bool,
+) -> Command {
+    let mut source = Command::new("python3");
+    source
+        .arg(repository.join(if application == "editor" {
+            "demos/editor/app.py"
+        } else {
+            "demos/gtk_host.py"
+        }))
+        .arg("--output")
+        .arg(directory);
+    if partial {
+        source.arg("--partial-documents");
+    }
+    source
 }
 
 async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Error> {
@@ -172,54 +210,66 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
     let certificate = identity.pinned_certificate();
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
     let source_directory = directory.0.join("source");
-    let mut source = Command::new("python3");
-    source
-        .arg(repository.join(if config.application == "editor" {
-            "demos/editor/app.py"
-        } else {
-            "demos/gtk_host.py"
-        }))
-        .arg("--output")
-        .arg(&source_directory);
+    let source = source_command(
+        &repository,
+        &config.application,
+        &source_directory,
+        config.partial_collection,
+    );
     let host = GtkCommandHost::spawn(source, &source_directory)?;
     let port = Arc::new(GtkProducerPort::new(host)?);
-    let mut pairing = PairingAuthority::new(1)?;
-    let request = pairing.request_local_pairing(CLIENT_ID)?;
-    let credential = pairing.approve_local(
-        request.request_id,
-        VerifiedAuthorization {
-            principal: "visual-demo-controller".into(),
-            policy_version: 1,
-            permissions: Permissions {
-                can_view: true,
-                can_control: true,
-                // Use queued semantic edits for the manual playground. The
-                // native wire composition scenarios keep their separate tests.
-                actions: [
-                    "Activate",
-                    "Focus",
-                    "ReplaceText",
-                    "SetSelection",
-                    "SetValue",
-                    "ScrollTo",
-                ]
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
+    let mut pairing = PairingAuthority::new(if config.second_client { 2 } else { 1 })?;
+    let clients = if config.second_client {
+        vec![
+            (CLIENT_ID, "client.credential"),
+            (SECOND_CLIENT_ID, "second-client.credential"),
+        ]
+    } else {
+        vec![(CLIENT_ID, "client.credential")]
+    };
+    let mut primary_credential = None;
+    for (number, (client_id, filename)) in clients.into_iter().enumerate() {
+        let request = pairing.request_local_pairing(client_id)?;
+        let credential = pairing.approve_local(
+            request.request_id,
+            VerifiedAuthorization {
+                principal: format!("visual-demo-controller-{number}"),
+                policy_version: 1,
+                permissions: Permissions {
+                    can_view: true,
+                    can_control: true,
+                    // Use queued semantic edits for the manual playground. The
+                    // native wire composition scenarios keep their separate tests.
+                    actions: [
+                        "Activate",
+                        "Focus",
+                        "ReplaceText",
+                        "SetSelection",
+                        "SetValue",
+                        "ScrollTo",
+                    ]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                },
             },
-        },
-    )?;
-    OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(directory.0.join("client.credential"))?
-        .write_all(credential.expose_for_tls_authentication())?;
+        )?;
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(directory.0.join(filename))?
+            .write_all(credential.expose_for_tls_authentication())?;
+        if client_id == CLIENT_ID {
+            primary_credential = Some(credential);
+        }
+    }
+    let pairing = Arc::new(Mutex::new(pairing));
     let server = ProducerServerHandle::bind(
         config.address,
         identity,
         port.clone(),
-        Arc::new(Mutex::new(pairing)),
+        pairing.clone(),
         ServerConfig {
             max_message_bytes: 128 << 10,
             allowed_browser_origins: config.browser_origins,
@@ -228,6 +278,7 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
     )
     .await?;
     let (stop, mut stop_rx) = watch::channel(false);
+    let (console, mut console_rx) = tokio::sync::mpsc::channel(4);
     let (observations, observed) = watch::channel(DesktopObservation::default());
     println!("Visible GTK host listening at {}", server.address);
     println!(
@@ -235,6 +286,10 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
         directory.0.join("host.der").display(),
         directory.0.join("client.credential").display()
     );
+    if config.second_client {
+        println!("Second approved client: {} (ID 04040404040404040404040404040404). Both clients share one control lease.", directory.0.join("second-client.credential").display());
+        println!("Trusted local console: restart replaces the owned source; observer-first revokes/reprovisions client 03 with read-only permission; Enter stops.");
+    }
     if config.host_only {
         println!("Copy those two files to the client machine. Connect with TLS name rui-demo and client ID {CLIENT_HEX}. Keep private keys on the host.");
         println!("Close the host window or press Enter here to stop.");
@@ -260,7 +315,7 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
                 address,
                 server_name: "rui-demo".into(),
                 certificate,
-                credential,
+                credential: primary_credential.ok_or("primary credential missing")?,
                 client_id: CLIENT_ID,
                 view_selection: ViewSelection::Fixture,
                 initial_scale: 0.75,
@@ -271,15 +326,45 @@ async fn serve(config: Config, ready: mpsc::SyncSender<Ready>) -> Result<(), Err
                 shutdown_signal: Some(stop_rx.clone()),
             },
             stop: stop.clone(),
+            console,
+            second_client: config.second_client,
         })
         .map_err(|_| "demo window launcher closed")?;
     let origin = Instant::now();
     let mut supervision = tokio::time::interval(Duration::from_millis(250));
     supervision.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut client_initialized = config.host_only;
+    let mut replacements = 0usize;
     let result = loop {
         tokio::select! {
             _ = stop_rx.changed() => break Ok(()),
+            Some(action) = console_rx.recv(), if config.second_client => {
+                match action {
+                    ConsoleAction::Restart => {
+                        replacements += 1;
+                        let next = directory.0.join(format!("source-replacement-{replacements}"));
+                        let command = source_command(&repository, &config.application, &next, config.partial_collection);
+                        port.restart_source(command, next, u64::try_from(origin.elapsed().as_millis()).unwrap_or(u64::MAX)).await?;
+                        println!("Owned source replaced; control must be acquired explicitly.");
+                    }
+                    ConsoleAction::ObserverFirst => {
+                        let credential = {
+                            let mut pairing = pairing.lock().unwrap_or_else(|p| p.into_inner());
+                            pairing.revoke_local(CLIENT_ID);
+                            let request = pairing.request_local_pairing(CLIENT_ID)?;
+                            pairing.approve_local(request.request_id, VerifiedAuthorization {
+                                principal: "visual-demo-controller-0".into(), policy_version: 2,
+                                permissions: Permissions { can_view: true, can_control: false, actions: Default::default() },
+                            })?
+                        };
+                        let pending = directory.0.join("observer.credential");
+                        OpenOptions::new().write(true).create_new(true).mode(0o600).open(&pending)?
+                            .write_all(credential.expose_for_tls_authentication())?;
+                        fs::rename(pending, directory.0.join("client.credential"))?;
+                        println!("First client permission reduced; reload its caller-owned credential to reconnect as observer.");
+                    }
+                }
+            }
             _ = supervision.tick() => {
                 if !client_initialized {
                     let current = *observed.borrow();
@@ -350,13 +435,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let gui_result = if host_only {
         let stop = ready.stop.clone();
+        let console = ready.console.clone();
+        let second_client = ready.second_client;
         std::thread::spawn(move || {
-            let mut line = String::new();
-            if std::io::stdin()
-                .read_line(&mut line)
-                .is_ok_and(|count| count > 0)
-            {
-                stop.send_replace(true);
+            use std::io::{BufRead, Read};
+            let mut input = std::io::stdin().lock();
+            loop {
+                let mut line = Vec::new();
+                let Ok(count) = input.by_ref().take(257).read_until(b'\n', &mut line) else {
+                    break;
+                };
+                if count == 0 {
+                    break;
+                }
+                if line.len() > 256 {
+                    stop.send_replace(true);
+                    break;
+                }
+                let action = match String::from_utf8_lossy(&line).trim() {
+                    "restart" if second_client => Some(ConsoleAction::Restart),
+                    "observer-first" if second_client => Some(ConsoleAction::ObserverFirst),
+                    _ => None,
+                };
+                if let Some(action) = action {
+                    if console.blocking_send(action).is_err() {
+                        break;
+                    }
+                } else {
+                    stop.send_replace(true);
+                    break;
+                }
             }
         });
         Ok(())

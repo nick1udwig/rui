@@ -76,3 +76,12 @@ cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_c
 python3 fixtures/gtk/native_check.py --case editor --xvfb /path/to/Xvfb --output /tmp/rui-editor-NEW
 python3 fixtures/gtk/incremental_check.py --root fixtures/gtk/editor-golden --report fixtures/gtk/editor-interaction.json
 ```
+
+RegisteredApplication observes each capture's native size at frame boundaries.
+A changed allocation marks the source dirty; unchanged frame ticks produce no
+publication. GtkProducerPort.restart_source is a bounded trusted supervisor API,
+serialized with source dispatch/capture. It revokes old source authority, retires
+identities, switches the native lifecycle fence, and keeps the broker/command ledger
+and view scopes. It is not decoded from a peer command. Reacquire explicitly after
+the replacement publication. Cancellation before owner execution drops the queued
+operation; a completed replacement is never transparently replayed.
