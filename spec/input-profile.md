@@ -50,7 +50,7 @@ Commit consumes the original Begin scalar range once, applies the native GtkEdit
 Exact retries return the common ledger's retained result.
 
 `text.clock.gtk-editable4224.v1` is an optional GTK 4.22.4 clock contract.
-This producer offers it when its native capture declares that exact toolkit version; the client must explicitly support it.
+The historical snapshot producer offered it for its measured native clocks; the client must explicitly support it. The current incremental GTK producer does not offer it: public content/record clocks advance once per canonical change, regardless of internal clear/insert steps. Its clients use the standard conservative clock policy with exact Applied/Surface causal confirmation. The host retains the public-to-source clock mapping and execution-time ABA checks. A toolkit version alone cannot justify advertising a native-clock formula after projection normalizes clocks.
 It is absent from core session defaults and the required profile set.
 Source replacement cannot change the pinned toolkit version beneath an existing broker epoch that offered this contract.
 

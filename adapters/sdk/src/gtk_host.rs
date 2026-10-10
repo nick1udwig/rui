@@ -521,11 +521,9 @@ impl GtkCommandHost {
         config
             .supported_profiles
             .insert("glyph.outline-single.v1".into());
-        if capture.artifact.manifest()["gtk_version"] == serde_json::json!([4, 22, 4]) {
-            config
-                .supported_profiles
-                .insert("text.clock.gtk-editable4224.v1".into());
-        }
+        // Incremental projections use canonical public clocks, not GTK's
+        // clear/insert/caret callback counts. Do not advertise the native-clock
+        // formula; standard CLIENT_TEXT causal confirmation remains supported.
         let sessions = SessionBroker::with_memory_budget(
             context.scope.session_id,
             context.scope.epoch,
@@ -2565,7 +2563,6 @@ mod tests {
                 "content.no-raster.v1",
                 "glyph.outline-single.v1",
                 "semantics.only.v1",
-                "text.clock.gtk-editable4224.v1",
             ]
             .into_iter()
             .map(str::to_owned)

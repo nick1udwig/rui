@@ -15,10 +15,11 @@ async fn capture_pair(
     vector: &Path,
     observations: &[watch::Receiver<DesktopObservation>],
     budget: &MemoryBudget,
+    diagnostics: &Diagnostics,
 ) -> Result<(Value, Value)> {
     let path = retain(&latest(source)?, vector)?;
-    let controller = compare(&path, vector, &observations[0], budget).await?;
-    let observer = compare(&path, vector, &observations[1], budget).await?;
+    let controller = compare(&path, vector, &observations[0], budget, diagnostics).await?;
+    let observer = compare(&path, vector, &observations[1], budget, diagnostics).await?;
     Ok((json!([controller.proof, observer.proof]), document(&path)?))
 }
 pub async fn drive(
@@ -43,13 +44,14 @@ pub async fn drive(
     )?;
     wait(&observations[0], |o| {
         o.wire_composition
-            && o.gtk_composition_clock
+            && !o.gtk_composition_clock
             && o.input_ready
             && o.editing_target.is_some()
             && o.displayed.is_some_and(|d| d.stamp.revision == 2)
     })
     .await?;
-    let (focused, focused_text) = capture_pair(source, &vector, observations, budget).await?;
+    let (focused, focused_text) =
+        capture_pair(source, &vector, observations, budget, diagnostics).await?;
     if observations[1].borrow().wire_composition {
         return Err("observer unexpectedly owns native composition".into());
     }
@@ -61,7 +63,8 @@ pub async fn drive(
             && o.displayed.is_some_and(|d| d.stamp.revision == 3)
     })
     .await?;
-    let (ascii, ascii_text) = capture_pair(source, &vector, observations, budget).await?;
+    let (ascii, ascii_text) =
+        capture_pair(source, &vector, observations, budget, diagnostics).await?;
     if ascii_text["content"] != "a" || ascii_text["selection"] != json!([1, 1]) {
         return Err("native ASCII commit/caret differs".into());
     }
@@ -108,7 +111,8 @@ pub async fn drive(
             && o.displayed.is_some_and(|d| d.stamp.revision == 4)
     })
     .await?;
-    let (unicode, unicode_text) = capture_pair(source, &vector, observations, budget).await?;
+    let (unicode, unicode_text) =
+        capture_pair(source, &vector, observations, budget, diagnostics).await?;
     if unicode_text["content"] != "aé" || unicode_text["selection"] != json!([2, 2]) {
         return Err("native Unicode composition did not commit once at scalar caret".into());
     }
@@ -123,7 +127,8 @@ pub async fn drive(
             && o.displayed.is_some_and(|d| d.stamp.revision == 6)
     })
     .await?;
-    let (rapid, rapid_text) = capture_pair(source, &vector, observations, budget).await?;
+    let (rapid, rapid_text) =
+        capture_pair(source, &vector, observations, budget, diagnostics).await?;
     if rapid_text["content"] != "aéxy" || rapid_text["selection"] != json!([4, 4]) {
         return Err("rapid native commits lost scalar order/caret".into());
     }
@@ -186,9 +191,10 @@ pub async fn drive(
     Ok(json!({
         "mode":"actual-native-gtk-wire-composition-mirror",
         "presentation_scope":"actual GTK Canvas snapshot/after-paint before every admitted wire stage and before rebased next composition; no simulated Presented",
-        "source_scope":"cooperating GTK4.22.4 native editable, guarded private transient state, common ledger and scalar commit; exact focus-Surface causal token with negotiated text.clock.gtk-editable4224.v1",
-        "selected_clock_profile":"text.clock.gtk-editable4224.v1",
-        "clock_profile_evidence":"Actual client selected-profile observation; recorder excludes credential handshake/ServerHello.",
+        "source_scope":"cooperating GTK4.22.4 native editable, guarded private transient state, common ledger and scalar commit; exact focus-Surface causal token and canonical public transaction clocks",
+        "selected_clock_profile":null,
+        "clock_policy":"standard-public-clocks",
+        "clock_profile_evidence":"Actual client observes the native GTK clock profile absent; recorder excludes credential handshake/ServerHello.",
         "observer_scope":"separate Rust receiver/renderer instance; transient preedit never publishes document content",
         "initial":[initial.0.proof,initial.1.proof],"focused":focused,"focused_text":focused_text,
         "ascii":ascii,"ascii_text":ascii_text,"unicode":unicode,"unicode_text":unicode_text,

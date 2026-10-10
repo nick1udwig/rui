@@ -1,0 +1,2044 @@
+{
+  "passed": true,
+  "mode": "semanticOnly",
+  "clientId": "03030303030303030303030303030303",
+  "state": {
+    "revision": "20",
+    "records": {
+      "2": {
+        "Session": {
+          "id": "2",
+          "version": "19",
+          "canvas": {
+            "x": 0,
+            "y": 0,
+            "width": 720,
+            "height": 600
+          },
+          "cursor": null,
+          "focus": {
+            "kind": "Semantic",
+            "id": "511"
+          },
+          "focus_surface": {
+            "kind": "Surface",
+            "id": "529"
+          },
+          "focus_generation": "10"
+        }
+      },
+      "502": {
+        "Semantic": {
+          "id": "502",
+          "version": "1",
+          "role": "Root",
+          "label": "Document editor",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "503"
+            },
+            {
+              "kind": "Semantic",
+              "id": "504"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "503": {
+        "Semantic": {
+          "id": "503",
+          "version": "1",
+          "role": "Group",
+          "label": "Document form",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "510"
+            },
+            {
+              "kind": "Semantic",
+              "id": "511"
+            },
+            {
+              "kind": "Semantic",
+              "id": "513"
+            },
+            {
+              "kind": "Semantic",
+              "id": "515"
+            },
+            {
+              "kind": "Semantic",
+              "id": "521"
+            },
+            {
+              "kind": "Semantic",
+              "id": "523"
+            },
+            {
+              "kind": "Semantic",
+              "id": "525"
+            },
+            {
+              "kind": "Semantic",
+              "id": "527"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "504": {
+        "Semantic": {
+          "id": "504",
+          "version": "1",
+          "role": "List",
+          "label": "Documents",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "506"
+            },
+            {
+              "kind": "Semantic",
+              "id": "508"
+            }
+          ],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ScrollTo",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": {
+            "version": "1",
+            "items": [
+              {
+                "kind": "Semantic",
+                "id": "506"
+              },
+              {
+                "kind": "Semantic",
+                "id": "508"
+              }
+            ],
+            "total_count": "10",
+            "materialization": "Partial",
+            "selected_items": [
+              {
+                "kind": "Semantic",
+                "id": "506"
+              }
+            ]
+          },
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "506": {
+        "Semantic": {
+          "id": "506",
+          "version": "1",
+          "role": "ListItem",
+          "label": "Field notes",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "True"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "508": {
+        "Semantic": {
+          "id": "508",
+          "version": "1",
+          "role": "ListItem",
+          "label": "Tasks",
+          "description": null,
+          "value": null,
+          "states": {
+            "Selected": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "510": {
+        "Semantic": {
+          "id": "510",
+          "version": "2",
+          "role": "Label",
+          "label": "Saved 1 times",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "511": {
+        "Semantic": {
+          "id": "511",
+          "version": "1",
+          "role": "TextField",
+          "label": "Title",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False",
+            "ReadOnly": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ReplaceText",
+              "schema_version": 1
+            },
+            {
+              "id": "SetSelection",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": {
+            "kind": "Text",
+            "id": "531"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "513": {
+        "Semantic": {
+          "id": "513",
+          "version": "1",
+          "role": "TextField",
+          "label": "Body",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False",
+            "ReadOnly": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "ReplaceText",
+              "schema_version": 1
+            },
+            {
+              "id": "SetSelection",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": {
+            "kind": "Text",
+            "id": "532"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "515": {
+        "Semantic": {
+          "id": "515",
+          "version": "1",
+          "role": "Button",
+          "label": "Save document",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "517": {
+        "Semantic": {
+          "id": "517",
+          "version": "1",
+          "role": "Root",
+          "label": "Document details",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [
+            {
+              "kind": "Semantic",
+              "id": "518"
+            },
+            {
+              "kind": "Semantic",
+              "id": "519"
+            }
+          ],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "518": {
+        "Semantic": {
+          "id": "518",
+          "version": "1",
+          "role": "Label",
+          "label": "Changes belong to this source document.",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "519": {
+        "Semantic": {
+          "id": "519",
+          "version": "1",
+          "role": "Button",
+          "label": "Close details",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "521": {
+        "Semantic": {
+          "id": "521",
+          "version": "1",
+          "role": "Button",
+          "label": "Document details",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "523": {
+        "Semantic": {
+          "id": "523",
+          "version": "1",
+          "role": "Button",
+          "label": "Replace title control",
+          "description": null,
+          "value": null,
+          "states": {
+            "Disabled": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "Activate",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "525": {
+        "Semantic": {
+          "id": "525",
+          "version": "1",
+          "role": "Checkbox",
+          "label": "Reviewed",
+          "description": null,
+          "value": {
+            "Boolean": false
+          },
+          "states": {
+            "Disabled": "False",
+            "Checked": "False"
+          },
+          "children": [],
+          "relations": [],
+          "actions": [
+            {
+              "id": "SetValue",
+              "schema_version": 1
+            },
+            {
+              "id": "Focus",
+              "schema_version": 1
+            }
+          ],
+          "text": null,
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "527": {
+        "Semantic": {
+          "id": "527",
+          "version": "1",
+          "role": "TextField",
+          "label": "Private field",
+          "description": null,
+          "value": null,
+          "states": {},
+          "children": [],
+          "relations": [],
+          "actions": [],
+          "text": {
+            "kind": "Text",
+            "id": "533"
+          },
+          "collection": null,
+          "bindings": [],
+          "semantic_group": null,
+          "reading_order": null,
+          "sensitivity": "Public",
+          "completeness": "Full"
+        }
+      },
+      "529": {
+        "Surface": {
+          "id": "529",
+          "version": "3",
+          "role": "Toplevel",
+          "parent": null,
+          "desktop_rect": {
+            "x": 0,
+            "y": 0,
+            "width": 620,
+            "height": 390
+          },
+          "content_size": {
+            "width": 620,
+            "height": 390
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "0",
+          "mapped": true,
+          "focused": true,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "502"
+          },
+          "input_region": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 620,
+              "height": 390
+            }
+          ],
+          "routing_token": [
+            184,
+            108,
+            10,
+            175,
+            19,
+            94,
+            145,
+            252,
+            200,
+            25,
+            232,
+            198,
+            164,
+            196,
+            111,
+            189
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              100,
+              55,
+              56,
+              55,
+              100,
+              99,
+              99,
+              98,
+              102,
+              56,
+              51,
+              99,
+              52,
+              100,
+              48,
+              54,
+              57,
+              55,
+              99,
+              102,
+              56,
+              54,
+              48,
+              55,
+              101,
+              57,
+              57,
+              48,
+              56,
+              99,
+              53,
+              98,
+              58,
+              109,
+              97,
+              105,
+              110,
+              45,
+              99,
+              111,
+              110,
+              116,
+              101,
+              110,
+              116,
+              58,
+              50,
+              52,
+              58,
+              51
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "530": {
+        "Surface": {
+          "id": "530",
+          "version": "3",
+          "role": "Toplevel",
+          "parent": {
+            "kind": "Surface",
+            "id": "529"
+          },
+          "desktop_rect": {
+            "x": 180,
+            "y": 80,
+            "width": 0,
+            "height": 0
+          },
+          "content_size": {
+            "width": 0,
+            "height": 0
+          },
+          "transform": {
+            "xx": 1,
+            "yx": 0,
+            "xy": 0,
+            "yy": 1,
+            "tx": 0,
+            "ty": 0
+          },
+          "clip": null,
+          "opacity": 1,
+          "stacking_order": "1",
+          "mapped": false,
+          "focused": false,
+          "modal_for": null,
+          "scene_root": null,
+          "semantic_root": {
+            "kind": "Semantic",
+            "id": "517"
+          },
+          "input_region": [],
+          "routing_token": [
+            24,
+            34,
+            35,
+            3,
+            155,
+            220,
+            133,
+            226,
+            15,
+            164,
+            109,
+            35,
+            194,
+            212,
+            161,
+            197
+          ],
+          "visual_coverage": "Unsupported",
+          "semantic_coverage": "Rich",
+          "capture_consistency": "Coherent",
+          "source_capture_tokens": [
+            [
+              100,
+              55,
+              56,
+              55,
+              100,
+              99,
+              99,
+              98,
+              102,
+              56,
+              51,
+              99,
+              52,
+              100,
+              48,
+              54,
+              57,
+              55,
+              99,
+              102,
+              56,
+              54,
+              48,
+              55,
+              101,
+              57,
+              57,
+              48,
+              56,
+              99,
+              53,
+              98,
+              58,
+              100,
+              101,
+              116,
+              97,
+              105,
+              108,
+              115,
+              58,
+              50,
+              52,
+              58,
+              117,
+              110,
+              109,
+              97,
+              112,
+              112,
+              101,
+              100,
+              58,
+              51
+            ]
+          ],
+          "unsupported_features": [
+            "semantic-only-projection"
+          ]
+        }
+      },
+      "531": {
+        "Text": {
+          "id": "531",
+          "version": "5",
+          "text_version": "4",
+          "status": "Available",
+          "content": "Field notes",
+          "selection": {
+            "anchor": "0",
+            "focus": "11"
+          },
+          "editable": true,
+          "selectable": true
+        }
+      },
+      "532": {
+        "Text": {
+          "id": "532",
+          "version": "5",
+          "text_version": "5",
+          "status": "Available",
+          "content": "caf\u00e9 \u03a9 \ud834\udd1e e\u0301 \u05e9\u05dc\u05d5\u05dd",
+          "selection": {
+            "anchor": "0",
+            "focus": "0"
+          },
+          "editable": true,
+          "selectable": true
+        }
+      },
+      "533": {
+        "Text": {
+          "id": "533",
+          "version": "1",
+          "text_version": "1",
+          "status": "Redacted",
+          "content": null,
+          "selection": null,
+          "editable": false,
+          "selectable": false
+        }
+      }
+    },
+    "retired": []
+  },
+  "evidence": [
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280232d20108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d064880012244080110011a0841637469766174651a05466f6375731a0b5265706c616365546578741a085363726f6c6c546f1a0c53657453656c656374696f6e1a0853657456616c75652a1086fb9f81aad69d5289c3267b071e1634"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280432400a1001010101010101010000000000000001110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c792a0b73656d616e7469632e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280a323d0a10145cbaa8d50a8d3cf8370bfc1514a32b180120b70c280130163a20feb4ccf6ac7d7baad62edee774fb51f195cae9cec961fa095b0040a5d8f62552"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32cc0c0a10145cbaa8d50a8d3cf8370bfc1514a32b1ab70c080112d9010ad601081e100118012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01103a9875f6ac145f92089a69629f3560a5900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a32303a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12ba010ab701081f1001180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110c5f1b53e2706e5ad42d3d9753c9a3470900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a32303a756e6d61707065643a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e122b1a29080310011801220f446f63756d656e7420656469746f72420408031004420408031005800101880101124d1a4b080410011802220d446f63756d656e7420666f726d42040803100b42040803100c42040803100e42040803101042040803101642040803101842040803101a42040803101c800101880101124d1a4b0805100118072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180801120408031007120408031009180a20022a0408031007800101880101123a1a38080710011808220b4669656c64206e6f7465733a0408031002520c0a084163746976617465100152090a05466f637573100180010188010112341a3208091001180822055461736b733a0408031001520c0a084163746976617465100152090a05466f6375731001800101880101121d1a1b080b10011806220d536176656420302074696d657380010188010112551a53080c1001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a040804102080010188010112541a52080e100118052204426f64793a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0408041021800101880101123c1a3a081010011803220d5361766520646f63756d656e743a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101123f1a3d0816100118032210446f63756d656e742064657461696c733a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112441a4208181001180322155265706c616365207469746c6520636f6e74726f6c3a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112411a3f081a1001180422085265766965776564320210003a04080110013a0408021001520c0a0853657456616c7565100152090a05466f637573100180010188010112231a21081c10011805220d50726976617465206669656c645a0408041022800101880101122c1a2a0812100118012210446f63756d656e742064657461696c7342040803101342040803101480010188010112371a3508131001180622274368616e6765732062656c6f6e6720746f207468697320736f7572636520646f63756d656e742e800101880101123c1a3a081410011803220d436c6f73652064657461696c733a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101121f221d08201005180420012a0b4669656c64206e6f7465733202100b38014001122c222a08211005180520012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d320038014001120a2208082210011801200312283226080210011a12190000000000808640210000000000c082402a040803100c32040801101e3803221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10145cbaa8d50a8d3cf8370bfc1514a32b10b70c180120162a20feb4ccf6ac7d7baad62edee774fb51f195cae9cec961fa095b0040a5d8f62552"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020801"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020801"
+    },
+    {
+      "direction": "sent",
+      "kind": 40,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282832120a1003030303030303030000000000000001"
+    },
+    {
+      "direction": "received",
+      "kind": 41,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282932690a10eccc63775d9a458500000000000000021002188c2e220841637469766174652205466f637573220b5265706c6163655465787422085363726f6c6c546f220c53657453656c656374696f6e220853657456616c75652a1003030303030303030000000000000001"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001283232620a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320012a10eccc63775d9a458500000000000000023002381042084163746976617465480150015a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323a080112074170706c696564222b65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a32343a322802"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a100c4865be411982ddd339af39bf597a6a10011802208004280130033a206fcc0556cd25de1b82e2e84c7b9f90cd5972973e02a0518a820b7e6aa7cfaf30"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c3295040a100c4865be411982ddd339af39bf597a6a1a8004080110021adc010ad9010ad601081e100218012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110229883d409e06338735eda2705958bf0900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a32343a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1002180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a011091716b4ed5e0696884be49ac2aa9fd36900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a32343a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a1f0a1d1a1b080b10021806220d536176656420312074696d65738001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a100c4865be411982ddd339af39bf597a6a108004180120032a206fcc0556cd25de1b82e2e84c7b9f90cd5972973e02a0518a820b7e6aa7cfaf30"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020802"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020802"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012832325f0a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320022a10eccc63775d9a458500000000000000023002380c4205466f637573480150025a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323a080212074170706c696564222b65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a32343a332803"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10c0500a46bfd8d2eee1f0d31487ec16f21002180320df03280130023a204597e6c9265cb6bbf0eb151bfa0018f95d48c36fab518cfbb602fb843d3cb220"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32f4030a10c0500a46bfd8d2eee1f0d31487ec16f21adf03080210031adc010ad9010ad601081e100318012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110b9036683b104196dea9df70601fda6e6900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a32343a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1003180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110e57cdbf40e296bc1d46460a6bfc7bfe7900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a32343a756e6d61707065643a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10c0500a46bfd8d2eee1f0d31487ec16f210df03180120022a204597e6c9265cb6bbf0eb151bfa0018f95d48c36fab518cfbb602fb843d3cb220"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020803"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020803"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128323288010a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320032a10eccc63775d9a458500000000000000023002380c420b5265706c61636554657874480150035a06080110042003721f100b1a1b53656d616e746963207465616d20f09d849e2065cc8120d790d791"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323a080312074170706c696564222b65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a32383a342804"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a1027c37d94f82d536b8813009c204bc3701003180420e204280130043a205f2135c4bf6cb4ad6fd0ae46f2a0a62f5d2d8abbb6f2a6a9ef1904799011cf96"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32f7040a1027c37d94f82d536b8813009c204bc3701ae204080310041adc010ad9010ad601081e100418012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110a8446c840c641da6ebb6d9897891bb17900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a32383a34b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1004180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01108055f311ab27b50373b2f7cbee69b526900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a32383a756e6d61707065643a34b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a4c0a4a1a48080710021808221b53656d616e746963207465616d20f09d849e2065cc8120d790d7913a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a330a31222f08201006180520012a1b53656d616e746963207465616d20f09d849e2065cc8120d790d791320408151015380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a1027c37d94f82d536b8813009c204bc37010e204180120042a205f2135c4bf6cb4ad6fd0ae46f2a0a62f5d2d8abbb6f2a6a9ef1904799011cf96"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020804"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020804"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001283232640a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320042a10eccc63775d9a458500000000000000023002380942084163746976617465480150045a04080118016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323a080412074170706c696564222b65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a33393a352805"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10c675412c7ad405eec4a3d3b20421fdde1004180520fa05280130073a205c0358420fd434f2348b673f8aad2e649c3140d9745bf6b5a0e51130a3a1e92d"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c328f060a10c675412c7ad405eec4a3d3b20421fdde1afa05080410051adc010ad9010ad601081e100518012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110fb460cfa31a9b07b0542244c0963d19f900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a33393a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1005180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110cbb90775cdf6493f8176c878735ac0f0900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a33393a756e6d61707065643a35b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a4f0a4d1a4b0805100218072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180802120408031007120408031009180a20022a04080310098001018801011a4c0a4a1a48080710031808221b53656d616e746963207465616d20f09d849e2065cc8120d790d7913a0408031001520c0a084163746976617465100152090a05466f63757310018001018801011a360a341a3208091002180822055461736b733a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a190a17221508201007180620012a055461736b733200380140011a270a25222308211006180620012a13526561642c2077726974652c207265766965773200380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10c675412c7ad405eec4a3d3b20421fdde10fa05180120072a205c0358420fd434f2348b673f8aad2e649c3140d9745bf6b5a0e51130a3a1e92d"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020805"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012832325f0a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320052a10eccc63775d9a458500000000000000023002380c4205466f637573480150055a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323a080512074170706c696564222b65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a33393a362806"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a1016172b5cef393748375f9b49bc4c74dd1005180620fc03280130033a208809dc8403b1d117c42c41b86cd0761bf98259776c214dfa251a59db4a3bdaa9"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c3291040a1016172b5cef393748375f9b49bc4c74dd1afc03080510061adc010ad9010ad601081e100618012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a011001e723f433aa951fc77eea41e11ca135900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a33393a36b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1006180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110df1acbb841db6f76cdbc490a5b60e3a5900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a33393a756e6d61707065643a36b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a1b0a19221708201008180620012a055461736b7332021005380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a1016172b5cef393748375f9b49bc4c74dd10fc03180120032a208809dc8403b1d117c42c41b86cd0761bf98259776c214dfa251a59db4a3bdaa9"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020806"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020806"
+    },
+    {
+      "direction": "sent",
+      "kind": 43,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282b32260a10030303030303030300000000000000021210eccc63775d9a458500000000000000021802"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10f3680ec9c37c2308c9297a70de7531e710061807208004280130033a2070877ed73e67a349d9c370dddcef1873e86f52d27fec7652bb0110445475e53a"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c3295040a10f3680ec9c37c2308c9297a70de7531e71a8004080610071adc010ad9010ad601081e100718012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01102bb2747978240dcf2bbb6db58ffef662900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a34333a37b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1007180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01109961629a7e480385597687de78102bbd900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a34333a756e6d61707065643a37b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a1f0a1d1a1b080b10031806220d536176656420322074696d65738001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10f3680ec9c37c2308c9297a70de7531e7108004180120032a2070877ed73e67a349d9c370dddcef1873e86f52d27fec7652bb0110445475e53a"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020807"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020807"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10648b41f025b20379ab38435a5d1f391d1007180820df03280130023a20c2dd76927a2b5e224f98317fc1d5c5fdb7d8b2d7a729a3fa6cf89e82e5f26f48"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32f4030a10648b41f025b20379ab38435a5d1f391d1adf03080710081adc010ad9010ad601081e100818012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110898609ca4de90600b549682ae2508d41900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a34333a38b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1008180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01100defdcaaac57ba3d81982d96b96e5506900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a34333a756e6d61707065643a38b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10648b41f025b20379ab38435a5d1f391d10df03180120022a20c2dd76927a2b5e224f98317fc1d5c5fdb7d8b2d7a729a3fa6cf89e82e5f26f48"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020808"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020808"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a103e91fd032b5490a74601d4c5443b20741008180920de04280130043a20a81797f3c9e7ae1e7cc42dcaa4f832e04d93db9f5b11131c832d72012ebfe6bf"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32f3040a103e91fd032b5490a74601d4c5443b20741ade04080810091adc010ad9010ad601081e100918012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a0110aa5c7c5314f298aeb48d124fe4bfdbb0900103980101a00101aa013265636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a34373a39b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abd010aba010ab701081f1009180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01106693a412a615fc042032902e5f2f1371900103980101a00101aa013665636363363337373564396134353835616139393532363034303337616465343a64657461696c733a34373a756e6d61707065643a39b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a4a0a481a4608091003180822194d6972726f72207465616d20f09d849e20d7a9d79cd795d79d3a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a310a2f222d08201009180720012a194d6972726f72207465616d20f09d849e20d7a9d79cd795d79d320408121012380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a103e91fd032b5490a74601d4c5443b207410de04180120042a20a81797f3c9e7ae1e7cc42dcaa4f832e04d93db9f5b11131c832d72012ebfe6bf"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e32020809"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282332020809"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a1094e5445e440719c8333c720c696669951009180a20ad06280130073a20f3e573f608b9ac942436fb0a392af68b12614e11c41d89a6d59e3d808872ac84"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32c2060a1094e5445e440719c8333c720c696669951aad060809100a1add010ada010ad701081e100a18012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a011069570f8763a6315d2ee265a452878b64900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a35383a3130b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1abe010abb010ab801081f100a180122040801101e2a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110481bee4011924490c4f7b82caa0e3475900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a35383a756e6d61707065643a3130b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a4f0a4d1a4b0805100318072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180803120408031007120408031009180a20022a04080310078001018801011a4c0a4a1a48080710041808221b53656d616e746963207465616d20f09d849e2065cc8120d790d7913a0408031002520c0a084163746976617465100152090a05466f63757310018001018801011a4a0a481a4608091004180822194d6972726f72207465616d20f09d849e20d7a9d79cd795d79d3a0408031001520c0a084163746976617465100152090a05466f63757310018001018801011a2f0a2d222b0820100a180820012a1b53656d616e746963207465616d20f09d849e2065cc8120d790d7913200380140011a2e0a2c222a08211007180720012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d3200380140012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a1094e5445e440719c8333c720c6966699510ad06180120072a20f3e573f608b9ac942436fb0a392af68b12614e11c41d89a6d59e3d808872ac84"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e3202080a"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080a"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080a"
+    },
+    {
+      "direction": "sent",
+      "kind": 40,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282832120a1003030303030303030000000000000003"
+    },
+    {
+      "direction": "received",
+      "kind": 41,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282932690a10eccc63775d9a45850000000000000004100418c637220841637469766174652205466f637573220b5265706c6163655465787422085363726f6c6c546f220c53657453656c656374696f6e220853657456616c75652a1003030303030303030000000000000003"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001283232620a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320062a10eccc63775d9a4585000000000000000430043816420841637469766174654801500a5a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323b080612074170706c696564222c65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a36393a3131280b"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10bf0dbd5b4ad14480c086af84c764f1a4100a180b20c404280130033a200cf67590d230491151ad5b789768a1e6cda0b3b64db19cfe7e03d9f58dab13fb"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32d9040a10bf0dbd5b4ad14480c086af84c764f1a41ac404080a100b1adb010ad8010ad501081e100b18012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f58017a04080310038201121900000000006083402100000000006078408a01101b8fb2c91ed9a5b9d13117ea6dd54288900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a36393a3131b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1af7010af4010af101081f100b180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f5002580160016a040801101e7a0408031012820112190000000000307040210000000000004d408a01102069cea2ef975cad57f05012b9d5d65e900103980101a00101aa012d65636363363337373564396134353835616139393532363034303337616465343a64657461696c733a36393a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a2a0a283226080210021a12190000000000808640210000000000c082402a040803101432040801101f38042a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10bf0dbd5b4ad14480c086af84c764f1a410c404180120032a200cf67590d230491151ad5b789768a1e6cda0b3b64db19cfe7e03d9f58dab13fb"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e3202080b"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080b"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001283232620a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320072a10eccc63775d9a4585000000000000000430043814420841637469766174654801500b5a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323b080712074170706c696564222c65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a37363a3132280c"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10e6097dba0df170a94bda7ee187f3114d100b180c20e404280130043a20770450ba8161d95ed2a9e88db60a8b82b18f97552f281ba625e790819045cde5"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32f9040a10e6097dba0df170a94bda7ee187f3114d1ae404080b100c1add010ada010ad701081e100c18012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a04080310038201121900000000006083402100000000006078408a01106ceb44009de8156faa8dbffcc98f849b900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a37363a3132b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ae2010adf010adc01081f100c180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110d265cba1774ca9fd1c6b6ec3b9474158900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a37363a756e6d61707065643a3132b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a310a2f222d0820100b180820012a1b53656d616e746963207465616d20f09d849e2065cc8120d790d79132021015380140011a2a0a283226080210031a12190000000000808640210000000000c082402a040803100c32040801101e38052a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10e6097dba0df170a94bda7ee187f3114d10e404180120042a20770450ba8161d95ed2a9e88db60a8b82b18f97552f281ba625e790819045cde5"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e3202080c"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080c"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001283232620a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320082a10eccc63775d9a4585000000000000000430043818420841637469766174654801500c5a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323b080812074170706c696564222c65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a38363a3133280d"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10915cb81c8922ef16c8d2caf9a1db33cd100c180d20a306280130083a20d3b94934325ef7fbac485b0cfd74f63ce2891d60ef47380b49ebbbbce7150e41"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32b8060a10915cb81c8922ef16c8d2caf9a1db33cd1aa306080c100d1add010ada010ad701081e100d18012a12190000000000608340210000000000a078403212090000000000608340110000000000a078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031003820112190000000000608340210000000000a078408a01105a06ad7587a668653b32c043eee0df24900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a38363a3133b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ae2010adf010adc01081f100d180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110285972bd496c49a9d308b97093c605da900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a38363a756e6d61707065643a3133b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a500a4e1a4c080410021802220d446f63756d656e7420666f726d42040803100b42040803100e42040803101042040803101642040803101842040803101a42040803101c420508031081038001018801011a590a571a550881031001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0508041083038001018801011a320a30222e0883031001180120012a1b53656d616e746963207465616d20f09d849e2065cc8120d790d79132021015380140011a2b0a293227080210041a12190000000000808640210000000000c082402a05080310810332040801101e38061a0612040803100c1a061204080410202a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10915cb81c8922ef16c8d2caf9a1db33cd10a306180120082a20d3b94934325ef7fbac485b0cfd74f63ce2891d60ef47380b49ebbbbce7150e41"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e3202080d"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080d"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012832325f0a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000011a100303030303030303030303030303030320092a10eccc63775d9a458500000000000000043004380e4205466f6375734801500d5a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000120012836323b080912074170706c696564222c65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a38393a3134280e"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a10711c590eba0db1e48f83e457ea4bbde6100d180e20e304280130043a209c7e7c2119bbac3127c0374947aec50ce754cfab51a0bffa712e6c5bc781b2b4"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c32f8040a10711c590eba0db1e48f83e457ea4bbde61ae304080d100e1add010ada010ad701081e100e18012a12190000000000608340210000000000a078403212090000000000608340110000000000a078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031003820112190000000000608340210000000000a078408a01108de5a3c43f1f21eb83cd0735b2ec25be900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a38393a3134b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ae2010adf010adc01081f100e180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01102dd867ee44bd5fbc6ac8c8bd5a447bc9900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a38393a756e6d61707065643a3134b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a300a2e222c08211008180720012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d32021010380140011a2a0a283226080210051a12190000000000808640210000000000c082402a040803100e32040801101e38072a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a10711c590eba0db1e48f83e457ea4bbde610e304180120042a209c7e7c2119bbac3127c0374947aec50ce754cfab51a0bffa712e6c5bc781b2b4"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e3202080e"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080e"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280b323f0a1021cfbfbfe9e0cf62250296d16aee7dff100e180f208504280130023a208234eca5657ac1a116d7d4ff48ccbcb21b9e5719cde0c65fb769f93df272c0e4"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280c329a040a1021cfbfbfe9e0cf62250296d16aee7dff1a8504080e100f1add010ada010ad701081e100f18012a12190000000000608440210000000000e079403212090000000000608440110000000000e079403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031003820112190000000000608440210000000000e079408a01102f17b48a47047da15a77ba036c33bda7900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a39303a3135b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ae2010adf010adc01081f100f180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110ec5fc07b1f2b2401339cb311f55d5693900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a39303a756e6d61707065643a3135b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001280d323b0a1021cfbfbfe9e0cf62250296d16aee7dff108504180120022a208234eca5657ac1a116d7d4ff48ccbcb21b9e5719cde0c65fb769f93df272c0e4"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001281e3202080f"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000001200128233202080f"
+    },
+    {
+      "direction": "sent",
+      "kind": 43,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000012001282b32260a10030303030303030300000000000000041210eccc63775d9a458500000000000000041804"
+    },
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280232d20108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d064880012244080110011a0841637469766174651a05466f6375731a0b5265706c616365546578741a085363726f6c6c546f1a0c53657453656c656374696f6e1a0853657456616c75652a1086fb9f81aad69d5289c3267b071e1634"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280432400a1001010101010101010000000000000003110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c792a0b73656d616e7469632e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 34,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000320012822320d0a0b566965774368616e676564"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280a323d0a10d2d16a789d8db8d2124c48906ca1b9b1180f20970d280130163a206f8eafa4126ef946b5234cb4f4affda30d1171fa251729ecfde0bf52871e70a3"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280c32ac0d0a10d2d16a789d8db8d2124c48906ca1b9b11a970d080f12da010ad701081e100f18012a12190000000000608440210000000000e079403212090000000000608440110000000000e079403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031003820112190000000000608440210000000000e079408a01102f17b48a47047da15a77ba036c33bda7900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a39303a3135b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12df010adc01081f100f180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a0110ec5fc07b1f2b2401339cb311f55d5693900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a39303a756e6d61707065643a3135b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e122b1a29080310011801220f446f63756d656e7420656469746f72420408031004420408031005800101880101124e1a4c080410021802220d446f63756d656e7420666f726d42040803100b42040803100e42040803101042040803101642040803101842040803101a42040803101c42050803108103800101880101124d1a4b0805100318072209446f63756d656e7473420408031007420408031009520c0a085363726f6c6c546f100162180803120408031007120408031009180a20022a0408031007800101880101124a1a48080710051808221b53656d616e746963207465616d20f09d849e2065cc8120d790d7913a0408031002520c0a084163746976617465100152090a05466f637573100180010188010112481a4608091005180822194d6972726f72207465616d20f09d849e20d7a9d79cd795d79d3a0408031001520c0a084163746976617465100152090a05466f6375731001800101880101121d1a1b080b10031806220d536176656420322074696d657380010188010112541a52080e100118052204426f64793a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a0408041021800101880101123c1a3a081010011803220d5361766520646f63756d656e743a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101123f1a3d0816100118032210446f63756d656e742064657461696c733a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112441a4208181001180322155265706c616365207469746c6520636f6e74726f6c3a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112411a3f081a1001180422085265766965776564320210003a04080110013a0408021001520c0a0853657456616c7565100152090a05466f637573100180010188010112231a21081c10011805220d50726976617465206669656c645a040804102280010188010112571a550881031001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a050804108303800101880101122c1a2a0812100118012210446f63756d656e742064657461696c7342040803101342040803101480010188010112371a3508131001180622274368616e6765732062656c6f6e6720746f207468697320736f7572636520646f63756d656e742e800101880101123c1a3a081410011803220d436c6f73652064657461696c733a0408011001520c0a084163746976617465100152090a05466f6375731001800101880101122e222c0821100a180920012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d3202101038014001120a220808221001180120031230222e0883031001180120012a1b53656d616e746963207465616d20f09d849e2065cc8120d790d7913202101538014001122832260802100f1a12190000000000808640210000000000c082402a040803100e32040801101e3808221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280d323b0a10d2d16a789d8db8d2124c48906ca1b9b110970d180120162a206f8eafa4126ef946b5234cb4f4affda30d1171fa251729ecfde0bf52871e70a3"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001281e3202080f"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000003200128233202080f"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a1001010101010101010000000000000003200128233202080f"
+    },
+    {
+      "direction": "sent",
+      "kind": 40,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282832120a1003030303030303030000000000000005"
+    },
+    {
+      "direction": "received",
+      "kind": 41,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282932690a10eccc63775d9a45850000000000000005100518e23d220841637469766174652205466f637573220b5265706c6163655465787422085363726f6c6c546f220c53657453656c656374696f6e220853657456616c75652a1003030303030303030000000000000005"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000320012832325f0a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000031a1003030303030303030303030303030303200a2a10eccc63775d9a458500000000000000053005380e4205466f6375734801500f5a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000320012836323b080a12074170706c696564222c65636363363337373564396134353835616139393532363034303337616465343a77686f6c653a39303a31362810"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280b323f0a10ca78dde172dcd9d22ce067caecacd3b6100f1810208504280130023a2035817ed79f4119b20b456b8077fe1607c9d8053d86330b81964b13fa5e8ab2e4"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280c329a040a10ca78dde172dcd9d22ce067caecacd3b61a8504080f10101add010ada010ad701081e101018012a12190000000000608440210000000000e079403212090000000000608440110000000000e079403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a0408031003820112190000000000608440210000000000e079408a01101b536d7c2fa0d79d012b0857d05a880a900103980101a00101aa013365636363363337373564396134353835616139393532363034303337616465343a6d61696e2d636f6e74656e743a39303a3136b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ae2010adf010adc01081f1010180122040801101e2a24090000000000806640110000000000005440190000000000307040210000000000004d403212090000000000307040110000000000004d403a1209000000000000f03f21000000000000f03f49000000000000f03f50027a04080310128a01108d2406ce947906b88933c09f036a670b900103980101a00101aa013765636363363337373564396134353835616139393532363034303337616465343a64657461696c733a39303a756e6d61707065643a3136b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280d323b0a10ca78dde172dcd9d22ce067caecacd3b6108504180120022a2035817ed79f4119b20b456b8077fe1607c9d8053d86330b81964b13fa5e8ab2e4"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001281e32020810"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282332020810"
+    },
+    {
+      "direction": "received",
+      "kind": 44,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282c32270a10eccc63775d9a4585000000000000000510051a11536f757263655265706c6163656d656e74"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280a323c0a10591ab0c68399e355fadc4aec7ac8e9b41811205c280130013a20414d23469c474e077b90ce7d31511330fcb0d7a8afd634f8af20582c0ca374c0"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280c32700a10591ab0c68399e355fadc4aec7ac8e9b41a5c0811121c321a080210111a12190000000000808640210000000000c082403809221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280d323a0a10591ab0c68399e355fadc4aec7ac8e9b4105c180120012a20414d23469c474e077b90ce7d31511330fcb0d7a8afd634f8af20582c0ca374c0"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001281e32020811"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282332020811"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280a323d0a10b1a52ebe5694009ccbf4d20fbf12ec61181220e50c280130163a20accff7bbec40afdcb9313f3e7ff233a2219a9916e3433ae0e3af635241055d7f"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280c32fa0c0a10b1a52ebe5694009ccbf4d20fbf12ec611ae50c081212db010ad801089104100118012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a05080310f6038201121900000000006083402100000000006078408a0110cc2ccf90fc19566873b6ab18c5c61ded900103980101a00101aa013264373837646363626638336334643036393763663836303765393930386335623a6d61696e2d636f6e74656e743a32303a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12bd010aba0108920410011801220508011091042a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a0508031085048a0110efe9804216027d614a7db27112cd3275900103980101a00101aa013664373837646363626638336334643036393763663836303765393930386335623a64657461696c733a32303a756e6d61707065643a31b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e122e1a2c08f60310011801220f446f63756d656e7420656469746f724205080310f7034205080310f80380010188010112561a5408f70310011802220d446f63756d656e7420666f726d4205080310fe034205080310ff0342050803108104420508031083044205080310890442050803108b0442050803108d0442050803108f0480010188010112531a5108f803100118072209446f63756d656e74734205080310fa034205080310fc03520c0a085363726f6c6c546f1001621b08011205080310fa031205080310fc03180a20022a05080310fa03800101880101123b1a3908fa0310011808220b4669656c64206e6f7465733a0408031002520c0a084163746976617465100152090a05466f637573100180010188010112351a3308fc031001180822055461736b733a0408031001520c0a084163746976617465100152090a05466f6375731001800101880101121e1a1c08fe0310011806220d536176656420302074696d657380010188010112571a5508ff031001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a05080410930480010188010112561a54088104100118052204426f64793a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a050804109404800101880101123d1a3b08830410011803220d5361766520646f63756d656e743a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112401a3e088904100118032210446f63756d656e742064657461696c733a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112451a43088b041001180322155265706c616365207469746c6520636f6e74726f6c3a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112421a40088d041001180422085265766965776564320210003a04080110013a0408021001520c0a0853657456616c7565100152090a05466f637573100180010188010112251a23088f0410011805220d50726976617465206669656c645a050804109504800101880101122f1a2d088504100118012210446f63756d656e742064657461696c73420508031086044205080310870480010188010112381a360886041001180622274368616e6765732062656c6f6e6720746f207468697320736f7572636520646f63756d656e742e800101880101123d1a3b08870410011803220d436c6f73652064657461696c733a0408011001520c0a084163746976617465100152090a05466f63757310018001018801011220221e0893041005180420012a0b4669656c64206e6f7465733202100b38014001122d222b0894041005180520012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d320038014001120b2209089504100118012003122a3228080210121a12190000000000808640210000000000c082402a05080310ff0332050801109104380a221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280d323b0a10b1a52ebe5694009ccbf4d20fbf12ec6110e50c180120162a20accff7bbec40afdcb9313f3e7ff233a2219a9916e3433ae0e3af635241055d7f"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001281e32020812"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282332020812"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282332020812"
+    },
+    {
+      "direction": "sent",
+      "kind": 40,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282832120a1003030303030303030000000000000006"
+    },
+    {
+      "direction": "received",
+      "kind": 41,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282932690a10eccc63775d9a458500000000000000061006188f44220841637469766174652205466f637573220b5265706c6163655465787422085363726f6c6c546f220c53657453656c656374696f6e220853657456616c75652a1003030303030303030000000000000006"
+    },
+    {
+      "direction": "sent",
+      "kind": 50,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001283232600a10eccc63775d9a4585aa9952604037ade41210010101010101010100000000000000031a1003030303030303030303030303030303200b2a10eccc63775d9a45850000000000000006300638ff034205466f637573480150125a0208016200"
+    },
+    {
+      "direction": "received",
+      "kind": 54,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000320012836323a080b12074170706c696564222b64373837646363626638336334643036393763663836303765393930386335623a77686f6c653a32303a322813"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280b323f0a10671e9176b1ba9110d062d1a48cd670bd1012181320e403280130023a20aee1f3352f3cfc7d32ece07acb8aef103ccba7c3e9fde305c3bd0157c10d9183"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280c32f9030a10671e9176b1ba9110d062d1a48cd670bd1ae403081210131ade010adb010ad801089104100218012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a05080310f6038201121900000000006083402100000000006078408a01102b186d13c9c219e063a9a6163e0504cd900103980101a00101aa013264373837646363626638336334643036393763663836303765393930386335623a6d61696e2d636f6e74656e743a32303a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ac0010abd010aba0108920410021801220508011091042a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a0508031085048a011035923cf30c72e96a8f109874aaabe867900103980101a00101aa013664373837646363626638336334643036393763663836303765393930386335623a64657461696c733a32303a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e2a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001280d323b0a10671e9176b1ba9110d062d1a48cd670bd10e403180120022a20aee1f3352f3cfc7d32ece07acb8aef103ccba7c3e9fde305c3bd0157c10d9183"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001281e32020813"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000032001282332020813"
+    },
+    {
+      "direction": "sent",
+      "kind": 1,
+      "redacted": true
+    },
+    {
+      "direction": "received",
+      "kind": 2,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280232900108011214636f6e74656e742e6e6f2d7261737465722e763112106d6972726f7232642e636f72652e7631121173656d616e746963732e636f72652e7631121173656d616e746963732e6f6e6c792e76311a2808808008108080021880808008208080802028808080083080808020388080800440a08d06488001220208012a1086fb9f81aad69d5289c3267b071e1634"
+    },
+    {
+      "direction": "sent",
+      "kind": 3,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280332180a0766697874757265120d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 4,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280432330a1001010101010101010000000000000004110000000000808640190000000000c08240220d73656d616e7469632d6f6e6c79"
+    },
+    {
+      "direction": "received",
+      "kind": 34,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a100101010101010101000000000000000420012822320d0a0b566965774368616e676564"
+    },
+    {
+      "direction": "received",
+      "kind": 10,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280a323d0a1042fba0bee977dcdf3a70975880e32902181320e50c280130163a202f3472a108580cd10b76df8a650d36c23fbe8b9d95dc9e5fd8b676247ca5ad68"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280c32fa0c0a1042fba0bee977dcdf3a70975880e329021ae50c081312db010ad801089104100218012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a05080310f6038201121900000000006083402100000000006078408a01102b186d13c9c219e063a9a6163e0504cd900103980101a00101aa013264373837646363626638336334643036393763663836303765393930386335623a6d61696e2d636f6e74656e743a32303a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e12bd010aba0108920410021801220508011091042a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a0508031085048a011035923cf30c72e96a8f109874aaabe867900103980101a00101aa013664373837646363626638336334643036393763663836303765393930386335623a64657461696c733a32303a756e6d61707065643a32b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e122e1a2c08f60310011801220f446f63756d656e7420656469746f724205080310f7034205080310f80380010188010112561a5408f70310011802220d446f63756d656e7420666f726d4205080310fe034205080310ff0342050803108104420508031083044205080310890442050803108b0442050803108d0442050803108f0480010188010112531a5108f803100118072209446f63756d656e74734205080310fa034205080310fc03520c0a085363726f6c6c546f1001621b08011205080310fa031205080310fc03180a20022a05080310fa03800101880101123b1a3908fa0310011808220b4669656c64206e6f7465733a0408031002520c0a084163746976617465100152090a05466f637573100180010188010112351a3308fc031001180822055461736b733a0408031001520c0a084163746976617465100152090a05466f6375731001800101880101121e1a1c08fe0310011806220d536176656420302074696d657380010188010112571a5508ff031001180522055469746c653a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a05080410930480010188010112561a54088104100118052204426f64793a04080110013a0408051001520f0a0b5265706c61636554657874100152100a0c53657453656c656374696f6e100152090a05466f63757310015a050804109404800101880101123d1a3b08830410011803220d5361766520646f63756d656e743a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112401a3e088904100118032210446f63756d656e742064657461696c733a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112451a43088b041001180322155265706c616365207469746c6520636f6e74726f6c3a0408011001520c0a084163746976617465100152090a05466f637573100180010188010112421a40088d041001180422085265766965776564320210003a04080110013a0408021001520c0a0853657456616c7565100152090a05466f637573100180010188010112251a23088f0410011805220d50726976617465206669656c645a050804109504800101880101122f1a2d088504100118012210446f63756d656e742064657461696c73420508031086044205080310870480010188010112381a360886041001180622274368616e6765732062656c6f6e6720746f207468697320736f7572636520646f63756d656e742e800101880101123d1a3b08870410011803220d436c6f73652064657461696c733a0408011001520c0a084163746976617465100152090a05466f63757310018001018801011220221e0893041005180420012a0b4669656c64206e6f7465733202100b38014001122d222b0894041005180520012a1a636166c3a920cea920f09d849e2065cc8120d7a9d79cd795d79d320038014001120b2209089504100118012003122a3228080210131a12190000000000808640210000000000c082402a05080310ff0332050801109104380a221173656d616e746963732e636f72652e7631221173656d616e746963732e6f6e6c792e76312214636f6e74656e742e6e6f2d7261737465722e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280d323b0a1042fba0bee977dcdf3a70975880e3290210e50c180120162a202f3472a108580cd10b76df8a650d36c23fbe8b9d95dc9e5fd8b676247ca5ad68"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001281e32020813"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001282332020813"
+    },
+    {
+      "direction": "received",
+      "kind": 11,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280b323f0a10c157b21c5ac93633cbb4c1d4797eadc310131814208604280130033a2077e00823a123d37eba51b3d06e2b781ca66655e961fad223ee4ad53b7bb5d030"
+    },
+    {
+      "direction": "received",
+      "kind": 12,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280c329b040a10c157b21c5ac93633cbb4c1d4797eadc31a8604081310141ade010adb010ad801089104100318012a1219000000000060834021000000000060784032120900000000006083401100000000006078403a1209000000000000f03f21000000000000f03f49000000000000f03f580160017a05080310f6038201121900000000006083402100000000006078408a0110b86c0aaf135e91fcc819e8c6a4c46fbd900103980101a00101aa013264373837646363626638336334643036393763663836303765393930386335623a6d61696e2d636f6e74656e743a32343a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1ac0010abd010aba0108920410031801220508011091042a1209000000000080664011000000000000544032003a1209000000000000f03f21000000000000f03f49000000000000f03f50027a0508031085048a0110182223039bdc85e20fa46d23c2d4a1c5900103980101a00101aa013664373837646363626638336334643036393763663836303765393930386335623a64657461696c733a32343a756e6d61707065643a33b2011873656d616e7469632d6f6e6c792d70726f6a656374696f6e1a200a1e1a1c08fe0310021806220d536176656420312074696d65738001018801012a14636f6e74656e742e6e6f2d7261737465722e76312a1173656d616e746963732e636f72652e76312a1173656d616e746963732e6f6e6c792e7631"
+    },
+    {
+      "direction": "received",
+      "kind": 13,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001280d323b0a10c157b21c5ac93633cbb4c1d4797eadc3108604180120032a2077e00823a123d37eba51b3d06e2b781ca66655e961fad223ee4ad53b7bb5d030"
+    },
+    {
+      "direction": "sent",
+      "kind": 30,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001281e32020814"
+    },
+    {
+      "direction": "sent",
+      "kind": 35,
+      "hex": "0a10010101010101010101010101010101011210eccc63775d9a4585aa9952604037ade41a10010101010101010100000000000000042001282332020814"
+    }
+  ],
+  "events": [
+    {
+      "type": "connected",
+      "can_control": true
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "applied",
+      "revision": "1"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "1"
+    },
+    {
+      "type": "control",
+      "granted": true
+    },
+    {
+      "type": "commandResult",
+      "sequence": "1",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:24:2",
+      "revision": "2"
+    },
+    {
+      "type": "applied",
+      "revision": "2"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "2"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "2",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:24:3",
+      "revision": "3"
+    },
+    {
+      "type": "applied",
+      "revision": "3"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "3"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "3",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:28:4",
+      "revision": "4"
+    },
+    {
+      "type": "applied",
+      "revision": "4"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "4"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "4",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:39:5",
+      "revision": "5"
+    },
+    {
+      "type": "applied",
+      "revision": "5"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "5"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "5",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:39:6",
+      "revision": "6"
+    },
+    {
+      "type": "applied",
+      "revision": "6"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "6"
+    },
+    {
+      "type": "control",
+      "granted": false
+    },
+    {
+      "type": "applied",
+      "revision": "7"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "7"
+    },
+    {
+      "type": "applied",
+      "revision": "8"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "8"
+    },
+    {
+      "type": "applied",
+      "revision": "9"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "9"
+    },
+    {
+      "type": "applied",
+      "revision": "10"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "10"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "10"
+    },
+    {
+      "type": "control",
+      "granted": true
+    },
+    {
+      "type": "commandResult",
+      "sequence": "6",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:69:11",
+      "revision": "11"
+    },
+    {
+      "type": "applied",
+      "revision": "11"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "11"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "7",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:76:12",
+      "revision": "12"
+    },
+    {
+      "type": "applied",
+      "revision": "12"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "12"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "8",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:86:13",
+      "revision": "13"
+    },
+    {
+      "type": "applied",
+      "revision": "13"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "13"
+    },
+    {
+      "type": "commandResult",
+      "sequence": "9",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:89:14",
+      "revision": "14"
+    },
+    {
+      "type": "applied",
+      "revision": "14"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "14"
+    },
+    {
+      "type": "applied",
+      "revision": "15"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "15"
+    },
+    {
+      "type": "control",
+      "granted": false
+    },
+    {
+      "type": "disconnected"
+    },
+    {
+      "type": "connected",
+      "can_control": true
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "reset"
+    },
+    {
+      "type": "applied",
+      "revision": "15"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "15"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "15"
+    },
+    {
+      "type": "control",
+      "granted": true
+    },
+    {
+      "type": "commandResult",
+      "sequence": "10",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "eccc63775d9a4585aa9952604037ade4:whole:90:16",
+      "revision": "16"
+    },
+    {
+      "type": "applied",
+      "revision": "16"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "16"
+    },
+    {
+      "type": "control",
+      "granted": false
+    },
+    {
+      "type": "applied",
+      "revision": "17"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "17"
+    },
+    {
+      "type": "applied",
+      "revision": "18"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "18"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "18"
+    },
+    {
+      "type": "control",
+      "granted": true
+    },
+    {
+      "type": "commandResult",
+      "sequence": "11",
+      "status": "Applied",
+      "rejection": "",
+      "source_commit": "d787dccbf83c4d0697cf8607e9908c5b:whole:20:2",
+      "revision": "19"
+    },
+    {
+      "type": "applied",
+      "revision": "19"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "19"
+    },
+    {
+      "type": "disconnected"
+    },
+    {
+      "type": "connected",
+      "can_control": false
+    },
+    {
+      "type": "viewOpened",
+      "width": 720,
+      "height": 600
+    },
+    {
+      "type": "reset"
+    },
+    {
+      "type": "applied",
+      "revision": "19"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "19"
+    },
+    {
+      "type": "applied",
+      "revision": "20"
+    },
+    {
+      "type": "semanticReady",
+      "revision": "20"
+    }
+  ],
+  "effects": [
+    {
+      "operation": "Activate"
+    },
+    {
+      "operation": "ReplaceText"
+    },
+    {
+      "operation": "ActivateItem"
+    }
+  ],
+  "staleRejected": true,
+  "sourceRestart": true,
+  "permissionReduction": true,
+  "revocationPurged": true,
+  "controlSwapped": true,
+  "authorizedProjectionConverged": true,
+  "delayedResultsIsolated": true,
+  "resourceRecovery": true,
+  "localViewports": [
+    320,
+    800,
+    1440
+  ],
+  "modalAndReplacement": true,
+  "partialCollection": true,
+  "application": "editor",
+  "browser": "151.0.7922.173",
+  "sourceRevision": 24,
+  "initialSourceRevision": 90,
+  "initialNativeCounterEffects": 2,
+  "replacementNativeCounterEffects": 1,
+  "independentPythonPrefixes": 22,
+  "independentScopes": 3
+}

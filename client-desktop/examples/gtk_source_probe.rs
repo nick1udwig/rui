@@ -239,11 +239,143 @@ fn semantic_point(
             })
         })
 }
+/// Decode the authorized publication prefix through the core reducer. This
+/// checks all public clocks/retirements independently of the displayed stamp;
+/// native capture content/pixels are separately compared below. Source captures
+/// are pruned after consumption, so a selected end capture cannot recover every
+/// public clock in an intervening multi-edit sequence.
+fn public_capture(
+    diagnostics: &Diagnostics,
+    observation: &watch::Receiver<DesktopObservation>,
+    revision: u64,
+) -> Result<rui_protocol_core::model::State> {
+    use rui_protocol_core::{
+        model::{Limits, Replica},
+        transcript::Direction,
+        wire,
+    };
+    use rui_transport::{codec, proto as p};
+    let binding = observation.borrow().binding.ok_or("actual scope absent")?;
+    let context = diagnostics
+        .scopes()?
+        .into_iter()
+        .find(|c| c.view_id == binding.view && c.scope.epoch == binding.epoch)
+        .ok_or("actual diagnostic scope absent")?;
+    let limits = Limits::default();
+    let mut model = Replica::new(limits.clone());
+    let mut transfer: Option<(p::Kind, p::PublicationBegin, Vec<u8>, u32)> = None;
+    diagnostics.inspect(context, |entries| -> Result<()> {
+        for entry in entries {
+            if entry.direction != Direction::HostToClient {
+                continue;
+            }
+            let packet = codec::packet(
+                entry
+                    .exact_bytes()
+                    .ok_or("exact oracle trace unavailable")?,
+                CEILING,
+                Some((
+                    context.scope.session_id,
+                    context.scope.epoch,
+                    context.view_id,
+                )),
+            )?;
+            let kind = p::Kind::try_from(packet.kind)?;
+            match kind {
+                p::Kind::SnapshotBegin | p::Kind::TransactionBegin => {
+                    let begin: p::PublicationBegin = codec::decode(&packet.payload, CEILING)?;
+                    if transfer.is_some() || begin.total_bytes > 1 << 20 || begin.chunk_count > 64 {
+                        return Err("oracle publication ceiling/order".into());
+                    }
+                    let bytes = Vec::with_capacity(begin.total_bytes as usize);
+                    transfer = Some((kind, begin, bytes, 0));
+                }
+                p::Kind::PublicationChunk => {
+                    let chunk: p::PublicationChunk = codec::decode(&packet.payload, CEILING)?;
+                    let (_, begin, bytes, index) =
+                        transfer.as_mut().ok_or("oracle chunk without begin")?;
+                    if chunk.publication_id != begin.publication_id
+                        || chunk.index != *index
+                        || bytes.len() + chunk.data.len() > begin.total_bytes as usize
+                    {
+                        return Err("oracle chunk order/ceiling".into());
+                    }
+                    bytes.extend_from_slice(&chunk.data);
+                    *index += 1;
+                }
+                p::Kind::PublicationCommit => {
+                    let commit: p::PublicationCommit = codec::decode(&packet.payload, CEILING)?;
+                    let (kind, begin, bytes, count) =
+                        transfer.take().ok_or("oracle commit without begin")?;
+                    let digest = rui_protocol_core::publication::publication_digest(&bytes);
+                    if count != begin.chunk_count
+                        || commit.chunk_count != count
+                        || commit.total_bytes != bytes.len() as u64
+                        || commit.publication_id != begin.publication_id
+                        || begin.digest != digest
+                        || commit.digest != digest
+                    {
+                        return Err("oracle publication integrity".into());
+                    }
+                    if kind == p::Kind::SnapshotBegin {
+                        let snapshot = wire::decode_snapshot(&bytes, &limits)?;
+                        let resources = snapshot
+                            .required_resources
+                            .iter()
+                            .map(|d| d.as_slice().try_into())
+                            .collect::<std::result::Result<BTreeSet<[u8; 32]>, _>>()?;
+                        model.apply_snapshot(&bytes, &resources)?;
+                    } else {
+                        let tx = wire::decode_transaction(&bytes, &limits)?;
+                        let resources = tx
+                            .required_resources
+                            .iter()
+                            .map(|d| d.as_slice().try_into())
+                            .collect::<std::result::Result<BTreeSet<[u8; 32]>, _>>()?;
+                        model.apply_transaction(&bytes, &resources)?;
+                    }
+                    if model.state().revision == revision {
+                        return Ok(());
+                    }
+                }
+                _ => {}
+            }
+        }
+        Err("displayed revision missing from oracle prefix".into())
+    })??;
+    Ok(model.state().clone())
+}
+fn content_digest(state: &rui_protocol_core::model::State) -> Option<[u8; 32]> {
+    let mut content = state.clone();
+    for record in content.records.values_mut() {
+        match record {
+            Record::Surface(r) => r.version = 0,
+            Record::Scene(r) => r.version = 0,
+            Record::Binding(r) => r.version = 0,
+            Record::Text(r) => {
+                r.version = 0;
+                r.text_version = 0;
+            }
+            Record::Semantic(r) => {
+                r.version = 0;
+                if let Some(c) = &mut r.collection {
+                    c.version = 0;
+                }
+            }
+            Record::Session(r) => {
+                r.version = 0;
+                r.focus_generation = 0;
+            }
+        }
+    }
+    desktop::records_digest(&content)
+}
 async fn compare(
     path: &Path,
     directory: &Path,
     observation: &watch::Receiver<DesktopObservation>,
     budget: &MemoryBudget,
+    diagnostics: &Diagnostics,
 ) -> Result<Compared> {
     // Bounded manifest allocation + private receiver + exact diagnostic scratch.
     let _working = budget.reserve(56 << 20)?;
@@ -261,9 +393,18 @@ async fn compare(
     if displayed.window_scale != 1 || displayed.after_paint_time_us <= 0 {
         return Err("pinned actual GTK after-paint observation missing".into());
     }
-    let records = desktop::records_digest(state).ok_or("record fingerprint ceiling")?;
+    let public = public_capture(diagnostics, observation, revision)?;
+    let source_content = content_digest(state).ok_or("source content fingerprint ceiling")?;
+    let public_content = content_digest(&public).ok_or("public content fingerprint ceiling")?;
+    if source_content != public_content {
+        return Err("actual published record content differs from native source capture".into());
+    }
+    let records = desktop::records_digest(&public).ok_or("record fingerprint ceiling")?;
     if displayed.stamp.records_digest != Some(records) {
-        return Err("actual mirror full records differ from native source capture".into());
+        let expected = directory.join("mismatch-expected.json");
+        serde_json::to_writer(File::create(expected)?, state)?;
+        export(diagnostics, observation, directory, "mismatch", budget)?;
+        return Err("actual mirror full records differ from native source capture (bounded mismatch trace exported)".into());
     }
     let renderer = Renderer::new(RenderLimits::default(), budget.clone())?;
     let rgba = renderer
@@ -311,7 +452,8 @@ async fn compare(
         proof: json!({
             "native_capture":path.file_name().unwrap().to_string_lossy(),"source_commit":artifact.manifest()["capture_token"],
             "view_revision":revision,"frame_serial":stamp.serial,"record_count":state.records.len(),
-            "direct_source_records_sha256":hex(&records),"mirror_records_sha256":hex(&stamp.records_digest.unwrap()),
+            "clock_projection":"exact full wire records/clock prefix compared with actual frame; clock-free native capture content and exact pixels checked separately",
+            "wire_records_sha256":hex(&records),"direct_source_content_sha256":hex(&source_content),"public_content_sha256":hex(&public_content),"mirror_records_sha256":hex(&stamp.records_digest.unwrap()),
             "direct_source_rgba_sha256":hex(&digest),"actual_after_paint_rgba_sha256":hex(&stamp.pixel_digest),
             "viewport":{"width":stamp.viewport.width,"height":stamp.viewport.height,"origin":[stamp.viewport.origin.x,stamp.viewport.origin.y],"scale":stamp.viewport.scale},
             "frame_clock":{"frame_time_us":displayed.frame_time_us,"after_paint_time_us":displayed.after_paint_time_us,"refresh_interval_us":displayed.refresh_interval_us},
@@ -382,8 +524,8 @@ async fn drive(
     let vector = directory.join("source-vector");
     fs::create_dir(&vector)?;
     let initial = retain(&latest(source)?, &vector)?;
-    let controller = compare(&initial, &vector, &observations[0], budget).await?;
-    let observer = compare(&initial, &vector, &observations[1], budget).await?;
+    let controller = compare(&initial, &vector, &observations[0], budget, diagnostics).await?;
+    let observer = compare(&initial, &vector, &observations[1], budget, diagnostics).await?;
     if composition {
         return composition_probe::drive(
             root,
@@ -413,8 +555,8 @@ async fn drive(
     })
     .await?;
     let next = retain(&latest(source)?, &vector)?;
-    let after_controller = compare(&next, &vector, &observations[0], budget).await?;
-    let after_observer = compare(&next, &vector, &observations[1], budget).await?;
+    let after_controller = compare(&next, &vector, &observations[0], budget, diagnostics).await?;
+    let after_observer = compare(&next, &vector, &observations[1], budget, diagnostics).await?;
     let manifest = CaptureArtifact::read(&next)?;
     if manifest.manifest()["command_cause"]["authority_gate"] != "core-ledger-admitted" {
         return Err("native GTK effect lacks common-ledger causal capture".into());

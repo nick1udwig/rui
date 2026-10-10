@@ -60,7 +60,9 @@ def same_context(left, right):
     return (left['target'], left['focus_generation'], left['text']) == (right['target'], right['focus_generation'], right['text'])
 
 
-def verify_controller(path):
+def verify_controller(path, *, clock_policy="native-gtk"):
+    if clock_policy not in ("native-gtk", "standard-public-clocks"):
+        raise ValueError("unknown composition clock policy")
     replica, transfer, state = FullReplica(), None, None
     presented, lease, active, pending = 0, None, None, None
     receipts, retired, stages, commits = {}, set(), Counter(), []
@@ -75,8 +77,12 @@ def verify_controller(path):
         result, before = pending['result'], pending['context']
         text, old = current['text'], before['text']
         after, caret = pending['after'], pending['caret']
-        content_delta = int(bool(old['content'])) + int(bool(after))
-        record_delta = content_delta + int(caret > 0)
+        if clock_policy == 'native-gtk':
+            content_delta = int(bool(old['content'])) + int(bool(after))
+            record_delta = content_delta + int(caret > 0)
+        else:
+            content_delta = int(old['content'] != after)
+            record_delta = int(old['content'] != after or old['selection'] != {'anchor': caret, 'focus': caret})
         if (result['revision'] is not None and state['revision'] < result['revision']):
             return
         if (current['target'] != before['target'] or current['focus_generation'] != before['focus_generation']
@@ -127,7 +133,7 @@ def verify_controller(path):
                 raise ValueError('semantic text fallback in wire composition trace')
             semantic_commands += 1
         elif not host and kind == 52:
-            if (profiles is not None and CLOCK_PROFILE not in profiles
+            if (profiles is not None and clock_policy == 'native-gtk' and CLOCK_PROFILE not in profiles
                     or 'text.client.v1' not in modes or 'TextComposition' not in actions):
                 raise ValueError('composition profile/mode/action was not negotiated')
             if state is None or presented != state['revision'] or receipts or pending is not None:
@@ -202,8 +208,9 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('trace', type=Path)
+    parser.add_argument('--clock-policy', choices=('native-gtk', 'standard-public-clocks'), default='native-gtk')
     args = parser.parse_args()
-    print(json.dumps(verify_controller(args.trace), indent=2, sort_keys=True))
+    print(json.dumps(verify_controller(args.trace, clock_policy=args.clock_policy), indent=2, sort_keys=True))
 
 
 if __name__ == '__main__':

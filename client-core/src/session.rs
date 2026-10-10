@@ -1,12 +1,12 @@
 //! Bounded session actor; caller supplies authenticated ordered bytes, clock and presentation.
-use crate::resource_requests::ResourceRequests;
-use crate::{command_queue::CommandQueue, interaction, wire_command::wire_command, Viewport};
+use crate::replica::{ClientEvent, Replica, Replies};
+use crate::{interaction, wire_command::wire_command, Viewport};
 use prost::Message;
 use rui_protocol_core::{
     commands::{Arguments, CommandFamily, Id},
     model::{Point, Record, State},
-    receiver::{ReceiveOutcome, ReceiverConfig, ViewReceiver},
-    resources::{MemoryReservation, ResourceContext, ResourceScope},
+    receiver::{ReceiverConfig, ViewReceiver},
+    resources::{MemoryBudget, MemoryReservation, ResourceContext},
     session::ReceiverLimits,
 };
 use rui_wire::{codec, proto as p, WireError as TransportError};
@@ -97,23 +97,19 @@ pub struct Session {
     selection: String,
     limits: ReceiverLimits,
     context: Option<ResourceContext>,
-    receiver: Option<ViewReceiver>,
-    commands: Option<CommandQueue>,
-    resources: ResourceRequests,
+    replica: Option<Replica>,
     outbound: VecDeque<Outbound>,
     outbound_bytes: usize,
     connected: bool,
     starting: bool,
     awaiting_resume: Option<u64>,
     can_control: bool,
-    lease: Option<p::ControlGranted>,
     request: Option<Id>,
     cancelled_request: Option<Id>,
     retained_limits: Option<ReceiverLimits>,
     serial: u64,
     renewed_at: u64,
     profiles: Vec<String>,
-    ready: Option<u64>,
 }
 impl Session {
     pub fn new(client: Id, selection: String) -> Result<Self, TransportError> {
@@ -134,23 +130,19 @@ impl Session {
             selection,
             limits: ReceiverLimits::default(),
             context: None,
-            receiver: None,
-            commands: None,
-            resources: ResourceRequests::default(),
+            replica: None,
             outbound: VecDeque::new(),
             outbound_bytes: 0,
             connected: false,
             starting: false,
             awaiting_resume: None,
             can_control: false,
-            lease: None,
             request: None,
             cancelled_request: None,
             retained_limits: None,
             serial: 1,
             renewed_at: 0,
             profiles: Vec::new(),
-            ready: None,
         })
     }
     fn supported_profiles(&self) -> &'static [&'static str] {
@@ -178,8 +170,8 @@ impl Session {
             return Err(TransportError::Protocol);
         }
         self.limits = ReceiverLimits::default();
-        let resume = self.context.zip(self.receiver.as_ref()).map(|(c, r)| {
-            let revision = r.state().map(|s| s.revision).unwrap_or(0);
+        let resume = self.context.zip(self.replica.as_ref()).map(|(c, r)| {
+            let revision = r.receiver().state().map(|s| s.revision).unwrap_or(0);
             self.awaiting_resume = Some(revision);
             p::ResumeRequest {
                 epoch: c.scope.epoch.to_vec(),
@@ -221,10 +213,11 @@ impl Session {
             return Err(TransportError::Limit);
         }
         let memory = self
-            .receiver
+            .replica
             .as_ref()
             .map(|r| {
-                r.memory_budget()
+                r.receiver()
+                    .memory_budget()
                     .reserve(length.saturating_mul(4).saturating_add(4096))
                     .map_err(|_| TransportError::Limit)
             })
@@ -253,59 +246,53 @@ impl Session {
         self.limits.envelope_bytes
     }
     pub fn memory_used(&self) -> usize {
-        self.receiver.as_ref().map_or(0, ViewReceiver::memory_used)
+        self.replica
+            .as_ref()
+            .map_or(0, |r| r.receiver().memory_used())
     }
     pub fn receiver(&self) -> Result<&ViewReceiver, TransportError> {
-        self.receiver.as_ref().ok_or(TransportError::Closed)
+        self.replica
+            .as_ref()
+            .map(Replica::receiver)
+            .ok_or(TransportError::Closed)
     }
     pub fn state(&self) -> Result<&State, TransportError> {
         self.receiver()?
             .state()
             .map_err(|_| TransportError::Receiver)
     }
+    fn ready(&self) -> Option<u64> {
+        self.replica.as_ref().and_then(Replica::ready)
+    }
+    fn lease(&self) -> Option<&p::ControlGranted> {
+        self.replica.as_ref().and_then(Replica::lease)
+    }
     pub fn has_control(&self) -> bool {
         self.connected
-            && self.lease.is_some()
-            && self.ready == self.state().ok().map(|s| s.revision)
+            && self.lease().is_some()
+            && self.ready() == self.state().ok().map(|s| s.revision)
     }
     pub fn pending_commands(&self) -> usize {
-        self.commands.as_ref().map_or(0, CommandQueue::len)
+        self.replica.as_ref().map_or(0, |r| r.commands().len())
     }
-    fn outcome(&mut self, outcome: ReceiveOutcome) -> Result<Event, TransportError> {
-        match outcome {
-            ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
-                self.resources.clear();
-                self.ready = None;
-                self.send(p::Kind::AppliedAck, &p::RevisionAck { revision })?;
-                Ok(Event::Applied { revision })
-            }
-            ReceiveOutcome::NeedResources {
-                revision, missing, ..
-            } => {
-                self.ready = None;
-                self.resources.begin(missing, false)?;
-                self.queue_resource_request()?;
-                Ok(Event::ResourcesNeeded { revision })
-            }
+    fn replica_io<T>(
+        &mut self,
+        run: impl FnOnce(&mut Replica, &mut PortableReplies<'_>) -> Result<T, TransportError>,
+    ) -> Result<T, TransportError> {
+        if !self.connected {
+            return Err(TransportError::Closed);
         }
-    }
-    fn queue_resource_request(&mut self) -> Result<(), TransportError> {
-        let Some(page) = self.resources.page(self.limits.envelope_bytes)? else {
-            return Ok(());
+        let replica = self.replica.as_mut().ok_or(TransportError::Closed)?;
+        let mut replies = PortableReplies {
+            outbound: &mut self.outbound,
+            bytes: &mut self.outbound_bytes,
+            limits: &self.limits,
+            budget: replica.receiver().memory_budget(),
         };
-        if page.announce_evictions {
-            self.send(p::Kind::ResourceEvicted, &self.resources.payload(page))?;
-        }
-        self.send(p::Kind::NeedResources, &self.resources.payload(page))?;
-        self.resources.queued(page);
-        Ok(())
+        run(replica, &mut replies)
     }
-    /// Trusted local cache-loss policy; committed records and exact commands survive.
     pub fn resource_cache_lost(&mut self) -> Result<Event, TransportError> {
-        if !self.connected || self.receiver()?.has_pending_publication() {
-            return Err(TransportError::Receiver);
-        }
-        if self
+        let noop = self
             .receiver()?
             .cache_bytes()
             .map_err(|_| TransportError::Receiver)?
@@ -313,49 +300,27 @@ impl Session {
             && self
                 .receiver()?
                 .resources_ready()
-                .map_err(|_| TransportError::Receiver)?
-        {
+                .map_err(|_| TransportError::Receiver)?;
+        self.replica_io(|r, q| r.resource_cache_lost(q))?;
+        if noop {
             return Ok(Event::None);
         }
-        self.receiver
-            .as_mut()
-            .unwrap()
-            .resource_cache_lost()
-            .map_err(|_| TransportError::Receiver)?;
-        self.ready = None;
-        let missing = self
-            .receiver()?
-            .missing_live_resources()
-            .map_err(|_| TransportError::Receiver)?;
+        if let Some(r) = self.replica.as_mut() {
+            r.clear_readiness();
+        }
         let revision = self.state()?.revision;
-        if missing.is_empty() {
-            return self.outcome(ReceiveOutcome::Applied { revision });
-        }
-        self.resources.begin(missing, true)?;
-        self.queue_resource_request()?;
-        Ok(Event::ResourcesNeeded { revision })
-    }
-    /// Evict one unpinned retired entry, retaining current/candidate closure pins.
-    pub fn evict_unpinned_resource(&mut self) -> Result<Option<[u8; 32]>, TransportError> {
-        if !self.connected {
-            return Err(TransportError::Closed);
-        }
-        let Some(evicted) = self
-            .receiver
-            .as_mut()
-            .ok_or(TransportError::Closed)?
-            .evict_one_unpinned_resource()
+        if self
+            .receiver()?
+            .resources_ready()
             .map_err(|_| TransportError::Receiver)?
-        else {
-            return Ok(None);
-        };
-        self.send(
-            p::Kind::ResourceEvicted,
-            &p::ResourceIds {
-                digests: vec![evicted.digest.to_vec()],
-            },
-        )?;
-        Ok(Some(evicted.digest))
+        {
+            Ok(Event::Applied { revision })
+        } else {
+            Ok(Event::ResourcesNeeded { revision })
+        }
+    }
+    pub fn evict_unpinned_resource(&mut self) -> Result<Option<[u8; 32]>, TransportError> {
+        self.replica_io(|r, q| r.evict_unpinned_resource(q))
     }
     fn handshake(&mut self, raw: &[u8]) -> Result<Event, TransportError> {
         let initial: p::Packet = codec::decode(raw, self.limits.envelope_bytes)?;
@@ -363,60 +328,44 @@ impl Session {
             let e: p::Error = codec::decode(&initial.payload, self.limits.envelope_bytes)?;
             return Ok(Event::Error { code: e.code });
         }
-        let binding = (
-            codec::id(&initial.session_id)?,
-            codec::id(&initial.epoch)?,
-            codec::id(&initial.view_id)?,
-        );
-        let packet = codec::packet(raw, self.limits.envelope_bytes, Some(binding))?;
-        if packet.kind != p::Kind::ServerHello as i32 {
-            return Err(TransportError::Protocol);
-        }
-        let hello: p::ServerHello = codec::decode(&packet.payload, self.limits.envelope_bytes)?;
-        if hello.selected_version != 1
-            || hello
-                .selected_profiles
+        let offered = rui_protocol_core::session::ClientHello {
+            client_instance_id: self.client,
+            supported_versions: [1].into(),
+            supported_profiles: self
+                .supported_profiles()
                 .iter()
-                .any(|s| !self.supported_profiles().contains(&s.as_str()))
-            || self
+                .map(|s| (*s).into())
+                .collect(),
+            required_profiles: self
                 .required_profiles()
                 .iter()
-                .any(|s| !hello.selected_profiles.iter().any(|p| p == s))
-        {
-            return Err(TransportError::Protocol);
-        }
-        let limits = codec::limits(hello.negotiated_limits.ok_or(TransportError::Protocol)?)?;
-        if self
-            .limits
-            .negotiate(&limits)
-            .map_err(|_| TransportError::Limit)?
-            != limits
-        {
-            return Err(TransportError::Limit);
-        }
-        let permissions = hello.permissions.ok_or(TransportError::Protocol)?;
-        if !permissions.can_view {
-            return Err(TransportError::Authority);
-        }
-        let context = ResourceContext {
-            scope: ResourceScope {
-                session_id: binding.0,
-                epoch: binding.1,
-                principal_id: codec::id(&hello.principal_id)?,
-            },
-            view_id: binding.2,
+                .map(|s| (*s).into())
+                .collect(),
+            receiver_limits: self.limits.clone(),
+            resume: None,
         };
+        let crate::replica::Negotiated {
+            mut server,
+            limits,
+            context,
+        } = crate::replica::negotiate_server(raw, &offered, false)?;
+        let permissions = server.permissions.take().ok_or(TransportError::Protocol)?;
+        let hello = server;
         if self.context == Some(context) {
             if self.profiles != hello.selected_profiles
                 || self.retained_limits.as_ref() != Some(&limits)
             {
                 return Err(TransportError::Protocol);
             }
-            self.receiver
+            self.replica
+                .as_mut()
+                .unwrap()
+                .configure(&hello.selected_profiles, &permissions)?;
+
+            self.replica
                 .as_mut()
                 .ok_or(TransportError::Receiver)?
-                .reconnect(context)
-                .map_err(|_| TransportError::Receiver)?;
+                .reconnect(self.awaiting_resume.take())?;
         } else {
             let receiver = ViewReceiver::new(
                 context,
@@ -430,24 +379,18 @@ impl Session {
                 },
             )
             .map_err(|_| TransportError::Receiver)?;
-            if let Some(q) = &mut self.commands {
-                q.rebind(
-                    context.scope.epoch,
-                    receiver.memory_budget(),
-                    limits.envelope_bytes.saturating_sub(256),
-                )
-                .map_err(|_| TransportError::Limit)?;
-            } else {
-                self.commands = Some(
-                    CommandQueue::new(
-                        context.scope.epoch,
-                        receiver.memory_budget(),
-                        limits.envelope_bytes.saturating_sub(256),
-                    )
-                    .map_err(|_| TransportError::Limit)?,
-                );
+            let mut replica = Replica::new(
+                context,
+                limits.clone(),
+                self.mode == PresentationMode::SemanticOnly,
+                receiver,
+                self.awaiting_resume.take(),
+            )?;
+            replica.configure(&hello.selected_profiles, &permissions)?;
+            if let Some(old) = self.replica.as_mut() {
+                replica.inherit_commands(old)?;
             }
-            self.receiver = Some(receiver);
+            self.replica = Some(replica);
         }
         self.context = Some(context);
         self.retained_limits = Some(limits.clone());
@@ -469,9 +412,10 @@ impl Session {
             },
         )?;
         let pending: Vec<_> = self
-            .commands
+            .replica
             .as_ref()
             .unwrap()
+            .commands()
             .commands()
             .map(|c| c.sequence())
             .collect();
@@ -499,159 +443,55 @@ impl Session {
         if !self.connected {
             return Err(TransportError::Closed);
         }
-        let _decode = self
-            .receiver()?
-            .memory_budget()
-            .reserve(raw.len().saturating_mul(4).saturating_add(8192))
-            .map_err(|_| TransportError::Limit)?;
-        let packet = codec::packet(raw, self.limits.envelope_bytes, self.binding())?;
-        let kind = p::Kind::try_from(packet.kind).map_err(|_| TransportError::Protocol)?;
-        let ceiling = self.limits.envelope_bytes;
-        let context = self.context.ok_or(TransportError::Binding)?;
-        let receiver = self.receiver.as_mut().ok_or(TransportError::Closed)?;
-        match kind {
-            p::Kind::ViewOpened => {
-                let v = codec::view_opened(&packet.payload, ceiling)?;
-                if codec::id(&v.view_id)? != context.view_id {
-                    return Err(TransportError::Binding);
+        let event = self.replica_io(|r, q| r.receive(raw, q))?;
+        self.replica_event(event)
+    }
+    fn replica_event(&mut self, event: Option<ClientEvent>) -> Result<Event, TransportError> {
+        let Some(event) = event else {
+            return Ok(Event::None);
+        };
+        match event {
+            ClientEvent::ViewOpened(v) => Ok(Event::ViewOpened {
+                width: v.canvas_width,
+                height: v.canvas_height,
+            }),
+            ClientEvent::Applied { revision } => {
+                if let Some(r) = self.replica.as_mut() {
+                    r.clear_readiness();
                 }
-                Ok(Event::ViewOpened {
-                    width: v.canvas_width,
-                    height: v.canvas_height,
-                })
+                Ok(Event::Applied { revision })
             }
-            p::Kind::SnapshotBegin | p::Kind::TransactionBegin => {
-                let b = codec::publication_begin(kind, codec::decode(&packet.payload, ceiling)?)?;
-                receiver
-                    .begin_publication(context, b)
-                    .map_err(|_| TransportError::Receiver)?;
+            ClientEvent::ResourcesNeeded { revision } => {
+                if let Some(r) = self.replica.as_mut() {
+                    r.clear_readiness();
+                }
+                Ok(Event::ResourcesNeeded { revision })
+            }
+            ClientEvent::ResourceAvailable => {
+                self.replica_io(|r, q| r.queue_resource_request(q))?;
                 Ok(Event::None)
             }
-            p::Kind::PublicationChunk => {
-                let c: p::PublicationChunk = codec::decode(&packet.payload, ceiling)?;
-                if c.data.len() > self.limits.chunk_bytes {
-                    return Err(TransportError::Limit);
+            ClientEvent::ResumeAccepted(_) => {
+                let follow = self.replica_io(|r, q| r.poll(q))?;
+                if matches!(follow, Some(ClientEvent::ResourcesNeeded { .. })) {
+                    return self.replica_event(follow);
                 }
-                receiver
-                    .publication_chunk(context, codec::id(&c.publication_id)?, c.index, &c.data)
-                    .map_err(|_| TransportError::Receiver)?;
-                Ok(Event::None)
-            }
-            p::Kind::PublicationCommit => {
-                let c: p::PublicationCommit = codec::decode(&packet.payload, ceiling)?;
-                let outcome = receiver
-                    .commit_authenticated_publication(
-                        context,
-                        codec::id(&c.publication_id)?,
-                        codec::publication_commit(c)?,
-                    )
-                    .map_err(|_| TransportError::Receiver)?;
-                self.outcome(outcome)
-            }
-            p::Kind::AbortPublication => {
-                let a: p::AbortPublication = codec::decode(&packet.payload, ceiling)?;
-                receiver
-                    .abort_publication(context, codec::id(&a.publication_id)?)
-                    .map_err(|_| TransportError::Receiver)?;
-                Ok(Event::None)
-            }
-            p::Kind::ResourceOffer => {
-                let o = codec::resource_offer(codec::decode(&packet.payload, ceiling)?)?;
-                if !self.resources.contains(&o.digest) {
-                    return Err(TransportError::Authentication);
-                }
-                receiver
-                    .authorize_resource(o.digest)
-                    .map_err(|_| TransportError::Receiver)?;
-                receiver
-                    .receive_resource_offer(context, o)
-                    .map_err(|_| TransportError::Receiver)?;
-                Ok(Event::None)
-            }
-            p::Kind::ResourceChunk => {
-                let c: p::ResourceChunk = codec::decode(&packet.payload, ceiling)?;
-                if c.data.len() > self.limits.chunk_bytes {
-                    return Err(TransportError::Limit);
-                }
-                receiver
-                    .resource_chunk(context, codec::digest(&c.digest)?, c.index, &c.data)
-                    .map_err(|_| TransportError::Receiver)?;
-                Ok(Event::None)
-            }
-            p::Kind::ResourceComplete => {
-                let c: p::ResourceComplete = codec::decode(&packet.payload, ceiling)?;
-                let digest = codec::digest(&c.digest)?;
-                let outcome = receiver
-                    .complete_resource(context, digest)
-                    .map_err(|_| TransportError::Receiver)?;
-                self.send(
-                    p::Kind::ResourceAvailable,
-                    &p::ResourceIds {
-                        digests: vec![digest.to_vec()],
-                    },
-                )?;
-                self.queue_resource_request()?;
-                match outcome {
-                    Some(ReceiveOutcome::NeedResources { .. }) => Ok(Event::None),
-                    Some(o) => self.outcome(o),
-                    None if self.resources.active()
-                        && !self.receiver()?.has_pending_publication()
-                        && self
-                            .receiver()?
-                            .resources_ready()
-                            .map_err(|_| TransportError::Receiver)? =>
-                    {
-                        let revision = self.state()?.revision;
-                        self.outcome(ReceiveOutcome::Applied { revision })
-                    }
-                    None => Ok(Event::None),
-                }
-            }
-            p::Kind::ResumeAccepted => {
-                let r: p::ResumeAccepted = codec::decode(&packet.payload, ceiling)?;
-                let revision = receiver
-                    .state()
-                    .map_err(|_| TransportError::Receiver)?
-                    .revision;
-                if self.awaiting_resume.take() != Some(r.from_revision)
-                    || revision != r.from_revision
-                    || r.through_revision < revision
-                {
-                    return Err(TransportError::Protocol);
-                }
-                if r.through_revision == revision {
-                    if self
-                        .receiver()?
-                        .resources_ready()
-                        .map_err(|_| TransportError::Receiver)?
-                    {
-                        self.outcome(ReceiveOutcome::Applied { revision })?;
-                    } else {
-                        let missing = self
-                            .receiver()?
-                            .missing_live_resources()
-                            .map_err(|_| TransportError::Receiver)?;
-                        self.resources.begin(missing, true)?;
-                        self.ready = None;
-                        self.queue_resource_request()?;
-                        return Ok(Event::ResourcesNeeded { revision });
-                    }
+                if let Some(r) = self.replica.as_mut() {
+                    r.clear_readiness();
                 }
                 Ok(Event::Resumed)
             }
-            p::Kind::ResetRequired => {
-                let _: p::ResetRequired = codec::decode(&packet.payload, ceiling)?;
-                if self.awaiting_resume.take().is_none() {
-                    return Err(TransportError::Protocol);
+            ClientEvent::ResetRequired(_) => {
+                if let Some(r) = self.replica.as_mut() {
+                    r.clear_readiness();
                 }
-                self.ready = None;
                 Ok(Event::Reset)
             }
-            p::Kind::ControlGranted => {
-                let g: p::ControlGranted = codec::decode(&packet.payload, ceiling)?;
+            ClientEvent::ControlGranted(g) => {
                 let request = codec::id(&g.request_id)?;
                 if self.cancelled_request == Some(request) {
                     self.cancelled_request = None;
+                    self.replica.as_mut().unwrap().release_lease();
                     let release_id = self.request_id()?;
                     self.send(
                         p::Kind::ReleaseControl,
@@ -670,49 +510,27 @@ impl Session {
                 {
                     return Err(TransportError::Authority);
                 }
-                self.lease = Some(g);
+
                 Ok(Event::Control { granted: true })
             }
-            p::Kind::ControlRevoked => {
-                let r: p::ControlRevoked = codec::decode(&packet.payload, ceiling)?;
-                if self
-                    .lease
-                    .as_ref()
-                    .is_some_and(|g| g.lease_id == r.lease_id && g.generation == r.generation)
-                {
-                    self.lease = None;
-                }
-                Ok(Event::Control {
-                    granted: self.lease.is_some(),
-                })
-            }
-            p::Kind::CommandResult => {
-                let r: p::CommandResult = codec::decode(&packet.payload, ceiling)?;
-                if !matches!(
-                    r.status.to_ascii_lowercase().as_str(),
-                    "dispatched" | "unknown" | "outcomeunknown" | "outcomeexpired"
-                ) {
-                    self.commands.as_mut().unwrap().complete(r.command_seq);
-                }
-                Ok(Event::CommandResult {
-                    sequence: r.command_seq,
-                    status: r.status,
-                    rejection: r.rejection,
-                    source_commit: r.source_commit,
-                    revision: r.resulting_view_revision,
-                })
-            }
-            p::Kind::Error => {
-                let e: p::Error = codec::decode(&packet.payload, ceiling)?;
+            ClientEvent::ControlRevoked(_) => Ok(Event::Control {
+                granted: self.lease().is_some(),
+            }),
+            ClientEvent::CommandResult(r) => Ok(Event::CommandResult {
+                sequence: r.command_seq,
+                status: r.status,
+                rejection: r.rejection,
+                source_commit: r.source_commit,
+                revision: r.resulting_view_revision,
+            }),
+            ClientEvent::Error(code) => {
                 self.cancelled_request = self.request.take();
-                self.lease = None;
-                Ok(Event::Error { code: e.code })
+                if let Some(r) = self.replica.as_mut() {
+                    r.release_lease();
+                }
+                Ok(Event::Error { code })
             }
-            p::Kind::Pong => {
-                let _: p::Ping = codec::decode(&packet.payload, ceiling)?;
-                Ok(Event::None)
-            }
-            _ => Err(TransportError::Protocol),
+            ClientEvent::Pong(_) => Ok(Event::None),
         }
     }
     pub fn presented(&mut self, revision: u64) -> Result<(), TransportError> {
@@ -722,13 +540,7 @@ impl Session {
         if !self.connected || self.state()?.revision != revision {
             return Err(TransportError::Receiver);
         }
-        self.receiver
-            .as_mut()
-            .unwrap()
-            .mark_presented(revision)
-            .map_err(|_| TransportError::Receiver)?;
-        self.send(p::Kind::PresentedAck, &p::RevisionAck { revision })?;
-        self.ready = Some(revision);
+        self.replica_io(|r, q| r.presented(revision, q))?;
         Ok(())
     }
     /// A semantic consumer explicitly accepted this exact validated revision.
@@ -744,8 +556,7 @@ impl Session {
         {
             return Err(TransportError::Authority);
         }
-        self.send(p::Kind::SemanticReady, &p::RevisionAck { revision })?;
-        self.ready = Some(revision);
+        self.replica_io(|r, q| r.semantic_ready(revision, q))?;
         Ok(())
     }
     fn request_id(&mut self) -> Result<Id, TransportError> {
@@ -755,7 +566,9 @@ impl Session {
         Ok(id)
     }
     pub fn acquire(&mut self, now: u64) -> Result<(), TransportError> {
-        if !self.can_control || self.ready != Some(self.state()?.revision) || self.request.is_some()
+        if !self.can_control
+            || self.ready() != Some(self.state()?.revision)
+            || self.request.is_some()
         {
             return Err(TransportError::Authority);
         }
@@ -774,7 +587,7 @@ impl Session {
         if !self.connected || now.saturating_sub(self.renewed_at) < 2000 || self.request.is_some() {
             return Ok(());
         }
-        if let Some(g) = self.lease.clone() {
+        if let Some(g) = self.lease().cloned() {
             let id = self.request_id()?;
             self.send(
                 p::Kind::RenewControl,
@@ -792,9 +605,11 @@ impl Session {
         Ok(())
     }
     pub fn release(&mut self) -> Result<(), TransportError> {
-        self.ready = None;
+        if let Some(r) = self.replica.as_mut() {
+            r.clear_readiness();
+        }
         self.cancelled_request = self.request.take();
-        if let Some(g) = self.lease.take() {
+        if let Some(g) = self.replica.as_mut().and_then(Replica::release_lease) {
             let id = self.request_id()?;
             self.send(
                 p::Kind::ReleaseControl,
@@ -813,7 +628,7 @@ impl Session {
         }
         interaction::hit_test(
             self.state()?,
-            self.ready.ok_or(TransportError::Authority)?,
+            self.ready().ok_or(TransportError::Authority)?,
             viewport,
             point,
         )
@@ -822,7 +637,7 @@ impl Session {
     }
     pub fn command_binding(&self) -> Result<interaction::CommandBinding, TransportError> {
         let c = self.context.ok_or(TransportError::Binding)?;
-        let g = self.lease.as_ref().ok_or(TransportError::Authority)?;
+        let g = self.lease().ok_or(TransportError::Authority)?;
         Ok(interaction::CommandBinding {
             epoch: c.scope.epoch,
             view: c.view_id,
@@ -830,9 +645,10 @@ impl Session {
             lease: codec::id(&g.lease_id)?,
             generation: g.generation,
             sequence: self
-                .commands
+                .replica
                 .as_ref()
                 .ok_or(TransportError::Closed)?
+                .commands()
                 .next_sequence(),
         })
     }
@@ -872,12 +688,13 @@ impl Session {
         action: &str,
         args: Arguments,
     ) -> Result<u64, TransportError> {
-        if self.ready != Some(self.state()?.revision) || self.pending_commands() != 0 {
+        if self.ready() != Some(self.state()?.revision) || self.pending_commands() != 0 {
             return Err(TransportError::Authority);
         }
         if !self
-            .lease
+            .replica
             .as_ref()
+            .and_then(Replica::lease)
             .is_some_and(|g| g.allowed_actions.iter().any(|a| a == action))
         {
             return Err(TransportError::Authority);
@@ -886,7 +703,7 @@ impl Session {
             interaction::command(self.state()?, target, action, args, self.command_binding()?)
                 .map_err(|_| TransportError::Authority)?;
         let wire = wire_command(command);
-        let q = self.commands.as_mut().unwrap();
+        let q = self.replica.as_mut().unwrap().commands_mut();
         let seq = q
             .encode(CommandFamily::Semantic, wire.encoded_len(), |b| {
                 wire.encode(b).map_err(|_| ())
@@ -921,7 +738,11 @@ impl Session {
         if !self.connected {
             return Err(TransportError::Closed);
         }
-        let q = self.commands.as_ref().ok_or(TransportError::Closed)?;
+        let q = self
+            .replica
+            .as_ref()
+            .ok_or(TransportError::Closed)?
+            .commands();
         let pending: Vec<_> = q.commands().map(|c| c.bytes().to_vec()).collect();
         for bytes in pending {
             self.enqueue(codec::wrap_bytes(
@@ -937,27 +758,29 @@ impl Session {
         self.starting = false;
         self.can_control = false;
         self.allowed_actions.clear();
-        self.lease = None;
+        if let Some(r) = self.replica.as_mut() {
+            r.release_lease();
+        }
         self.request = None;
         self.cancelled_request = None;
-        self.ready = None;
-        self.resources.clear();
+        if let Some(r) = self.replica.as_mut() {
+            r.clear_readiness();
+        }
         for f in &mut self.outbound {
             f.bytes.fill(0);
         }
         self.outbound.clear();
         self.outbound_bytes = 0;
-        if let Some(r) = &mut self.receiver {
+        if let Some(r) = &mut self.replica {
             r.disconnect();
         }
     }
     pub fn close(&mut self) {
         self.disconnect();
-        self.commands = None;
-        if let Some(r) = &mut self.receiver {
+        if let Some(r) = &mut self.replica {
             r.close();
         }
-        self.receiver = None;
+        self.replica = None;
         self.context = None;
     }
     pub fn text(&self, target: u64) -> Option<&rui_protocol_core::model::TextModel> {
@@ -968,6 +791,80 @@ impl Session {
             return None;
         };
         Some(t)
+    }
+}
+
+struct PortableReplies<'a> {
+    outbound: &'a mut VecDeque<Outbound>,
+    bytes: &'a mut usize,
+    limits: &'a ReceiverLimits,
+    budget: MemoryBudget,
+}
+impl Replies for PortableReplies<'_> {
+    type Reservation = (MemoryReservation, usize);
+    fn reserve(
+        &self,
+        kind: p::Kind,
+        length: usize,
+        binding: Option<(Id, Id, Id)>,
+    ) -> Result<Self::Reservation, TransportError> {
+        let bytes = crate::replica::message_size(kind, length, binding)?;
+        if bytes > self.limits.envelope_bytes
+            || self.outbound.len() >= 32
+            || self
+                .bytes
+                .checked_add(bytes)
+                .is_none_or(|n| n > self.limits.outbound_queue_bytes)
+        {
+            return Err(TransportError::Limit);
+        }
+        let charge = bytes
+            .checked_mul(4)
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(TransportError::Limit)?;
+        Ok((
+            self.budget
+                .reserve(charge)
+                .map_err(|_| TransportError::Limit)?,
+            bytes,
+        ))
+    }
+    fn enqueue_reserved<T: Message>(
+        &mut self,
+        kind: p::Kind,
+        binding: Option<(Id, Id, Id)>,
+        (memory, length): Self::Reservation,
+        make: impl FnOnce() -> T,
+    ) -> Result<(), TransportError> {
+        let packet = codec::wrap(kind, &make(), binding);
+        self.push(packet, memory, length)
+    }
+    fn enqueue<T: Message>(
+        &mut self,
+        kind: p::Kind,
+        payload: &T,
+        binding: Option<(Id, Id, Id)>,
+    ) -> Result<(), TransportError> {
+        let (memory, length) = self.reserve(kind, payload.encoded_len(), binding)?;
+        self.push(codec::wrap(kind, payload, binding), memory, length)
+    }
+}
+impl PortableReplies<'_> {
+    fn push(
+        &mut self,
+        packet: p::Packet,
+        memory: MemoryReservation,
+        length: usize,
+    ) -> Result<(), TransportError> {
+        if packet.encoded_len() != length {
+            return Err(TransportError::Protocol);
+        }
+        self.outbound.push_back(Outbound {
+            bytes: packet.encode_to_vec(),
+            _memory: Some(memory),
+        });
+        *self.bytes += length;
+        Ok(())
     }
 }
 
@@ -1231,6 +1128,167 @@ mod tests {
         assert!(s.acquire(0).is_err());
         s.close();
         assert_eq!(s.memory_used(), 0);
+    }
+    #[test]
+    fn native_actor_and_portable_session_agree_at_every_transcript_prefix() {
+        let mut s = session(true);
+        let limits = s.limits.clone();
+        let context = s.context.unwrap();
+        let receiver = ViewReceiver::new(
+            context,
+            limits.clone(),
+            ReceiverConfig {
+                single_glyph_outlines: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut native = Replica::new(context, limits.clone(), false, receiver, None).unwrap();
+        let budget = native.receiver().memory_budget();
+        let mut frames = VecDeque::new();
+        let mut bytes = 0;
+        let mut replies = PortableReplies {
+            outbound: &mut frames,
+            bytes: &mut bytes,
+            limits: &limits,
+            budget: budget.clone(),
+        };
+        for revision in 1..=2 {
+            let payload = if revision == 1 {
+                pb::Snapshot {
+                    revision,
+                    records: vec![record(revision, None)],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else {
+                pb::Transaction {
+                    base_revision: revision - 1,
+                    new_revision: revision,
+                    mutations: vec![pb::Mutation {
+                        mutation: Some(pb::mutation::Mutation::Put(record(revision, None))),
+                    }],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            };
+            let digest = publication_digest(&payload).to_vec();
+            let id = vec![revision as u8; 16];
+            let tape = [
+                bound(
+                    if revision == 1 {
+                        p::Kind::SnapshotBegin
+                    } else {
+                        p::Kind::TransactionBegin
+                    },
+                    &p::PublicationBegin {
+                        publication_id: id.clone(),
+                        base_revision: revision - 1,
+                        revision,
+                        total_bytes: payload.len() as u64,
+                        chunk_count: 1,
+                        item_count: 1,
+                        digest: digest.clone(),
+                    },
+                ),
+                bound(
+                    p::Kind::PublicationChunk,
+                    &p::PublicationChunk {
+                        publication_id: id.clone(),
+                        index: 0,
+                        data: payload.clone(),
+                    },
+                ),
+                bound(
+                    p::Kind::PublicationCommit,
+                    &p::PublicationCommit {
+                        publication_id: id,
+                        total_bytes: payload.len() as u64,
+                        chunk_count: 1,
+                        item_count: 1,
+                        digest,
+                    },
+                ),
+            ];
+            for (index, raw) in tape.iter().enumerate() {
+                let portable = s.receive(raw).unwrap();
+                let actual = native.receive(raw, &mut replies).unwrap();
+                assert_eq!(s.state().unwrap(), native.receiver().state().unwrap());
+                if index == 2 {
+                    assert!(matches!(portable, Event::Applied { revision: r } if r == revision));
+                    assert!(
+                        matches!(actual, Some(ClientEvent::Applied { revision: r }) if r == revision)
+                    );
+                } else {
+                    assert!(matches!(portable, Event::None));
+                    assert!(actual.is_none());
+                }
+                let portable: Vec<_> = drain(&mut s).iter().map(Message::encode_to_vec).collect();
+                let actual: Vec<_> = replies.outbound.drain(..).map(|f| f.bytes).collect();
+                *replies.bytes = 0;
+                assert_eq!(portable, actual);
+            }
+            s.presented(revision).unwrap();
+            native.presented(revision, &mut replies).unwrap();
+            assert_eq!(
+                drain(&mut s)[0].encode_to_vec(),
+                replies.outbound.pop_front().unwrap().bytes
+            );
+            *replies.bytes = 0;
+            assert_eq!(s.ready(), native.ready());
+        }
+        let granted = grant(&mut s);
+        native
+            .receive(&bound(p::Kind::ControlGranted, &granted), &mut replies)
+            .unwrap();
+        assert_eq!(s.lease().unwrap(), native.lease().unwrap());
+        let sequence = s.command(1, "Activate", Arguments::None).unwrap();
+        let packet = drain(&mut s).remove(0);
+        native
+            .retain_command(CommandFamily::Semantic, &packet.payload)
+            .unwrap();
+        for status in ["Unknown", "OutcomeUnknown", "OutcomeExpired", "Dispatched"] {
+            let raw = bound(
+                p::Kind::CommandResult,
+                &p::CommandResult {
+                    command_seq: sequence,
+                    status: status.into(),
+                    ..Default::default()
+                },
+            );
+            s.receive(&raw).unwrap();
+            native.receive(&raw, &mut replies).unwrap();
+            assert_eq!(s.pending_commands(), native.commands().len());
+            assert_eq!(native.commands().latest().unwrap().bytes(), packet.payload);
+        }
+        // Peer failure clears both readiness/leases while preserving the replica
+        // and exact ambiguous command. Further packets cannot revive this socket.
+        let foreign = codec::wrap(
+            p::Kind::Pong,
+            &p::Ping { nonce: 1 },
+            Some(([9; 16], [2; 16], [4; 16])),
+        )
+        .encode_to_vec();
+        assert_eq!(s.receive(&foreign).unwrap_err(), TransportError::Binding);
+        assert_eq!(
+            native.receive(&foreign, &mut replies).unwrap_err(),
+            TransportError::Binding
+        );
+        let good = bound(p::Kind::Pong, &p::Ping { nonce: 2 });
+        assert_eq!(s.receive(&good).unwrap_err(), TransportError::Closed);
+        assert_eq!(
+            native.receive(&good, &mut replies).unwrap_err(),
+            TransportError::Closed
+        );
+        assert!(native.lease().is_none());
+        assert!(native.ready().is_none());
+        assert!(!s.has_control());
+        assert_eq!(s.state().unwrap(), native.receiver().state().unwrap());
+        assert_eq!(native.commands().len(), 1);
+        assert_eq!(s.pending_commands(), 1);
+        s.close();
+        native.close();
+        assert_eq!(budget.used(), 0);
     }
     #[test]
     fn snapshots_transactions_and_presentation_are_distinct() {

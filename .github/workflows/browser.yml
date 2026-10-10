@@ -74,6 +74,10 @@ jobs:
       - run: npm --prefix client-browser exec -- playwright install chromium
       - run: npm --prefix client-browser run build && npm --prefix demos/web run build
       - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
+      - name: Native shared actor and canonical-clock IME
+        run: |
+          cargo build --release -p rui-client-desktop --features gtk-source-probe --example gtk_source_probe --locked
+          python3 fixtures/gtk/mirror_check.py --xvfb "$(command -v Xvfb)" --scenario composition --output "$RUNNER_TEMP/rui-shared-native"
       - name: Submitted-node coverage with unsupported-content companion
         run: |
           python3 fixtures/gtk/measure.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-coverage"

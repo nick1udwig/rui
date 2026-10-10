@@ -1,35 +1,41 @@
 # Native and portable session behavior
 
-L2's first migration slice extracts `rui-wire`; schema, codec/preflight, errors,
-redaction and zeroizing ownership are shared without a dependency cycle. The
-native networking actor is still `NetworkClient`. This matrix controls subsequent
-migration; unsupported portable behavior must be explicit before removing native code.
+`rui-wire` owns the bounded codec, schema, errors and zeroizing wire ownership.
+`rui-client-core::replica::Replica` now owns the authenticated synchronous state
+machine used by both `NetworkClient` and the WASM-facing `Session`. Transport,
+deadlines, GUI events and actual presentation opportunities remain adapter duties.
 
-| Behavior | Native transport | Portable actor at this slice |
+| Behavior | Shared actor | Adapter policy |
 | --- | --- | --- |
-| Wire versions/profiles/permissions | caller hello, negotiated subset, typed grants | explicit mirror/semantic-only profile subsets, permission/action gate; arbitrary native negotiation pending |
-| View selection | explicit selection and canvas policy | explicit selection, host-canvas policy |
-| Readiness | Applied, actual Presented or SemanticReady | Applied, actual Presented and explicit current SemanticReady |
-| Publication/chunk assembly | Rust ViewReceiver | same Rust ViewReceiver and exact publication hashes |
-| Resources | bounded paging, eviction/cache loss, retained pins | same shared bounded request cursor, verified offers/bodies, live cache loss/eviction and retained cache-loss resume |
-| Resume/reset | retained receiver with caller hello, changed scope fallback | retained receiver and exact pending command queries, same-scope limits/profile check |
-| Semantic commands | shared builders; exact bytes | shared builders, activation/focus/text/selection/typed values and stable-item/model actions |
-| Raw input/composition/resize | supported when negotiated and native adapter proves it | builders shared; no portable capability claim |
-| Leases | native integration manages request IDs, held-input cleanup | actor manages acquire/renew/release and stale-response fencing |
-| Queued sends | charged sink admission, submitted marker across cancelled await | bounded charged synchronous queue; generation fencing in browser |
-| Command ambiguity | common host ledger, native UI exact pending queue | common host ledger, retained exact pending queue; no fresh retry |
-| Disposal | receiver, sink/writer allocations and GUI cleanup | receiver/commands cleared explicitly; browser clears derived pixels/state |
+| Negotiation | version, bindings, limits, profiles and permissions validated once | native caller hello; portable explicit mirror/semantic-only subsets |
+| Publications | exact digest/chunk assembly, Rust reducer, retirement and closure | ordered authenticated packet delivery |
+| Readiness | Applied distinct from current Presented or SemanticReady | actual native/browser frame; explicit semantic acceptance |
+| Resources | bounded cursor, verified offers/bodies, pinned eviction and cache loss | native async or portable synchronous charged replies |
+| Resume/reset | retained committed receiver, exact commands, scoped rebind and readiness clearing | explicit reconnection/authentication; no authority restoration |
+| Leases | charged held grant, matching revocation and readiness/authority clearing | native request IDs and held-input cleanup; portable stale-response fencing |
+| Commands | shared builders, sequence space and exact retained family/payload | native negotiated semantic/raw/composition/resize; portable tested semantic subset |
+| Malformed input | poisons the connection and clears staging/control/readiness | close transport; committed graph/exact pending commands survive explicit reconnect |
+| Disposal | clears receiver, commands, resources and capability reservations | release socket/writer, DOM/GUI listeners and derived render caches |
 
-Ownership contract: transport admission retains encoded bytes and a shared-budget
-reservation until successful flush. A cancelled await after sink admission keeps
-the submitted marker and resumes that exact frame once. Portable synchronous
-admission removes actor bytes only after a platform transport takes/copies them;
-browser buffered-byte limits and connection generations remain platform duties.
-Neither path declares presentation from packet receipt or Applied.
+Applied, Rejected and Failed retire a command. Unknown, OutcomeUnknown,
+OutcomeExpired, Accepted and future statuses retain its exact bytes. Dispatched
+retains semantic edits, resize and IME Commit. For raw input and IME Begin,
+UpdatePreedit or Cancel, Dispatched confirms the native submission/transient stage
+and retires it. It never claims an IME document edit or presentation.
 
-The native queue remains because its cancellation and all command families are
-already proven. Resource paging/cursor ownership is now shared, while full `NetworkClient` migration is outstanding and is not implied
-by the crate extraction. The plan allows semantic session/library work to proceed
-before that migration; existing native integration gates must pass before duplicate
-actor behavior can be deleted. Protocol transcripts and codec rejection tests
-remain unchanged across this slice.
+The native sink retains charged encoded bytes and its submitted marker until a
+successful flush, including cancellation after sink admission. Portable admission
+removes queued bytes only when the platform takes/copies them; browser socket
+buffer limits and generation fencing remain platform duties. Reservations precede
+reply construction. Escaped view metadata and held leases retain their charges.
+
+Failed reauthentication, allocation and cancelled I/O preserve the native retained
+receiver and exact pending commands. No retry recreates an ambiguous command with
+new authority. Same-epoch reconnect queries/retries original bytes; a changed epoch
+retires them. Queue, message, resource and memory ceilings are unchanged.
+
+Regression evidence includes dual native/portable packet-prefix and reply equality,
+foreign binding poisoning, all command-family receipt policies, native TLS lost-result
+recovery/allocation failure and cancellation tests, three-engine WASM tests, and
+fresh owned GTK IME/two-client editor checks. See `fixtures/browser/shared-actor`
+and `fixtures/gtk/shared-actor`. Historical M0–M5 acceptance traces remain separate.

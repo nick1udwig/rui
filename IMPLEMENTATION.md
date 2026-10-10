@@ -1,10 +1,20 @@
+L2 full actor migration: native NetworkClient and portable Session now delegate
+negotiation, publication/resource transitions, readiness, leases, resume and exact
+command ownership to client-core Replica. Native cancellation-safe socket admission
+remains in the transport adapter. Dual-prefix/core tests, native TLS lost-result
+recovery and all existing native gates pass. GTK incremental publications withdraw
+the optional native clear/insert clock profile and use canonical public clocks;
+fresh native IME proves four edits, ten exact painted frames and zero disposal
+ownership. See docs/client-behavior-matrix.md and fixtures/gtk/shared-actor.
+Distributed-package/external-machine acceptance remains L5.
+
 L2/L3 resource slice: native and portable clients share the bounded request cursor;
 portable live cache loss/eviction and retained cache-loss resume preserve records and
 exact commands while pausing readiness until verified closure/presentation. Public
 browser APIs expose owned resource copies, resource readiness and explicit full-frame
 refresh. A 512-body/1024-byte-message regression, native TLS recovery/cancellation,
-three-engine WASM tests and fresh owned editor recovery pass. Full native actor
-migration and distributed external-consumer acceptance remain outstanding.
+three-engine WASM tests and fresh owned editor recovery pass. The subsequent full actor migration is recorded above; distributed external-consumer
+acceptance remains outstanding.
 
 S5 implemented for two owned sources: distinct approved semantic/mirror clients
 perform the generic three-effect scenario, exchange one lease and converge. Fresh
@@ -101,8 +111,8 @@ L2's first slice extracts `rui-wire` for generated session schema, bounded codec
 portable errors and redacted/zeroizing ownership. Compatibility transport exports
 preserve existing callers and the dependency cycle is removed. The
 [behavior matrix](docs/client-behavior-matrix.md) records shared behavior, gaps and
-send/cancellation ownership. Full native actor migration remains outstanding;
-its existing queue and supported command families are preserved.
+send/cancellation ownership. The subsequent shared Replica migration removes duplicate decoding/transition logic;
+its native socket queue and supported command families remain adapter contracts.
 
 C5 adds bounded read-only observed HTML views, explicit stale/unavailable/partial
 and redacted state, immediate scope clearing and one disposable worker per source.
@@ -215,7 +225,7 @@ The [implementation plans](docs/implementation-plans.md) expand these four areas
 
 - **Performance:** the interactive host now captures from dirty notifications and publishes validated warm transactions. Client state export and rendering still need measured optimization; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
 - **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
-- **Browser and library completion:** extend negotiated browser capabilities as needed, consolidate the remaining distinct native/browser connection actors, and reduce state-copy/render overhead. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
+- **Browser and library completion:** extend negotiated browser capabilities as needed, reduce state-copy/render overhead where measurements justify it. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
 - **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A generic semantic DOM presentation now covers two owned applications; physical mobile/screen-reader and external-machine acceptance remains outstanding.
 
 RFC section 14 deliberately defers mobile translation, independent application views, concurrent writers/CRDTs, general GPU streaming, audio/video, clipboard/file transfer, raster asset profiles, executable components, browser-engine capture and cross-compositor standardization. These are optional future scope, not unfinished M0–M5 gates.

@@ -36,6 +36,11 @@ impl QueuedCommand {
         &self.bytes
     }
 }
+impl Drop for QueuedCommand {
+    fn drop(&mut self) {
+        self.bytes.fill(0);
+    }
+}
 impl std::fmt::Debug for QueuedCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueuedCommand")
@@ -47,6 +52,7 @@ impl std::fmt::Debug for QueuedCommand {
 }
 pub struct CommandQueue {
     epoch: Id,
+    disposed: bool,
     next: u64,
     maximum: usize,
     budget: MemoryBudget,
@@ -76,6 +82,7 @@ impl CommandQueue {
             .map_err(|_| QueueError::Limit)?;
         Ok(Self {
             epoch,
+            disposed: false,
             next: 1,
             maximum,
             budget,
@@ -106,7 +113,7 @@ impl CommandQueue {
         length: usize,
         encode: impl FnOnce(&mut Vec<u8>) -> Result<(), ()>,
     ) -> Result<u64, QueueError> {
-        if length > self.maximum || self.queue.len() == MAX_PENDING_COMMANDS {
+        if self.disposed || length > self.maximum || self.queue.len() == MAX_PENDING_COMMANDS {
             return Err(QueueError::Limit);
         }
         let next = self.next.checked_add(1).ok_or(QueueError::Sequence)?;
@@ -131,6 +138,85 @@ impl CommandQueue {
         });
         self.next = next;
         Ok(sequence)
+    }
+    pub fn clear(&mut self) {
+        self.disposed = true;
+        self.queue = VecDeque::new();
+        self._memory
+            .resize(0)
+            .expect("shrinking a reservation cannot fail");
+    }
+    /// Admit caller-encoded native commands without changing their original
+    /// sequence/family/bytes. A conflicting retry is sent to the host for its
+    /// authoritative rejection, but cannot replace the retained original.
+    pub fn retain_exact(
+        &mut self,
+        sequence: u64,
+        family: CommandFamily,
+        bytes: &[u8],
+    ) -> Result<(), QueueError> {
+        if self.disposed || sequence == 0 {
+            return Err(QueueError::Sequence);
+        }
+        if self.queue.iter().any(|c| c.sequence == sequence) {
+            return Ok(());
+        }
+        if bytes.len() > self.maximum || self.queue.len() == MAX_PENDING_COMMANDS {
+            return Err(QueueError::Limit);
+        }
+        let next = sequence.saturating_add(1);
+        let memory = self
+            .budget
+            .reserve(charge(bytes.len())?)
+            .map_err(|_| QueueError::Limit)?;
+        let mut owned = Vec::new();
+        owned
+            .try_reserve_exact(bytes.len())
+            .map_err(|_| QueueError::Limit)?;
+        owned.extend_from_slice(bytes);
+        self.queue.push_back(QueuedCommand {
+            sequence,
+            family,
+            bytes: owned,
+            _memory: memory,
+        });
+        self.next = self.next.max(next);
+        Ok(())
+    }
+    /// Ambiguous/nonterminal results retain exact bytes for explicit recovery.
+    pub fn result(&mut self, sequence: u64, status: &str) -> bool {
+        let status = status.to_ascii_lowercase();
+        let dispatched = status == "dispatched"
+            && self
+                .queue
+                .iter()
+                .find(|c| c.sequence == sequence)
+                .is_some_and(|c| match c.family {
+                    CommandFamily::RawInput => true,
+                    CommandFamily::TextComposition => {
+                        use prost::Message;
+                        use rui_protocol_core::wire::proto::{
+                            text_composition::Operation, TextComposition,
+                        };
+                        TextComposition::decode(c.bytes.as_slice())
+                            .ok()
+                            .is_some_and(|c| {
+                                matches!(
+                                    c.operation,
+                                    Some(
+                                        Operation::Begin(_)
+                                            | Operation::UpdatePreedit(_)
+                                            | Operation::Cancel(_)
+                                    )
+                                )
+                            })
+                    }
+                    CommandFamily::Semantic | CommandFamily::Resize => false,
+                });
+        if !dispatched && !matches!(status.as_str(), "applied" | "rejected" | "failed") {
+            return false;
+        }
+        self.complete(sequence)
     }
     /// A matching authenticated terminal result retires only that exact request.
     pub fn complete(&mut self, sequence: u64) -> bool {
@@ -178,6 +264,85 @@ impl CommandQueue {
         self.budget = budget;
         self.maximum = maximum;
         self._memory = memory;
+        self.disposed = false;
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prost::Message;
+    use rui_protocol_core::wire::proto::{self as p, text_composition::Operation};
+    #[test]
+    fn only_confirmed_native_dispatch_receipts_retire_without_applied() {
+        let budget = MemoryBudget::new(1 << 20);
+        let mut q = CommandQueue::new([1; 16], budget.clone(), 4096).unwrap();
+        let raw = p::RawInputBatch {
+            header: Some(p::CommandHeader {
+                command_seq: 1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        q.retain_exact(1, CommandFamily::RawInput, &raw).unwrap();
+        assert!(!q.result(1, "Unknown"));
+        assert_eq!(q.latest().unwrap().bytes(), raw);
+        assert!(q.result(1, "Dispatched"));
+        for (sequence, operation, terminal) in [
+            (2, Operation::Begin(p::ScalarRange::default()), true),
+            (
+                3,
+                Operation::UpdatePreedit(p::Preedit {
+                    text: "private local preedit".into(),
+                    ..Default::default()
+                }),
+                true,
+            ),
+            (4, Operation::Cancel(p::EmptyArguments::default()), true),
+            (
+                5,
+                Operation::CommitText(p::CommitText { text: "x".into() }),
+                false,
+            ),
+        ] {
+            let wire = p::TextComposition {
+                header: Some(p::CommandHeader {
+                    command_seq: sequence,
+                    ..Default::default()
+                }),
+                operation: Some(operation),
+                ..Default::default()
+            }
+            .encode_to_vec();
+            q.retain_exact(sequence, CommandFamily::TextComposition, &wire)
+                .unwrap();
+            assert_eq!(q.result(sequence, "Dispatched"), terminal);
+        }
+        assert_eq!(q.len(), 1);
+        for status in [
+            "Accepted",
+            "OutcomeUnknown",
+            "OutcomeExpired",
+            "future-status",
+        ] {
+            assert!(!q.result(5, status));
+        }
+        assert!(q.result(5, "Applied"));
+        // A conflicting retry never replaces the original family/bytes.
+        q.retain_exact(6, CommandFamily::Semantic, b"original")
+            .unwrap();
+        q.retain_exact(6, CommandFamily::Resize, b"replacement")
+            .unwrap();
+        assert_eq!(q.latest().unwrap().family(), CommandFamily::Semantic);
+        assert_eq!(q.latest().unwrap().bytes(), b"original");
+        assert!(!q.result(6, "Dispatched"));
+        q.clear();
+        assert_eq!(budget.used(), 0);
+        assert_eq!(
+            q.encode(CommandFamily::Semantic, 1, |_| Ok(())),
+            Err(QueueError::Limit)
+        );
     }
 }

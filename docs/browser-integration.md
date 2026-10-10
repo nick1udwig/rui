@@ -1,5 +1,9 @@
 # Browser integration contract
 
+Native transport and the WASM session now share the Rust authenticated `Replica`
+state machine, exact command ledger and resource cursor. Browser transports and
+renderers remain replaceable adapters; they never decode/reduce wire state themselves.
+
 `BrowserClient.create` initializes WASM asynchronously and validates the WSS URL.
 Module import constructs no DOM. Construction requires a browser document, a
 caller-owned credential provider, explicit source selection and a presentation

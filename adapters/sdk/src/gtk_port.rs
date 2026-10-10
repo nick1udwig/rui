@@ -1325,7 +1325,7 @@ mod tests {
         });
     }
     #[test]
-    fn gtk_text_clock_profile_is_selected_only_when_client_supports_it() {
+    fn incremental_public_clocks_decline_native_gtk_formula_even_when_offered() {
         runtime().block_on(async {
             for supported in [false, true] {
                 let port = fixture();
@@ -1345,13 +1345,10 @@ mod tests {
                 let PortReply::Connected(connection) = received.value() else {
                     panic!("connection")
                 };
-                assert_eq!(
-                    connection
-                        .session()
-                        .profiles
-                        .contains("text.clock.gtk-editable4224.v1"),
-                    supported
-                );
+                assert!(!connection
+                    .session()
+                    .profiles
+                    .contains("text.clock.gtk-editable4224.v1"));
                 let connection = connection.clone();
                 drop(received);
                 port.disconnect(&connection);

@@ -85,7 +85,7 @@ def main():
     report_path = args.output / 'interaction.json'
     report = json.loads(bounded_read(report_path, 65536))
     if args.scenario == 'composition':
-        report['wire_composition_trace'] = verify_controller(args.output / 'controller.trace.jsonl')
+        report['wire_composition_trace'] = verify_controller(args.output / 'controller.trace.jsonl', clock_policy=report.get('clock_policy', 'native-gtk'))
     vector = args.output / 'source-vector'
     references = []
     for path in sorted(vector.glob('whole-*.json')):
@@ -109,6 +109,9 @@ def main():
     # Bind the evidence to the exact accepted implementation used to build
     # this probe. Native reference images stay local and outside this list.
     implementation = [
+        'client-core/src/replica.rs', 'client-core/src/session.rs',
+        'client-core/src/command_queue.rs', 'client-core/src/resource_requests.rs',
+        'wire/src/codec.rs', 'adapters/sdk/src/publication_builder.rs',
         'Cargo.lock', 'adapters/sdk/Cargo.toml', 'adapters/sdk/producer.py',
         'adapters/sdk/src/lib.rs', 'adapters/sdk/src/vector_audit.rs',
         'adapters/sdk/src/gtk_host.rs', 'adapters/sdk/src/gtk_port.rs',

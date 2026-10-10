@@ -1,7 +1,6 @@
 //! Optional GTK mirror shell. All document state remains in NetworkClient's
 //! receiver; local viewport changes never generate application commands.
 use crate::{
-    command_queue::CommandQueue,
     composition::{ClockPolicy, CompositionQueue, NativeStage, GTK_EDITABLE_CLOCK_PROFILE},
     interaction::{self, CommandBinding, EditingContext},
     physical_dispatch::{self, CapturedPhysicalInput, PhysicalControl},
@@ -454,27 +453,18 @@ fn command_binding(
 async fn submit_semantic(
     client: &mut NetworkClient,
     domain: rui_protocol_core::commands::SemanticCommand,
-    pending: &mut CommandQueue,
 ) -> Result<(), TransportError> {
-    if domain.command_seq != pending.next_sequence() {
+    if domain.command_seq != client.commands().next_sequence() {
         return Err(TransportError::Protocol);
     }
-    let wire = wire_command(domain);
-    submit_wire(client, CommandFamily::Semantic, &wire, pending).await
+    submit_wire(client, CommandFamily::Semantic, &wire_command(domain)).await
 }
 async fn submit_wire<T: Message>(
     client: &mut NetworkClient,
     family: CommandFamily,
     wire: &T,
-    pending: &mut CommandQueue,
 ) -> Result<(), TransportError> {
-    let length = wire.encoded_len();
-    pending
-        .encode(family, length, |bytes| wire.encode(bytes).map_err(|_| ()))
-        .map_err(|_| TransportError::Limit)?;
-    client
-        .submit_family(family, pending.latest().unwrap().bytes())
-        .await
+    client.submit_encoded(family, wire).await
 }
 fn recoverable(error: &TransportError) -> bool {
     matches!(
@@ -512,12 +502,10 @@ async fn recover_connection(
     client: NetworkClient,
     options: &Options,
     hello: &ClientHello,
-    pending: &mut CommandQueue,
     commands: &mut mpsc::Receiver<UiCommand>,
     events: &SyncSender<UiEvent>,
     shutdown: &mut watch::Receiver<bool>,
 ) -> Option<(NetworkClient, bool, Option<OpenedView>)> {
-    let mut context = (client.epoch, client.view_id);
     let mut retained = client.into_retained();
     loop {
         let attempt = tokio::select! {
@@ -525,33 +513,29 @@ async fn recover_connection(
             result=retained.reconnect(options.address,options.server_name.clone(),options.certificate.clone(),&options.credential,hello.clone())=>result,
         };
         if let Ok(mut client) = attempt {
-            let binding = (client.epoch, client.view_id);
-            let ready = binding == context
-                || pending
-                    .rebind(
-                        client.epoch,
-                        client.receiver().memory_budget(),
-                        client.limits.envelope_bytes.saturating_sub(128),
-                    )
-                    .is_ok();
-            if ready {
-                context = binding;
+            {
                 let mut applied = false;
                 let mut opened = None;
                 let recovery = async {
                     options.view_selection.open(&mut client).await?;
                     // Old-lease exact retries either recover a retained result
                     // or consume a rejection. They cannot restore source input.
-                    while !pending.is_empty() {
-                        let command = pending.commands().next().unwrap();
-                        let sequence = command.sequence();
-                        client
-                            .submit_family(command.family(), command.bytes())
-                            .await?;
+                    while !client.commands().is_empty() {
+                        let sequence = client.commands().commands().next().unwrap().sequence();
+                        client.retry_command(sequence).await?;
                         for index in 0..1024 {
                             let result = client.receive().await?;
                             match result {
-                                ClientEvent::CommandResult(r) if r.command_seq == sequence => break,
+                                ClientEvent::CommandResult(r) if r.command_seq == sequence => {
+                                    if client
+                                        .commands()
+                                        .commands()
+                                        .any(|c| c.sequence() == sequence)
+                                    {
+                                        return Err(TransportError::Authority);
+                                    }
+                                    break;
+                                }
                                 ClientEvent::ControlRevoked(_) => {}
                                 ClientEvent::ViewOpened(metadata) => opened = Some(metadata),
                                 ClientEvent::ResumeAccepted(_)
@@ -565,7 +549,6 @@ async fn recover_connection(
                                 return Err(TransportError::Limit);
                             }
                         }
-                        pending.complete(sequence);
                     }
                     client.flush_pending().await
                 };
@@ -579,11 +562,6 @@ async fn recover_connection(
                 status(
                     events,
                     "Reconnect interrupted; pending outcomes remain unconfirmed.",
-                );
-            } else {
-                status(
-                    events,
-                    "New limits cannot recover pending commands; input remains paused.",
                 );
             }
             retained = client.into_retained();
@@ -781,18 +759,6 @@ pub async fn worker_with_priority(
         }
     };
     let mut composition_deadline = None::<tokio::time::Instant>;
-    let mut pending_commands = match CommandQueue::new(
-        client.epoch,
-        budget.clone(),
-        client.limits.envelope_bytes.saturating_sub(128),
-    ) {
-        Ok(queue) => queue,
-        Err(_) => {
-            ui_state.clear(Lifecycle::Closed);
-            ui.send_replace(ui_state);
-            return;
-        }
-    };
     let mut physical = match physical_continuity::Continuity::new(&budget) {
         Ok(value) => value,
         Err(()) => {
@@ -1020,12 +986,7 @@ pub async fn worker_with_priority(
                                 Some(tokio::time::Instant::now() + Duration::from_secs(15));
                             let wire = composition_wire(prepared.command);
                             if let Err(error) = physical_io::guarded(
-                                submit_wire(
-                                    &mut client,
-                                    CommandFamily::TextComposition,
-                                    &wire,
-                                    &mut pending_commands,
-                                ),
+                                submit_wire(&mut client, CommandFamily::TextComposition, &wire),
                                 ui_state.input_control(),
                                 &mut priority,
                                 &mut safety_stopped,
@@ -1035,7 +996,7 @@ pub async fn worker_with_priority(
                                 reconnect = recoverable(&error);
                                 break;
                             }
-                            sequence = pending_commands.next_sequence();
+                            sequence = client.commands().next_sequence();
                             drop(prepared.memory);
                             continue;
                         }
@@ -1069,7 +1030,7 @@ pub async fn worker_with_priority(
                                 }
                             };
                             if let Err(error) = physical_io::guarded(
-                                submit_semantic(&mut client, domain, &mut pending_commands),
+                                submit_semantic(&mut client, domain),
                                 ui_state.input_control(),
                                 &mut priority,
                                 &mut safety_stopped,
@@ -1079,7 +1040,7 @@ pub async fn worker_with_priority(
                                 reconnect = recoverable(&error);
                                 break;
                             }
-                            sequence = pending_commands.next_sequence();
+                            sequence = client.commands().next_sequence();
                             drop(prepared.memory);
                         }
                         Ok(None) => {}
@@ -1162,7 +1123,6 @@ pub async fn worker_with_priority(
                         }
                     },
                     Ok(ClientEvent::CommandResult(result))=>{
-                        pending_commands.complete(result.command_seq);
                         if physical.result(result.command_seq,&result.status).is_some_and(|control|Some(control)==ui_state.physical_control) {
                             safety_stopped=true;reconnect=true;
                             status(&events,"Physical dispatch rejected or unconfirmed; request fresh control after recovery.");break;
@@ -1261,12 +1221,12 @@ pub async fn worker_with_priority(
                             } else {None};
                             let Some(prepared)=prepared else {safety_stopped=true;reconnect=true;status(&events,"Physical input route or readiness changed; request fresh control after recovery.");break;};
                             if physical.before_send(sequence,prepared.owner,&prepared.event).is_err() {safety_stopped=true;reconnect=true;status(&events,"Physical input limit reached; request fresh control after recovery.");break;}
-                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,&prepared.wire,&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,&prepared.wire),ui_state.input_control(),&mut priority,&mut safety_stopped).await {
                                 if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}
                                 // An ambiguous physical send requires a manual new grant.
                                 safety_stopped=true;reconnect=recoverable(&error);break;
                             }
-                            sequence=pending_commands.next_sequence();
+                            sequence=client.commands().next_sequence();
                         },
                         UiCommand::Stroke{stamp,stroke}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||stroke.revision()!=stamp.revision||!stroke.matches_viewport(stamp.viewport) {status(&events,"Canvas view changed; the unsubmitted stroke was cancelled.");continue;}
@@ -1277,22 +1237,22 @@ pub async fn worker_with_priority(
                             let state=match client.receiver().state() {Ok(s)=>s,Err(_)=>continue};
                             let prepared=match stroke.into_command(state,binding,DeviceScope{seat:&device.seat_id,device:&device.device_id,key_namespace:&device.key_namespace,input_mode:&device.input_mode,text_owner:&device.text_owner}) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Canvas stroke cancelled: source route, geometry, or device changed.");continue;}};
                             if let Some(observations)=&options.observations {if let Some(events_digest)=prepared.event_digest() {observations.send_modify(|o|o.last_stroke=Some(StrokeObservation{command_sequence:sequence,event_count:prepared.wire().events.len(),events_digest}));}}
-                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,prepared.wire(),&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
-                            sequence=pending_commands.next_sequence();
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::RawInput,prepared.wire()),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            sequence=client.commands().next_sequence();
                         },
                         UiCommand::ResizeSource{stamp,target,width,height}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_resize!=Some(target) {status(&events,"Source resize context changed; wait for its latest frame.");continue;}
                             let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
                             let prepared=match source_controls::resize_command(state,target,width,height,binding,&budget) {Ok(prepared)=>prepared,Err(_)=>{status(&events,"Source size or focused surface is unavailable.");continue;}};
-                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::Resize,prepared.wire(),&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
-                            sequence=pending_commands.next_sequence();
+                            if let Err(error)=physical_io::guarded(submit_wire(&mut client,CommandFamily::Resize,prepared.wire()),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            sequence=client.commands().next_sequence();
                         },
                         UiCommand::ScrollSource{stamp,target,x,y}=>{
                             if !ui_state.accepts(stamp)||awaiting_resources||!presented.is_some_and(|p|p.serial==stamp.serial)||ui_state.source_scroll!=Some(target) {status(&events,"Select the latest remote scroll target first.");continue;}
                             let Some(binding)=binding else {continue;};let state=match client.receiver().state(){Ok(s)=>s,Err(_)=>continue};
                             let domain=match interaction::command(state,target,"ScrollTo",Arguments::Scroll{x,y},binding) {Ok(domain)=>domain,Err(_)=>{status(&events,"Remote scroll action or context is unavailable.");continue;}};
-                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
-                            sequence=pending_commands.next_sequence();
+                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}
+                            sequence=client.commands().next_sequence();
                         },
                         input=>{
                             let stamp=match &input {UiCommand::Click{stamp,..}|UiCommand::Commit{stamp,..}|UiCommand::SelectAll{stamp}=>*stamp,_=>unreachable!()};
@@ -1337,7 +1297,7 @@ pub async fn worker_with_priority(
                             if !current.wire.allowed_actions.iter().any(|a|a==action) {status(&events,"This action is not granted.");continue;}
                             let lease_id: [u8;16]=match current.wire.lease_id.as_slice().try_into() {Ok(id)=>id,Err(_)=>break};
                             let domain=match interaction::command(state,target,action,args,CommandBinding{epoch:client.epoch,view:client.view_id,client:options.client_id,lease:lease_id,generation:current.wire.generation,sequence}) {Ok(c)=>c,Err(_)=>{status(&events,"Remote target or editing context is unavailable.");continue;}};
-                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain,&mut pending_commands),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=pending_commands.next_sequence();
+                            if let Err(error)=physical_io::guarded(submit_semantic(&mut client,domain),ui_state.input_control(),&mut priority,&mut safety_stopped).await {if let Some(observations)=&options.observations {observations.send_modify(|o|o.failure_class=Some(error_class(&error)));}reconnect=recoverable(&error);break;}sequence=client.commands().next_sequence();
                         },
                     }
                 },
@@ -1379,7 +1339,6 @@ pub async fn worker_with_priority(
             client,
             &options,
             &hello,
-            &mut pending_commands,
             &mut commands,
             &events,
             &mut shutdown,
@@ -1400,7 +1359,7 @@ pub async fn worker_with_priority(
         client = reconnected;
         opened = recovery_opened;
         budget = client.receiver().memory_budget();
-        sequence = pending_commands.next_sequence();
+        sequence = client.commands().next_sequence();
         renderer = match Renderer::new_with_profile(
             RenderLimits::default(),
             budget.clone(),
@@ -1463,6 +1422,7 @@ pub async fn worker_with_priority(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rui_client_core::command_queue::CommandQueue;
     fn editing_fixture() -> State {
         let mut state = State {
             revision: 1,

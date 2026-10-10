@@ -752,3 +752,21 @@ cargo build --locked --release -p rui-client-desktop \
 python3 fixtures/gtk/mirror_check.py --xvfb /path/to/Xvfb \
   --output /tmp/rui-gtk-desktop-composition-empty --scenario composition
 ```
+
+## Shared actor with incremental public clocks
+
+The fresh `fixtures/gtk/shared-actor/interaction.json` run uses the current shared
+Rust actor and incremental GTK producer. The optional native clear/insert profile
+is declined; standard canonical public clocks confirm all four native IME commits
+(`a`, `aé`, `aéx`, `aéxy`) without reconnect or semantic fallback. Begin/update/cancel
+remain private transient stages. Ten actual after-paint frames match verified source
+RGBA exactly; five source references check 935 glyphs with zero bad interior pixels.
+Disposal releases all host reservations.
+
+Public full record/clock hashes are replayed from the complete authorized wire prefix
+and compared with each actual mirror frame. Source content is compared after removing
+only clocks normalized by the publication builder; source and mirror pixels remain
+exact. This accounts for pruned intermediate capture artifacts without guessing their
+clocks. Separate independent audits validate both exact traces and resources. The
+historical native-clock M5 traces above remain unchanged. CI runs this new owned-display
+composition gate in addition to the producer and browser suites.

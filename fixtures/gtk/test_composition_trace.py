@@ -49,6 +49,19 @@ class NativeCompositionTraceTests(unittest.TestCase):
         self.assertEqual(result['physical_composing_batches'], 0)
         self.assertEqual(result['semantic_replace_text_fallbacks'], 0)
 
+    def test_incremental_public_clocks_and_native_formula_are_distinct(self):
+        path = Path(__file__).parent / 'shared-actor' / 'controller.trace.jsonl'
+        result = verify_controller(path, clock_policy='standard-public-clocks')
+        self.assertEqual([item['text_version'] for item in result['commits']], [2, 3, 4, 5])
+        self.assertEqual([item['text_record_version'] for item in result['commits']], [2, 3, 4, 5])
+        self.assertEqual([item['content'] for item in result['commits']], ['a', 'aé', 'aéx', 'aéxy'])
+        with self.assertRaises(ValueError):
+            verify_controller(path)
+        with self.assertRaises(ValueError):
+            verify_controller(self.path, clock_policy='standard-public-clocks')
+        with self.assertRaises(ValueError):
+            verify_controller(path, clock_policy='unknown')
+
     def test_foreign_cause_and_transient_applied_are_rejected(self):
         for transient in (False, True):
             rows = copy.deepcopy(self.rows)

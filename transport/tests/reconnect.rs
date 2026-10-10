@@ -420,3 +420,81 @@ async fn failed_atomic_resume_keeper_disconnects_negotiated_host_view() {
     client.close().await.unwrap();
     server.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn actor_owned_exact_command_survives_lost_result_and_failed_metadata_reservation() {
+    let (server, credential, _, _) = setup().await;
+    let mut client = connect(&server, &credential, 3).await;
+    client.open_view().await.unwrap();
+    applied(&mut client, 1).await;
+    client.presented(1).await.unwrap();
+    client.acquire_control([51; 16]).await.unwrap();
+    let ClientEvent::ControlGranted(lease) = client.receive().await.unwrap() else {
+        panic!()
+    };
+    let exact = activate(&client, &lease, 1);
+    client.submit(&exact).await.unwrap();
+    assert_eq!(client.commands().len(), 1);
+    assert_eq!(client.commands().commands().next().unwrap().bytes(), exact);
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while server.host.lock().await.diagnostics().counter != 1 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    // Lose the result after the native effect; recovery has no original UI queue owner.
+    let view = client.view_id;
+    let envelope = client.limits.envelope_bytes;
+    let mut retained = client.into_retained();
+    offline(&server, 3, view).await;
+    let budget = retained.receiver().unwrap().memory_budget();
+    let used = budget.used();
+    // The socket writer can reserve, but negotiated metadata cannot. A failed
+    // post-handshake allocation must not consume the retained graph/command.
+    let writer_charge = envelope * 4 + 64 * 1024;
+    let hold = budget
+        .reserve(budget.limit() - used - writer_charge)
+        .unwrap();
+    let result = retained
+        .reconnect(
+            server.address,
+            "localhost".into(),
+            include_bytes!("data/localhost.der").to_vec(),
+            &credential,
+            hello(3),
+        )
+        .await;
+    assert!(matches!(result, Err(rui_transport::TransportError::Limit)));
+    assert_eq!(retained.receiver().unwrap().state().unwrap().revision, 1);
+    assert_eq!(
+        retained
+            .commands()
+            .unwrap()
+            .commands()
+            .next()
+            .unwrap()
+            .bytes(),
+        exact
+    );
+    assert_eq!(budget.used(), used + hold.bytes());
+    drop(hold);
+    let mut client = reconnect(&server, &credential, &mut retained, 3).await;
+    assert_eq!(client.commands().len(), 1);
+    assert_eq!(client.commands().commands().next().unwrap().bytes(), exact);
+    converged(&mut client, 2).await;
+    client.retry_command(1).await.unwrap();
+    loop {
+        if let ClientEvent::CommandResult(result) = client.receive().await.unwrap() {
+            assert_eq!(result.command_seq, 1);
+            assert_eq!(result.status, "Applied");
+            break;
+        }
+    }
+    assert!(client.commands().is_empty());
+    assert_eq!(client.commands().next_sequence(), 2);
+    assert_eq!(server.host.lock().await.diagnostics().counter, 1);
+    assert_eq!(server.host.lock().await.diagnostics().consumed_commands, 1);
+    client.close().await.unwrap();
+    server.shutdown().await;
+}
