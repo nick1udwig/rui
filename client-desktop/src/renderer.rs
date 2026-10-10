@@ -121,23 +121,7 @@ impl ResourceProvider for rui_protocol_core::receiver::ViewReceiver {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Viewport {
-    pub width: u32,
-    pub height: u32,
-    pub origin: Point,
-    pub scale: f64,
-}
-impl Viewport {
-    pub fn new(width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            origin: Point { x: 0.0, y: 0.0 },
-            scale: 1.0,
-        }
-    }
-}
+pub use rui_client_core::Viewport;
 
 /// Premultiplied linear-sRGB, before the output display transfer function.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

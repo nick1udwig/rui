@@ -33,6 +33,7 @@ name = "gtk_source_probe"
 required-features = ["gtk-source-probe"]
 
 [dependencies]
+rui-client-core = { path = "../client-core" }
 rui-protocol-core = { path = "../protocol-core" }
 cairo-rs = { version = "=0.20.12", default-features = false }
 thiserror = "2"

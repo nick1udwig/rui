@@ -1,7 +1,101 @@
 mod common;
 use common::*;
+use rui_client_desktop::composition::ClockPolicy;
 use rui_client_desktop::{interaction::*, typing::*};
 use rui_protocol_core::{model::*, resources::*};
+
+#[test]
+fn gtk_clock_contract_confirms_ordered_native_edits_only_when_negotiated() {
+    for policy in [ClockPolicy::Strict, ClockPolicy::GtkEditable4224] {
+        let budget = MemoryBudget::new(1 << 20);
+        let mut q = TypingQueue::new_with_policy(budget.clone(), policy).unwrap();
+        let mut s = fixture(
+            "host",
+            TextRange {
+                anchor: 0,
+                focus: 4,
+            },
+        );
+        let origin = editing_context(&s, 20, &binding()).unwrap();
+        accept(&mut q, &s, origin, "a", &budget);
+        accept(&mut q, &s, origin, "b", &budget);
+        q.start(1, &s, &binding()).unwrap().unwrap();
+        apply(
+            &mut s,
+            "a",
+            TextRange {
+                anchor: 1,
+                focus: 1,
+            },
+        );
+        let Record::Text(text) = s.records.get_mut(&40).unwrap() else {
+            panic!()
+        };
+        // Actual GtkEditable clear, insert and caret transitions.
+        text.text_version += 1;
+        text.version += 2;
+        if matches!(policy, ClockPolicy::Strict) {
+            assert_eq!(q.observe(&s, &binding()), Err(TypingError::Context));
+            continue;
+        }
+        assert!(!q.observe(&s, &binding()).unwrap());
+        q.result(1, "Applied", "native-edit-1", Some(s.revision))
+            .unwrap();
+        assert!(q.observe(&s, &binding()).unwrap());
+        let prepared = q.start(2, &s, &binding()).unwrap().unwrap();
+        assert_eq!(prepared.text, "b");
+        assert_eq!(prepared.context.selection.focus, 1);
+        apply(
+            &mut s,
+            "ab",
+            TextRange {
+                anchor: 2,
+                focus: 2,
+            },
+        );
+        let Record::Text(text) = s.records.get_mut(&40).unwrap() else {
+            panic!()
+        };
+        text.text_version += 1;
+        text.version += 2;
+        q.result(2, "Applied", "native-edit-2", Some(s.revision))
+            .unwrap();
+        assert!(q.observe(&s, &binding()).unwrap());
+        assert_eq!(q.pending_count(), 0);
+    }
+}
+
+#[test]
+fn gtk_typing_still_rejects_unexpected_native_clock_changes() {
+    let budget = MemoryBudget::new(1 << 20);
+    let mut q = TypingQueue::new_with_policy(budget.clone(), ClockPolicy::GtkEditable4224).unwrap();
+    let mut s = fixture(
+        "host",
+        TextRange {
+            anchor: 0,
+            focus: 4,
+        },
+    );
+    let origin = editing_context(&s, 20, &binding()).unwrap();
+    accept(&mut q, &s, origin, "a", &budget);
+    q.start(1, &s, &binding()).unwrap().unwrap();
+    apply(
+        &mut s,
+        "a",
+        TextRange {
+            anchor: 1,
+            focus: 1,
+        },
+    );
+    let Record::Text(text) = s.records.get_mut(&40).unwrap() else {
+        panic!()
+    };
+    text.text_version += 1;
+    text.version += 3;
+    q.result(1, "Applied", "foreign-native-edit", Some(s.revision))
+        .unwrap();
+    assert_eq!(q.observe(&s, &binding()), Err(TypingError::Context));
+}
 
 fn fixture(content: &str, selection: TextRange) -> State {
     let mut s = state([]);
