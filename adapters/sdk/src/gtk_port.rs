@@ -1354,7 +1354,7 @@ mod tests {
             let existing = connect(&port, 21, AuthorizationLifetime::new()).await;
             for limits in [
                 ReceiverLimits {
-                    envelope_bytes: 1024,
+                    snapshot_bytes: 1024,
                     ..Default::default()
                 },
                 ReceiverLimits {

@@ -478,7 +478,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
     };
     let before = retain(&latest(&source)?, &output.join("source-vector"))?;
     let before_artifact = CaptureArtifact::read(&before)?;
-    before_artifact.verify_vector_audit(client.receiver())?;
+    before_artifact.verify_normalized_fixture_projection(client.receiver())?;
     assert!(name.starts_with("clock-empty") || original.chars().count() >= 4);
     let begin = composition(
         &client,
@@ -527,7 +527,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
     );
     let mut evidence = json!({"scenario":name,"presentation_scope":"driver simulated Presented callback; actual TLS source/native evidence only", "transient_public_state_unchanged":true, "observer_state_unchanged":true,"private_preedit_diagnostic":private});
     assert_eq!(latest(&source)?.file_name(), before.file_name());
-    before_artifact.verify_vector_audit(observer.receiver())?;
+    before_artifact.verify_normalized_fixture_projection(observer.receiver())?;
     evidence["post_auth_before_lifecycle"] = trace(
         &diagnostics,
         &output.join("protocol-before"),
@@ -556,7 +556,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
         let after = client.receiver().state()?;
         let artifact = retain(&latest(&source)?, &output.join("source-vector"))?;
         let artifact = CaptureArtifact::read(artifact)?;
-        artifact.verify_vector_audit(client.receiver())?;
+        artifact.verify_normalized_fixture_projection(client.receiver())?;
         let modal = artifact.manifest()["surfaces"]
             .as_array()
             .unwrap()
@@ -594,7 +594,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
             focused(observer.receiver().state()?).2.content.as_deref(),
             Some(expected.as_str())
         );
-        artifact.verify_vector_audit(observer.receiver())?;
+        artifact.verify_normalized_fixture_projection(observer.receiver())?;
         evidence["exact_commit_retry_equal"] = json!(true);
         evidence["native_commit_once"] = json!(true);
         evidence["causal_source_commit"] = json!(applied.source_commit);

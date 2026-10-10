@@ -650,6 +650,36 @@ impl Replica {
             pending: None,
         }
     }
+    /// Independent bounded replay of this exact committed predecessor. Used by
+    /// trusted producer validation; pending or unverified state is never forked.
+    pub fn fork(&self, limits: Limits) -> Result<Self, ModelError> {
+        if self.pending.is_some() {
+            return Err(ModelError::Pending);
+        }
+        if limits.max_memory_bytes > self.limits.max_memory_bytes
+            || self.history.len() > limits.max_history
+            || self.state.records.len() > limits.max_records
+            || self.state.retired.len() > limits.max_retired
+            || self
+                .state_memory
+                .bytes()
+                .saturating_add(self.history_memory.bytes())
+                > limits.max_memory_bytes
+        {
+            return Err(ModelError::Limit("fork limits"));
+        }
+        validate_graph(&self.state, &limits)?;
+        // All copies share the original ledger: replay cannot multiply the
+        // caller's memory ceiling by creating independent accounting pools.
+        let mut fork = Self::with_memory_budget(limits, self.budget.clone());
+        fork.state_memory.resize(self.state_memory.bytes())?;
+        fork.history_memory.resize(self.history_memory.bytes())?;
+        fork.state = self.state.clone();
+        fork.live_resources = self.live_resources.clone();
+        fork.history = self.history.clone();
+        fork.presented_revision = self.presented_revision;
+        Ok(fork)
+    }
     pub fn state(&self) -> &State {
         &self.state
     }

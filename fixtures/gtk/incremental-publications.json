@@ -1,0 +1,36 @@
+{
+  "scope": "Owned cooperating GTK whole-view source; explicitly retained authorized semantic-only publications, no credentials, no private preedit, no Presented claim for this trace",
+  "environment": {
+    "kernel": "Linux-7.1.9-arch1-2-x86_64-with-glibc2.44",
+    "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "gtk": "4.22.4",
+    "cairo": "1.18.4"
+  },
+  "implementationSha256": {
+    "adapters/sdk/src/gtk_host.rs": "0ba05fab6e20fdc03f4344dad9e354c58c30184d514b9e2df28016650ff554f1",
+    "adapters/sdk/src/publication_builder.rs": "1bb131bf4cf977feefd13a33d76d4d3364c02a6095c5bedc36fe6f5456560374",
+    "adapters/sdk/src/bin/gtk_command_check.rs": "88b0bdeacc973b5d1ec4598b2738644fae06d03b24f6ed887a45c3411621d992",
+    "protocol-core/src/model.rs": "fcdb8f6e3622fc24949952088581b393fbbf2d67edaf5fb5dcf36ec04ee2a816",
+    "protocol-core/src/receiver.rs": "361615b4f0b57a199e287db0a0c5bb766dc5a0296a9c5fe1ff24a7e237c848a8",
+    "adapters/gtk4/native.py": "7af596a478e43145d5d882f850385f4872afdfe20be9bf116746d9fc0bd3f6b5",
+    "fixtures/gtk/incremental_check.py": "a897f80a9031d3ef0f6869782fb9a88af845945034dbd1cac48a20714aca52fe"
+  },
+  "files": {
+    "public-000001.bin": "7c5fe8ce8a425345c4f49b12673d8143278dcfe1b900535f88c51494cba6003d",
+    "public-000001.state.json": "78c64b1458bb01fd7bc6cb5281a800429d34b55ad3de88669cb7aca9b6d8108f",
+    "public-000002.bin": "16394804885bda2aefedffe0db797655e60194d29d72cbb97b0c702d85e36075",
+    "public-000002.state.json": "dac1328cc3501738e8ca3b6e5944d76a1399d41b20250c2c8e37cab9d42f1f3c",
+    "public-000003.bin": "c2b5b590744c1642fcc028ca5f0efd0e796f1d04dd52c530dcfb1d9bcc420942",
+    "public-000003.state.json": "eea7803e79b7f3d48f2e3c0d051dbd19707f01d1d2a48d93022cd49e5b5b0f63",
+    "public-000004.bin": "1e34af3e198de045b09cc09942c793548f2c1aba2c951e2463f626ea09c1539a",
+    "public-000004.state.json": "3fb2b7a03030f7356df24d40732c7010bd0cb4fc36a11bfa6a2dd8e1c6fc1f33",
+    "public-000005.bin": "a8b8a90392e910a7ac3fba31aee1b2009575de09d7750c4c1353793e177ee5fa",
+    "public-000005.state.json": "a109c80666244a77640dcbb93db73c24d7eaee9a0d8d3f2b3eae17a40195ea75",
+    "public-000006.bin": "82a4aefb44e3e8a15b298aee9bb0d1bb48c8d4ae00d60f061448159186967955",
+    "public-000006.state.json": "c22623b74449f06212e8a4a9a2f232388e16d9ec502a16ce2b40a8cc3ab62a10",
+    "public-000007.bin": "06ab2bc11bff55f855a685f1cc496063cccb2cb368c7984c1547d22a15b2def5",
+    "public-000007.state.json": "e605a2f8b407b8e34b041851f9e0d22fdcf19587fe03e7ac613384961e68e46f",
+    "public-000008.bin": "a70095d193ebf59b47628bde78d2b7ac4b868037abd14a59ff2af8c269b4ddbb",
+    "public-000008.state.json": "559a2028d726af6ba2fd481f00a68947bcc16d29f0af98e1ab82b9caaba43902"
+  }
+}

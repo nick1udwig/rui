@@ -3,6 +3,7 @@
 //! to this host and its source; it accepts only commands this ledger admitted.
 //! Public projections have independent bounded delivery and resource ownership.
 use crate::native_fence::NativeFence;
+use crate::publication_builder::{self, SourceClock};
 use crate::source_identity::SourceIdentities;
 use crate::{
     bounded_read, manifest_preflight, CaptureArtifact, CaptureError, MAX_ENVELOPE_BYTES,
@@ -407,13 +408,24 @@ struct View {
     replacement: Option<PendingSnapshot>,
     ready: bool,
     published_revision: u64,
+    transaction: bool,
+    source_revision: u64,
+    source_context: Option<ResourceContext>,
+    projection: Option<pb::Snapshot>,
+    source_clocks: BTreeMap<u64, SourceClock>,
+    native_focus: Option<u64>,
+    projection_memory: Option<ViewMemoryReservation>,
     _memory: Arc<MemoryReservation>,
 }
 
 struct PendingSnapshot {
-    publication: SharedPayload,
+    snapshot: pb::Snapshot,
+    closure: rui_protocol_core::session::PublicationAttachment,
     revision: u64,
     decoded: usize,
+    context: Option<ResourceContext>,
+    native_focus: Option<u64>,
+    memory: ViewMemoryReservation,
 }
 
 /// The private type and broker-issued attachment jointly bind an immutable
@@ -768,6 +780,13 @@ impl GtkCommandHost {
                 replacement: None,
                 ready: true,
                 published_revision: 0,
+                transaction: false,
+                source_revision: 0,
+                source_context: None,
+                projection: None,
+                source_clocks: BTreeMap::new(),
+                native_focus: None,
+                projection_memory: None,
                 _memory: memory,
             },
         );
@@ -804,7 +823,8 @@ impl GtkCommandHost {
         let view = self.view(client)?;
         Ok(self
             .sessions
-            .presented_revision(client, view.negotiated.view_id)?)
+            .presented_revision(client, view.negotiated.view_id)?
+            .filter(|revision| *revision == view.published_revision))
     }
     /// Actual local semantic client consumes exact authorized bytes. This does
     /// not mark Presented and cannot authorize raw input, IME or resize.
@@ -815,16 +835,8 @@ impl GtkCommandHost {
             return Err(GtkHostError::Unsupported);
         }
         let bytes = view.publication.take().ok_or(GtkHostError::Unsupported)?;
-        let revision = match view
-            .consumer
-            .receive_envelope((self.public_revision as u128).to_be_bytes(), &bytes)
-            .map_err(CaptureError::from)?
-        {
-            ReceiveOutcome::Applied { revision } | ReceiveOutcome::Duplicate { revision } => {
-                revision
-            }
-            ReceiveOutcome::NeedResources { .. } => return Err(GtkHostError::Unsupported),
-        };
+        verify_publication(&mut view.consumer, &view.negotiated, &bytes)?;
+        let revision = view.consumer.state().map_err(CaptureError::from)?.revision;
         if !view
             .consumer
             .state()
@@ -834,8 +846,18 @@ impl GtkCommandHost {
         {
             return Err(GtkHostError::Unsupported);
         }
-        self.sessions
-            .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
+        if view.transaction {
+            self.sessions.acknowledge_applied_publication(
+                client,
+                view.negotiated.view_id,
+                revision,
+                true,
+                &bytes,
+            )?;
+        } else {
+            self.sessions
+                .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
+        }
         self.sessions
             .acknowledge_semantic_ready(client, view.negotiated.view_id, revision)?;
         view.ready = true;
@@ -858,8 +880,18 @@ impl GtkCommandHost {
         if revision != view.published_revision || installed != witness || !same_attachment {
             return Err(SessionError::WrongRevision.into());
         }
-        self.sessions
-            .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
+        if view.transaction {
+            self.sessions.acknowledge_applied_publication(
+                client,
+                view.negotiated.view_id,
+                revision,
+                true,
+                witness,
+            )?;
+        } else {
+            self.sessions
+                .acknowledge_applied(client, view.negotiated.view_id, revision, true)?;
+        }
         Ok(())
     }
     #[cfg(any(test, feature = "transport"))]
@@ -1199,10 +1231,41 @@ impl GtkCommandHost {
         self.synchronize_composition(0)
     }
     fn synchronize_composition(&mut self, now: u64) -> Result<(), GtkHostError> {
-        if self
-            .composition
-            .synchronize(composition::context(&self.source, &self.identities)?)
-        {
+        let mut context = composition::context(&self.source, &self.identities)?;
+        if let Some(current) = &mut context {
+            let view = self
+                .native_lease
+                .as_ref()
+                .and_then(|(lease, _)| self.views.get(&lease.client.client_instance_id))
+                .filter(|view| view.source_revision == self.public_revision);
+            if let Some(view) = view {
+                let state = view.consumer.state().map_err(CaptureError::from)?;
+                let text_id = self.identities.public_id(current.text_id)?;
+                let text = state.records.get(&text_id).and_then(|r| {
+                    if let Record::Text(t) = r {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                });
+                let focus = state.records.values().find_map(|r| {
+                    if let Record::Session(s) = r {
+                        Some(s.focus_generation)
+                    } else {
+                        None
+                    }
+                });
+                if let (Some(text), Some(focus)) = (text, focus) {
+                    current.text_version = text.text_version;
+                    current.focus_generation = focus;
+                } else {
+                    context = None;
+                }
+            } else {
+                context = None;
+            }
+        }
+        if self.composition.synchronize(context) {
             if let Some((lease, _)) = &self.native_lease {
                 // Clear the matching broker obligation when its control scope
                 // remains ready. After readiness loss/revocation/expiry the
@@ -1292,12 +1355,7 @@ impl GtkCommandHost {
             self.synchronize_composition(now)?;
         }
         let authority = if self.source_alive {
-            Some(public_authority(
-                &self.source,
-                view_id,
-                &self.identities,
-                self.public_revision,
-            )?)
+            Some(authority(&self.view(client)?.consumer, view_id)?)
         } else {
             None
         };
@@ -1324,6 +1382,11 @@ impl GtkCommandHost {
                         if !composition_allowed {
                             return Err(Rejection::UnsupportedAction);
                         }
+                        if authority.as_ref().is_none_or(|a| {
+                            command.header.observed_view_revision != a.current_view_revision
+                        }) {
+                            return Err(Rejection::StaleTarget);
+                        }
                         return composition.borrow().validate(client, command);
                     }
                     let Command::Semantic(command) = command else {
@@ -1331,6 +1394,12 @@ impl GtkCommandHost {
                     };
                     let authority = authority.as_ref().ok_or(Rejection::MissingTarget)?;
                     authority.validate(command)?;
+                    // A coalesced native ABA can leave canonical content and
+                    // public clocks unchanged. Never translate a command from
+                    // an older projection to the latest native clocks.
+                    if command.observed_view_revision != authority.current_view_revision {
+                        return Err(Rejection::StaleTarget);
+                    }
                     let owns_model = authority
                         .targets
                         .get(&command.target_id)
@@ -1366,7 +1435,9 @@ impl GtkCommandHost {
                             native_command(
                                 &capture.artifact,
                                 source,
-                                authority.as_ref().ok_or(DispatchFailure::Failed)?,
+                                views
+                                    .get(&client.client_instance_id)
+                                    .ok_or(DispatchFailure::Failed)?,
                                 command,
                                 request_id,
                                 deadline,
@@ -1507,8 +1578,8 @@ impl GtkCommandHost {
                     };
                     let published = views
                         .get(&client.client_instance_id)
-                        .filter(|view| view.published_revision == revision)
-                        .map(|_| revision);
+                        .filter(|view| view.source_revision == revision)
+                        .map(|view| view.published_revision);
                     let evidence = SourceEvidence::new(token, published)
                         .map_err(|_| DispatchFailure::OutcomeUnknown)?;
                     Ok(DispatchOutcome::Applied(evidence))
@@ -1799,39 +1870,40 @@ fn authority(source: &ViewReceiver, view: Id) -> Result<SemanticAuthority, GtkHo
     })
 }
 
-fn public_authority(
-    source: &ViewReceiver,
-    view: Id,
-    identities: &SourceIdentities,
-    revision: u64,
-) -> Result<SemanticAuthority, GtkHostError> {
-    let raw = authority(source, view)?;
-    let mut targets = BTreeMap::new();
-    for (id, mut target) in raw.targets {
-        target.focus_generation = Some(identities.focus_generation);
-        targets.insert(identities.public_id(id)?, target);
-    }
-    Ok(SemanticAuthority {
-        view_id: view,
-        current_view_revision: revision,
-        allowed_actions: raw.allowed_actions,
-        targets,
-    })
-}
-
 fn native_command<'a>(
     artifact: &CaptureArtifact,
     source: &ViewReceiver,
-    authority: &SemanticAuthority,
+    view: &View,
     command: &'a SemanticCommand,
     request_id: u64,
     deadline_ns: u64,
     identities: &SourceIdentities,
 ) -> Result<NativeCommand<'a>, GtkHostError> {
-    let target = authority
-        .targets
+    let clocks = view
+        .source_clocks
         .get(&command.target_id)
         .ok_or(GtkHostError::Unsupported)?;
+    let state = view.consumer.state().map_err(CaptureError::from)?;
+    let Some(Record::Semantic(target)) = state.records.get(&command.target_id) else {
+        return Err(GtkHostError::Unsupported);
+    };
+    let native_text = target
+        .text
+        .and_then(|r| view.source_clocks.get(&r.id))
+        .and_then(|c| c.text);
+    let native_model = clocks.collection.or_else(|| {
+        state.records.values().find_map(|record| {
+            let Record::Semantic(owner) = record else {
+                return None;
+            };
+            owner
+                .collection
+                .as_ref()
+                .filter(|c| c.items.iter().any(|r| r.id == command.target_id))
+                .and_then(|_| view.source_clocks.get(&owner.id))
+                .and_then(|c| c.collection)
+        })
+    });
     let manifest = artifact.manifest();
     let private_target = identities.private_id(command.target_id)?;
     let guard = SourceGuard {
@@ -1842,17 +1914,21 @@ fn native_command<'a>(
             .to_owned(),
         surface_id: semantic_surface(source.state().map_err(CaptureError::from)?, private_target)?,
         target_id: private_target,
-        target_version: target.target_version,
-        text_version: command.preconditions.text_version,
-        model_version: command.preconditions.model_version,
+        target_version: clocks.version,
+        text_version: command
+            .preconditions
+            .text_version
+            .map(|_| native_text.ok_or(GtkHostError::Unsupported))
+            .transpose()?,
+        model_version: command
+            .preconditions
+            .model_version
+            .map(|_| native_model.ok_or(GtkHostError::Unsupported))
+            .transpose()?,
         focus_generation: command
             .preconditions
             .focus_generation
-            .map(|_| {
-                manifest["session"]["focus_generation"]
-                    .as_u64()
-                    .ok_or(GtkHostError::Unsupported)
-            })
+            .map(|_| view.native_focus.ok_or(GtkHostError::Unsupported))
             .transpose()?,
         lease_id: command
             .control_lease_id
@@ -1928,7 +2004,7 @@ fn native_composition<'a>(
             surface_id: context.surface,
             target_id: context.private_target,
             target_version: context.target_version,
-            text_version: Some(context.text_version),
+            text_version: Some(context.native_text_version),
             model_version: None,
             focus_generation: Some(context.native_focus_generation),
             lease_id: hex(command.header.control_lease_id),
@@ -2057,7 +2133,7 @@ fn publish_snapshot(
     views: &mut BTreeMap<Id, View>,
 ) -> Result<(), GtkHostError> {
     views.retain(|_, view| {
-        if view.published_revision == snapshot.revision
+        if view.source_revision == snapshot.revision
             || view
                 .replacement
                 .as_ref()
@@ -2070,7 +2146,7 @@ fn publish_snapshot(
             let _allocation = sessions.reserve_view_memory(
                 &view.negotiated.client,
                 view.negotiated.view_id,
-                decoded + 3 * MAX_ENVELOPE_BYTES as usize,
+                decoded,
             )?;
             let mut snapshot = snapshot.clone();
             if view.negotiated.profiles.contains("semantics.only.v1") {
@@ -2082,41 +2158,39 @@ fn publish_snapshot(
                     "content.no-raster.v1".into(),
                 ];
             }
-            let closure = retain_closure(&snapshot, source, sessions, &view.negotiated)?;
-            let encoding = rui_protocol_core::timing::span(
-                rui_protocol_core::timing::Stage::Encoding,
-                snapshot.revision,
-                snapshot.records.len(),
-            );
-            let bytes = pb::Envelope {
-                protocol_version: 1,
-                session_id: view.negotiated.session_id.to_vec(),
-                epoch: view.negotiated.epoch.to_vec(),
-                view_id: view.negotiated.view_id.to_vec(),
-                kind: pb::MessageKind::Snapshot as i32,
-                payload: snapshot.encode_to_vec(),
-                required_features: snapshot.required_features.clone(),
-            }
-            .encode_to_vec();
-            drop(encoding);
-            if bytes.len() > view.negotiated.limits.envelope_bytes
-                || snapshot.records.len() > view.negotiated.limits.records
-            {
+            let prior_closure = view
+                .installed
+                .as_ref()
+                .and_then(|p| p.attachment())
+                .and_then(|a| a.get::<PublishedClosure>());
+            let closure =
+                retain_closure(&snapshot, source, sessions, &view.negotiated, prior_closure)?;
+            if snapshot.records.len() > view.negotiated.limits.records {
                 return Err(GtkHostError::Unsupported);
             }
-            let publication = sessions.snapshot_publication_payload(
-                &view.negotiated.client,
-                view.negotiated.view_id,
-                bytes,
-                Some(closure),
-            )?;
-            // A slow view owns one installed publication and one replacement.
-            // Snapshot reset is delayed until the previous real readiness ACK;
-            // old exact ACKs remain valid while source/controller work proceeds.
+            let native_focus = source.and_then(|s| s.state().ok()).and_then(|s| {
+                s.records.values().find_map(|r| {
+                    if let Record::Session(session) = r {
+                        Some(session.focus_generation)
+                    } else {
+                        None
+                    }
+                })
+            });
+            // Only the latest unencoded target is replaceable. Exact bytes
+            // already in broker history or delivery remain immutable.
             view.replacement = Some(PendingSnapshot {
-                publication,
                 revision: snapshot.revision,
+                snapshot,
+                closure,
                 decoded,
+                context: source.map(ViewReceiver::context),
+                native_focus,
+                memory: sessions.reserve_view_memory(
+                    &view.negotiated.client,
+                    view.negotiated.view_id,
+                    decoded + 4096 * 128,
+                )?,
             });
             if view.ready {
                 install_replacement(sessions, view)?;
@@ -2140,6 +2214,7 @@ fn retain_closure(
     source: Option<&ViewReceiver>,
     sessions: &SessionBroker,
     negotiated: &NegotiatedSession,
+    prior: Option<&PublishedClosure>,
 ) -> Result<rui_protocol_core::session::PublicationAttachment, GtkHostError> {
     let _timing = rui_protocol_core::timing::span(
         rui_protocol_core::timing::Stage::ResourceClosure,
@@ -2152,6 +2227,9 @@ fn retain_closure(
             .as_slice()
             .try_into()
             .map_err(|_| GtkHostError::Unsupported)?;
+        if prior.is_some_and(|closure| closure.resources.contains_key(&digest)) {
+            continue;
+        }
         let source = source.ok_or(GtkHostError::Unsupported)?;
         charge = charge
             .checked_add(
@@ -2172,6 +2250,10 @@ fn retain_closure(
             .as_slice()
             .try_into()
             .map_err(|_| GtkHostError::Unsupported)?;
+        if let Some(resource) = prior.and_then(|closure| closure.resources.get(&digest)) {
+            resources.insert(digest, resource.clone());
+            continue;
+        }
         let source = source.ok_or(GtkHostError::Unsupported)?;
         resources.insert(
             digest,
@@ -2193,37 +2275,161 @@ fn retain_closure(
 }
 
 fn install_replacement(sessions: &mut SessionBroker, view: &mut View) -> Result<(), GtkHostError> {
-    let Some(pending) = view.replacement.take() else {
+    let Some(mut pending) = view.replacement.take() else {
         return Ok(());
     };
-    // Full-view verification does not create a renderer acknowledgement. The
-    // native authority remains the private, unredacted source graph.
     let staged = (|| {
-        verify_publication(&mut view.consumer, &view.negotiated, &pending.publication)?;
-        sessions.install_snapshot(
+        let _working = sessions.reserve_view_memory(
             &view.negotiated.client,
             view.negotiated.view_id,
-            pending.revision,
-            pending.decoded,
+            pending
+                .decoded
+                .checked_mul(2)
+                .and_then(|n| n.checked_add(MAX_ENVELOPE_BYTES as usize))
+                .ok_or(GtkHostError::Unsupported)?,
         )?;
+        let delta = view.projection.is_some()
+            && pending.context.is_some()
+            && view.source_context == pending.context;
+        let (kind, payload, clocks) = if delta {
+            let previous = view.consumer.fork_committed().map_err(CaptureError::from)?;
+            let candidate = publication_builder::build(
+                view.projection.as_ref().unwrap(),
+                pending.snapshot,
+                &previous.state().retired,
+            )
+            .map_err(|_| GtkHostError::Unsupported)?;
+            let available = pending
+                .closure
+                .get::<PublishedClosure>()
+                .ok_or(GtkHostError::Unsupported)?
+                .resources
+                .keys()
+                .copied()
+                .collect();
+            candidate
+                .validate(&previous, &available, previous.limits())
+                .map_err(|_| GtkHostError::Unsupported)?;
+            let payload = candidate.transaction.encode_to_vec();
+            pending.snapshot = candidate.snapshot;
+            (
+                pb::MessageKind::Transaction,
+                payload,
+                candidate.source_clocks,
+            )
+        } else {
+            let clocks = pending
+                .snapshot
+                .records
+                .iter()
+                .map(|r| {
+                    publication_builder::clock(r).map(|c| {
+                        let id = match r.record.as_ref().unwrap() {
+                            pb::record::Record::Surface(r) => r.id,
+                            pb::record::Record::Scene(r) => r.id,
+                            pb::record::Record::Semantic(r) => r.id,
+                            pb::record::Record::Text(r) => r.id,
+                            pb::record::Record::Binding(r) => r.id,
+                            pb::record::Record::Session(r) => r.id,
+                        };
+                        (id, c)
+                    })
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .map_err(|_| GtkHostError::Unsupported)?;
+            (
+                pb::MessageKind::Snapshot,
+                pending.snapshot.encode_to_vec(),
+                clocks,
+            )
+        };
+        let revision = pending.snapshot.revision;
+        let old_closure = pending
+            .closure
+            .get::<PublishedClosure>()
+            .ok_or(GtkHostError::Unsupported)?;
+        let closure = sessions
+            .reserve_view_memory(&view.negotiated.client, view.negotiated.view_id, 8192)?
+            .attach(PublishedClosure {
+                revision,
+                resources: old_closure.resources.clone(),
+                _memory: old_closure._memory.clone(),
+            });
+        let encoding = rui_protocol_core::timing::span(
+            rui_protocol_core::timing::Stage::Encoding,
+            revision,
+            pending.snapshot.records.len(),
+        );
+        let bytes = pb::Envelope {
+            protocol_version: 1,
+            session_id: view.negotiated.session_id.to_vec(),
+            epoch: view.negotiated.epoch.to_vec(),
+            view_id: view.negotiated.view_id.to_vec(),
+            kind: kind as i32,
+            payload,
+            required_features: pending.snapshot.required_features.clone(),
+        }
+        .encode_to_vec();
+        drop(encoding);
+        let publication = if delta {
+            sessions.publish_with_attachment(
+                &view.negotiated.client,
+                view.negotiated.view_id,
+                view.published_revision,
+                revision,
+                bytes,
+                Some(closure),
+                0,
+            )?;
+            sessions
+                .take_outbound(&view.negotiated.client, view.negotiated.view_id)?
+                .ok_or(GtkHostError::Unsupported)?
+        } else {
+            sessions.snapshot_publication_payload(
+                &view.negotiated.client,
+                view.negotiated.view_id,
+                bytes,
+                Some(closure),
+            )?
+        };
+        if delta {
+            // No previous frame may authorize input for a newly installed
+            // partial/unready projection. Renewal still preserves a live lease.
+            sessions.mark_resources_missing(&view.negotiated.client, view.negotiated.view_id)?;
+        }
+        verify_publication(&mut view.consumer, &view.negotiated, &publication)?;
+        if !delta {
+            sessions.install_snapshot(
+                &view.negotiated.client,
+                view.negotiated.view_id,
+                revision,
+                pending.decoded,
+            )?;
+        }
+        view.installed = Some(publication.clone());
+        view.publication = Some(publication);
+        view.published_revision = revision;
+        view.transaction = delta;
+        view.source_revision = pending.revision;
+        view.source_context = pending.context;
+        view.source_clocks = clocks;
+        view.native_focus = pending.native_focus;
+        view.projection = Some(pending.snapshot);
+        view.projection_memory = Some(pending.memory);
+        view.ready = false;
         Ok::<(), GtkHostError>(())
     })();
-    if let Err(error) = staged {
-        // Consumer verification can commit before the broker's decoded-state
-        // reservation fails. Close this view atomically with that failure;
-        // neither old readiness nor a mismatched committed graph survives.
+    if staged.is_err() {
         let _ = sessions.invalidate_authorization(&view.negotiated.client, 0);
         view.consumer.revoke();
         view.installed = None;
         view.publication = None;
+        view.projection = None;
+        view.source_clocks.clear();
+        view.projection_memory = None;
         view.ready = false;
-        return Err(error);
     }
-    view.installed = Some(pending.publication.clone());
-    view.publication = Some(pending.publication);
-    view.published_revision = pending.revision;
-    view.ready = false;
-    Ok(())
+    staged
 }
 
 fn verify_publication(
@@ -2251,7 +2457,7 @@ fn verify_publication(
         )
     } else {
         match consumer
-            .receive_envelope((closure.revision as u128).to_be_bytes(), publication)
+            .receive_publication_envelope((closure.revision as u128).to_be_bytes(), publication)
             .map_err(CaptureError::from)?
         {
             ReceiveOutcome::NeedResources { missing, .. } => Some(missing),
@@ -2388,6 +2594,13 @@ mod tests {
     }
 
     fn visual_client(host: &mut GtkCommandHost, id: u8) -> AuthenticatedClient {
+        visual_client_limits(host, id, ReceiverLimits::default())
+    }
+    fn visual_client_limits(
+        host: &mut GtkCommandHost,
+        id: u8,
+        limits: ReceiverLimits,
+    ) -> AuthenticatedClient {
         let profiles: BTreeSet<_> = [
             "mirror2d.core.v1",
             "semantics.core.v1",
@@ -2412,7 +2625,7 @@ mod tests {
                 supported_versions: [1].into_iter().collect(),
                 supported_profiles: profiles.clone(),
                 required_profiles: profiles,
-                receiver_limits: ReceiverLimits::default(),
+                receiver_limits: limits,
                 resume: None,
             },
             0,
@@ -2498,10 +2711,10 @@ mod tests {
         host.acknowledge_presented(&observer, 1).unwrap();
         assert_eq!(
             host.views[&observer.client_instance_id].published_revision,
-            3
+            2
         );
         assert!(host.presented_revision(&observer).unwrap().is_none());
-        assert_eq!(host.state(&observer).unwrap().revision, 3);
+        assert_eq!(host.state(&observer).unwrap().revision, 2);
         assert_eq!(
             host.views[&controller.client_instance_id].published_revision,
             2
@@ -2681,6 +2894,71 @@ mod tests {
         host.acknowledge_applied(&other, 1, &other_old).unwrap();
         host.acknowledge_presented(&other, 1).unwrap();
         assert_eq!(host.state(&other).unwrap().revision, 2);
+    }
+
+    #[test]
+    fn warm_delta_exceeds_one_message_and_omits_unchanged_scene_records() {
+        let mut host = visual_host();
+        let client = visual_client_limits(
+            &mut host,
+            9,
+            ReceiverLimits {
+                envelope_bytes: 32 << 10,
+                ..ReceiverLimits::default()
+            },
+        );
+        let first = host.views[&client.client_instance_id]
+            .installed
+            .clone()
+            .unwrap();
+        host.acknowledge_applied(&client, 1, &first).unwrap();
+        host.acknowledge_presented(&client, 1).unwrap();
+        let view = &host.views[&client.client_instance_id];
+        let mut snapshot = view.projection.clone().unwrap();
+        snapshot.revision = 300;
+        let target = snapshot
+            .records
+            .iter_mut()
+            .find_map(|r| {
+                if let Some(pb::record::Record::Semantic(t)) = &mut r.record {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let target_id = target.id;
+        target.description = Some("bounded publication".repeat(4000));
+        target.version += 500;
+        publish_snapshot(
+            snapshot,
+            host.source.state().unwrap().estimated_bytes() + 256_000,
+            Some(&host.source),
+            &mut host.sessions,
+            &mut host.views,
+        )
+        .unwrap();
+        let view = &host.views[&client.client_instance_id];
+        let publication = view.installed.clone().unwrap();
+        assert!(publication.len() > view.negotiated.limits.envelope_bytes);
+        assert!(view.transaction);
+        assert_eq!(view.source_clocks[&target_id].version, 501);
+        let envelope = pb::Envelope::decode(publication.as_ref()).unwrap();
+        let tx = pb::Transaction::decode(envelope.payload.as_slice()).unwrap();
+        assert_eq!((tx.base_revision, tx.new_revision), (1, 2));
+        assert_eq!(tx.mutations.len(), 1);
+        assert!(matches!(
+            &tx.mutations[0].mutation,
+            Some(pb::mutation::Mutation::Put(pb::Record {
+                record: Some(pb::record::Record::Semantic(_))
+            }))
+        ));
+        let mut peer = consumer_for_view(&mut host.sessions, &view.negotiated.clone(), 0).unwrap();
+        assert!(peer.receive_envelope([1; 16], &publication).is_err());
+        drop(peer);
+        host.acknowledge_applied(&client, 2, &publication).unwrap();
+        host.acknowledge_presented(&client, 2).unwrap();
+        assert_eq!(host.state(&client).unwrap().revision, 2);
     }
 
     #[test]

@@ -429,6 +429,14 @@ try {
         ?.locator("#status")
         .textContent());
     console.error("UI: " + ui);
+    console.error(
+      "Edit status: " +
+        (await browser
+          ?.contexts()[0]
+          ?.pages()[0]
+          ?.locator("#edit-status")
+          .textContent()),
+    );
     const f = await newest();
     console.error(
       JSON.stringify({

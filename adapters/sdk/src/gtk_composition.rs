@@ -17,6 +17,7 @@ pub(super) struct Context {
     pub text_id: u64,
     pub text_record_version: u64,
     pub text_version: u64,
+    pub native_text_version: u64,
     pub content: String,
     pub selection: Option<(u64, u64)>,
     pub source_generation: u64,
@@ -246,6 +247,7 @@ pub(super) fn context(
         text_id: text.id,
         text_record_version: text.version,
         text_version: text.text_version,
+        native_text_version: text.text_version,
         content: content.clone(),
         selection: text
             .selection
@@ -275,6 +277,7 @@ mod tests {
             text_id: 20,
             text_record_version: 6,
             text_version: 7,
+            native_text_version: 7,
             content: "Aé😀e\u{301}Z".into(),
             selection: Some((1, 4)),
             source_generation: 1,

@@ -53,14 +53,29 @@ changes, overflow retains level-triggered dirtiness, and source supervision stay
 independent. Burst/overflow/stale-source tests and fresh native restart, context,
 whole-view, demo and HTTPS browser checks pass. The retained three-run
 [comparison](fixtures/performance/browser-p2/summary.json) records source harness
-p95 of 153–154 ms versus 296–302 ms before P2. Full snapshots remain the GTK wire
-publication path pending P3. [Invalidation scope](docs/dirty-notifications.md)
+p95 of 153–154 ms versus 296–302 ms before P2. [Invalidation scope](docs/dirty-notifications.md)
 excludes unregistered animation/custom-paint changes rather than promising their
 detection.
 
+P3 publishes warm GTK transactions from bounded per-view canonical projections.
+The reducer validates every candidate against an equivalent snapshot, preserving
+retirements and the exact authorized resource closure. Public clocks remain
+separate from captured native clocks; old public revisions cannot be translated
+into a fresh native guard after an ABA. Snapshot fallback covers initial views,
+source replacement and recovery. Fresh native Unicode, restart, whole-view,
+selection/focus, TLS composition and headed production HTTPS browser checks pass.
+The browser's draft capture now waits for the current presentation opportunity.
+Larger-than-message publication and every transaction chunk cut, missing-resource,
+cache-loss, stalled-view and allocation regressions pass. Independent Python/Rust
+replay agrees at all eight retained prefixes (one snapshot, seven transactions).
+[The incremental contract](docs/incremental-gtk.md) and
+[exact trace evidence](fixtures/gtk/incremental-publications.json) describe limits;
+GTK retained reconnect and general permission-redaction projections remain outside
+this adapter's scope.
+
 The [implementation plans](docs/implementation-plans.md) expand these four areas into sequenced changes, dependencies, acceptance criteria and validation commands for future implementors.
 
-- **Performance:** the interactive host now captures from dirty notifications and still publishes full snapshots. Incremental updates can reduce bandwidth and application work; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
+- **Performance:** the interactive host now captures from dirty notifications and publishes validated warm transactions. Client state export and rendering still need measured optimization; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
 - **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
 - **Browser and library completion:** extend negotiated browser capabilities as needed, consolidate the remaining distinct native/browser connection actors, and reduce state-copy/render overhead. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
 - **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A semantic UI with a different layout, mobile interaction or accessibility presentation has not been built.

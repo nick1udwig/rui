@@ -34,6 +34,7 @@ jobs:
       - run: python3 -m unittest conformance.test_full_reference
       - run: python3 -m unittest conformance.test_network_audit conformance.test_indexed_network_audit
       - run: python3 -m conformance.full_interop
+      - run: python3 fixtures/gtk/incremental_check.py
       - run: python3 -m conformance.network_audit fixtures/render/native-broad.json.controller.trace.jsonl --replay target/debug/examples/replay --expected fixtures/render/native-broad.controller.audit.json
       - run: python3 -m conformance.network_audit fixtures/render/native-broad.json.observer.trace.jsonl --replay target/debug/examples/replay --expected fixtures/render/native-broad.observer.audit.json
       - run: python3 -m conformance.indexed_network_audit fixtures/gtk/transport-golden/full-visual/protocol/full/index.json --replay target/debug/examples/replay --expected fixtures/gtk/transport-full.audit.json

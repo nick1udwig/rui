@@ -263,6 +263,15 @@ impl ViewReceiver {
     pub fn state(&self) -> Result<&State, ReceiverError> {
         Ok(self.inner()?.replica.state())
     }
+    pub fn context(&self) -> ResourceContext {
+        self.context
+    }
+    /// Trusted producer replay shares this receiver's memory ceiling and
+    /// preserves the exact committed retirement/history state.
+    pub fn fork_committed(&self) -> Result<Replica, ReceiverError> {
+        let replica = &self.inner()?.replica;
+        Ok(replica.fork(replica.limits().clone())?)
+    }
     pub fn memory_used(&self) -> usize {
         self.budget.used()
     }
@@ -518,7 +527,26 @@ impl ViewReceiver {
         bytes: &[u8],
     ) -> Result<ReceiveOutcome, ReceiverError> {
         self.check(self.context)?;
-        let outcome = self.receive_envelope_inner(id, bytes);
+        let outcome = self.receive_envelope_inner(id, bytes, false);
+        if outcome.is_err() {
+            let inner = self.inner.as_mut().unwrap();
+            if inner.active.is_none() {
+                inner.cache.prune_unused_authorizations(self.context);
+            }
+        }
+        outcome
+    }
+    /// Trusted local whole-publication envelope. Its transport has already
+    /// enforced message ceilings during chunk delivery, or is a producer
+    /// validating before delivery. Whole snapshot/transaction and memory limits
+    /// still apply; network adapters use receive_envelope for single messages.
+    pub fn receive_publication_envelope(
+        &mut self,
+        id: PublicationId,
+        bytes: &[u8],
+    ) -> Result<ReceiveOutcome, ReceiverError> {
+        self.check(self.context)?;
+        let outcome = self.receive_envelope_inner(id, bytes, true);
         if outcome.is_err() {
             let inner = self.inner.as_mut().unwrap();
             if inner.active.is_none() {
@@ -531,8 +559,13 @@ impl ViewReceiver {
         &mut self,
         id: PublicationId,
         bytes: &[u8],
+        whole_publication: bool,
     ) -> Result<ReceiveOutcome, ReceiverError> {
-        let limits = self.inner()?.replica.limits();
+        let mut limits = self.inner()?.replica.limits().clone();
+        if whole_publication {
+            limits.max_envelope_bytes = limits.max_snapshot_bytes.max(limits.max_transaction_bytes);
+        }
+        let limits = &limits;
         let charge = wire::preflight(
             bytes,
             wire::Context::Envelope,

@@ -101,6 +101,50 @@ fn same_json(a: &Value, b: &Value) -> bool {
 }
 
 impl CaptureArtifact {
+    /// Controlled full-visual fixture comparison after producer clock
+    /// normalization. Audit the actual native capture strictly first, then
+    /// compare every live field except independent publication/content clocks.
+    /// This is not a projection/redaction policy or a native admission guard.
+    pub fn verify_normalized_fixture_projection(
+        &self,
+        receiver: &ViewReceiver,
+    ) -> Result<VectorAudit, CaptureError> {
+        let mut source = self.receiver()?;
+        self.apply_trusted_fixture(&mut source)?;
+        let audit = self.verify_vector_audit(&source)?;
+        fn content(value: &mut Value) {
+            match value {
+                Value::Object(fields) => {
+                    for key in ["version", "text_version", "focus_generation"] {
+                        fields.remove(key);
+                    }
+                    for field in fields.values_mut() {
+                        content(field);
+                    }
+                }
+                Value::Array(fields) => {
+                    for field in fields {
+                        content(field);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut native = serde_json::to_value(&source.state()?.records)?;
+        let mut public = serde_json::to_value(&receiver.state()?.records)?;
+        content(&mut native);
+        content(&mut public);
+        if native != public || source.state()?.resource_refs() != receiver.state()?.resource_refs()
+        {
+            return Err(CaptureError::Invalid);
+        }
+        for digest in source.state()?.resource_refs() {
+            if source.read_resource(digest)? != receiver.read_resource(digest)? {
+                return Err(CaptureError::Invalid);
+            }
+        }
+        Ok(audit)
+    }
     fn verify_native_bindings(&self, receiver: &ViewReceiver) -> Result<(), CaptureError> {
         use rui_protocol_core::model::{ObjectKind, ObjectRef};
         let manifest = self.manifest();

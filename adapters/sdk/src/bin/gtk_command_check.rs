@@ -156,10 +156,17 @@ fn retain_public(
     if let Some(bytes) = host.pending_publication(client)? {
         assert!(bytes.len() <= 1 << 20);
         let envelope = p::Envelope::decode(bytes)?;
-        let snapshot = p::Snapshot::decode(envelope.payload.as_slice())?;
+        let revision = match p::MessageKind::try_from(envelope.kind)? {
+            p::MessageKind::Snapshot => p::Snapshot::decode(envelope.payload.as_slice())?.revision,
+            p::MessageKind::Transaction => {
+                p::Transaction::decode(envelope.payload.as_slice())?.new_revision
+            }
+            _ => return Err("unexpected public publication".into()),
+        };
+        fs::write(directory.join(format!("public-{revision:06}.bin")), bytes)?;
         fs::write(
-            directory.join(format!("public-{:06}.bin", snapshot.revision)),
-            bytes,
+            directory.join(format!("public-{revision:06}.state.json")),
+            serde_json::to_vec(host.state(client)?)?,
         )?;
     }
     Ok(())
@@ -294,11 +301,31 @@ impl Fixture {
         }
         for observer in &self.observers {
             let state = self.host.state(observer)?;
-            assert_eq!(state.revision, self.state().revision);
+            fn content(value: &mut serde_json::Value) {
+                match value {
+                    serde_json::Value::Object(fields) => {
+                        for key in ["version", "text_version", "focus_generation"] {
+                            fields.remove(key);
+                        }
+                        for field in fields.values_mut() {
+                            content(field);
+                        }
+                    }
+                    serde_json::Value::Array(fields) => {
+                        for field in fields {
+                            content(field);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let mut observed_content = serde_json::to_value(&state.records)?;
+            let mut controller = serde_json::to_value(&self.state().records)?;
+            content(&mut observed_content);
+            content(&mut controller);
             assert_eq!(
-                state.records,
-                self.state().records,
-                "independent semantic observer sees native effects"
+                observed_content, controller,
+                "independent projections converge on native effects; clocks are per view"
             );
             assert!(self.host.presented_revision(observer)?.is_none());
         }
@@ -344,7 +371,7 @@ impl Fixture {
             );
             assert_eq!(
                 evidence.resulting_view_revision(),
-                Some(self.host.publication_revision())
+                Some(self.state().revision)
             );
             assert_eq!(
                 manifest["command_cause"]["authority_gate"],
@@ -929,7 +956,7 @@ fn restart(root: &Path) -> Result<Value> {
     let idle_exit_state = serde_json::to_value(f.state())?;
     assert_eq!(f.state().records.len(), 1);
     assert!(f.state().revision > final_state["revision"].as_u64().unwrap());
-    let before_failed_starts = f.state().revision;
+    let before_failed_starts = f.host.publication_revision();
     assert!(f.host.refresh_source().is_err());
     assert_eq!(f.host.publication_revision(), before_failed_starts);
     assert!(f.host.pending_publication(&f.session.client)?.is_none());
@@ -1306,16 +1333,42 @@ fn native_context(root: &Path) -> Result<Value> {
     assert_eq!(text(f.state(), entry).text_version, content_version);
     assert!(text(f.state(), entry).version > record_version);
     let same_selection = text(f.state(), entry).selection;
-    let before_cycle = text(f.state(), entry).version;
+    let public_before_cycle = text(f.state(), entry).version;
+    let native_text_clock = |manifest: &Value| {
+        manifest["semantics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|node| node["id"] == entry)
+            .unwrap()["text"]["version"]
+            .as_u64()
+            .unwrap()
+    };
+    let before_cycle = native_text_clock(f.host.source_capture_for_diagnostics());
+    let stale_selection = f.command(
+        entry,
+        "SetSelection",
+        p::semantic_command::Arguments::SetSelection(p::SelectionArguments {
+            anchor: 8,
+            focus: 6,
+        }),
+    );
     f.host.trusted_fixture_mutation(Mutation::SelectionCycle)?;
     f.refresh()?;
     assert_eq!(text(f.state(), entry).selection, same_selection);
     assert_eq!(text(f.state(), entry).text_version, content_version);
+    assert_eq!(text(f.state(), entry).version, public_before_cycle);
+    let after_cycle = native_text_clock(f.host.source_capture_for_diagnostics());
     assert!(
-        text(f.state(), entry).version > before_cycle,
-        "native selection away/back advances full context clock without changing content"
+        after_cycle > before_cycle,
+        "native selection ABA retains its own clock"
     );
-    let after_cycle = text(f.state(), entry).version;
+    let rejected = f.submit(
+        "older-public-revision-cannot-rebase-native-selection-aba",
+        &stale_selection,
+        Status::Rejected,
+    )?;
+    assert_eq!(rejected.rejection, Some(Rejection::StaleTarget));
     let mut result = f.finish()?;
     result["text_record_before_selection_cycle"] = json!(before_cycle);
     result["text_record_after_selection_cycle"] = json!(after_cycle);

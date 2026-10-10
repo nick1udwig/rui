@@ -502,6 +502,7 @@ export class BrowserClient {
       state && [...state.records.values()].find((r) => "Session" in r);
     if (
       !state ||
+      this.displayedRevision !== state.revision ||
       !this.hasControl ||
       !model?.editable ||
       model.content === null ||

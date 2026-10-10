@@ -2,6 +2,7 @@
 //! network or authenticated broker. Trust policy is supplied by the caller.
 pub mod gtk_host;
 mod native_fence;
+pub mod publication_builder;
 mod source_identity;
 mod source_notify;
 pub mod vector_audit;
