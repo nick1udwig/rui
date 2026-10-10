@@ -16,7 +16,11 @@ export class CausalWait {
     if (outcome === "applied") {
       if (revision !== null && revision > 0n) this.command.revision = revision;
       this.release();
-    } else if (outcome !== "unknown" && outcome !== "dispatched")
+    } else if (
+      !["unknown", "outcomeunknown", "outcomeexpired", "dispatched"].includes(
+        outcome,
+      )
+    )
       this.command = undefined;
   }
   present(revision: bigint): void {

@@ -455,9 +455,23 @@ async function semanticSession() {
     throws(() => session.setChecked(1n, true));
     const valueSeq = session.setChecked(2n, true);
     assert(valueSeq === 2n, "value command sequence changed");
-    const valueCommand = pick(drain()[0], 6);
+    const originalValue = drain()[0];
+    const valueCommand = pick(originalValue, 6);
     assert(pick(valueCommand, 7) === 2n, "value target changed");
     assert(pick(pick(valueCommand, 13), 1) === 1n, "boolean arguments changed");
+    session.receive(
+      packet(54, join(scalar(1, valueSeq), blob(2, "OutcomeUnknown"))),
+    );
+    assert(
+      session.pendingCommands === 1,
+      "WASM retired unknown original command",
+    );
+    throws(() => session.activate(1n));
+    session.retryPending();
+    assert(
+      [...drain()[0]].every((byte, index) => byte === originalValue[index]),
+      "WASM ambiguity retry changed original bytes",
+    );
     session.disconnect();
     assert(!session.hasControl, "disconnect retained lease");
     throws(() => session.semanticReady(1n));

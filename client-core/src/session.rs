@@ -604,7 +604,10 @@ impl Session {
             }
             p::Kind::CommandResult => {
                 let r: p::CommandResult = codec::decode(&packet.payload, ceiling)?;
-                if r.status != "Dispatched" && r.status != "DISPATCHED" {
+                if !matches!(
+                    r.status.to_ascii_lowercase().as_str(),
+                    "dispatched" | "unknown" | "outcomeunknown" | "outcomeexpired"
+                ) {
                     self.commands.as_mut().unwrap().complete(r.command_seq);
                 }
                 Ok(Event::CommandResult {
@@ -1315,6 +1318,32 @@ mod tests {
         assert_eq!(s.pending_commands(), 0);
         s.close();
         assert_eq!(s.memory_used(), 0);
+    }
+    #[test]
+    fn ambiguous_native_statuses_keep_original_command_bytes() {
+        for status in ["Unknown", "OutcomeUnknown", "OutcomeExpired", "DISPATCHED"] {
+            let mut s = session(true);
+            publish(&mut s, 1, None, false);
+            s.presented(1).unwrap();
+            grant(&mut s);
+            let seq = s.command(1, "Activate", Arguments::None).unwrap();
+            let original = drain(&mut s).last().unwrap().payload.clone();
+            s.receive(&bound(
+                p::Kind::CommandResult,
+                &p::CommandResult {
+                    command_seq: seq,
+                    status: status.into(),
+                    ..Default::default()
+                },
+            ))
+            .unwrap();
+            assert_eq!(s.pending_commands(), 1, "{status}");
+            assert!(s.command(1, "Activate", Arguments::None).is_err());
+            s.retry_pending().unwrap();
+            assert_eq!(drain(&mut s)[0].payload, original);
+            s.close();
+            assert_eq!(s.memory_used(), 0);
+        }
     }
     #[test]
     fn new_epoch_retires_old_commands_and_new_authority_is_required() {

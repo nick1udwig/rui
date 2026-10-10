@@ -86,6 +86,15 @@ function rvp(
   return bytes;
 }
 export function checkPixels() {
+  for (const status of ["OutcomeUnknown", "OutcomeExpired"]) {
+    const wait = new CausalWait();
+    wait.begin(1n);
+    wait.result(1n, status, null);
+    wait.present(100n);
+    assert(wait.pending, "native ambiguous status released an edit");
+    wait.clear();
+  }
+
   const causal = new CausalWait();
   causal.begin(1n);
   causal.result(1n, "Applied", 3n);

@@ -1,3 +1,9 @@
+Command ambiguity correction: portable exact command bytes remain retained for
+Unknown/OutcomeUnknown/OutcomeExpired and Dispatched, and causal waiting recognizes
+the native status names. A renderer/readiness update alone cannot unlock a fresh edit;
+explicit recovery resends original bytes. Rust queue and three-engine browser tests
+cover the native ambiguity vocabulary.
+
 S2 implemented: bounded read-only semantic DOM mapping and separate demos/semantic
 consumer, with role/ownership/group/reading-order layout, explicit unavailable/redacted
 text and partial collections, safe remote strings and stable protocol identity keys.
