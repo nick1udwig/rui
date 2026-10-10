@@ -1,0 +1,8 @@
+{
+  "name": "rui-clean-consumer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "build": "tsc --noEmit && vite build --base=/apps/rui/" },
+  "devDependencies": { "typescript": "5.9.3", "vite": "8.3.4" }
+}

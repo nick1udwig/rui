@@ -33,6 +33,7 @@ For local execution after building WASM and installing locked dependencies:
 npm --prefix client-wasm exec -- playwright install chromium firefox webkit
 RUI_TEST_BROWSERS=chromium,firefox,webkit npm --prefix client-wasm test
 RUI_TEST_BROWSERS=chromium,firefox,webkit npm --prefix client-browser test
+RUI_TEST_BROWSERS=chromium,firefox,webkit npm --prefix client-browser run test:package
 npm --prefix demos/web run build
 RUI_TEST_BROWSERS=chromium,firefox,webkit node demos/web/tests/production.mjs
 ```
@@ -46,3 +47,11 @@ builds and suites in Chromium 153.0.8010.12, Firefox 155.0 and Playwright WebKit
 26.6. The workstation WebKit run used isolated compatibility libraries; the
 Ubuntu CI job installs those dependencies through Playwright. Both live GTK
 serving modes passed headed HTTPS and hidden-tab checks.
+
+L5 additionally builds a runtime-only tarball, installs it outside the checkout and
+tests Vite production assets under `/apps/rui/`, Node import without DOM, declaration
+compilation, initialization/ABI/MIME/CSP and disposal in all engines. The pinned
+GTK job runs `client-browser/tests/package-live.py` against those installed files,
+through default and replacement adapters with direct WSS and a verifying proxy.
+Reports are in `fixtures/browser/distribution`; actual two-machine/device acceptance
+is separate and unverified.

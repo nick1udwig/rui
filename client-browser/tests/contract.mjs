@@ -268,6 +268,7 @@ export async function checkContract() {
 
 async function semanticSession() {
   const session = new Session(ids[2], "owned", true);
+  session.setRequestNamespace(new Uint8Array(16).fill(9));
   const pick = (bytes, wanted) => {
     let at = 0;
     const u = () => {

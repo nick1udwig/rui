@@ -280,6 +280,12 @@ impl Session {
     pub fn start(&mut self, credential: &[u8]) -> Result<(), JsError> {
         self.inner.start(credential).map_err(error)
     }
+    #[wasm_bindgen(js_name = setRequestNamespace)]
+    pub fn set_request_namespace(&mut self, namespace: &[u8]) -> Result<(), JsError> {
+        self.inner
+            .set_request_namespace(id(namespace)?)
+            .map_err(error)
+    }
     pub fn receive(&mut self, bytes: &[u8]) -> Result<JsValue, JsError> {
         value(&self.inner.receive(bytes).map_err(error)?)
     }

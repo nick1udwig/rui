@@ -11,6 +11,7 @@ use rui_protocol_core::{
 };
 use rui_wire::{codec, proto as p, WireError as TransportError};
 use serde::Serialize;
+use sha2::{Digest as _, Sha256};
 use std::collections::VecDeque;
 const PROFILES: &[&str] = &[
     "mirror2d.core.v1",
@@ -108,6 +109,7 @@ pub struct Session {
     cancelled_request: Option<Id>,
     retained_limits: Option<ReceiverLimits>,
     serial: u64,
+    request_namespace: Option<Id>,
     renewed_at: u64,
     profiles: Vec<String>,
 }
@@ -141,6 +143,7 @@ impl Session {
             cancelled_request: None,
             retained_limits: None,
             serial: 1,
+            request_namespace: None,
             renewed_at: 0,
             profiles: Vec::new(),
         })
@@ -559,9 +562,32 @@ impl Session {
         self.replica_io(|r, q| r.semantic_ready(revision, q))?;
         Ok(())
     }
+    /// Supply a fresh platform-generated namespace once before connecting. This
+    /// separates a newly created actor's control requests from retained host
+    /// request outcomes for the same approved client identity, even in one view.
+    pub fn set_request_namespace(&mut self, namespace: Id) -> Result<(), TransportError> {
+        if namespace == [0; 16]
+            || self.request_namespace.is_some()
+            || self.starting
+            || self.context.is_some()
+        {
+            return Err(TransportError::Protocol);
+        }
+        self.request_namespace = Some(namespace);
+        Ok(())
+    }
     fn request_id(&mut self) -> Result<Id, TransportError> {
-        let mut id = self.client;
-        id[8..].copy_from_slice(&self.serial.to_be_bytes());
+        let namespace = self.request_namespace.ok_or(TransportError::Authority)?;
+        let context = self.context.ok_or(TransportError::Authority)?;
+        let mut hash = Sha256::new();
+        hash.update(b"RUI/0.1/portable-control-request\0");
+        hash.update(namespace);
+        hash.update(self.client);
+        hash.update(context.scope.session_id);
+        hash.update(context.scope.epoch);
+        hash.update(context.view_id);
+        hash.update(self.serial.to_be_bytes());
+        let id = hash.finalize()[..16].try_into().unwrap();
         self.serial = self.serial.checked_add(1).ok_or(TransportError::Limit)?;
         Ok(id)
     }
@@ -908,6 +934,7 @@ mod tests {
     }
     fn session(control: bool) -> Session {
         let mut s = Session::new([3; 16], "fixture".into()).unwrap();
+        s.set_request_namespace([9; 16]).unwrap();
         s.start(&[7; 32]).unwrap();
         let raw = s.next_outbound().unwrap();
         let packet = codec::packet(&raw, s.ceiling(), None).unwrap();
@@ -922,6 +949,32 @@ mod tests {
             v.push(codec::decode(&raw, s.ceiling()).unwrap());
         }
         v
+    }
+    #[test]
+    fn fresh_actor_control_namespace_does_not_reuse_retained_request_ids() {
+        let mut old = session(true);
+        let first = old.request_id().unwrap();
+        assert_ne!(first, old.request_id().unwrap());
+        old.disconnect();
+        old.start(&[7; 32]).unwrap();
+        drain(&mut old);
+        old.receive(&hello(2, true)).unwrap();
+        assert_ne!(first, old.request_id().unwrap());
+        let mut fresh = Session::new([3; 16], "fixture".into()).unwrap();
+        assert!(fresh.set_request_namespace([0; 16]).is_err());
+        fresh.set_request_namespace([10; 16]).unwrap();
+        assert!(fresh.set_request_namespace([11; 16]).is_err());
+        fresh.start(&[7; 32]).unwrap();
+        drain(&mut fresh);
+        fresh.receive(&hello(2, true)).unwrap();
+        assert_ne!(first, fresh.request_id().unwrap());
+        assert!(old.set_request_namespace([12; 16]).is_err());
+        let mut missing = Session::new([3; 16], "fixture".into()).unwrap();
+        missing.start(&[7; 32]).unwrap();
+        drain(&mut missing);
+        missing.receive(&hello(2, true)).unwrap();
+        assert_eq!(missing.request_id(), Err(TransportError::Authority));
+        assert!(missing.set_request_namespace([10; 16]).is_err());
     }
     fn record(version: u64, digest: Option<[u8; 32]>) -> pb::Record {
         if let Some(digest) = digest {
@@ -1046,6 +1099,7 @@ mod tests {
     fn semantic_mode_negotiates_existing_override_and_never_presents() {
         let mut s =
             Session::with_mode([3; 16], "owned".into(), PresentationMode::SemanticOnly).unwrap();
+        s.set_request_namespace([9; 16]).unwrap();
         s.start(&[7; 32]).unwrap();
         let packet: p::Packet = codec::decode(&s.next_outbound().unwrap(), s.ceiling()).unwrap();
         let client: p::ClientHello = codec::decode(&packet.payload, s.ceiling()).unwrap();

@@ -16,7 +16,41 @@ npm --prefix client-browser ci
 npm --prefix client-browser run build
 ```
 
-The package exports compiled ES modules and declarations from `dist/`, with generated bindings in `wasm/`. It is currently private and experimental; publishing/versioning is a separate step.
+The package exports compiled ES modules and declarations from `dist/`, with generated bindings in `wasm/`. Build and install a self-contained private tarball:
+
+```sh
+(cd client-browser && npm pack --pack-destination /tmp)
+# In a separate application:
+npm install /tmp/rui-client-browser-0.1.0.tgz
+```
+
+`npm pack` checks the API/declarations/generated ABI and includes only runtime files,
+compatibility metadata and notices. It excludes tests, fixtures, source and tooling.
+Vite resolves the generated binding's `new URL(..., import.meta.url)` WASM asset,
+including a configured non-root `base`. Other bundlers must preserve that asset
+relationship, or call exported `initialize(absoluteWasmUrl)` before creating clients. Startup asset preflight is bounded to 8 MiB/1024 delivered
+chunks and requires the expected browser session exports.
+`BrowserClient.create` initializes the bundled module automatically. Failed
+initialization (including a valid foreign ABI) rejects and can be retried; one module instance cannot switch a loaded
+ABI to another URL. Module import in Node does not construct DOM or initialize WASM.
+
+Serve JS as JavaScript and WASM as `application/wasm`. Incorrect WASM MIME can use the
+buffered initialization, with a warning; 404/corrupt assets and CSP rejection fail.
+A minimal CSP needs `script-src 'self' 'wasm-unsafe-eval'` and `connect-src` permitting
+the WASM origin and exact WSS host. Restrict other directives for your application.
+Keep credential files outside the static serving root and use caller-owned provisioning.
+
+Tested tooling is Node 26.8.1, TypeScript 5.9.3, Vite 8.3.4 and Rust 1.98.1 with
+wasm-bindgen 0.2.129. Desktop Chromium 153.0.8010.12, Firefox 155 and Playwright WebKit
+26.6 pass the distributed asset gate; system Chromium 151.0.7922.173 passes the live
+owned GTK gate. These are tested versions, not minimum browser-version promises.
+Physical Safari/mobile/screen-reader and two-machine tailnet acceptance remain
+unverified. See [distribution checks](../docs/browser-distribution.md).
+
+The repository has no declared project license. This package stays `private: true`
+and `UNLICENSED`; third-party notices preserve the locked WASM build closure and
+standard-library notices without assigning a license to RUI. Registry publishing
+and a project licensing decision are separate release actions. See [changelog](CHANGELOG.md).
 
 ```ts
 import { BrowserClient, bindPointer } from '@rui/client-browser';
@@ -70,3 +104,10 @@ cargo test --locked -p rui-client-core
 ```
 
 Set `RUI_WASM_CHROMIUM` to use an existing Chromium executable. Pixel tests cover all nine primitives, linear source-over and gradients, isolated opacity, clips, host-shaped glyphs, Unicode offsets, session replacement, limits and disposal. The [live integration check](../demos/web/README.md) also uses an owned GTK host and private Xvfb display.
+
+An approved client instance ID identifies one command producer for a host epoch.
+Use `disconnect`/`connect` on the same actor to preserve its sequence and exact pending
+bytes. Final `dispose` discards that ledger; a new mutating actor needs a separately
+approved client instance ID or a new host epoch. Reusing a disposed producer identity
+can observe/request control, but its reset command sequence is rejected by the host.
+The library does not infer a sequence or recreate an old ambiguous operation.

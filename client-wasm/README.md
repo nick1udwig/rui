@@ -42,6 +42,15 @@ The TypeScript consumer is compiled in strict mode against the generated declara
 - Disconnect retains committed state while rejecting reception; same-binding reconnection restores reception. Close releases Rust reservations and cannot be reversed.
 - Invalid binding lengths and an insufficient memory ceiling fail through JavaScript exceptions.
 
-The current release includes the session actor and TypeScript serialization as well as the receiver. `build.py` prints its actual uncompressed/gzipped size and copies generated browser bindings into `client-browser/wasm/`. The original receiver-only feasibility artifact was 602,362 bytes (150,813 gzipped); the current module is approximately 840 kB (215 kB gzipped). No `wasm-opt` pass is required.
+The current release includes the session actor and TypeScript serialization as well as the receiver. `build.py` prints its actual uncompressed/gzipped size and copies generated browser bindings into `client-browser/wasm/`. The original receiver-only feasibility artifact was 602,362 bytes (150,813 gzipped); the current module is 924,100 bytes (239,669 gzipped) in the current retained distribution run. No `wasm-opt` pass is required.
 
 The bridge copies incoming byte arrays into WASM and copies returned state into JavaScript. IDs and clocks remain `bigint`; the public browser API validates unsigned 64-bit inputs before calling the generated ABI. Rust's ledger covers receiver/session-owned allocations, not caller-retained JavaScript copies, browser socket buffers or allocator capacity. The browser library documents its separate ownership, rendering and presentation bounds.
+
+Low-level `Session` consumers must call `setRequestNamespace` with a nonzero fresh
+platform-generated 16-byte namespace once before `start`. It separates retained
+control request outcomes for recreated actors of one approved identity. The high-level
+BrowserClient supplies crypto.getRandomValues; explicit reconnect retains this namespace,
+request counter and exact pending commands. Final disposal still retires the producer
+command sequence: a new mutating actor requires a separately approved instance ID or
+a new host epoch. This low-level ABI addition is recorded in the private 0.1.0 API
+baseline; generated JS and WASM must be installed together.

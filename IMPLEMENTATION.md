@@ -1,3 +1,14 @@
+L5 local distribution implemented: runtime-only private ESM/declaration/WASM tarball,
+version/schema/ABI/asset compatibility gate, pre-1.0 changelog and locked dependency
+notices. A clean Vite consumer installs outside the repo and serves under /apps/rui/.
+All three engines pass initialization/foreign-ABI/size/MIME/CSP and disposal checks.
+Fresh actual GTK checks exercise default/verifying-proxy and replacement/direct-WSS
+adapters, guarded Unicode edits, source edits, release and explicit reconnect.
+Recreated actors receive fresh random scoped control request IDs; discarded producer
+sequences remain rejected. See docs/browser-distribution.md and fixtures/browser/distribution.
+No registry publication/project license is selected; two-machine tailnet and physical
+mobile/screen-reader acceptance remain unverified and require actual test devices.
+
 L2 full actor migration: native NetworkClient and portable Session now delegate
 negotiation, publication/resource transitions, readiness, leases, resume and exact
 command ownership to client-core Replica. Native cancellation-safe socket admission
@@ -225,7 +236,7 @@ The [implementation plans](docs/implementation-plans.md) expand these four areas
 
 - **Performance:** the interactive host now captures from dirty notifications and publishes validated warm transactions. Client state export and rendering still need measured optimization; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
 - **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
-- **Browser and library completion:** extend negotiated browser capabilities as needed, reduce state-copy/render overhead where measurements justify it. The npm package is private and experimental; release/versioning, broader device compatibility remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
+- **Browser and library completion:** extend negotiated browser capabilities as needed, reduce state-copy/render overhead where measurements justify it. The npm package has a tested private tarball and compatibility/version policy; public registry release and broader device/external-machine acceptance remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
 - **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A generic semantic DOM presentation now covers two owned applications; physical mobile/screen-reader and external-machine acceptance remains outstanding.
 
 RFC section 14 deliberately defers mobile translation, independent application views, concurrent writers/CRDTs, general GPU streaming, audio/video, clipboard/file transfer, raster asset profiles, executable components, browser-engine capture and cross-compositor standardization. These are optional future scope, not unfinished M0–M5 gates.

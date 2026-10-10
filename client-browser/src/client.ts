@@ -94,6 +94,84 @@ export interface EditCapture {
   token: Uint8Array;
 }
 let initialization: Promise<unknown> | undefined;
+let initializationSource: string | undefined;
+async function loadModule(asset: string | URL): Promise<WebAssembly.Module> {
+  const response = await fetch(asset);
+  if (!response.ok || !response.body)
+    throw new Error(`WASM asset request failed (${response.status})`);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.length;
+      if (length > 8 * 1024 * 1024 || chunks.length === 1024)
+        throw new Error("WASM initialization asset limit");
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel();
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  const module = await WebAssembly.compile(bytes);
+  const exports = WebAssembly.Module.exports(module);
+  for (const name of [
+    "session_new",
+    "session_receive",
+    "session_close",
+    "session_pendingCommands",
+    "session_setRequestNamespace",
+    "__wbindgen_start",
+  ])
+    if (!exports.some((item) => item.name === name && item.kind === "function"))
+      throw new Error("incompatible WASM session ABI");
+  if (
+    !exports.some((item) => item.name === "memory" && item.kind === "memory") ||
+    WebAssembly.Module.imports(module).some(
+      (item) => item.module === "wasi_snapshot_preview1",
+    )
+  )
+    throw new Error("incompatible browser WASM module");
+  if (!response.headers.get("content-type")?.startsWith("application/wasm"))
+    console.warn(
+      "WASM asset should be served as application/wasm; using buffered initialization",
+    );
+  return module;
+}
+/** Initialize once per module instance. Bundlers resolve the bundled WASM by
+ * default; an explicit URL supports separately hosted immutable assets. Failed
+ * initialization can be retried. A loaded ABI cannot be replaced in place. */
+export async function initialize(wasmUrl?: string | URL): Promise<void> {
+  const source =
+    wasmUrl === undefined
+      ? undefined
+      : new URL(wasmUrl, globalThis.location?.href).href;
+  if (initialization && source && source !== initializationSource)
+    throw new Error("WASM already initialized from a different asset");
+  if (!initialization) {
+    initializationSource = source ?? "bundled";
+    initialization = loadModule(
+      source ?? new URL("../wasm/rui_client_wasm_bg.wasm", import.meta.url),
+    )
+      .then((module) => init({ module_or_path: module }))
+      .catch((error) => {
+        initialization = undefined;
+        initializationSource = undefined;
+        throw error;
+      });
+  }
+  await initialization;
+}
 /** The demo consumes this library. It knows no application labels, IDs, business
  * rules or GTK capture files. Its only authoritative graph is the Rust receiver. */
 export class BrowserClient {
@@ -142,6 +220,9 @@ export class BrowserClient {
       options.selection,
       options.mode === "semanticOnly",
     );
+    this.session.setRequestNamespace(
+      crypto.getRandomValues(new Uint8Array(16)),
+    );
     if (options.mode !== "semanticOnly")
       this.renderer =
         options.renderer ??
@@ -156,10 +237,7 @@ export class BrowserClient {
     document.addEventListener("visibilitychange", this.visibility);
   }
   static async create(options: BrowserOptions): Promise<BrowserClient> {
-    await (initialization ??= init().catch((error) => {
-      initialization = undefined;
-      throw error;
-    }));
+    await initialize();
     const url = new URL(options.url, location.href);
     if (url.username || url.password || url.search)
       throw new Error("use a separate credential provider");
@@ -190,6 +268,13 @@ export class BrowserClient {
     return this.snapshot && structuredClone(this.snapshot);
   }
   get capabilities(): Capabilities {
+    if (this.disposed)
+      return {
+        mode: this.options.mode ?? "mirror",
+        profiles: [],
+        can_control: false,
+        actions: [],
+      };
     return this.session.capabilities() as Capabilities;
   }
   get connectionState(): ConnectionState {
@@ -205,12 +290,15 @@ export class BrowserClient {
     );
   }
   get pendingCommands(): number {
+    if (this.disposed) return 0;
     return Math.max(this.session.pendingCommands, Number(this.causal.pending));
   }
   get memoryUsed(): number {
+    if (this.disposed) return 0;
     return this.session.memoryUsed;
   }
   get resourcesReady(): boolean {
+    if (this.disposed) return false;
     return this.session.resourcesReady;
   }
   get geometry(): Viewport {

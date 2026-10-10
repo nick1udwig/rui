@@ -5,7 +5,9 @@ state machine, exact command ledger and resource cursor. Browser transports and
 renderers remain replaceable adapters; they never decode/reduce wire state themselves.
 
 `BrowserClient.create` initializes WASM asynchronously and validates the WSS URL.
-Module import constructs no DOM. Construction requires a browser document, a
+Module import constructs no DOM. Exported `initialize(optionalWasmUrl)` performs
+bounded asynchronous module preflight before binding initialization; 404/corrupt/foreign
+ABI failures can be retried, and a loaded module cannot switch URLs. Construction requires a browser document, a
 caller-owned credential provider, explicit source selection and a presentation
 adapter. `canvas` supplies the default `CanvasRenderer`; `renderer` and `transport`
 can be replaced independently. `mode: semanticOnly` requires neither canvas nor renderer;
@@ -78,5 +80,20 @@ record variants and maximum-width clocks/typed values. Shared core tests exercis
 512-body closure and repeated cache loss with 1024-byte messages, unique bounded
 request pages, unchanged revision and zero ownership after disposal. Fresh live
 editor evidence uses the public API to pause an active mirror lease, restore exact
-owned bytes, and wait for actual presentation. The L5 clean consumer gate remains
-required before distribution is claimed.
+owned bytes, and wait for actual presentation. The L5 clean consumer installs the runtime tarball outside the checkout and tests
+production assets and both adapter seams; see browser-distribution.md. External
+physical-device/two-machine acceptance remains unverified.
+
+Control request IDs include a fresh random actor namespace, current authenticated
+scope and monotonic counter. Recreating a client for the same approved identity cannot
+reuse a retained host request outcome. Reconnect preserves its namespace/counter and
+exact command bytes; it never restores control. Low-level Rust/WASM Session consumers
+must set a nonzero platform-generated request namespace once before connecting.
+BrowserClient supplies one with crypto.getRandomValues.
+
+An approved client instance ID identifies one command producer for a host epoch.
+Use `disconnect`/`connect` on the same actor to preserve its sequence and exact pending
+bytes. Final `dispose` discards that ledger; a new mutating actor needs a separately
+approved client instance ID or a new host epoch. Reusing a disposed producer identity
+can observe/request control, but its reset command sequence is rejected by the host.
+The library does not infer a sequence or recreate an old ambiguous operation.

@@ -31,6 +31,16 @@ jobs:
       - run: npm --prefix client-wasm exec -- playwright install --with-deps chromium firefox webkit
       - run: npm --prefix client-wasm test
       - run: npm --prefix client-browser test
+      - name: Build a reviewable runtime artifact
+        working-directory: client-browser
+        run: npm pack --pack-destination "$RUNNER_TEMP"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rui-client-browser-runtime
+          path: ${{ runner.temp }}/rui-client-browser-*.tgz
+          retention-days: 7
+      - name: Install and serve the runtime tarball outside the checkout
+        run: npm --prefix client-browser run test:package
       - run: npm --prefix demos/web run build && npm --prefix demos/semantic run build
       - name: Check served production assets
         run: node demos/web/tests/production.mjs
@@ -74,6 +84,8 @@ jobs:
       - run: npm --prefix client-browser exec -- playwright install chromium
       - run: npm --prefix client-browser run build && npm --prefix demos/web run build
       - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
+      - name: Installed tarball with production HTTPS and replacement adapters
+        run: python3 client-browser/tests/package-live.py --xvfb "$(command -v Xvfb)"
       - name: Native shared actor and canonical-clock IME
         run: |
           cargo build --release -p rui-client-desktop --features gtk-source-probe --example gtk_source_probe --locked
@@ -111,5 +123,5 @@ jobs:
         if: failure()
         with:
           name: gtk-browser-diagnostics
-          path: client-browser/test-output/timings.json
+          path: client-browser/test-output/*.json
           retention-days: 7
