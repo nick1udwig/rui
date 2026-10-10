@@ -1,0 +1,149 @@
+{
+  "runs": [
+    {
+      "run": 1,
+      "cold": {
+        "p50": 291.9000000357628,
+        "p95": 291.9000000357628,
+        "p99": 291.9000000357628
+      },
+      "reconnect": {
+        "p50": 242.9000000357628,
+        "p95": 252.39999997615814,
+        "p99": 252.39999997615814
+      },
+      "cacheLoss": {
+        "p50": 218.79999995231628,
+        "p95": 233.5,
+        "p99": 233.5
+      },
+      "lifecycleConnection": {
+        "p50": 230,
+        "p95": 262.19999998807907,
+        "p99": 262.30000001192093
+      },
+      "pendingOutcomeRecoveryMs": 238.79999995231628,
+      "firstPostGcHeap": {
+        "cycle": 5,
+        "usedSize": 2345240,
+        "totalSize": 3207168,
+        "embedderHeapUsedSize": 383552,
+        "backingStorageSize": 9386289,
+        "dom": {
+          "documents": 1,
+          "nodes": 22,
+          "jsEventListeners": 18
+        }
+      },
+      "lastPostGcHeap": {
+        "cycle": 25,
+        "usedSize": 2384004,
+        "totalSize": 3207168,
+        "embedderHeapUsedSize": 398632,
+        "backingStorageSize": 9386289,
+        "dom": {
+          "documents": 1,
+          "nodes": 22,
+          "jsEventListeners": 18
+        }
+      }
+    },
+    {
+      "run": 2,
+      "cold": {
+        "p50": 299.5,
+        "p95": 299.5,
+        "p99": 299.5
+      },
+      "reconnect": {
+        "p50": 239.19999998807907,
+        "p95": 252.60000002384186,
+        "p99": 252.60000002384186
+      },
+      "cacheLoss": {
+        "p50": 221.5,
+        "p95": 232.5999999642372,
+        "p99": 232.5999999642372
+      },
+      "lifecycleConnection": {
+        "p50": 230.30000001192093,
+        "p95": 258.39999997615814,
+        "p99": 261.10000002384186
+      },
+      "pendingOutcomeRecoveryMs": 232.5,
+      "firstPostGcHeap": {
+        "cycle": 5,
+        "usedSize": 2362180,
+        "totalSize": 2945024,
+        "embedderHeapUsedSize": 384232,
+        "backingStorageSize": 9386289,
+        "dom": {
+          "documents": 1,
+          "nodes": 22,
+          "jsEventListeners": 18
+        }
+      },
+      "lastPostGcHeap": {
+        "cycle": 25,
+        "usedSize": 2381696,
+        "totalSize": 2945024,
+        "embedderHeapUsedSize": 399312,
+        "backingStorageSize": 9386289,
+        "dom": {
+          "documents": 1,
+          "nodes": 22,
+          "jsEventListeners": 18
+        }
+      }
+    },
+    {
+      "run": 3,
+      "cold": {
+        "p50": 301.69999998807907,
+        "p95": 301.69999998807907,
+        "p99": 301.69999998807907
+      },
+      "reconnect": {
+        "p50": 241.0999999642372,
+        "p95": 257.69999998807907,
+        "p99": 257.69999998807907
+      },
+      "cacheLoss": {
+        "p50": 222,
+        "p95": 235.0999999642372,
+        "p99": 235.0999999642372
+      },
+      "lifecycleConnection": {
+        "p50": 228.0999999642372,
+        "p95": 258.5999999642372,
+        "p99": 262
+      },
+      "pendingOutcomeRecoveryMs": 240,
+      "firstPostGcHeap": {
+        "cycle": 5,
+        "usedSize": 2362336,
+        "totalSize": 2945024,
+        "embedderHeapUsedSize": 383976,
+        "backingStorageSize": 9386289,
+        "dom": {
+          "documents": 1,
+          "nodes": 22,
+          "jsEventListeners": 18
+        }
+      },
+      "lastPostGcHeap": {
+        "cycle": 25,
+        "usedSize": 2381720,
+        "totalSize": 2945024,
+        "embedderHeapUsedSize": 399056,
+        "backingStorageSize": 9386289,
+        "dom": {
+          "documents": 1,
+          "nodes": 22,
+          "jsEventListeners": 18
+        }
+      }
+    }
+  ],
+  "conditions": "named environment in each raw report; browser monotonic intervals through actual visible frame; one initial cold, three reconnects/cache-loss, one pending-result recovery, 25 lifecycle cycles per run; sparse cold samples are observations, not 200-action warm latency claims"
+}

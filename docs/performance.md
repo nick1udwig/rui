@@ -51,10 +51,11 @@ updates the UI. Screenshots are outside those loops. Local spans never subtract
 host and browser timestamps.
 
 This first P1 series establishes the small-demo runner and instrumentation for
-the existing large fixture. Expanded cold/reset/cache-loss, lifecycle memory,
-throttled-reader and isolated steady-render reports are still required before
-claiming the entire P1 completion boundary. Existing evidence below remains
-historical and is not replaced by these new measurements.
+the existing large fixture. The [installed-package lifecycle reports](browser-lifecycle-performance.md)
+add cold/reconnect/cache-loss readiness, pending-result recovery, actual hidden-tab
+suppression and 25-cycle ownership/heap stabilization across three runs. Large
+per-client/recovery repetitions remain a separate measurement boundary. Existing
+evidence below remains historical.
 
 The [three retained baseline runs](../fixtures/performance/browser-p1/summary.json)
 contain 200 warm browser and 200 warm source actions each on the recorded

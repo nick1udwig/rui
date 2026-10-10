@@ -86,6 +86,10 @@ jobs:
       - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
       - name: Installed tarball with production HTTPS and replacement adapters
         run: python3 client-browser/tests/package-live.py --xvfb "$(command -v Xvfb)"
+      - name: Installed-package lifecycle ownership and actual hidden-tab recovery
+        env:
+          RUI_LIFECYCLE: '1'
+        run: python3 client-browser/tests/package-live.py --xvfb "$(command -v Xvfb)"
       - name: Native shared actor and canonical-clock IME
         run: |
           cargo build --release -p rui-client-desktop --features gtk-source-probe --example gtk_source_probe --locked
