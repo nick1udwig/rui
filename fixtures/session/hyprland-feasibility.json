@@ -1,0 +1,39 @@
+{
+  "association": "toplevel mapping handles need a trusted connection/object/incarnation bridge; titles and IPC addresses alone are insufficient",
+  "backend": "Hyprland 0.56.2",
+  "blockers": [
+    "reviewed capture hooks supply buffers rather than strict-profile source vectors",
+    "no implemented trusted mapping from registered application content to all native popup/shell/decoration surfaces",
+    "no owned-session action/cleanup/scale/occlusion equivalence proof for this backend"
+  ],
+  "captureBoundary": "buffer formats, dimensions and copy into wl_buffer",
+  "commit": "efb50993780079460b0cbed1363e2166a2de1d9f",
+  "decision": "retain isolated backend only",
+  "evidence": {
+    "/usr/include/hyprland/protocols/hyprland-toplevel-export-v1.hpp": {
+      "bytes": 7572,
+      "sha256": "622cebdc3d3775db05447cb72bd5d1ad2a24af1552565278821d1e85048e5562"
+    },
+    "/usr/include/hyprland/protocols/hyprland-toplevel-mapping-v1.hpp": {
+      "bytes": 6654,
+      "sha256": "0f10225d1f1996369ee2eb7c1b748aed2f424b674d9a1823ecb6bcb657c31073"
+    },
+    "/usr/include/hyprland/src/protocols/ImageCopyCapture.hpp": {
+      "bytes": 4088,
+      "sha256": "a23a8bf4acab8b42c636ac0490ac5ec434f8ef36e44daed157f3313368b7d62f"
+    },
+    "/usr/include/hyprland/src/protocols/ToplevelExport.hpp": {
+      "bytes": 2259,
+      "sha256": "debdc98a3813583bfcbbf819b606c011f0e50137ab79f2fa19f9091544716b14"
+    },
+    "/usr/share/wayland-protocols/staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml": {
+      "bytes": 19006,
+      "sha256": "41a446653f788fabb404cab3168c0bd667c1ff4b54f1f0bb1e18810a1f47d73f"
+    }
+  },
+  "permissionedInput": "unproven for app-only RUI grants; virtual/IPC input cannot inherit broader session permission",
+  "possibleNext": "cooperating vector producer plus a separately reviewed compositor integration; never trace or rasterize capture buffers into vectors",
+  "reviewKind": "installed source/header/protocol investigation; no running desktop IPC or native input exercised",
+  "schemaVersion": 1,
+  "version": "Hyprland 0.56.2 built from branch v0.56.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).\nDate: Wed Aug 5 14:13:21 2026\nTag: v0.56.2, commits: 7661\n\nLibraries:\nHyprgraphics: built against 0.5.1, system has 0.5.1\nHyprutils: built against 0.14.0, system has 0.14.1\nHyprcursor: built against 0.1.13, system has 0.1.13\nHyprlang: built against 0.6.8, system has 0.6.8\nAquamarine: built against 0.14.0, system has 0.14.0\n\nVersion ABI string: efb50993780079460b0cbed1363e2166a2de1d9f_aq_0.14_hu_0.14_hg_0.5_hc_0.1_hlg_0.6\nno flags were set"
+}

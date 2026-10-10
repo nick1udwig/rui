@@ -25,6 +25,11 @@ See [client-browser/README.md](client-browser/README.md) and [demos/web/README.m
 
 ## Work beyond the accepted prototype
 
+C4 records a bounded pinned Hyprland 0.56.2 [feasibility investigation](docs/additional-session-feasibility.md).
+Its reviewed capture hooks expose image buffers; trusted registered-content
+association and app-only input equivalence remain unproven. The plan's negative
+feasibility branch retains the isolated backend and adds no desktop profile.
+
 C3 extracts registered application/surface APIs, common coherent assembly and
 control helpers, moving corpus-specific fault hooks out of native dispatch.
 The second owned document editor uses the SDK without fixture imports. Generic
