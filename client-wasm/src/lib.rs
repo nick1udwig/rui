@@ -319,6 +319,10 @@ impl Session {
             .receiver()
             .is_ok_and(|r| r.resources_ready().unwrap_or(false))
     }
+    #[wasm_bindgen(getter, js_name = memoryPeak)]
+    pub fn memory_peak(&self) -> usize {
+        self.inner.memory_peak()
+    }
     /// Copy only the committed graph. IDs, clocks and scalar indices are BigInt.
     pub fn state(&self) -> Result<JsValue, JsError> {
         value(self.inner.state().map_err(error)?)

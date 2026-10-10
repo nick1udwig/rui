@@ -203,6 +203,10 @@ export async function checkContract() {
   client.subscribe((event) => {
     if (event.type === "applied") {
       const copy = client.state;
+      assert(
+        client.memoryPeak >= client.memoryUsed && client.memoryUsed > 0,
+        "Rust ownership high-water missing",
+      );
       copy.records.clear();
       assert(
         client.state.records.size > 0,
@@ -248,6 +252,10 @@ export async function checkContract() {
     "event disposal did not stop delivery",
   );
   const count = admitted.length;
+  assert(
+    client.memoryPeak === 0 && client.memoryUsed === 0,
+    "disposed status accessed retained WASM ownership",
+  );
   callbacks.opened();
   callbacks.message(hello.buffer);
   assert(admitted.length === count, "stale transport callback emitted bytes");

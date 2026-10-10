@@ -131,6 +131,7 @@ async function loadModule(asset: string | URL): Promise<WebAssembly.Module> {
     "session_close",
     "session_pendingCommands",
     "session_setRequestNamespace",
+    "session_memoryPeak",
     "__wbindgen_start",
   ])
     if (!exports.some((item) => item.name === name && item.kind === "function"))
@@ -300,6 +301,10 @@ export class BrowserClient {
   get resourcesReady(): boolean {
     if (this.disposed) return false;
     return this.session.resourcesReady;
+  }
+  /** Conservative shared Rust ownership high-water, separate from JS/socket/heap capacity. */
+  get memoryPeak(): number {
+    return this.disposed ? 0 : this.session.memoryPeak;
   }
   get geometry(): Viewport {
     return { ...this.viewport, origin: { ...this.viewport.origin } };

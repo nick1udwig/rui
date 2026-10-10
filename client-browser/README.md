@@ -21,7 +21,7 @@ The package exports compiled ES modules and declarations from `dist/`, with gene
 ```sh
 (cd client-browser && npm pack --pack-destination /tmp)
 # In a separate application:
-npm install /tmp/rui-client-browser-0.1.0.tgz
+npm install /tmp/rui-client-browser-0.1.1.tgz
 ```
 
 `npm pack` checks the API/declarations/generated ABI and includes only runtime files,

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 — additive ownership diagnostics
+
+- Expose conservative Rust `memoryPeak` separately from JS/socket/allocator capacity,
+  for cold/recovery/lifecycle measurements. No negotiated limit changes.
+- Keep matching crate/package versions and regenerate the binding/API baseline.
+
 ## 0.1.0 — private experimental distribution
 
 - Self-contained ESM/declaration/WASM tarball and explicit asynchronous initialization.

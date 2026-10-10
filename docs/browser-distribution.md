@@ -1,6 +1,6 @@
 # Browser distribution and support
 
-The private `@rui/client-browser` 0.1.0 tarball contains runtime ESM, TypeScript
+The private `@rui/client-browser` 0.1.1 tarball contains runtime ESM, TypeScript
 declarations, generated WASM/JS, compatibility metadata, README, changelog and
 third-party notices. It has no install hook, runtime npm dependencies, fixture data,
 credentials, source, Rust toolchain or GTK dependency. A browser-only client needs
@@ -27,7 +27,7 @@ not a promised headless client platform.
 | Desktop assets | Chromium 153.0.8010.12, Firefox 155, Playwright WebKit 26.6 |
 | Live owned source | system Chromium 151.0.7922.173, GTK 4.22.4, Cairo 1.18.4 |
 | Wire | RUI/0.1; explicit negotiated mirror or semantic-only profile subset |
-| Package/crates | matching 0.1.0; generated JS/WASM/declarations deployed together |
+| Package/crates | matching 0.1.1; generated JS/WASM/declarations deployed together |
 | Physical Safari/mobile/screen readers | acceptance not measured |
 | Two-machine tailnet | documented workflow; acceptance not measured |
 

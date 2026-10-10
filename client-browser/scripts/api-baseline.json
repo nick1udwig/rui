@@ -16,7 +16,7 @@
   ],
   "declarations": {
     "causal.d.ts": "0af138b1651edfccaf9d5516a44da56fa2b3b223970e929e67c29b09ebdcb24e",
-    "client.d.ts": "b6fcb9353ddb1833cc1241e6617cc38b2442272a11a5d3591c10dcba340afcc8",
+    "client.d.ts": "4aee36685fb049bf247ec6525179c423e940367711b7e257a9e40d90d25aae80",
     "index.d.ts": "238a2bdcf3961f9bfa929b47aa4ca921592d70c2b24b8cd8903565744b8b6d74",
     "model.d.ts": "4ead5d9c56c071811b6180a7ae6f9a8674415962c7e89dd736495f8b92239fdf",
     "renderer.d.ts": "d3fc9da196f105762d2d4ede42ae8893522bfcd34c3060902e1608f0fd9a9635",
@@ -24,7 +24,7 @@
     "semantic.d.ts": "e83ae957403d51bcf8d463ced2fe7e6b0fce44d898fbd8f81759c4121984d48a",
     "timing.d.ts": "78c7072c62125ff5a8911b345690851443b9a19d9e8cc80846ff9d3466b171da"
   },
-  "generatedDeclaration": "9a5ee455559a47926cf8a2b55220c8efcf934c08a23deb4d85e9a74c93827691",
+  "generatedDeclaration": "2bc5492c23fa85dac3017b6470635b2143e37cc9d565a7b5bd0d6fd51910e934",
   "wasmImports": [
     {
       "module": "./rui_client_wasm_bg.js",
@@ -234,6 +234,10 @@
     },
     {
       "name": "session_hitTest",
+      "kind": "function"
+    },
+    {
+      "name": "session_memoryPeak",
       "kind": "function"
     },
     {

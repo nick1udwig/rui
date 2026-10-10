@@ -97,3 +97,10 @@ bytes. Final `dispose` discards that ledger; a new mutating actor needs a separa
 approved client instance ID or a new host epoch. Reusing a disposed producer identity
 can observe/request control, but its reset command sequence is rejected by the host.
 The library does not infer a sequence or recreate an old ambiguous operation.
+
+`memoryUsed` reports current conservative shared Rust ownership; `memoryPeak` reports
+the current receiver budget's high-water, including transient actor/queue/resource
+reservations. Store that value before disposal/scope replacement. JavaScript copies,
+renderer allocations, browser socket buffers and allocator heap capacity are separate.
+Disposed getters return zero without accessing freed WASM. This additive 0.1.1 API
+keeps existing wire/profile and ownership ceilings.

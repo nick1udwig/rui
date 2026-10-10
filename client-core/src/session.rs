@@ -259,6 +259,11 @@ impl Session {
             .map(Replica::receiver)
             .ok_or(TransportError::Closed)
     }
+    pub fn memory_peak(&self) -> usize {
+        self.replica
+            .as_ref()
+            .map_or(0, |r| r.receiver().memory_budget().peak())
+    }
     pub fn state(&self) -> Result<&State, TransportError> {
         self.receiver()?
             .state()
@@ -953,6 +958,7 @@ mod tests {
     #[test]
     fn fresh_actor_control_namespace_does_not_reuse_retained_request_ids() {
         let mut old = session(true);
+        assert!(old.memory_peak() >= old.memory_used());
         let first = old.request_id().unwrap();
         assert_ne!(first, old.request_id().unwrap());
         old.disconnect();
@@ -975,6 +981,8 @@ mod tests {
         missing.receive(&hello(2, true)).unwrap();
         assert_eq!(missing.request_id(), Err(TransportError::Authority));
         assert!(missing.set_request_namespace([10; 16]).is_err());
+        missing.close();
+        assert_eq!(missing.memory_peak(), 0);
     }
     fn record(version: u64, digest: Option<[u8; 32]>) -> pb::Record {
         if let Some(digest) = digest {

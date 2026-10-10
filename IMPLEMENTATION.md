@@ -1,3 +1,8 @@
+P1 ownership diagnostics: matching crate/browser 0.1.1 adds a conservative Rust
+memoryPeak getter for cold/recovery/lifecycle reports, separate from JavaScript and
+socket/allocator capacity. Core and three-engine disposed/active ownership checks
+pass; the generated binding/API baseline is updated without changing wire limits.
+
 L5 local distribution implemented: runtime-only private ESM/declaration/WASM tarball,
 version/schema/ABI/asset compatibility gate, pre-1.0 changelog and locked dependency
 notices. A clean Vite consumer installs outside the repo and serves under /apps/rui/.
