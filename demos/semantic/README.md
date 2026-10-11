@@ -45,8 +45,8 @@ Three-browser tests use exact source-derived corpus/editor states and verify str
 escaping, new identities, arbitrary geometry, redaction, partial collections, stable
 DOM/focus, unmapped cleanup and limits. Live owned GTK checks call render before
 SemanticReady, then independently replay the exact authorized packets. Responsive
-layout/accessibility/device acceptance remains S4 work; viewport emulation is not a
-mobile-browser claim.
+layout and automated accessibility evidence are described below; physical
+screen-reader and mobile-device acceptance remain unverified.
 
 The interaction adapter uses only public library APIs. Local DOM focus, selection,
 input, paste, deletion and composition do not dispatch source commands. Edit draft
@@ -75,8 +75,8 @@ independent Python replay, the three intended effects, editor Boolean mutation,
 local-composition silence, stale-selection draft rejection, revocation and reconnect.
 Three-engine DOM regressions additionally exercise unknown outcomes, exact UTF-8
 limits and zero mutation from observer navigation. Source-side guard faults remain
-covered by the native application/context tests. S4 layout/device and S5 simultaneous
-presentation acceptance remain outstanding.
+covered by the native application/context tests. Responsive layout and simultaneous
+presentation checks are described below; physical device acceptance remains separate.
 
 Local layout uses semantic groups and reading order: wide groups use an adaptive
 grid, narrow groups/forms stack, collections retain ordered list structure, and

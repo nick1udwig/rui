@@ -4,7 +4,7 @@ The GTK window on machine A owns the counter, text, list and menu. The browser d
 
 ## Run it
 
-Use the existing native demo dependencies, plus Node 22.12+ (tested with Node 26.8.1), the WASM Rust target and the matching bindings CLI:
+Use the existing native demo dependencies, plus Node 26.8.1 (the browser package requires Node 26.8.1 or newer within 26.x), the WASM Rust target and the matching bindings CLI:
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -69,7 +69,7 @@ The identity directory must be new. For another hostname, add its exact Origin t
 
 The source exporter remains the constrained cooperating GTK adapter. Color emoji, raster content and unsupported native paint nodes can make a view incomplete. The demo disables blinking/animations, and the exporter recognizes fully opaque/hidden caret wrappers; partial source opacity remains outside its accepted capture scope. Browser text drafts support normal DOM editing, including paste/deletion and IME-produced committed strings, while the host receives a guarded semantic replacement. Native source preedit/raw input are separate future browser features.
 
-The host still polls local edits every 250 ms and emits full snapshots. Browser rendering uses cached vector coverage and explicit linear composition. This is a working interactive demo, not a 60 Hz acceptance milestone. Draw timing appears in the footer. Cross-machine binding is supported; the live tests bind `0.0.0.0` and connect over loopback, rather than claiming a second physical machine was tested.
+The host uses bounded source dirty notifications and publishes incremental transactions for warm edits, with snapshots for initial connection and recovery. Browser rendering reuses vector coverage and pixel buffers with explicit linear composition. The original action-latency and large-scene 60 Hz targets remain unmet; see [performance](../../docs/performance.md). Draw timing appears in the footer. Cross-machine binding is supported; the live tests bind `0.0.0.0` and connect over loopback, rather than claiming a second physical machine was tested.
 
 ```sh
 cargo build --release --locked -p rui-client-desktop --features gtk-demo --bin rui-demo
