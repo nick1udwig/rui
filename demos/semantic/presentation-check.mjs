@@ -620,7 +620,11 @@ try {
   await page.evaluate(async () => {
     const { team, wait, same, settled, capture } = window.team,
       [s] = team;
-    await wait(() => settled(s) && same());
+    // The native capture file precedes publication and socket delivery. Equal
+    // semantic values can still be the old projection after a geometry change.
+    await wait(
+      () => settled(s) && s.client.state.revision > capture.revision && same(),
+    );
     let rejected = false;
     try {
       s.client.commitEdit(capture, "stale geometry capture");
