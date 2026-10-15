@@ -424,6 +424,25 @@ impl Session {
             )
             .map_err(error)
     }
+    #[wasm_bindgen(js_name = setBrowserValue)]
+    pub fn set_browser_value(&mut self, target: u64, value: String) -> Result<u64, JsError> {
+        if !self
+            .inner
+            .capabilities()
+            .profiles
+            .iter()
+            .any(|p| p == "browser.semantic.v1")
+        {
+            return Err(JsError::new("browser profile required"));
+        }
+        self.inner
+            .command(
+                target,
+                "SetValue",
+                rui_protocol_core::commands::Arguments::ValueText(value),
+            )
+            .map_err(error)
+    }
     #[wasm_bindgen(js_name = activateItem)]
     pub fn activate_item(
         &mut self,

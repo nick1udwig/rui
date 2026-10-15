@@ -138,6 +138,7 @@ pub struct ViewStatus {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct ViewDescription {
+    pub next_command_sequence: Option<u64>,
     pub width: f64,
     pub height: f64,
     pub coverage: String,
@@ -813,6 +814,7 @@ impl ControlledHost {
         let projection = self.projection(client, view)?;
         let (width, height) = self.canvas_size();
         Ok(ViewDescription {
+            next_command_sequence: None,
             width,
             height,
             coverage: if projection.semantic_only {

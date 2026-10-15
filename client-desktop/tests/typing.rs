@@ -102,6 +102,7 @@ fn fixture(content: &str, selection: TextRange) -> State {
     s.records.insert(
         20,
         Record::Semantic(SemanticNode {
+            browser_input_type: None,
             id: 20,
             version: 1,
             role: SemanticRole::TextField,

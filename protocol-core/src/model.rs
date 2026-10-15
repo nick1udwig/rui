@@ -312,6 +312,8 @@ pub struct CollectionModel {
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SemanticNode {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub browser_input_type: Option<String>,
     pub id: u64,
     pub version: u64,
     pub role: SemanticRole,
@@ -541,6 +543,7 @@ impl State {
                 Record::Semantic(s) => {
                     s.label.as_ref().map_or(0, string_memory)
                         + s.description.as_ref().map_or(0, string_memory)
+                        + s.browser_input_type.as_ref().map_or(0, string_memory)
                         + match &s.value {
                             Some(TypedValue::Text(v)) => string_memory(v),
                             _ => 0,
@@ -1696,6 +1699,10 @@ fn convert_record(value: pb::Record, limits: &Limits) -> Result<Record, ModelErr
                 })
                 .collect::<Result<_, _>>()?;
             let node = SemanticNode {
+                browser_input_type: v
+                    .browser_input_type
+                    .map(|v| string(v, limits))
+                    .transpose()?,
                 id: v.id,
                 version: v.version,
                 role: SemanticRole::from_wire(v.role)?,

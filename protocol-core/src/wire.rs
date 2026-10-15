@@ -25,6 +25,7 @@ pub const SUPPORTED_FEATURES: &[&str] = &[
     "mirror2d.core.v1",
     "semantics.core.v1",
     "semantics.only.v1",
+    "browser.semantic.v1",
     "glyph.outline-single.v1",
     "cursor.vector.v1",
     "text.clock.gtk-editable4224.v1",

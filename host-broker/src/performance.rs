@@ -172,6 +172,7 @@ impl PerformanceSource {
             primitive: Some(primitive),
         })));
         records.push(wrap(p::record::Record::Semantic(p::SemanticNode {
+            browser_input_type: None,
             id: semantic,
             version: 1,
             role: if index == 0 {

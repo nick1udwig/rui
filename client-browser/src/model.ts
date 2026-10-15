@@ -129,8 +129,15 @@ export interface Surface {
   visual_coverage: "Complete" | "Partial" | "Unsupported";
 }
 export type TriState = "False" | "True" | "Unknown";
-export type TypedValue = { Text: string } | { Boolean: boolean } | { Number: number } | { Integer: bigint };
-export interface Action { id: string; schema_version: number }
+export type TypedValue =
+  | { Text: string }
+  | { Boolean: boolean }
+  | { Number: number }
+  | { Integer: bigint };
+export interface Action {
+  id: string;
+  schema_version: number;
+}
 export interface Relation {
   kind: "LabelFor" | "LabelledBy" | "Controls" | "Describes" | "MemberOf";
   targets: Ref[];
@@ -143,9 +150,19 @@ export interface Collection {
   selected_items: Ref[];
 }
 export interface Semantic {
+  browser_input_type?: string;
   id: Id;
   version: bigint;
-  role: "Root" | "Group" | "Button" | "Checkbox" | "TextField" | "Label" | "List" | "ListItem" | "CustomCanvas";
+  role:
+    | "Root"
+    | "Group"
+    | "Button"
+    | "Checkbox"
+    | "TextField"
+    | "Label"
+    | "List"
+    | "ListItem"
+    | "CustomCanvas";
   label: string | null;
   description: string | null;
   value: TypedValue | null;
@@ -159,7 +176,10 @@ export interface Semantic {
   reading_order: bigint | null;
   sensitivity: "Public" | "Sensitive" | "Redacted";
   completeness: "Full" | "Incomplete" | "Opaque";
-  states: ReadonlyMap<"Disabled" | "Checked" | "Selected" | "Expanded" | "ReadOnly", TriState>;
+  states: ReadonlyMap<
+    "Disabled" | "Checked" | "Selected" | "Expanded" | "ReadOnly",
+    TriState
+  >;
 }
 export interface Text {
   id: Id;
@@ -174,7 +194,8 @@ export interface Text {
 export interface Cursor {
   position: Point;
   hotspot: Point;
-  appearance: { Shape: "Default" | "Text" | "Pointer" | "Hidden" } | { Outline: Digest };
+  appearance:
+    { Shape: "Default" | "Text" | "Pointer" | "Hidden" } | { Outline: Digest };
 }
 export interface SessionState {
   id: Id;

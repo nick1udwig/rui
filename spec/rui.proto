@@ -98,6 +98,8 @@ message SemanticNode {
   ObjectRef text_model = 11; CollectionModel collection_model = 12;
   repeated ObjectRef visual_bindings = 13; ObjectRef semantic_group = 14;
   optional uint64 reading_order = 15; Sensitivity sensitivity = 16; Completeness completeness = 17;
+  // browser.semantic.v1 presentation hint; never a DOM handle or dispatch selector.
+  optional string browser_input_type = 128;
 }
 enum TextStatus { TEXT_STATUS_UNSPECIFIED = 0; AVAILABLE = 1; UNAVAILABLE = 2; TEXT_REDACTED = 3; }
 message TextRange { uint64 anchor = 1; uint64 focus = 2; }

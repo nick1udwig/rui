@@ -175,6 +175,7 @@ fn snapshot(primitive: p::scene_node::Primitive) -> Vec<u8> {
 }
 fn label(version: u64, text: &str) -> p::SemanticNode {
     p::SemanticNode {
+        browser_input_type: None,
         id: 99,
         version,
         role: p::SemanticRole::Label as i32,

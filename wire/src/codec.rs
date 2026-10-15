@@ -148,6 +148,7 @@ impl Schema {
             (S::ViewOpened, 4) => Some(String(256)),
             (S::ViewOpened, 5) => Some(Strings),
             (S::ViewOpened, 128) => Some(RepeatedNested(S::InputDeviceGrant, 16)),
+            (S::ViewOpened, 129) => Some(Scalar),
             (S::InputDeviceGrant, 1..=5) => Some(String(64)),
             (S::RevisionAck, 1) | (S::GetCommandResult, 1) | (S::Ping, 1) => Some(Scalar),
             (S::ResumeRequest, 1..=2) => Some(id),
@@ -188,7 +189,7 @@ impl Schema {
     }
 }
 struct Scan {
-    counts: [[u16; 16]; SCHEMA_COUNT],
+    counts: [[u16; 17]; SCHEMA_COUNT],
     fields: usize,
     allocation: usize,
     budget: usize,
@@ -203,7 +204,11 @@ impl Scan {
         Ok(())
     }
     fn count(&mut self, schema: Schema, field: usize, maximum: u16) -> Result<(), TransportError> {
-        let slot = if field == 128 { 15 } else { field };
+        let slot = match field {
+            128 => 15,
+            129 => 16,
+            _ => field,
+        };
         let count = self.counts[schema as usize]
             .get_mut(slot)
             .ok_or(TransportError::Protocol)?;
@@ -321,7 +326,7 @@ pub fn decode<T: WireMessage>(raw: &[u8], ceiling: usize) -> Result<T, Transport
         return Err(TransportError::Limit);
     }
     let mut scan = Scan {
-        counts: [[0; 16]; SCHEMA_COUNT],
+        counts: [[0; 17]; SCHEMA_COUNT],
         fields: 0,
         allocation: std::mem::size_of::<T>(),
         budget: ceiling.saturating_mul(4).saturating_add(4096),
@@ -550,6 +555,7 @@ mod tests {
     use super::*;
     fn opened() -> p::ViewOpened {
         p::ViewOpened {
+            next_command_sequence: None,
             view_id: vec![1; 16],
             canvas_width: 920.0,
             canvas_height: 480.0,

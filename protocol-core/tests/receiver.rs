@@ -737,6 +737,7 @@ fn minimum_positive_chunks_handle_large_envelopes_with_a_bounded_chunk_count() {
     let mut receiver = ViewReceiver::new(context(), limits.clone(), config).unwrap();
     let record = pb::Record {
         record: Some(pb::record::Record::Semantic(pb::SemanticNode {
+            browser_input_type: None,
             id: 1,
             version: 1,
             role: pb::SemanticRole::Root as i32,
