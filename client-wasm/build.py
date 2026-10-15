@@ -21,10 +21,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--wasm-bindgen', default=os.environ.get('WASM_BINDGEN', shutil.which('wasm-bindgen')))
     args = parser.parse_args()
-    if not args.wasm_bindgen:
-        parser.error('install the matching wasm-bindgen-cli or set WASM_BINDGEN')
     expected = tomllib.loads((ROOT / 'Cargo.toml').read_text())['dependencies']['wasm-bindgen'].removeprefix('=')
-    version = subprocess.check_output([args.wasm_bindgen, '--version'], text=True).strip()
+    if not args.wasm_bindgen:
+        parser.error(f'wasm-bindgen {expected} was not found on PATH.\n'
+                     f'Install it with: cargo install wasm-bindgen-cli --version {expected} --locked\n'
+                     'Add its installation bin directory to PATH, or set WASM_BINDGEN=/path/to/wasm-bindgen '
+                     '(or pass --wasm-bindgen /path/to/wasm-bindgen).')
+    try:
+        version = subprocess.check_output([args.wasm_bindgen, '--version'], text=True).strip()
+    except (OSError, subprocess.CalledProcessError) as error:
+        parser.error(f'cannot run wasm-bindgen at {args.wasm_bindgen}: {error}')
     if version != f'wasm-bindgen {expected}':
         parser.error(f'expected wasm-bindgen-cli {expected}, got {version}')
     metadata = json.loads(run('cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1', capture_output=True, text=True).stdout)

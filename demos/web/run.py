@@ -19,7 +19,12 @@ def interrupted(_signal, _frame):
 
 
 def run(*command):
-    subprocess.run(command, cwd=ROOT, check=True)
+    try:
+        subprocess.run(command, cwd=ROOT, check=True)
+    except subprocess.CalledProcessError as error:
+        # The failed tool already printed its diagnostic; keep its exit status
+        # without hiding the useful message under a launcher traceback.
+        raise SystemExit(error.returncode) from None
 
 
 def stop(process, graceful=False):

@@ -31,6 +31,8 @@ cargo install wasm-bindgen-cli --version 0.2.129 --locked
 python3 demos/web/run.py --presentation semantic --application editor
 ```
 
+The `wasm-bindgen` executable must be on PATH, not just Cargo itself. Check with `wasm-bindgen --version` (expected: `wasm-bindgen 0.2.129`). If it is installed elsewhere, pass `--wasm-bindgen /absolute/path/to/wasm-bindgen` to the launcher or export `WASM_BINDGEN` with that path.
+
 The launcher builds the host, WASM and browser library, installs locked npm dependencies, and opens the real GTK document editor. Open the printed browser URL, choose the printed `client.credential` file, click **Connect**, then **Take control**.
 
 1. Under **Tasks** or **Field notes**, choose **Select source item** and watch the GTK selection and fields follow.
