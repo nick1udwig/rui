@@ -50,6 +50,47 @@ pub struct PairingAuthority {
     approved: BTreeMap<[u8; 32], Approved>,
 }
 impl PairingAuthority {
+    /// Trusted local persistence only. Contains credential digests, never bearer secrets.
+    pub fn approved_records(&self) -> Vec<([u8; 32], Id, VerifiedAuthorization)> {
+        self.approved
+            .iter()
+            .map(|(digest, a)| (*digest, a.client_instance_id, a.authorization.clone()))
+            .collect()
+    }
+    pub fn restore_local(
+        &mut self,
+        digest: [u8; 32],
+        client_instance_id: Id,
+        authorization: VerifiedAuthorization,
+    ) -> Result<(), TransportError> {
+        if self.approved.len() >= self.capacity
+            || client_instance_id == [0; 16]
+            || authorization.principal.is_empty()
+            || authorization.principal.len() > 1024
+            || authorization.permissions.actions.len() > 128
+            || authorization
+                .permissions
+                .actions
+                .iter()
+                .any(|a| a.len() > 256)
+            || self.approved.contains_key(&digest)
+            || self
+                .approved
+                .values()
+                .any(|a| a.client_instance_id == client_instance_id)
+        {
+            return Err(TransportError::Authentication);
+        }
+        self.approved.insert(
+            digest,
+            Approved {
+                client_instance_id,
+                authorization,
+                lifetime: Default::default(),
+            },
+        );
+        Ok(())
+    }
     pub fn new(capacity: usize) -> Result<Self, TransportError> {
         if capacity == 0 {
             return Err(TransportError::Limit);
@@ -184,6 +225,47 @@ impl PairingAuthority {
 mod tests {
     use super::*;
     use rui_protocol_core::session::Permissions;
+    #[test]
+    fn persisted_digests_restore_bound_credentials_and_revoke_lifetimes() {
+        let mut source = PairingAuthority::new(2).unwrap();
+        let request = source.request_local_pairing([3; 16]).unwrap();
+        let auth = VerifiedAuthorization {
+            principal: "device".into(),
+            policy_version: 1,
+            permissions: Permissions {
+                can_view: true,
+                can_control: true,
+                actions: ["Activate".into()].into_iter().collect(),
+            },
+        };
+        let credential = source
+            .approve_local(request.request_id, auth.clone())
+            .unwrap();
+        let (digest, client, saved) = source.approved_records().pop().unwrap();
+        drop(source);
+        let mut restored = PairingAuthority::new(2).unwrap();
+        restored.restore_local(digest, client, saved).unwrap();
+        assert_eq!(
+            restored
+                .authenticated(credential.expose_for_tls_authentication(), client)
+                .unwrap()
+                .principal,
+            auth.principal
+        );
+        assert!(restored
+            .authenticated(credential.expose_for_tls_authentication(), [4; 16])
+            .is_err());
+        assert!(restored.restore_local(digest, [4; 16], auth).is_err());
+        let lifetime = restored
+            .approval_lifetime(credential.expose_for_tls_authentication(), client)
+            .unwrap();
+        restored.revoke_local(client);
+        assert!(!lifetime.is_authorized());
+        assert!(restored.approved_records().is_empty());
+        assert!(restored
+            .authenticated(credential.expose_for_tls_authentication(), client)
+            .is_err());
+    }
     #[test]
     fn revoked_grant_cannot_survive_reapproval_with_same_principal() {
         let mut pairing = PairingAuthority::new(2).unwrap();
