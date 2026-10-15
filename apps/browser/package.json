@@ -1,0 +1,24 @@
+{
+  "name": "rui-browser-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build --base=./",
+    "test": "python3 -m unittest discover -s tests -p \"*_test.py\" && node --test tests/*.test.mjs",
+    "test:live": "node tests/live.mjs",
+    "test:proxy": "RUI_TEST_PROXY=1 node tests/live.mjs",
+    "test:proxy:path": "RUI_TEST_PROXY=1 RUI_TEST_PATH=/bart node tests/live.mjs"
+  },
+  "dependencies": {
+    "@rui/client-browser": "file:../../client-browser",
+    "playwright": "1.63.0",
+    "ws": "8.18.3",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "vite": "8.3.4",
+    "typescript": "5.9.3",
+    "@types/node": "26.6.5"
+  }
+}
