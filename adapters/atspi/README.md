@@ -1,5 +1,9 @@
 # Bounded observed accessibility adapter
 
+This adapter remains the bounded read-only baseline. The interactive existing-app
+workspace is documented separately in [apps/desktop](../../apps/desktop/README.md).
+
+
 `WorkerPort` runs blocking AT-SPI queries in a disposable process.
 A trusted launcher supplies an explicit accessibility bus and the PIDs of at most two owned applications; `ObservedProjection` additionally requires a fresh process incarnation for each source replacement.
 The worker binds each accessible application to its bus connection's Unix PID.

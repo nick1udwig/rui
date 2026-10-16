@@ -1,5 +1,9 @@
 # RUI
 
+For sharing already-running Linux applications with the mobile web client, see
+[the desktop workspace](apps/desktop/README.md).
+
+
 RUI is an experimental remote UI state replication protocol.
 The host owns application state and layout; clients retain authorized semantic and vector scene state.
 The strict profile prohibits transmitted raster content.
