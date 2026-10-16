@@ -2,8 +2,8 @@
 
 This log records the original prototype and subsequent P/C/L/S implementation work.
 Entries retain the remaining-work notes from their implementation stage.
-For the current desktop/browser workspaces and priorities, see [status and next steps](docs/status.md).
-Use [development and verification](docs/development.md) for checks and the [documentation index](docs/README.md) for component guides.
+For the current desktop/browser workspaces and priorities, see [status and next steps](status.md).
+Use [development and verification](development.md) for checks and the [documentation index](README.md) for component guides.
 
 P1 ownership diagnostics: matching crate/browser 0.1.1 adds a conservative Rust
 memoryPeak getter for cold/recovery/lifecycle reports, separate from JavaScript and
@@ -108,7 +108,7 @@ cache-loss APIs and clean external consumer validation are still tracked separat
 The historical prototype acceptance covers RFC milestones M0–M5 and their 79 conformance cases, including the original performance cases.
 Deferred features in RFC section 14 remain outside that scope.
 Completion requires executable evidence, not the existence of an API or a test with a matching name.
-The original design/specification files remain historical inputs; acceptance is tracked in [conformance/STATUS.md](conformance/STATUS.md) and [the case audit](conformance/CASES.md).
+The original design/specification files remain historical inputs; acceptance is tracked in [conformance/STATUS.md](../conformance/STATUS.md) and [the case audit](../conformance/CASES.md).
 All six milestones and all 79 cases are accepted for the declared constrained GTK corpus and isolated session backend. Performance was measured; the provisional 60 Hz target was not met.
 
 | Gate | Required result | Accepted result |
@@ -126,14 +126,14 @@ The manual GTK host/client demo makes the accepted native implementation interac
 The Vite demo adds a browser client that can run on another machine. It consumes an experimental reusable TypeScript library backed by the actual Rust receiver and portable session actor through WASM.
 The browser supports all nine vector primitives, source outline glyphs, control leases, activation/focus, guarded text replacement, verified resources and retained reconnect. Its live owned-display test covers HTTPS/WSS, host/client edits, observer restrictions and hidden-tab release/resume.
 It does not inherit every native client capability: raw input, source IME/preedit, fingerprint-font shaping, cursors and session-shell controls remain unadvertised. DOM drafts can submit committed Unicode text.
-See [client-browser/README.md](client-browser/README.md) and [demos/web/README.md](demos/web/README.md) for API boundaries, rendering contracts and launch commands.
+See [client-browser/README.md](../client-browser/README.md) and [demos/web/README.md](../demos/web/README.md) for API boundaries, rendering contracts and launch commands.
 
 ## Work beyond the accepted prototype
 
 L2's first slice extracts `rui-wire` for generated session schema, bounded codec,
 portable errors and redacted/zeroizing ownership. Compatibility transport exports
 preserve existing callers and the dependency cycle is removed. The
-[behavior matrix](docs/client-behavior-matrix.md) records shared behavior, gaps and
+[behavior matrix](client-behavior-matrix.md) records shared behavior, gaps and
 send/cancellation ownership. The subsequent shared Replica migration removes duplicate decoding/transition logic;
 its native socket queue and supported command families remain adapter contracts.
 
@@ -142,10 +142,10 @@ and redacted state, immediate scope clearing and one disposable worker per sourc
 Fresh private-bus checks keep a healthy view responsive while another source is
 stopped and exclude actual password content. Actions remain disabled; consistency
 remains OBSERVED and native visual/input association unresolved.
-[The observed integration contract](adapters/atspi/README.md) distinguishes this
+[The observed integration contract](../adapters/atspi/README.md) distinguishes this
 local presentation from an authenticated network host or coherent mirror.
 
-C4 records a bounded pinned Hyprland 0.56.2 [feasibility investigation](docs/additional-session-feasibility.md).
+C4 records a bounded pinned Hyprland 0.56.2 [feasibility investigation](additional-session-feasibility.md).
 Its reviewed capture hooks expose image buffers; trusted registered-content
 association and app-only input equivalence remain unproven. The plan's negative
 feasibility branch retains the isolated backend and adds no desktop profile.
@@ -156,7 +156,7 @@ The second owned document editor uses the SDK without fixture imports. Generic
 source-admitted button, Unicode text/list, dialog/modality and widget replacement
 checks pass; private text is redacted and screenshot diagnostics are optional.
 Original whole-view, restart, native-context and production HTTPS regressions
-pass. [The integration contract](adapters/gtk4/README.md) retains bounded verified
+pass. [The integration contract](../adapters/gtk4/README.md) retains bounded verified
 artifact IPC and source/native guards; in-memory IPC and arbitrary GTK applications
 remain unclaimed.
 
@@ -164,10 +164,10 @@ C2 adds bounded authored-path lowering for pixel-aligned, opaque square borders
 with equal widths and differing side paint. Four fresh source comparisons and
 an omitted-side negative pass; Rust replay verifies every retained closure and
 returns ownership to zero. Unsupported scale/width/rounded/alpha variants decline.
-[The coverage contract](docs/gtk-square-borders.md) preserves the unchanged native
+[The coverage contract](gtk-square-borders.md) preserves the unchanged native
 comparison criteria and documents the narrower source-proven subset.
 
-C1 adds the [application/capability matrix](docs/application-matrix.md), a bounded
+C1 adds the [application/capability matrix](application-matrix.md), a bounded
 submitted-node inventory and mandatory unsupported-content companion checks.
 A fresh owned-display default/constrained census and six native negative cases
 pass; repeated occurrences are separated from unique gap reasons. The selected
@@ -177,7 +177,7 @@ and source/client evidence in C3. Default GTK styling remains explicitly partial
 P5 adds a frozen small-demo evaluator and an opt-in named-runner workflow.
 Retained three-run results pass the 16.67 ms draw budget and fail the unchanged
 100/150 ms action goals. Ordinary CI validates evidence and correlation rather
-than enforcing shared-machine timings. [The gate contract](docs/performance-gates.md)
+than enforcing shared-machine timings. [The gate contract](performance-gates.md)
 records the remaining capture cost, runner provisioning, expanded P1 measurements
 and large-native 60 Hz gap.
 
@@ -188,7 +188,7 @@ pixel, producer and actual HTTPS production-bundle checks cover the new paths.
 Sustained measurement exposed a lease-renewal/readiness race: renewal now checks
 the live lease independently of command readiness, while acquisition and input
 remain readiness-gated. The browser also clears its displayed control state on
-protocol authority errors. See [the measurement procedure](docs/performance.md).
+protocol authority errors. See [the measurement procedure](performance.md).
 P1's expanded fault/lifecycle measurement scenarios remain outstanding; this
 series does not mark all four workstreams complete.
 
@@ -198,8 +198,8 @@ wasm-bindgen, Node 26.8.1 and locked npm dependencies. Node, Chromium 153, Firef
 pass the vector/resource/lifecycle suites and served production asset checks.
 Fresh owned-display HTTPS checks pass for development and production, including
 real hidden-tab release. The separate live job requires provisioning the named
-GTK 4.22.4/Cairo 1.18.4 runner. [Retained local evidence](fixtures/browser/ci-local.json)
-and [runner requirements](docs/browser-ci.md) describe the tested scope; Safari
+GTK 4.22.4/Cairo 1.18.4 runner. [Retained local evidence](../fixtures/browser/ci-local.json)
+and [runner requirements](browser-ci.md) describe the tested scope; Safari
 and physical mobile devices remain unclaimed.
 
 
@@ -208,8 +208,8 @@ wakeups on the serialized source owner. Capture consumption reconciles newer
 changes, overflow retains level-triggered dirtiness, and source supervision stays
 independent. Burst/overflow/stale-source tests and fresh native restart, context,
 whole-view, demo and HTTPS browser checks pass. The retained three-run
-[comparison](fixtures/performance/browser-p2/summary.json) records source harness
-p95 of 153–154 ms versus 296–302 ms before P2. [Invalidation scope](docs/dirty-notifications.md)
+[comparison](../fixtures/performance/browser-p2/summary.json) records source harness
+p95 of 153–154 ms versus 296–302 ms before P2. [Invalidation scope](dirty-notifications.md)
 excludes unregistered animation/custom-paint changes rather than promising their
 detection.
 
@@ -225,8 +225,8 @@ and for an admitted command's causal frame when its result arrives first.
 Larger-than-message publication and every transaction chunk cut, missing-resource,
 cache-loss, stalled-view and allocation regressions pass. Independent Python/Rust
 replay agrees at all eight retained prefixes (one snapshot, seven transactions).
-[The incremental contract](docs/incremental-gtk.md) and
-[exact trace evidence](fixtures/gtk/incremental-publications.json) describe limits;
+[The incremental contract](incremental-gtk.md) and
+[exact trace evidence](../fixtures/gtk/incremental-publications.json) describe limits;
 GTK retained reconnect and general permission-redaction projections remain outside
 this adapter's scope.
 
@@ -240,13 +240,13 @@ production HTTPS host/browser edits, hidden-tab release and reconnect pass.
 Three 600-frame synthetic runs reduce draw p95 from 5.0–5.3 ms to 3.4–3.5 ms.
 The three 200-action demo comparisons show reduced composition cost, but the
 source-action harness remains about 153 ms p95 and browser latency varies.
-[Reports and limits](docs/browser-render-performance.md) distinguish drawing
+[Reports and limits](browser-render-performance.md) distinguish drawing
 from presentation; generation-bound export, damage and the large native cost
 remain later measured optimizations.
 
-The [implementation plans](docs/implementation-plans.md) preserve the sequenced changes, dependencies, acceptance criteria, validation commands, and completion evidence for these four workstreams.
+The [implementation plans](implementation-plans.md) preserve the sequenced changes, dependencies, acceptance criteria, validation commands, and completion evidence for these four workstreams.
 Their starting-point descriptions are historical baselines.
-Current priorities and coverage limits, including the newer existing-app and managed-browser workspaces, are collected in [status and next steps](docs/status.md).
+Current priorities and coverage limits, including the newer existing-app and managed-browser workspaces, are collected in [status and next steps](status.md).
 
 RFC section 14 records features deferred from the original M0–M5 scope.
 Subsequent semantic presentation and managed-browser work extend that baseline; the original deferral list is not a current inventory of unavailable features.

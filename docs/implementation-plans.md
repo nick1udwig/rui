@@ -33,7 +33,7 @@ Preserve these invariants throughout all four plans:
 - Queue, history, resource, renderer and working-memory limits remain enforced. Account for native allocations, JavaScript copies and socket buffering separately from Rust reservations. Optimize within explicit limits rather than silently increasing them.
 - Native automation runs on owned displays, buses and input sessions. Retained diagnostic artifacts exclude credentials and unauthorized text; exact packet recording remains an explicit fixture facility.
 
-Implement each numbered step as a reviewable change or small series: behavior, relevant regression evidence, and documentation together. Keep existing acceptance artifacts as historical evidence; add fresh reports with source hashes and environment details when behavior or measurements change. Update [IMPLEMENTATION.md](../IMPLEMENTATION.md) as steps complete, including any capability that remains intentionally unsupported.
+Implement each numbered step as a reviewable change or small series: behavior, relevant regression evidence, and documentation together. Keep existing acceptance artifacts as historical evidence; add fresh reports with source hashes and environment details when behavior or measurements change. Update [IMPLEMENTATION.md](IMPLEMENTATION.md) as steps complete, including any capability that remains intentionally unsupported.
 
 ## Performance
 

@@ -1,7 +1,7 @@
 suite: RUI/0.1 initial conformance specification
 status: test_specification_only_no_runner_implemented
 date: '2026-10-01'
-design: RFC.md
+design: docs/RFC.md
 profiles:
 - content.no-raster.v1
 - mirror2d.core.v1

@@ -5,7 +5,7 @@
 
 The original bundle contained this design and a machine-readable conformance-test specification, without a runtime or executable test suite.
 The repository now includes implementations and extensions beyond that original scope.
-See [current status and direction](docs/status.md), [implementation acceptance](conformance/STATUS.md), and the [profile index](docs/README.md#protocol-design-and-profiles) for the implemented system.
+See [current status and direction](status.md), [implementation acceptance](../conformance/STATUS.md), and the [profile index](README.md#protocol-design-and-profiles) for the implemented system.
 
 ## 1. Decision and scope
 

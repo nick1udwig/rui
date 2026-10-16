@@ -2,7 +2,7 @@
 
 This is a historical handoff from 2026-10-02, before M0–M5 acceptance and the browser-client extension.
 Its paused agents, open gates and dirty-work descriptions record that point in time.
-Current product scope is in [status and next steps](docs/status.md); the [implementation log](IMPLEMENTATION.md) and [acceptance record](conformance/STATUS.md) retain milestone evidence.
+Current product scope is in [status and next steps](status.md); the [implementation log](IMPLEMENTATION.md) and [acceptance record](../conformance/STATUS.md) retain milestone evidence.
 
 Recorded 2026-10-02, approximately 21:15 UTC / 14:15 America/Los_Angeles.
 Implementation HEAD before this handoff: `b5b8266` on `master`.
@@ -20,9 +20,9 @@ The latest request interrupted implementation to dump status into this document.
 All three agents are now paused at safe boundaries; no agent commands or tests remain running.
 Resume the same workflow when implementation resumes; this handoff does not claim the objectives are complete.
 
-Read `RFC.md`, `IMPLEMENTATION.md`, `conformance/STATUS.md`, `spec/rui.proto` and `spec/session.proto`.
+Read `docs/RFC.md`, `docs/IMPLEMENTATION.md`, `conformance/STATUS.md`, `spec/rui.proto` and `spec/session.proto`.
 The root `conformance.yaml` is a historical specification; its `specified_not_implemented` entries were deliberately not rewritten.
-`IMPLEMENTATION.md` has some older remaining-work descriptions; the distinctions between committed and dirty work below are more current.
+`docs/IMPLEMENTATION.md` has some older remaining-work descriptions; the distinctions between committed and dirty work below are more current.
 
 ## Milestones
 

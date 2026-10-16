@@ -3,7 +3,7 @@
 RUI is an experimental remote UI protocol and Linux host for using applications from a web browser, including a phone.
 The host owns application state; clients receive authorized UI semantics and supported vector scenes, with one remote controller at a time.
 
-Its [design foundations](RFC.md#2-foundations-and-alternatives) include GTK4/GSK's retained rendering, AccessKit's semantic updates, Remote DOM's UI replication, and Qt Remote Objects' source/replica model.
+Its [design foundations](docs/RFC.md#2-foundations-and-alternatives) include GTK4/GSK's retained rendering, AccessKit's semantic updates, Remote DOM's UI replication, and Qt Remote Objects' source/replica model.
 RUI combines visual and semantic replication with authentication, control leases, guarded commands, and reconnect recovery.
 It sends UI state instead of video frames: a client can mirror supported source layouts or build responsive web controls from semantics.
 
@@ -40,4 +40,4 @@ To compare responsive semantic controls with vector mirroring, follow the [GTK d
 - [Documentation index](docs/README.md): guides, components, protocol profiles, and reports.
 - [Development and verification](docs/development.md): builds, examples, and live checks.
 - [Status and next steps](docs/status.md): supported scope, limitations, and direction.
-- [Protocol design](RFC.md): original rationale and architecture.
+- [Protocol design](docs/RFC.md): original rationale and architecture.

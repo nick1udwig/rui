@@ -52,6 +52,6 @@ RFC milestones M0–M5 and all 79 original conformance cases are accepted for th
 That includes measured performance evidence, while the provisional 60 Hz budget was missed.
 See [implementation acceptance](../conformance/STATUS.md) and the [case audit](../conformance/CASES.md).
 
-[IMPLEMENTATION.md](../IMPLEMENTATION.md) and the [P/C/L/S completion records](implementation-plans.md#implementation-record-2026-10-10) describe the subsequent reusable client, producer, performance, and semantic-presentation work.
+[IMPLEMENTATION.md](IMPLEMENTATION.md) and the [P/C/L/S completion records](implementation-plans.md#implementation-record-2026-10-10) describe the subsequent reusable client, producer, performance, and semantic-presentation work.
 Their original baselines and remaining-work notes are historical context, rather than a complete description of the newer desktop/browser workspaces.
-The [RFC](../RFC.md), [conformance.yaml](../conformance.yaml), and [2026-10-02 handoff](../HANDOFF.md) preserve earlier design and implementation snapshots.
+The [RFC](RFC.md), [conformance.yaml](../conformance.yaml), and [2026-10-02 handoff](HANDOFF.md) preserve earlier design and implementation snapshots.

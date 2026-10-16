@@ -24,7 +24,7 @@ Commands in these guides run from the repository root unless stated otherwise.
 
 ## Protocol design and profiles
 
-The [original RFC](../RFC.md) explains the design and its inspirations.
+The [original RFC](RFC.md) explains the design and its inspirations.
 The profiles below document implemented contracts and extensions.
 
 - [Core](../spec/core-profile.md), [rendering semantics](../spec/rendering-profile.md), and [native renderer](../spec/renderer-profile.md).
@@ -44,7 +44,7 @@ The profiles below document implemented contracts and extensions.
 
 ## Implementation history
 
-[IMPLEMENTATION.md](../IMPLEMENTATION.md) records the prototype and subsequent client/producer work.
+[IMPLEMENTATION.md](IMPLEMENTATION.md) records the prototype and subsequent client/producer work.
 The [implementation plans and completion records](implementation-plans.md#implementation-record-2026-10-10) preserve the P/C/L/S workstreams, their original baselines, and validation commands.
-[HANDOFF.md](../HANDOFF.md) is a historical snapshot from 2026-10-02; its open gates and working-mode instructions describe that session.
+[HANDOFF.md](HANDOFF.md) is a historical snapshot from 2026-10-02; its open gates and working-mode instructions describe that session.
 The RFC and [conformance.yaml](../conformance.yaml) are original design inputs, while the acceptance records describe what was implemented within that scope.
