@@ -396,3 +396,49 @@ button[aria-pressed="true"] {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Keep everyday browser navigation compact, with secondary tools on demand. */
+.node[data-presentation="disclosure"] {
+  padding: 8px 0;
+  font-size: 0.85rem;
+}
+.node[data-presentation="disclosure"] > summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 10px 0;
+  color: #64756a;
+}
+.node[data-presentation="toolbar"]:has(input[type="url"]) > h2 {
+  display: none;
+}
+.node[data-presentation="toolbar"]:has(input[type="url"]) > .children {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.node:has(> input[type="url"]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+.node:has(> input[type="url"]) > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.node:has(> input[type="url"]) > .edit-actions {
+  margin: 0;
+}
+.node:has(> input[type="url"]) > .edit-actions button:last-child {
+  display: none;
+}
+.node:has(> input[type="url"][data-dirty="true"])
+  > .edit-actions
+  button:last-child {
+  display: block;
+}
+.node:has(> input[type="url"]) > .message {
+  grid-column: 1 / -1;
+}

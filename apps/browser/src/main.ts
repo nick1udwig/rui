@@ -102,7 +102,9 @@ function enabled(node: Semantic) {
 function createRow(node: Semantic): Row {
   const group = node.role === "Group" || node.role === "Root",
     kind = node.browser_input_type ?? "";
-  const element = document.createElement(group ? "section" : "div");
+  const element = document.createElement(
+    kind === "view:disclosure" ? "details" : group ? "section" : "div",
+  );
   element.className = "node";
   element.dataset.id = String(node.id);
   element.dataset.presentation = kind.startsWith("view:") ? kind.slice(5) : "";
@@ -121,13 +123,15 @@ function createRow(node: Semantic): Row {
     element.setAttribute("aria-label", "Active dialog");
   const heading = /^view:heading([1-6])$/.exec(kind);
   const label = document.createElement(
-    heading
-      ? `h${heading[1]}`
-      : group
-        ? "h2"
-        : node.role === "TextField" || node.role === "Checkbox"
-          ? "label"
-          : "p",
+    kind === "view:disclosure"
+      ? "summary"
+      : heading
+        ? `h${heading[1]}`
+        : group
+          ? "h2"
+          : node.role === "TextField" || node.role === "Checkbox"
+            ? "label"
+            : "p",
   );
   label.textContent = node.label ?? node.role;
   const description = document.createElement("p");
@@ -324,7 +328,10 @@ function render(state: State) {
     row.node = node;
     row.label.textContent = node.label ?? node.role;
     if (!row.button) row.label.hidden = !node.label;
-    if (row.filter) row.filter.hidden = node.children.length < 5;
+    if (row.filter) {
+      row.filter.hidden = node.children.length < 5;
+      if (row.filter.hidden) row.filter.value = "";
+    }
     row.description.textContent = node.description ?? "";
     row.description.hidden = !node.description;
     if (row.button) {

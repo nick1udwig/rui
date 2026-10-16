@@ -95,6 +95,7 @@ pub fn snapshot(capture: &Capture) -> Result<p::Snapshot, &'static str> {
                     | "file"
                     | "radio"
                     | "range"
+                    | "view:disclosure"
                     | "view:apps"
                     | "view:app"
                     | "view:app-active"

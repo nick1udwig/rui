@@ -270,7 +270,8 @@ export class Workspace {
       }
     }
     const page = this.active;
-    const toolbar = [];
+    const toolbar = [],
+      tools = [];
     if (page && !page.isClosed()) {
       const entry = this.pages.get(page),
         prefix = `${entry.id}:${entry.generation}`;
@@ -295,7 +296,7 @@ export class Workspace {
         ["reload", "Reload"],
       ])
         toolbar.push(button(`${prefix}:${op}`, label, { op, page }));
-      toolbar.push(
+      tools.push(
         button(
           `${prefix}:previous`,
           "Previous page section",
@@ -303,20 +304,20 @@ export class Workspace {
           this.offset === 0,
         ),
       );
-      toolbar.push(
+      tools.push(
         button(`${prefix}:next`, "Next page section", {
           op: "section",
           delta: 400,
         }),
       );
-      toolbar.push(
+      tools.push(
         button(`${prefix}:scroll`, "Scroll host page down", {
           op: "scroll",
           page,
         }),
       );
     }
-    toolbar.push(button("new-tab", "New tab", { op: "new" }));
+    tools.push(button("new-tab", "New tab", { op: "new" }));
     rootChildren.push(group("toolbar", "Browser", toolbar, "view:toolbar"));
     const tabs = [];
     for (const [p, entry] of this.pages) {
@@ -333,6 +334,9 @@ export class Workspace {
       );
     }
     rootChildren.push(group("tabs", "Tabs", tabs, "view:tabs"));
+    rootChildren.push(
+      group("browser-tools", "More browser controls", tools, "view:disclosure"),
+    );
     if (this.dialog) {
       const d = this.dialog,
         children = [];

@@ -75,12 +75,15 @@ const deadline = async (fn, message, ms = 20000) => {
   }
   throw Error(message);
 };
+const desktopBrowser = process.env.RUI_TEST_DESKTOP_BROWSER === "1";
 const startHost = () => {
+  let browserShared = false;
   logs = "";
   host = spawn(
     "python3",
     [
-      "apps/browser/run.py",
+      desktopBrowser ? "apps/desktop/run.py" : "apps/browser/run.py",
+      ...(desktopBrowser ? ["--with-browser"] : []),
       "--skip-build",
       "--headless",
       "--port",
@@ -98,6 +101,14 @@ const startHost = () => {
   host.stdout.on("data", (d) => (logs += d));
   host.stderr.on("data", (d) => {
     logs += d;
+    if (
+      desktopBrowser &&
+      !browserShared &&
+      logs.includes("Open on your phone:")
+    ) {
+      browserShared = true;
+      host.stdin.write("share browser\n");
+    }
   });
 };
 try {
@@ -228,6 +239,21 @@ try {
   );
   await page.getByRole("heading", { name: "Host fixture", level: 1 }).waitFor();
   assert.ok(await page.getByRole("list").count());
+  const more = page.locator('[data-presentation="disclosure"] > summary');
+  assert.equal(
+    await page
+      .getByRole("button", { name: "New tab", exact: true })
+      .isVisible(),
+    false,
+  );
+  await more.click();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "New tab", exact: true })
+      .isVisible(),
+    true,
+  );
+  await more.click();
   assert.equal(await page.locator("#view img").count(), 0);
   assert.ok(
     await page.evaluate(

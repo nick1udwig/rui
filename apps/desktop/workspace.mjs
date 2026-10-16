@@ -35,14 +35,29 @@ export function native(request) {
 
 export class DesktopWorkspace {
   static async launch() {
-    const workspace = new DesktopWorkspace();
+    const browser =
+      process.env.RUI_DESKTOP_BROWSER === "1"
+        ? await (
+            await import("./browser.mjs")
+          ).DesktopBrowser.launch(process.env.RUI_STATE)
+        : undefined;
+    const workspace = new DesktopWorkspace(native, browser);
     // Fail startup with a useful error when not launched in a desktop session.
-    await workspace.local({ op: "apps" });
+    try {
+      await workspace.local({ op: "apps" });
+    } catch (error) {
+      await browser?.close();
+      throw error;
+    }
     workspace.timer = setInterval(() => void workspace.refresh(), 500);
     return workspace;
   }
-  constructor(invoke = native) {
-    this.invoke = invoke;
+  constructor(invoke = native, browser) {
+    this.browser = browser;
+    this.invoke = (request) =>
+      request.source?.adapter === "browser"
+        ? browser.request(request)
+        : invoke(request);
     this.catalog = new Map();
     this.privatePids = new Set();
     this.approved = new Map();
@@ -68,6 +83,7 @@ export class DesktopWorkspace {
         this.closed = true;
         clearInterval(this.timer);
         await this.busy;
+        await this.browser?.close();
       },
     };
     this.rebuild();
@@ -77,16 +93,24 @@ export class DesktopWorkspace {
       const result = await this.invoke({ op: "list" });
       if (!Array.isArray(result.apps) || result.apps.length > 64)
         throw Error("Application limit");
+      if (this.browser && !this.browser.workspace.closed)
+        result.apps = [...result.apps, this.browser.source];
+      if (result.apps.length > 65) throw Error("Application limit");
       this.catalog = new Map(
         result.apps
           .filter(
             (source) => !this.privatePids.has(source.pid) && !source.local_only,
           )
           .map((source) => {
-            const id = createHash("sha256")
-              .update(JSON.stringify([source.root, source.pid, source.start]))
-              .digest("hex")
-              .slice(0, 16);
+            const id =
+              source.adapter === "browser"
+                ? "browser"
+                : createHash("sha256")
+                    .update(
+                      JSON.stringify([source.root, source.pid, source.start]),
+                    )
+                    .digest("hex")
+                    .slice(0, 16);
             return [id, source];
           }),
       );
@@ -143,14 +167,15 @@ export class DesktopWorkspace {
       const source = this.catalog.get(request.id);
       if (!source || this.privatePids.has(source.pid))
         throw Error("Run apps and use an application ID from that list");
-      if (this.approved.size >= 64 && !this.approved.has(request.id))
-        throw Error("64 shared applications maximum");
+      if (this.approved.size >= 65 && !this.approved.has(request.id))
+        throw Error("64 native applications plus the managed browser maximum");
       const sample = await this.invoke({ op: "capture", source });
       this.excluded.delete(request.id);
       this.approved.set(request.id, source);
       this.select(request.id);
       this.sample = sample;
       this.availability =
+        sample.status ||
         "Observed accessibility content. Graphics and password fields are unavailable.";
       this.rebuild();
       return { shared: source.name, id: request.id };
@@ -171,6 +196,7 @@ export class DesktopWorkspace {
     throw Error("Unsupported desktop host command");
   }
   select(id) {
+    this.browser?.clearSecrets();
     this.selected = id;
     this.preferredWindow = undefined;
     this.activeWindow = undefined;
@@ -203,6 +229,7 @@ export class DesktopWorkspace {
         if (this.generation !== generation || this.closed) return;
         this.sample = sample;
         this.availability =
+          sample.status ||
           "Observed accessibility content. Graphics and password fields are unavailable.";
       } catch {
         if (this.generation !== generation || this.closed) return;
@@ -353,7 +380,8 @@ export class DesktopWorkspace {
           (raw.role === "group" &&
             !raw.label &&
             !raw.actions.length &&
-            !raw.presentation)
+            !raw.presentation &&
+            !raw.kind)
         )
           return childKeys;
         visible.push({ ...raw, children: childKeys });
@@ -378,13 +406,13 @@ export class DesktopWorkspace {
           actions: raw.actions,
           disabled: raw.disabled,
           kind: raw.kind || raw.presentation || null,
-          ...(raw.kind ? { value: raw.value } : {}),
+          ...(raw.value !== undefined ? { value: raw.value } : {}),
           children: raw.children.map((k) => idFor(nodeKey(k))),
         };
         const handler = raw.actions.length
           ? { source, key: raw.key, fingerprint: raw.fingerprint }
           : undefined;
-        if (structural && (raw.kind || raw.actions.length)) {
+        if (structural && (raw.role === "text" || raw.actions.length)) {
           const content = add(
             key + ":control",
             { ...node, children: [] },
@@ -465,6 +493,7 @@ export class DesktopWorkspace {
       return { status: "dispatched" };
     }
     this.busy = this.invoke({
+      ...request,
       op: "dispatch",
       source: target.source,
       key: target.key,
@@ -494,7 +523,16 @@ export class DesktopWorkspace {
       void this.refresh();
     }
   }
-  stage() {
-    throw Error("Desktop password input is unavailable");
+  stage(scope, secret) {
+    const target = this.targets.get(scope.target);
+    if (
+      !target ||
+      target.source?.adapter !== "browser" ||
+      target.node.kind !== "password" ||
+      target.node.version !== scope.version ||
+      !target.node.actions.includes("SetValue")
+    )
+      throw Error("Password input is unavailable for this target");
+    return this.browser.stage(scope, secret, target);
   }
 }
