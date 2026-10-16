@@ -3,6 +3,7 @@ import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
 import { createServer as socketServer } from "node:net";
 import { readJson, requestJson } from "./json-stream.mjs";
+import { serveFrames } from "./framed-rpc.mjs";
 import { readFile, stat, chmod } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -253,53 +254,31 @@ let owner;
 const rpc = socketServer((socket) => {
   if (owner) return socket.destroy();
   owner = socket;
-  let pending = Buffer.alloc(0),
-    processing = false;
-  socket.on("data", async (chunk) => {
-    pending = Buffer.concat([pending, chunk]);
-    if (pending.length > 65540) return socket.destroy();
-    if (processing || pending.length < 4) return;
-    const size = pending.readUInt32BE(0);
-    if (size > 65536) return socket.destroy();
-    if (pending.length < size + 4) return;
-    processing = true;
-    const bytes = pending.subarray(4, size + 4);
-    pending = pending.subarray(size + 4);
-    try {
-      const request = JSON.parse(bytes);
-      let result;
-      if (request.op === "invite") {
-        invitation = randomBytes(32).toString("hex");
-        invitationDeadline = Date.now() + 300_000;
-        await printInvitation();
-        result = { ok: true };
-      } else if (
-        ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(
-          request.op,
-        )
-      ) {
-        try {
-          result = await workspace.local(request);
-        } catch (error) {
-          result = { error: error.message };
-        }
-      } else
-        result =
-          request.op === "capture"
-            ? await workspace.capture()
-            : request.op === "dispatch"
-              ? await workspace.dispatch(request)
-              : { error: "Unsupported operation" };
-      const data = Buffer.from(JSON.stringify(result));
-      if (data.length > 1024 * 1024) throw Error("Response limit");
-      const header = Buffer.alloc(4);
-      header.writeUInt32BE(data.length);
-      socket.write(Buffer.concat([header, data]));
-    } catch {
-      socket.destroy();
-    } finally {
-      processing = false;
-    }
+  void serveFrames(socket, async (request) => {
+    let result;
+    if (request.op === "invite") {
+      invitation = randomBytes(32).toString("hex");
+      invitationDeadline = Date.now() + 300_000;
+      await printInvitation();
+      result = { ok: true };
+    } else if (
+      ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(
+        request.op,
+      )
+    ) {
+      try {
+        result = await workspace.local(request);
+      } catch (error) {
+        result = { error: error.message };
+      }
+    } else
+      result =
+        request.op === "capture"
+          ? await workspace.capture()
+          : request.op === "dispatch"
+            ? await workspace.dispatch(request)
+            : { error: "Unsupported operation" };
+    return result;
   });
   socket.on("close", () => {
     void shutdown();
