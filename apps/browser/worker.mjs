@@ -1,7 +1,8 @@
 import { Workspace } from "./workspace.mjs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
-import { createServer as socketServer, createConnection } from "node:net";
+import { createServer as socketServer } from "node:net";
+import { readJson, requestJson } from "./json-stream.mjs";
 import { readFile, stat, chmod } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -35,39 +36,9 @@ const equal = (a, b) =>
   typeof a === "string" &&
   a.length === b.length &&
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
-function admin(request) {
-  return new Promise((resolve, reject) => {
-    const socket = createConnection(resolvePath("admin.sock"));
-    let data = "";
-    socket.setTimeout(6000, () => socket.destroy(Error("Host deadline")));
-    socket.on("connect", () => socket.write(JSON.stringify(request) + "\n"));
-    socket.on("data", (chunk) => {
-      data += chunk;
-      if (data.length > 8192) socket.destroy(Error("Host response limit"));
-      else if (data.includes("\n")) {
-        socket.end();
-        try {
-          const result = JSON.parse(data);
-          if (result.error) reject(Error(result.error));
-          else resolve(result);
-        } catch (e) {
-          reject(e);
-        }
-      }
-    });
-    socket.on("error", reject);
-  });
-}
+const admin = (request) => requestJson(resolvePath("admin.sock"), request);
 function resolvePath(name) {
   return resolve(directory, name);
-}
-async function body(request) {
-  let data = "";
-  for await (const chunk of request) {
-    data += chunk;
-    if (Buffer.byteLength(data) > 65536) throw Error("Request limit");
-  }
-  return JSON.parse(data);
 }
 function respond(response, status, data) {
   response.writeHead(status, {
@@ -104,7 +75,7 @@ const handler = async (request, response) => {
         request.headers["content-type"] !== "application/json"
       )
         return respond(response, 403, { error: "Origin rejected" });
-      const data = await body(request);
+      const data = await readJson(request);
       if (url.pathname === "/api/pair") {
         for (const [ticket, pending] of pairings)
           if (pending.expires < Date.now()) pairings.delete(ticket);
