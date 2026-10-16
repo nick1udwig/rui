@@ -1,3 +1,4 @@
+import { indexTree } from "./tree.mjs";
 import { SemanticNodes } from "../shared/semantic-nodes.mjs";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -276,6 +277,16 @@ export class DesktopWorkspace {
     }
   }
   rebuild() {
+    let tree;
+    if (this.sample) {
+      try {
+        tree = indexTree(this.sample.nodes);
+      } catch {
+        this.sample = undefined;
+        this.availability =
+          "Application returned an invalid or oversized tree. Retrying; no controls are active.";
+      }
+    }
     const semantic = new SemanticNodes(this.semantic),
       nodes = [];
     const idFor = (key) => semantic.id(key);
@@ -311,16 +322,13 @@ export class DesktopWorkspace {
       const source = this.approved.get(this.selected);
       // Drop layout-only containers and duplicated button labels from the
       // mobile presentation. Dispatch still validates the full native tree.
-      const byKey = new Map(
-        this.sample.nodes.map((n) => [JSON.stringify(n.key), n]),
-      );
-      const encoded = (node) => JSON.stringify(node.key);
+      const { byKey, keyOf, encoded, parentOf } = tree;
       const windows = this.sample.nodes.filter((node) => {
         if (!node.window) return false;
-        let parent = node.parent && byKey.get(JSON.stringify(node.parent));
+        let parent = parentOf(node);
         while (parent) {
           if (parent.window) return false;
-          parent = parent.parent && byKey.get(JSON.stringify(parent.parent));
+          parent = parentOf(parent);
         }
         return true;
       });
@@ -338,7 +346,7 @@ export class DesktopWorkspace {
       }
       if (!modals.length) this.preferredWindow = currentWindow;
       const prefix = `${this.generation}:${this.windowGeneration}:${this.selected}:`;
-      const nodeKey = (key) => prefix + JSON.stringify(key);
+      const nodeKey = (key) => prefix + keyOf(key);
       if (windows.length || modals.length) {
         const navigation = [...windows];
         if (!navigation.includes(chosen)) navigation.push(chosen);
@@ -366,7 +374,7 @@ export class DesktopWorkspace {
       const visible = [];
       const present = (raw, appRoot = false) => {
         const childKeys = raw.children.flatMap((key) => {
-          const child = byKey.get(JSON.stringify(key));
+          const child = byKey.get(keyOf(key));
           if (
             (raw.role === "button" || raw.role === "group") &&
             child.role === "label" &&

@@ -366,3 +366,19 @@ test("failed session discovery does not silently enable future sharing", async (
   await w.context.close();
   await assert.rejects(w.local({ op: "apps" }), /closed/);
 });
+
+test("malformed captures retire controls and recover with fresh identities", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  await share(w);
+  const old = await field(w);
+  f.capture(() => ({ nodes: [] }));
+  await w.refresh();
+  assert.equal(await field(w), undefined);
+  assert.match(w.publication.status, /invalid/);
+  assert.equal((await w.dispatch(command(old))).status, "rejected");
+  f.capture(undefined);
+  await w.refresh();
+  assert.notEqual((await field(w)).id, old.id);
+  await w.context.close();
+});
