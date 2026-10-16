@@ -12,7 +12,10 @@ const directory = process.env.RUI_STATE,
   origin = process.env.RUI_ORIGIN;
 const publicPath = process.env.RUI_PUBLIC_PATH || "/";
 const webRoot = resolve(import.meta.dirname, "dist");
-const workspace = await Workspace.launch(directory);
+const desktop = process.env.RUI_WORKSPACE === "desktop";
+const workspace = desktop
+  ? await (await import("../desktop/workspace.mjs")).DesktopWorkspace.launch()
+  : await Workspace.launch(directory);
 let closing = false;
 let invitation = randomBytes(32).toString("hex"),
   invitationDeadline = Date.now() + 300_000;
@@ -182,6 +185,11 @@ const handler = async (request, response) => {
         ? content
             .toString("utf8")
             .replace('<base href="/" />', `<base href="${publicPath}" />`)
+            .replace(
+              'data-workspace="browser"',
+              `data-workspace="${desktop ? "desktop" : "browser"}"`,
+            )
+            .replaceAll("RUI Browser", desktop ? "RUI Desktop" : "RUI Browser")
         : content,
     );
   } catch {
@@ -291,6 +299,12 @@ const rpc = socketServer((socket) => {
         invitationDeadline = Date.now() + 300_000;
         await printInvitation();
         result = { ok: true };
+      } else if (["apps", "share", "unshare"].includes(request.op)) {
+        try {
+          result = await workspace.local(request);
+        } catch (error) {
+          result = { error: error.message };
+        }
       } else
         result =
           request.op === "capture"

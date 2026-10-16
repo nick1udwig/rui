@@ -110,7 +110,7 @@ async fn main() -> Result<(), Error> {
             break w;
         }
         if child.0.try_wait()?.is_some() || Instant::now() > deadline {
-            return Err("browser worker failed to start".into());
+            return Err("workspace worker failed to start".into());
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     };
@@ -144,11 +144,22 @@ async fn main() -> Result<(), Error> {
         eprintln!(
             "Host commands: invite, approve CODE, deny CODE, devices, revoke CLIENT_ID, quit"
         );
+        if std::env::var("RUI_WORKSPACE").as_deref() == Ok("desktop") {
+            eprintln!("Desktop commands: apps, share APP_ID, unshare APP_ID (approvals last until host exit)");
+        }
         for line in io::stdin().lock().lines().map_while(Result::ok) {
             let words: Vec<_> = line.split_whitespace().collect();
             let result = (|| -> Result<(), Error> {
                 match words.as_slice() {
                     ["invite"] => local_port.invite()?,
+                    ["apps"] => {
+                        let result = local_port.desktop_command("apps", None)?;
+                        eprintln!("{}", serde_json::to_string_pretty(&result)?);
+                    }
+                    [op @ ("share" | "unshare"), id] => {
+                        let result = local_port.desktop_command(op, Some(id))?;
+                        eprintln!("{}", serde_json::to_string_pretty(&result)?);
+                    }
                     ["approve", code] => {
                         let mut pending = local_pending.lock().unwrap();
                         let item = pending.get_mut(*code).ok_or("unknown pairing code")?;

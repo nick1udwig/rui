@@ -93,6 +93,7 @@ pub struct State {
     origin: Instant,
     stopped: Arc<AtomicBool>,
     identity: Arc<()>,
+    selection: String,
 }
 #[derive(Clone)]
 pub struct BrowserPort {
@@ -110,6 +111,15 @@ impl BrowserPort {
             .worker
             .call(json!({"op":"invite"}))?;
         Ok(())
+    }
+    pub fn desktop_command(&self, op: &str, id: Option<&str>) -> Result<Value, TransportError> {
+        let mut state = self.state.lock().map_err(|_| TransportError::Authority)?;
+        if state.selection != "desktop" {
+            return Err(TransportError::Protocol);
+        }
+        let result = state.worker.call(json!({"op":op,"id":id}))?;
+        state.last_capture = Instant::now() - Duration::from_secs(1);
+        Ok(result)
     }
     pub fn new(mut worker: Worker) -> Result<Self, TransportError> {
         let capture: Capture = serde_json::from_value(worker.call(json!({"op":"capture"}))?)
@@ -146,6 +156,11 @@ impl BrowserPort {
                 origin: Instant::now(),
                 stopped: stopped.clone(),
                 identity: identity.clone(),
+                selection: if std::env::var("RUI_WORKSPACE").as_deref() == Ok("desktop") {
+                    "desktop".into()
+                } else {
+                    "browser".into()
+                },
             })),
             budget,
             admission: Arc::new(Semaphore::new(16)),
@@ -442,7 +457,7 @@ impl State {
                         selection,
                         mirror_canvas_policy,
                     } => {
-                        if selection != "browser"
+                        if selection != self.selection
                             || mirror_canvas_policy != "semantic-only"
                             || scope.opened.swap(true, Ordering::AcqRel)
                         {

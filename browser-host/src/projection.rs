@@ -190,7 +190,7 @@ pub fn snapshot(capture: &Capture) -> Result<p::Snapshot, &'static str> {
             semantic_coverage: p::SemanticCoverage::SemanticPartial as i32,
             capture_consistency: p::CaptureConsistency::Observed as i32,
             source_capture_tokens: vec![
-                b"browser-semantic-observation".to_vec(),
+                b"workspace-semantic-observation".to_vec(),
                 b"no-visual-observation".to_vec(),
             ],
             unsupported_features: vec![capture.status.clone()],

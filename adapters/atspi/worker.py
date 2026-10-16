@@ -36,7 +36,10 @@ def identity(value):
 
 
 class Reader:
-    def __init__(self, channel, address):
+    max_calls = MAX_CALLS
+    call_timeout_ms = CALL_TIMEOUT_MS
+
+    def __init__(self, channel, address, observe_events=True):
         import gi
         gi.require_version('Gio', '2.0')
         from gi.repository import Gio, GLib
@@ -52,8 +55,9 @@ class Reader:
         self.exhausted = False
         self.selected = set()
         self.registered = set()
-        self.bus.signal_subscribe(None, 'org.a11y.atspi.Event.Object', None, None, None,
-                                  Gio.DBusSignalFlags.NONE, self.event, None)
+        if observe_events:
+            self.bus.signal_subscribe(None, 'org.a11y.atspi.Event.Object', None, None, None,
+                                      Gio.DBusSignalFlags.NONE, self.event, None)
         self.calls = 0
         self.deadline = 0
         self.hook = False
@@ -81,10 +85,10 @@ class Reader:
 
     def call(self, key, interface, method, args=None):
         self.calls += 1
-        if self.calls > MAX_CALLS or time.monotonic() >= self.deadline:
+        if self.calls > self.max_calls or time.monotonic() >= self.deadline:
             raise ValueError('accessibility crawl deadline or call ceiling')
         result = self.bus.call_sync(key[0], key[1], interface, method, args, None,
-                                    self.Gio.DBusCallFlags.NONE, CALL_TIMEOUT_MS, None)
+                                    self.Gio.DBusCallFlags.NONE, self.call_timeout_ms, None)
         if result.get_size() > MAX_MESSAGE:
             raise ValueError('accessibility reply ceiling')
         self.pump()

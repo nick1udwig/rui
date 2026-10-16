@@ -19,8 +19,8 @@ def run(*args):
     subprocess.run(args, cwd=ROOT, check=True)
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+def parse_args(argv=None, workspace="browser"):
+    parser = argparse.ArgumentParser(description="Share existing desktop applications" if workspace == "desktop" else __doc__)
     parser.add_argument('--host', default='localhost', help='hostname used by the phone')
     parser.add_argument('--listen', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8444, help='local listening port')
@@ -28,7 +28,7 @@ def parse_args(argv=None):
     parser.add_argument('--cert', type=Path, help='phone-trusted HTTPS certificate PEM')
     parser.add_argument('--key', type=Path, help='HTTPS private key PEM')
     parser.add_argument('--http-local', action='store_true', help='development only; loopback HTTP')
-    parser.add_argument('--state-dir', type=Path, default=Path.home()/'.local/state/rui/browser')
+    parser.add_argument('--state-dir', type=Path, default=Path.home()/f'.local/state/rui/{workspace}')
     parser.add_argument('--files-dir', type=Path, default=Path.home()/'Downloads')
     parser.add_argument('--chromium', default='/usr/bin/chromium')
     parser.add_argument('--skip-build', action='store_true')
@@ -75,9 +75,9 @@ def parse_args(argv=None):
     return args
 
 
-def main():
-    args = parse_args()
-    if not args.files_dir.is_dir():
+def main(workspace="browser"):
+    args = parse_args(workspace=workspace)
+    if workspace == 'browser' and not args.files_dir.is_dir():
         raise SystemExit('--files-dir must be an existing directory')
     os.umask(0o077)
     directory = args.state_dir.expanduser().resolve()
@@ -88,7 +88,7 @@ def main():
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        raise SystemExit('this browser state directory already has a running host')
+        raise SystemExit('this state directory already has a running host')
     if not args.skip_build:
         run('cargo', 'build', '--locked', '-p', 'rui-browser-host')
         run(sys.executable, 'client-wasm/build.py')
@@ -105,7 +105,7 @@ def main():
         run('openssl', 'pkcs8', '-topk8', '-nocrypt', '-in', str(directory/'host-key.pem'), '-outform', 'DER', '-out', str(directory/'host-key.der'))
     (directory/'backend.json').unlink(missing_ok=True)
     metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--offline', '--locked', '--no-deps', '--format-version', '1'], cwd=ROOT))
-    env = dict(os.environ, RUI_ORIGIN=args.origin, RUI_PUBLIC_PATH=args.public_path, RUI_WEB_PORT=str(args.port),
+    env = dict(os.environ, RUI_WORKSPACE=workspace, RUI_ORIGIN=args.origin, RUI_PUBLIC_PATH=args.public_path, RUI_WEB_PORT=str(args.port),
                RUI_WEB_LISTEN=args.listen, RUI_CHROMIUM=args.chromium, RUI_FILES_DIR=str(args.files_dir.resolve()),
                RUI_HEADLESS='1' if args.headless else '0')
     env.pop('RUI_WEB_CERT', None)

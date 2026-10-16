@@ -1,5 +1,9 @@
 import { BrowserClient, type Semantic, type State } from "@rui/client-browser";
 import "./style.css";
+const workspace =
+  document.documentElement.dataset.workspace === "desktop"
+    ? "desktop"
+    : "browser";
 const appBase = new URL(document.baseURI);
 const deviceKey =
   appBase.pathname === "/" ? "host" : `host:${appBase.pathname}`;
@@ -215,7 +219,10 @@ function createRow(node: Semantic): Row {
       }
     };
     row.input = input;
-  } else if (node.actions.some((a) => a.id === "Activate")) {
+  } else if (
+    node.role === "Button" ||
+    node.actions.some((a) => a.id === "Activate")
+  ) {
     const button = document.createElement("button");
     button.dataset.kind = kind;
     button.onclick = () => {
@@ -274,7 +281,8 @@ function render(state: State) {
     row.description.hidden = !node.description;
     if (row.button) {
       row.button.textContent = node.label ?? "Activate";
-      row.button.disabled = !enabled(node);
+      row.button.disabled =
+        !enabled(node) || !node.actions.some((a) => a.id === "Activate");
     }
     if (row.input) {
       if (
@@ -288,7 +296,8 @@ function render(state: State) {
         );
         row.input.disabled = !enabled(node);
       } else {
-        row.input.readOnly = !enabled(node);
+        row.input.readOnly =
+          !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
         if (!row.dirty) row.input.value = sourceValue(node);
         if (
           row.dirty?.version !== undefined &&
@@ -299,7 +308,13 @@ function render(state: State) {
             "The source changed. Your draft has been kept; discard it to edit the new value.";
       }
     }
-    if (row.apply) row.apply.disabled = !enabled(node);
+    if (row.apply) {
+      row.apply.disabled =
+        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
+      row.apply.parentElement!.hidden = !node.actions.some(
+        (a) => a.id === "SetValue",
+      );
+    }
   }
   const place = (container: HTMLElement, ids: bigint[]) => {
     let cursor = container.firstElementChild;
@@ -351,7 +366,7 @@ async function connectHost() {
     if (!client) {
       client = await BrowserClient.create({
         mode: "semanticOnly",
-        selection: "browser",
+        selection: workspace,
         url: websocketURL.href,
         allowInsecure: location.protocol === "http:",
         clientId: bytes(device.client),
@@ -380,7 +395,7 @@ async function connectHost() {
         if (event.type === "commandResult") {
           say(
             event.status.toLowerCase() === "dispatched"
-              ? "Action sent to the host browser. Page state updates separately."
+              ? "Action sent to the host. Content updates separately."
               : `${event.status}${event.rejection ? `: ${event.rejection}` : ""}`,
           );
           for (const row of rows.values())
@@ -406,8 +421,29 @@ async function connectHost() {
         buttons();
       });
     }
-    await client.connect();
-    say("Connected. Take control to interact with the host browser.");
+    // A reload can reach the host before its previous socket has finished
+    // cleanup. Retry only this authenticated busy response, as the SDK's
+    // consumer does; credential and other connection failures remain explicit.
+    const current = client;
+    const deadline = performance.now() + 2000;
+    for (;;) {
+      try {
+        await current.connect();
+        break;
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          error.message !==
+            "host is still closing the previous connection; reconnect shortly" ||
+          performance.now() >= deadline ||
+          current !== client
+        )
+          throw error;
+        await new Promise((done) => setTimeout(done, 50));
+      }
+    }
+    connect.disabled = true;
+    say("Connected. Take control to interact with the host.");
     buttons();
   } catch (error) {
     say(error);

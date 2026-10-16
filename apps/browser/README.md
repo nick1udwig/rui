@@ -1,5 +1,9 @@
 # Browser workspace
 
+To attach to existing native applications instead, use the
+[desktop workspace](../desktop/README.md).
+
+
 A visible Chromium browser runs on the Linux host. A responsive web client controls its tabs and standard page controls from a phone or another computer. Chromium's profile, cookies, uploads and downloads stay on the host. This app uses RUI's semantic transport: the client receives text and controls, not a screenshot or a copy of the page's JavaScript.
 
 ## Start locally
