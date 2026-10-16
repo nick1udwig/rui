@@ -61,6 +61,9 @@ def run_picker(directory):
         layout.append(intro)
         layout.append(Gtk.Label(label='Sharing includes accessible windows and dialogs. Approvals end when the host exits.',
                                 wrap=True, xalign=0))
+        session = Gtk.Button(label='Share this session')
+        layout.append(session)
+        layout.append(Gtk.Label(label='Session sharing includes all discoverable apps and newly opened apps until stopped. Stop sharing on an individual app excludes that running app.', wrap=True, xalign=0))
         refresh = Gtk.Button(label='Refresh applications')
         layout.append(refresh)
         status = Gtk.Label(label='', wrap=True, xalign=0, selectable=True)
@@ -75,6 +78,7 @@ def run_picker(directory):
         def submit(command, app_id=None):
             rows.set_sensitive(False)
             refresh.set_sensitive(False)
+            session.set_sensitive(False)
             status.set_label('Checking application support…' if command == 'diagnose' else 'Updating sharing…')
 
             def work():
@@ -91,6 +95,8 @@ def run_picker(directory):
                         if command == 'diagnose':
                             reports[app_id] = result
                         render(listing['apps'])
+                        session.set_label('Stop sharing session' if listing.get('sessionSharing') else 'Share this session')
+                        session.sharing = listing.get('sessionSharing', False)
                         status.set_label('Support checked; this does not share the application.' if command == 'diagnose'
                                          else 'Sharing updated.' if command != 'apps'
                                          else 'Choose an application below. Apps without accessibility may be absent.')
@@ -99,6 +105,7 @@ def run_picker(directory):
                     finally:
                         rows.set_sensitive(True)
                         refresh.set_sensitive(True)
+                        session.set_sensitive(True)
                     return False
                 GLib.idle_add(update)
             pool.submit(work).add_done_callback(finish)
@@ -134,6 +141,7 @@ def run_picker(directory):
                                f"{counts['unnamed_controls']} unnamed controls unavailable")
                     row.append(Gtk.Label(label=summary + '\n' + report['scope'], wrap=True, xalign=0))
                 rows.append(row)
+        session.connect('clicked', lambda _: submit('session', 'off' if getattr(session, 'sharing', False) else 'on'))
         refresh.connect('clicked', lambda _: submit('apps'))
         window.present()
         submit('apps')

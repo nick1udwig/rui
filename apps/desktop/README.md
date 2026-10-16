@@ -47,6 +47,15 @@ HTTP endpoint, and its own controls are excluded from sharing, including after a
 host restart. It requires GTK4/PyGObject. Device pairing approval remains in the
 host terminal.
 
+**Share this session** (or `session on` in the host terminal) includes all
+currently discoverable same-user applications and newly opened applications.
+The catalog refreshes every three seconds. **Stop sharing session** (`session off`)
+removes every approval and clears the client. Individual **Stop sharing** excludes
+that running app while session sharing continues; a newly started instance is a
+new app. The owner picker always remains excluded. This mode lasts only until
+stopped or the host exits; device pairing and control approval still apply.
+Applications that expose no accessibility remain unavailable.
+
 For scripts, `share.py --list` prints local app metadata and
 `share.py --diagnose APP_ID` prints counts. These options do not require GTK.
 
@@ -55,13 +64,15 @@ In the host terminal:
 ```text
 apps
 share APP_ID
+session on
+session off
 unshare APP_ID
 diagnose APP_ID
 ```
 
 `apps` lists accessible application names, PIDs and opaque IDs locally. Copy an ID
 into `share`. That authorizes that running application, including its accessible
-windows and dialogs, for paired devices. Up to eight applications can be shared;
+windows and dialogs, for paired devices. Up to 64 applications can be shared;
 the mobile app switcher chooses one at a time. Its window picker shows one
 accessible window at a time. A modal dialog takes precedence and returns to the
 previous window when dismissed; closing the selected window chooses a survivor.
@@ -128,7 +139,7 @@ Blocking D-Bus work runs in disposable Python processes with a 384 MiB address
 space limit, 400 ms call timeout, 1.8 second observation deadline, and 2.4 second
 owner timeout. Background observations do not block serving the cached client
 view. Reads run in batches of up to 32 concurrent D-Bus calls. Limits include
-64 discovered apps, eight approved apps, 512 visible native nodes (1,024 visited
+64 discovered apps, 64 approved apps, 512 visible native nodes (1,024 visited
 nodes), up to 1,024 nodes including generated semantic controls, 128 children per
 node, depth 64, 8,192 calls, 16 KiB text fields and 768 KiB native
 responses. Limits fail closed, rather than silently truncating editable text.

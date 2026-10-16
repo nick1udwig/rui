@@ -46,6 +46,9 @@ export class DesktopWorkspace {
     this.catalog = new Map();
     this.privatePids = new Set();
     this.approved = new Map();
+    this.sessionSharing = false;
+    this.excluded = new Set();
+    this.catalogRead = 0;
     this.selected = undefined;
     this.generation = 0;
     this.windowGeneration = 0;
@@ -87,7 +90,17 @@ export class DesktopWorkspace {
             return [id, source];
           }),
       );
+      this.catalogRead = Date.now();
+      if (this.sessionSharing) {
+        const next = new Map(
+          [...this.catalog].filter(([id]) => !this.excluded.has(id)),
+        );
+        this.approved = next;
+        if (!next.has(this.selected)) this.select(next.keys().next().value);
+        this.rebuild();
+      }
       return {
+        sessionSharing: this.sessionSharing,
         apps: [...new Map([...this.approved, ...this.catalog])].map(
           ([id, source]) => ({
             id,
@@ -98,6 +111,16 @@ export class DesktopWorkspace {
           }),
         ),
       };
+    }
+    if (request.op === "session") {
+      if (!["on", "off"].includes(request.id))
+        throw Error("Use session on or session off");
+      this.sessionSharing = request.id === "on";
+      this.excluded.clear();
+      if (this.sessionSharing) return this.local({ op: "apps" });
+      this.approved.clear();
+      this.select(undefined);
+      return { sessionSharing: false, apps: [] };
     }
     if (request.op === "protect") {
       if (!/^[1-9][0-9]*$/.test(request.id || ""))
@@ -120,9 +143,10 @@ export class DesktopWorkspace {
       const source = this.catalog.get(request.id);
       if (!source || this.privatePids.has(source.pid))
         throw Error("Run apps and use an application ID from that list");
-      if (this.approved.size >= 8 && !this.approved.has(request.id))
-        throw Error("Eight shared applications maximum");
+      if (this.approved.size >= 64 && !this.approved.has(request.id))
+        throw Error("64 shared applications maximum");
       const sample = await this.invoke({ op: "capture", source });
+      this.excluded.delete(request.id);
       this.approved.set(request.id, source);
       this.select(request.id);
       this.sample = sample;
@@ -132,6 +156,7 @@ export class DesktopWorkspace {
       return { shared: source.name, id: request.id };
     }
     if (request.op === "unshare") {
+      if (this.sessionSharing) this.excluded.add(request.id);
       if (!this.approved.delete(request.id))
         throw Error("Application is not shared");
       if (this.selected === request.id)
@@ -157,7 +182,18 @@ export class DesktopWorkspace {
     this.rebuild();
   }
   async refresh() {
-    if (this.closed || this.busy || !this.selected) return;
+    if (this.closed || this.busy) return;
+    if (this.sessionSharing && Date.now() - this.catalogRead > 3000) {
+      this.busy = this.local({ op: "apps" });
+      try {
+        await this.busy;
+      } catch {
+        this.catalogRead = Date.now();
+      } finally {
+        this.busy = undefined;
+      }
+    }
+    if (!this.selected || this.closed) return;
     const id = this.selected,
       generation = this.generation,
       source = this.approved.get(id);

@@ -300,7 +300,7 @@ const rpc = socketServer((socket) => {
         await printInvitation();
         result = { ok: true };
       } else if (
-        ["apps", "share", "unshare", "diagnose", "protect"].includes(request.op)
+        ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(request.op)
       ) {
         try {
           result = await workspace.local(request);

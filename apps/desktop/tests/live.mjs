@@ -203,12 +203,13 @@ try {
     true,
     "kernel process marker also survives host restart",
   );
-  const ownerAction = async (label) => {
+  const ownerAction = async (label, global = false) => {
     const capture = await native({ op: "capture", source: owner });
     const byKey = new Map(capture.nodes.map((n) => [JSON.stringify(n.key), n]));
     const identity = `${app.name} (${app.pid})`;
     const button = capture.nodes.find((n) => {
       if (n.label !== label || !n.actions.includes("Activate")) return false;
+      if (global) return true;
       let parent = n.parent && byKey.get(JSON.stringify(n.parent));
       while (parent) {
         if (
@@ -301,7 +302,8 @@ try {
       page.getByRole("button", { name: "Release", exact: true }).isEnabled(),
     "control grant",
   );
-  host.stdin.write(`share ${secondId}\n`);
+  await ownerAction("Share this session", true);
+  await page.getByRole("button", { name: /^Open:/ }).click();
   await deadline(
     async () =>
       (await document.count()) > 0 &&
@@ -451,10 +453,10 @@ try {
     "reconnect",
   );
   assert.equal(await document.inputValue(), "Changed on desktop");
-  host.stdin.write(`unshare ${id}\n`);
+  host.stdin.write("session off\n");
   await deadline(
     async () => (await document.count()) === 0,
-    "unshare clears content",
+    "stopping session clears content",
   );
   host.stdin.write(`share ${id}\n`);
   await document.waitFor();
@@ -479,6 +481,7 @@ try {
       mounted_path: mount,
       existing_app: true,
       local_sharing_picker: true,
+      session_sharing: true,
       private_diagnostics: true,
       app_switching: true,
       window_navigation: true,
