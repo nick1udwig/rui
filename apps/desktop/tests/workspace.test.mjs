@@ -308,3 +308,61 @@ test("session discovery excludes owner UI and retires identities on process repl
   assert.equal(w.approved.size, 0);
   await assert.rejects(w.local({ op: "session", id: "whatever" }));
 });
+
+for (const revoke of ["stop", "protect", "close"]) {
+  test(`pending share cannot survive ${revoke}`, async () => {
+    const f = fixture(),
+      w = f.workspace;
+    const id = (await w.local({ op: "apps" })).apps[0].id;
+    const sample = await w.invoke({ op: "capture" });
+    let finish;
+    f.capture(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = w.local({ op: "share", id });
+    const rejected = assert.rejects(pending, /policy changed/);
+    if (revoke === "stop") await w.local({ op: "session", id: "off" });
+    if (revoke === "protect") await w.local({ op: "protect", id: "100" });
+    if (revoke === "close") await w.context.close();
+    finish(sample);
+    await rejected;
+    assert.equal(w.approved.size, 0);
+    assert.equal(await field(w), undefined);
+  });
+}
+
+test("late dispatch receipts cannot republish revoked content", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  const id = await share(w),
+    old = await field(w),
+    sample = w.sample;
+  let finish;
+  const invoke = w.invoke;
+  w.invoke = (r) =>
+    r.op === "dispatch"
+      ? new Promise((resolve) => {
+          finish = resolve;
+        })
+      : invoke(r);
+  const pending = w.dispatch(command(old));
+  await w.local({ op: "unshare", id });
+  finish({ status: "dispatched", capture: sample });
+  assert.equal((await pending).status, "dispatched");
+  assert.equal(w.sample, undefined);
+  assert.equal(await field(w), undefined);
+  assert.equal(w.targets.size, 0);
+});
+
+test("failed session discovery does not silently enable future sharing", async () => {
+  const w = new DesktopWorkspace(async () => {
+    throw Error("unavailable");
+  });
+  await assert.rejects(w.local({ op: "session", id: "on" }));
+  assert.equal(w.sessionSharing, false);
+  await w.context.close();
+  await assert.rejects(w.local({ op: "apps" }), /closed/);
+});

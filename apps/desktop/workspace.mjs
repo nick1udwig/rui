@@ -61,6 +61,7 @@ export class DesktopWorkspace {
     this.catalog = new Map();
     this.privatePids = new Set();
     this.approved = new Map();
+    this.policyRevision = 0;
     this.sessionSharing = false;
     this.excluded = new Set();
     this.catalogRead = 0;
@@ -78,19 +79,31 @@ export class DesktopWorkspace {
     this.closed = false;
     this.availability =
       "No applications shared. Use apps, then share ID in the host terminal.";
-    this.context = {
-      close: async () => {
-        this.closed = true;
-        clearInterval(this.timer);
-        await this.busy;
-        await this.browser?.close();
-      },
-    };
+    this.context = { close: () => this.close() };
     this.rebuild();
   }
+  close() {
+    if (this.closing) return this.closing;
+    this.closed = true;
+    this.policyRevision++;
+    clearInterval(this.timer);
+    this.approved.clear();
+    this.select(undefined);
+    return (this.closing = (async () => {
+      try {
+        await this.busy;
+      } finally {
+        await this.browser?.close();
+      }
+    })());
+  }
   async local(request) {
+    if (this.closed) throw Error("Desktop workspace is closed");
     if (request.op === "apps") {
+      const revision = this.policyRevision;
       const result = await this.invoke({ op: "list" });
+      if (this.closed || revision !== this.policyRevision)
+        throw Error("Sharing policy changed during discovery");
       if (!Array.isArray(result.apps) || result.apps.length > 64)
         throw Error("Application limit");
       if (this.browser && !this.browser.workspace.closed)
@@ -139,9 +152,18 @@ export class DesktopWorkspace {
     if (request.op === "session") {
       if (!["on", "off"].includes(request.id))
         throw Error("Use session on or session off");
+      this.policyRevision++;
       this.sessionSharing = request.id === "on";
       this.excluded.clear();
-      if (this.sessionSharing) return this.local({ op: "apps" });
+      if (this.sessionSharing) {
+        const revision = this.policyRevision;
+        try {
+          return await this.local({ op: "apps" });
+        } catch (error) {
+          if (revision === this.policyRevision) this.sessionSharing = false;
+          throw error;
+        }
+      }
       this.approved.clear();
       this.select(undefined);
       return { sessionSharing: false, apps: [] };
@@ -149,6 +171,7 @@ export class DesktopWorkspace {
     if (request.op === "protect") {
       if (!/^[1-9][0-9]*$/.test(request.id || ""))
         throw Error("Invalid owner PID");
+      this.policyRevision++;
       const pid = Number(request.id);
       this.privatePids.add(pid);
       for (const [id, source] of this.catalog)
@@ -169,7 +192,14 @@ export class DesktopWorkspace {
         throw Error("Run apps and use an application ID from that list");
       if (this.approved.size >= 65 && !this.approved.has(request.id))
         throw Error("64 native applications plus the managed browser maximum");
+      const revision = ++this.policyRevision;
       const sample = await this.invoke({ op: "capture", source });
+      if (
+        this.closed ||
+        revision !== this.policyRevision ||
+        this.privatePids.has(source.pid)
+      )
+        throw Error("Sharing policy changed while reading application");
       this.excluded.delete(request.id);
       this.approved.set(request.id, source);
       this.select(request.id);
@@ -181,6 +211,7 @@ export class DesktopWorkspace {
       return { shared: source.name, id: request.id };
     }
     if (request.op === "unshare") {
+      this.policyRevision++;
       if (this.sessionSharing) this.excluded.add(request.id);
       if (!this.approved.delete(request.id))
         throw Error("Application is not shared");
@@ -492,6 +523,7 @@ export class DesktopWorkspace {
       this.rebuild();
       return { status: "dispatched" };
     }
+    const generation = this.generation;
     this.busy = this.invoke({
       ...request,
       op: "dispatch",
@@ -506,6 +538,8 @@ export class DesktopWorkspace {
       const result = await this.busy;
       if (process.env.RUI_DESKTOP_TRACE)
         console.error("Desktop dispatch:", result.status, result.reason || "");
+      if (this.closed || generation !== this.generation)
+        return { status: result.status };
       // Publish the new observation before delivering the command result, so
       // subsequent actions cannot use the pre-edit application fingerprint.
       this.sample = result.capture;
@@ -514,6 +548,8 @@ export class DesktopWorkspace {
       this.rebuild();
       return { status: result.status };
     } catch {
+      if (this.closed || generation !== this.generation)
+        return { status: "unknown" };
       this.sample = undefined;
       this.availability = "Action outcome unknown. Refreshing the application…";
       this.rebuild();
