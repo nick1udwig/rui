@@ -1,3 +1,4 @@
+import { SemanticNodes } from "../shared/semantic-nodes.mjs";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -70,10 +71,7 @@ export class DesktopWorkspace {
     this.windowGeneration = 0;
     this.preferredWindow = undefined;
     this.activeWindow = undefined;
-    this.next = 10;
-    this.keys = new Map();
-    this.versions = new Map();
-    this.targets = new Map();
+    this.semantic = new SemanticNodes();
     this.sample = undefined;
     this.busy = undefined;
     this.closed = false;
@@ -278,40 +276,13 @@ export class DesktopWorkspace {
     }
   }
   rebuild() {
-    const keys = new Map(),
-      versions = new Map(),
-      targets = new Map(),
+    const semantic = new SemanticNodes(this.semantic),
       nodes = [];
-    const idFor = (key) => {
-      if (!keys.has(key)) {
-        if (this.next >= 1_000_000)
-          throw Error("Desktop identity limit; restart the host");
-        keys.set(key, this.keys.get(key) ?? this.next++);
-      }
-      return keys.get(key);
-    };
-    const add = (key, data, handler, guard = "") => {
-      const id = key === "root" ? 3 : idFor(key);
-      const node = {
-        id,
-        version: 1,
-        role: "label",
-        label: "",
-        description: "",
-        children: [],
-        actions: [],
-        disabled: false,
-        ...data,
-      };
-      const signature = JSON.stringify([node, guard]);
-      const prior = this.versions.get(id);
-      node.version = prior
-        ? prior.version + Number(prior.signature !== signature)
-        : 1;
-      versions.set(id, { signature, version: node.version });
-      if (handler) targets.set(id, { ...handler, node });
+    const idFor = (key) => semantic.id(key);
+    const add = (key, data, handler, guard) => {
+      const node = semantic.node(key, data, handler, guard);
       nodes.push(node);
-      return id;
+      return node.id;
     };
     const apps = [];
     for (const [id, source] of this.approved) {
@@ -476,9 +447,8 @@ export class DesktopWorkspace {
       return this.rebuild();
     }
     add("root", { role: "root", label: "Desktop", children });
-    this.keys = keys;
-    this.versions = versions;
-    this.targets = targets;
+    semantic.retain(nodes);
+    this.semantic = semantic;
     this.publication = { nodes, status: this.availability };
   }
   async capture() {
@@ -487,7 +457,7 @@ export class DesktopWorkspace {
   async dispatch(request) {
     const expires = Date.now() + Math.min(2000, request.deadlineMs || 0);
     if (this.busy) await this.busy;
-    const target = this.targets.get(request.target);
+    const target = this.semantic.targets.get(request.target);
     if (
       !target ||
       target.node.version !== request.version ||
@@ -560,7 +530,7 @@ export class DesktopWorkspace {
     }
   }
   stage(scope, secret) {
-    const target = this.targets.get(scope.target);
+    const target = this.semantic.targets.get(scope.target);
     if (
       !target ||
       target.source?.adapter !== "browser" ||

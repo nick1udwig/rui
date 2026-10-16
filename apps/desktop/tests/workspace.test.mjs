@@ -114,7 +114,7 @@ test("an in-flight observation cannot republish an unshared application", async 
   finish({ fingerprint: "old", nodes: [] });
   await pending;
   assert.equal(await field(w), undefined);
-  assert.equal(w.targets.size, 0);
+  assert.equal(w.semantic.targets.size, 0);
 });
 
 test("unavailable observations clear controls, recovery allocates fresh identities", async () => {
@@ -354,7 +354,7 @@ test("late dispatch receipts cannot republish revoked content", async () => {
   assert.equal((await pending).status, "dispatched");
   assert.equal(w.sample, undefined);
   assert.equal(await field(w), undefined);
-  assert.equal(w.targets.size, 0);
+  assert.equal(w.semantic.targets.size, 0);
 });
 
 test("failed session discovery does not silently enable future sharing", async () => {
