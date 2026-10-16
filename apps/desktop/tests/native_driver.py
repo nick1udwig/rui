@@ -59,6 +59,9 @@ def run():
             assert dispatch(capture, editor, 'SetValue', 'stale overwrite')['status'] == 'rejected'
             # An unrelated document/status change must not invalidate Save.
             save = next(n for n in capture['nodes'] if n.get('label') == 'Save document')
+            source.stdin.write('{"op":"sibling"}\n'); source.stdin.flush(); time.sleep(.2)
+            changed = DesktopReader().sample(app)
+            assert next(n for n in changed['nodes'] if n['label'] == 'Save document')['fingerprint'] == save['fingerprint']
             assert dispatch(capture, save, 'Activate')['status'] == 'dispatched'
             for _ in range(100):
                 if target.exists(): break

@@ -47,7 +47,7 @@ test(
       }
       res.setHeader("Content-Type", "text/html");
       res.end(
-        `<!doctype html><title>Workspace test</title><h1>Fixture page</h1><label>Name<input id=name value=before></label><label>Password<input id=password type=password></label><button onclick="document.getElementById('result').textContent='Clicked'">Increment</button><p id=result>Ready</p><label>Reviewed<input id=checked type=checkbox></label><label>Color<select id=color><option>Red</option><option>Blue</option></select></label><input id=file type=file aria-label="Upload document"><a href="/next">Next page</a><a href="/download" download>Download report</a><div contenteditable="plaintext-only" aria-label="Notes">Initial note</div><label>Quantity<input id=quantity type=number min=1 max=5 value=2></label><label>Day<input id=day type=date value=2026-10-15></label><iframe src="/frame" title="Embedded form"></iframe><button onclick="alert('Hello phone')">Open dialog</button>`,
+        `<!doctype html><title>Workspace test</title><main><h1>Fixture page</h1><p>Readable paragraph</p><ul><li>First item</li><li>Second item</li></ul></main><label>Name<input id=name value=before></label><label>Password<input id=password type=password></label><button onclick="document.getElementById('result').textContent='Clicked'">Increment</button><p id=result>Ready</p><label>Reviewed<input id=checked type=checkbox></label><label>Color<select id=color><option>Red</option><option>Blue</option></select></label><input id=file type=file aria-label="Upload document"><a href="/next">Next page</a><a href="/download" download>Download report</a><div contenteditable="plaintext-only" aria-label="Notes">Initial note</div><label>Quantity<input id=quantity type=number min=1 max=5 value=2></label><label>Day<input id=day type=date value=2026-10-15></label><iframe src="/frame" title="Embedded form"></iframe><button onclick="alert('Hello phone')">Open dialog</button>`,
       );
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -74,6 +74,22 @@ test(
         assert.equal(result.status, "dispatched", label);
         return n;
       };
+      const structured = await workspace.capture();
+      assert.ok(
+        structured.nodes.some(
+          (n) => n.kind === "view:heading1" && n.label === "Fixture page",
+        ),
+      );
+      for (const kind of [
+        "view:document",
+        "view:paragraph",
+        "view:list",
+        "view:item",
+      ])
+        assert.ok(
+          structured.nodes.some((n) => n.kind === kind),
+          kind,
+        );
       await dispatch("Increment");
       assert.equal(await page.locator("#result").textContent(), "Clicked");
       await dispatch("Name", "café Ω 𝄞");

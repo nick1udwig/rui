@@ -292,6 +292,13 @@ try {
   const document = page.getByLabel("Document", { exact: true });
   await document.waitFor();
   assert.equal(await document.inputValue(), "Already open on the host");
+  assert.equal(await page.locator('[data-presentation="content"]').count(), 1);
+  assert.equal(
+    await page
+      .locator('[data-presentation="app-active"] button[aria-pressed="true"]')
+      .count(),
+    1,
+  );
   assert.equal(
     (await page.content()).includes("never-publish-desktop-secret"),
     false,
@@ -303,14 +310,18 @@ try {
     "control grant",
   );
   await ownerAction("Share this session", true);
-  await page.getByRole("button", { name: /^Open:/ }).click();
+  await page
+    .getByRole("button", { name: `Open: ${app.name}`, exact: true })
+    .click();
   await deadline(
     async () =>
       (await document.count()) > 0 &&
       (await document.inputValue()) === "Second existing application",
     "second app selected",
   );
-  await page.getByRole("button", { name: /^Open:/ }).click();
+  await page
+    .getByRole("button", { name: `Open: ${app.name}`, exact: true })
+    .click();
   await deadline(
     async () =>
       (await document.count()) > 0 &&
@@ -320,7 +331,9 @@ try {
   host.stdin.write(`unshare ${secondId}\n`);
   await deadline(
     async () =>
-      (await page.getByRole("button", { name: /^Open:/ }).count()) === 0,
+      (await page
+        .getByRole("button", { name: `Open: ${app.name}`, exact: true })
+        .count()) === 0,
     "second app unshared",
   );
   await deadline(

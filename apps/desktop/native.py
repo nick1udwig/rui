@@ -20,6 +20,10 @@ from adapters.atspi.worker import Reader, identity
 A = 'org.a11y.atspi.'
 MAX_TEXT = 16384
 MAX_NODES = 512
+PRESENTATION = {16: 'dialog', 31: 'list', 32: 'item', 33: 'toolbar', 34: 'toolbar',
+                38: 'tabs', 54: 'status', 55: 'table', 56: 'cell', 63: 'toolbar',
+                65: 'list', 73: 'paragraph', 82: 'document', 83: 'heading2',
+                90: 'row', 91: 'item', 94: 'document', 95: 'document'}
 ACTION_ROLES = (7, 8, 11, 32, 35, 37, 43, 44, 45, 56, 62, 88, 91)
 
 
@@ -183,6 +187,8 @@ class DesktopReader(Reader):
                         'label': text(props.get('Name', '')), 'children': [], 'actions': [],
                         'disabled': not ((has(8) or has(24)) and has(25) and has(30)),
                         'modal': has(16), 'window': role in (16, 23, 69)}
+                if role in PRESENTATION:
+                    node['presentation'] = 'view:' + PRESENTATION[role]
                 nodes.append(node)
                 metadata[key] = (node, role, bits, interfaces)
                 if count:
@@ -286,6 +292,9 @@ class DesktopReader(Reader):
                     node['actions'] = []
                     node['disabled'] = True
         # Revalidate the target, its ownership chain and all active modals.
+        # Each sampled parent/child edge is verified above. Sibling identities
+        # are not ownership: status widgets may be replaced after selection.
+        # Selection operations carry their own exact index/child binding.
         # Unrelated status bars (word counts, selection hints) must not make an
         # otherwise unchanged Save button unusable in real applications.
         for node in nodes:
@@ -294,7 +303,7 @@ class DesktopReader(Reader):
             while key is not None:
                 parent = by_key[key]
                 ancestry.append({field: parent.get(field) for field in
-                                 ('key', 'parent', 'children', 'disabled', 'modal')})
+                                 ('key', 'parent', 'disabled', 'modal')})
                 key = parent['parent']
             node['fingerprint'] = hashlib.sha256(json.dumps(
                 [node, ancestry, modal], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -409,7 +418,10 @@ class DesktopReader(Reader):
         action = request['action']
         if (node is None or node['fingerprint'] != request['fingerprint']
                 or action not in node['actions'] or node['disabled'] or time.time() >= expires):
-            return {'status': 'rejected'}
+            return {'status': 'rejected', 'reason': 'missing target' if node is None else
+                    'changed target' if node['fingerprint'] != request['fingerprint'] else
+                    'disabled target' if node['disabled'] else
+                    'expired command' if time.time() >= expires else 'unsupported action'}
         operation = node.get('operation', {})
         target = key
         interface, method, args = None, None, None

@@ -241,6 +241,9 @@ try {
       "native file selection",
     );
     await page
+      .getByRole("button", { name: "Selected: example.txt. File", exact: true })
+      .waitFor();
+    await page
       .getByRole("button", {
         name: "Select: Example folder. Folder",
         exact: true,
@@ -287,6 +290,7 @@ try {
       await next.first().click();
       await new Promise((r) => setTimeout(r, 600));
       console.log(`Writer welcome: ${label}`);
+      if (label !== "Next") break;
     }
     const editor = await deadline(async () => {
       const e = await paragraph(original);
@@ -397,6 +401,10 @@ try {
   );
   console.log(JSON.stringify(report));
 } catch (error) {
+  console.error(
+    "Dispatch diagnostics:",
+    logs.split("\n").filter((line) => line.includes("Desktop dispatch:")),
+  );
   console.error(
     "Temporary document:",
     JSON.stringify(

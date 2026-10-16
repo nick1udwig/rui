@@ -88,6 +88,7 @@ type Row = {
   dirty?: { version: bigint; authority: number };
   submitted?: bigint;
   kind: string;
+  filter?: HTMLInputElement;
 };
 const rows = new Map<bigint, Row>();
 function enabled(node: Semantic) {
@@ -104,7 +105,30 @@ function createRow(node: Semantic): Row {
   const element = document.createElement(group ? "section" : "div");
   element.className = "node";
   element.dataset.id = String(node.id);
-  const label = document.createElement(group ? "h2" : "label");
+  element.dataset.presentation = kind.startsWith("view:") ? kind.slice(5) : "";
+  element.dataset.role = node.role;
+  const structure = element.dataset.presentation;
+  const ariaRole: Record<string, string> = {
+    list: "list",
+    item: "listitem",
+    table: "table",
+    row: "row",
+    cell: "cell",
+    dialog: "region",
+  };
+  if (ariaRole[structure]) element.setAttribute("role", ariaRole[structure]);
+  if (structure === "dialog")
+    element.setAttribute("aria-label", "Active dialog");
+  const heading = /^view:heading([1-6])$/.exec(kind);
+  const label = document.createElement(
+    heading
+      ? `h${heading[1]}`
+      : group
+        ? "h2"
+        : node.role === "TextField" || node.role === "Checkbox"
+          ? "label"
+          : "p",
+  );
   label.textContent = node.label ?? node.role;
   const description = document.createElement("p");
   description.className = "description";
@@ -113,6 +137,15 @@ function createRow(node: Semantic): Row {
   if (group) {
     row.children = document.createElement("div");
     row.children.className = "children";
+    if (kind === "view:apps") {
+      const filter = document.createElement("input");
+      filter.type = "search";
+      filter.placeholder = "Find an app";
+      filter.setAttribute("aria-label", "Find a shared application");
+      filter.oninput = () => filterApps(row);
+      element.append(filter);
+      row.filter = filter;
+    }
     element.append(row.children);
   } else if (node.role === "TextField") {
     const input =
@@ -244,6 +277,13 @@ function createRow(node: Semantic): Row {
   }
   return row;
 }
+function filterApps(row: Row) {
+  if (!row.filter || !row.children) return;
+  const query = row.filter.value.trim().toLocaleLowerCase();
+  for (const child of Array.from(row.children.children))
+    (child as HTMLElement).hidden =
+      !!query && !child.textContent?.toLocaleLowerCase().includes(query);
+}
 function sourceValue(node: Semantic) {
   return node.browser_input_type === "password"
     ? ""
@@ -283,10 +323,34 @@ function render(state: State) {
     }
     row.node = node;
     row.label.textContent = node.label ?? node.role;
+    if (!row.button) row.label.hidden = !node.label;
+    if (row.filter) row.filter.hidden = node.children.length < 5;
     row.description.textContent = node.description ?? "";
     row.description.hidden = !node.description;
     if (row.button) {
       row.button.textContent = node.label ?? "Activate";
+      row.button.setAttribute("aria-label", node.label ?? "Activate");
+      if (
+        workspace === "desktop" &&
+        /^(Select|Selected|Deselect|Scroll to): /.test(node.label ?? "")
+      ) {
+        row.button.textContent = node.label!.startsWith("Scroll to:")
+          ? "Scroll into view"
+          : node.label!.split(":")[0];
+      }
+      if (
+        [
+          "view:app",
+          "view:app-active",
+          "view:window",
+          "view:window-active",
+        ].includes(row.kind)
+      ) {
+        row.button.setAttribute(
+          "aria-pressed",
+          String(row.kind.endsWith("-active")),
+        );
+      }
       row.button.disabled =
         !enabled(node) || !node.actions.some((a) => a.id === "Activate");
     }
@@ -343,6 +407,7 @@ function render(state: State) {
     view,
     [...nodes.keys()].filter((id) => !owned.has(id)),
   );
+  for (const row of rows.values()) filterApps(row);
   const surfaces = [...state.records.values()].flatMap((r) =>
     "Surface" in r ? [r.Surface] : [],
   );
@@ -357,6 +422,10 @@ function buttons() {
     client.hasControl ||
     !client.capabilities.can_control;
   release.disabled = !client?.hasControl;
+  control.hidden = !!client?.hasControl;
+  release.hidden = !client?.hasControl;
+  connect.hidden = connected;
+  document.body.dataset.connected = String(connected);
   retry.hidden = !client?.pendingCommands;
   connection.textContent = client?.hasControl
     ? "Controlling host"

@@ -226,8 +226,10 @@ Nautilus and the host's `WAYLAND_DISPLAY`.
 | LibreOffice Writer 26.2.5, GTK3 backend | Existing Wayland window, welcome dialog, Unicode paragraph replacement and file save, reconnect/unshare, app survival | Large documents, formatting and other Writer workflows have not been established |
 | Nautilus 50.2.2, GTK4 backend | Existing Wayland window, file/folder selection, explicit scroll-to controls, reconnect/unshare, app survival | Unnamed menu items are disabled. Search editing and file opening remain unverified; the tested file-row default action scrolls rather than opens |
 
-The real-app and mobile tests use 390×844 touch browser contexts. Physical
-iOS/Android devices and a broader third-party app matrix remain to test.
+The automated real-app and mobile tests use 390×844 touch browser contexts.
+The user also successfully tried the desktop demo on a physical phone. Device/OS
+specific IME, orientation, suspension and assistive-technology coverage, plus a
+broader third-party app matrix, remain to test.
 Omawrite did not register on this machine's accessibility bus during probing;
 its support is not established.
 
@@ -257,3 +259,16 @@ Each step is implemented, tested and corrected before its commit.
 The target remains existing-session semantic interaction on Linux. Pixel streaming,
 compositor window management, arbitrary app coverage and transactional semantics for
 unmodified apps are not implied by these steps.
+
+## Mobile presentation
+
+The client uses compact app and window strips, with app search when five or more
+apps are shared. Document, list, table, toolbar, tab and dialog regions keep their
+observed structure; fields and actions remain bound to host controls. Session
+status and compatibility details sit below the content. Rendering uses trusted
+client templates and plain text, never source-supplied HTML or scripts.
+
+Presentation hints use allowlisted `view:*` values on the existing optional
+`browser_input_type` field for non-input nodes. Input nodes retain their actual
+input type. Unknown hints are rejected by the host; older clients can still show
+the underlying group/label/control roles. Hints do not grant actions or access.

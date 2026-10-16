@@ -189,7 +189,10 @@ const handler = async (request, response) => {
               'data-workspace="browser"',
               `data-workspace="${desktop ? "desktop" : "browser"}"`,
             )
-            .replaceAll("RUI Browser", desktop ? "RUI Desktop" : "RUI Browser")
+            .replaceAll(
+              /RUI\s+Browser/g,
+              desktop ? "RUI Desktop" : "RUI Browser",
+            )
         : content,
     );
   } catch {
@@ -300,7 +303,9 @@ const rpc = socketServer((socket) => {
         await printInvitation();
         result = { ok: true };
       } else if (
-        ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(request.op)
+        ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(
+          request.op,
+        )
       ) {
         try {
           result = await workspace.local(request);

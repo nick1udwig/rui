@@ -46,6 +46,8 @@ def activate(app):
         request = json.loads(line)
         if request['op'] == 'text':
             editor.get_buffer().set_text(request['value'])
+        elif request['op'] == 'sibling':
+            box.append(Gtk.Label(label='Unrelated new status object'))
         elif request['op'] == 'window':
             extra = Gtk.ApplicationWindow(application=app, title='Second notes window')
             extra.set_child(Gtk.Label(label='Content in the second window'))

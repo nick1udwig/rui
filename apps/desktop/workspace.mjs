@@ -262,6 +262,7 @@ export class DesktopWorkspace {
           `app:${id}`,
           {
             role: "button",
+            kind: id === this.selected ? "view:app-active" : "view:app",
             label: `${id === this.selected ? "Viewing: " : "Open: "}${source.name}`,
             actions: ["Activate"],
           },
@@ -273,6 +274,7 @@ export class DesktopWorkspace {
       add("apps", {
         role: "group",
         label: "Shared applications",
+        kind: "view:apps",
         children: apps,
       }),
     ];
@@ -315,11 +317,13 @@ export class DesktopWorkspace {
           add("windows", {
             role: "group",
             label: modals.length ? "Dialog requires attention" : "Windows",
+            kind: "view:windows",
             children: navigation.map((node, index) =>
               add(
                 `window:${this.generation}:${encoded(node)}`,
                 {
                   role: "button",
+                  kind: node === chosen ? "view:window-active" : "view:window",
                   label: `${node === chosen ? "Window: " : "Show window: "}${node.label || `Untitled ${index + 1}`}`,
                   actions: modals.length ? [] : ["Activate"],
                   disabled: !!modals.length,
@@ -335,7 +339,7 @@ export class DesktopWorkspace {
         const childKeys = raw.children.flatMap((key) => {
           const child = byKey.get(JSON.stringify(key));
           if (
-            raw.role === "button" &&
+            (raw.role === "button" || raw.role === "group") &&
             child.role === "label" &&
             child.label === raw.label &&
             !child.children.length &&
@@ -346,13 +350,16 @@ export class DesktopWorkspace {
         });
         if (
           appRoot ||
-          (raw.role === "group" && !raw.label && !raw.actions.length)
+          (raw.role === "group" &&
+            !raw.label &&
+            !raw.actions.length &&
+            !raw.presentation)
         )
           return childKeys;
         visible.push({ ...raw, children: childKeys });
         return [raw.key];
       };
-      const roots = present(chosen, chosen === this.sample.nodes[0]);
+      const roots = present(chosen, true);
       for (const raw of visible) {
         const key = nodeKey(raw.key),
           structural = raw.children.length > 0;
@@ -370,7 +377,8 @@ export class DesktopWorkspace {
           description: raw.description || "",
           actions: raw.actions,
           disabled: raw.disabled,
-          ...(raw.kind ? { kind: raw.kind, value: raw.value } : {}),
+          kind: raw.kind || raw.presentation || null,
+          ...(raw.kind ? { value: raw.value } : {}),
           children: raw.children.map((k) => idFor(nodeKey(k))),
         };
         const handler = raw.actions.length
@@ -386,13 +394,21 @@ export class DesktopWorkspace {
           add(key, {
             role: "group",
             label: raw.label,
+            kind: raw.presentation || null,
             children: [content, ...node.children],
           });
         } else {
           add(key, node, handler, handler ? raw.fingerprint : "");
         }
       }
-      children.push(...roots.map((key) => idFor(nodeKey(key))));
+      children.push(
+        add("content", {
+          role: "group",
+          label: chosen.label || source.name,
+          kind: modals.length ? "view:dialog" : "view:content",
+          children: roots.map((key) => idFor(nodeKey(key))),
+        }),
+      );
     }
     if (nodes.length >= 1024) {
       this.sample = undefined;
@@ -420,8 +436,21 @@ export class DesktopWorkspace {
       !target.node.actions.includes(request.action) ||
       Date.now() >= expires ||
       this.closed
-    )
+    ) {
+      if (process.env.RUI_DESKTOP_TRACE)
+        console.error(
+          "Desktop dispatch:",
+          "rejected",
+          !target
+            ? "missing public target"
+            : target.node.version !== request.version
+              ? "changed public target"
+              : Date.now() >= expires
+                ? "public deadline"
+                : "disabled public action",
+        );
       return { status: "rejected" };
+    }
     if (target.select) {
       if (request.action !== "Activate" || !this.approved.has(target.select))
         return { status: "rejected" };
@@ -446,6 +475,8 @@ export class DesktopWorkspace {
     });
     try {
       const result = await this.busy;
+      if (process.env.RUI_DESKTOP_TRACE)
+        console.error("Desktop dispatch:", result.status, result.reason || "");
       // Publish the new observation before delivering the command result, so
       // subsequent actions cannot use the pre-edit application fingerprint.
       this.sample = result.capture;
