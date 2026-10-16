@@ -93,6 +93,14 @@ impl CommandQueue {
     pub fn next_sequence(&self) -> u64 {
         self.next
     }
+    /// Authenticated browser host high-water mark. Pending exact bytes survive.
+    pub fn advance_sequence(&mut self, next: u64) -> Result<(), QueueError> {
+        if next == 0 || self.disposed {
+            return Err(QueueError::Sequence);
+        }
+        self.next = self.next.max(next);
+        Ok(())
+    }
     pub fn len(&self) -> usize {
         self.queue.len()
     }

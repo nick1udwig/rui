@@ -115,6 +115,8 @@ def record(raw):
                       reading_order=number(node, 15) if 15 in node else None,
                       sensitivity=enum(node, 16, ['Public', 'Sensitive', 'Redacted']),
                       completeness=enum(node, 17, ['Full', 'Incomplete', 'Opaque']))
+        if 128 in node:
+            result['browser_input_type'] = string(node, 128)
     elif kind == 'Text':
         result.update(text_version=number(node, 3), status=enum(node, 4, ['Available', 'Unavailable', 'Redacted']),
                       content=string(node, 5), selection=child(node, 6, lambda r: {'anchor': number(r, 1), 'focus': number(r, 2)}, True),

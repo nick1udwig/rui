@@ -433,7 +433,14 @@ export class BrowserClient {
             }
             if (generation !== this.generation || this.disposed) return;
             if (event.type === "commandResult") {
-              this.causal.result(event.sequence, event.status, event.revision);
+              const dispatched =
+                event.status.toLowerCase() === "dispatched" &&
+                this.capabilities.profiles.includes("browser.semantic.v1");
+              this.causal.result(
+                event.sequence,
+                dispatched ? "browserDispatched" : event.status,
+                event.revision,
+              );
               this.options.timings?.result(
                 event.sequence,
                 event.revision,
@@ -722,6 +729,18 @@ export class BrowserClient {
     const seq = this.session.setChecked(target, checked);
     this.causal.begin(seq);
     this.options.timings?.command(seq);
+    this.flush();
+    return seq;
+  }
+  /** browser.semantic.v1: explicit guarded full value, including opaque secret tokens. */
+  setBrowserValue(target: Id, value: string): bigint {
+    assertUint64(target);
+    if (!this.hasControl || this.pendingCommands)
+      throw new Error("wait for current control and readiness");
+    if (new TextEncoder().encode(value).length > 16384 || value.includes("\0"))
+      throw new RangeError("value limit");
+    const seq = this.session.setBrowserValue(target, value);
+    this.causal.begin(seq);
     this.flush();
     return seq;
   }

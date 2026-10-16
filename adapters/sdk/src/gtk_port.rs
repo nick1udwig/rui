@@ -955,6 +955,7 @@ fn description(host: &GtkCommandHost, scope: &Scope) -> Result<ViewDescription, 
         }
     };
     Ok(ViewDescription {
+        next_command_sequence: None,
         width: canvas.width,
         height: canvas.height,
         coverage: coverage.into(),

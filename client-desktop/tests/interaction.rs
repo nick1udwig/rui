@@ -17,6 +17,7 @@ fn fixture() -> State {
     s.records.insert(
         20,
         Record::Semantic(SemanticNode {
+            browser_input_type: None,
             id: 20,
             version: 3,
             role: SemanticRole::Button,

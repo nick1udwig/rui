@@ -36,6 +36,8 @@ message ViewOpened {
   repeated string granted_input_modes=5;
   // Optional extension: legacy mirrors omit raw input when this is absent.
   repeated InputDeviceGrant input_devices=128;
+  // browser.semantic.v1: continue the authenticated producer's ledger after reload.
+  optional uint64 next_command_sequence=129;
 }
 // This authenticated view description identifies approved source devices. It
 // does not replace the current lease/action/source checks on every command.

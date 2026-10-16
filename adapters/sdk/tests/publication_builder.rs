@@ -198,6 +198,7 @@ fn every_transaction_chunk_cut_preserves_predecessor_and_exact_retry() {
         revision: 1,
         records: vec![p::Record {
             record: Some(p::record::Record::Semantic(p::SemanticNode {
+                browser_input_type: None,
                 id: 1,
                 version: 1,
                 role: p::SemanticRole::Root as i32,

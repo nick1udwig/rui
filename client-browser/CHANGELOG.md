@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — browser workspace support
+
+- Add negotiated `browser.semantic.v1`, optional browser input hints and guarded `setBrowserValue` for browser producers.
+- Treat confirmed browser dispatch as terminal only under that profile; existing GTK and native command semantics are unchanged.
+
+
 ## 0.1.1 — additive ownership diagnostics
 
 - Expose conservative Rust `memoryPeak` separately from JS/socket/allocator capacity,

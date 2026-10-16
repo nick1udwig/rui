@@ -17,6 +17,10 @@ Exact traces replay through independent Rust and Python implementations.
 Acceptance covers the measured constrained GTK corpus and exported test session.
 The [performance report](docs/performance.md) records missed provisional 60 Hz budgets; arbitrary application/desktop support, independent application views and concurrent writers remain outside this scope.
 
+## Browser workspace
+
+Control a dedicated, visible host Chromium from a responsive phone or desktop client. The [browser workspace guide](apps/browser/README.md) covers one-command startup, QR pairing, LAN/tailnet HTTPS, standard forms and host files. Mobile-sized Chromium, Firefox and WebKit tests pass; physical iOS Safari and Android Chrome validation remains pending.
+
 ## Best demos to try
 
 Start with the **semantic editor** to see the alternative web presentation, then the **browser vector mirror** to compare it with the source layout. The **native host/client pair** is the quickest demo if you already have the Rust/GTK environment and want to avoid browser setup. Run the browser launchers one at a time; both use port 5173.

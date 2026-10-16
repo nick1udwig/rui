@@ -550,6 +550,13 @@ impl Replica {
                 if codec::id(&wire.view_id)? != self.context.view_id {
                     return Err(TransportError::Binding);
                 }
+                if self.profiles.iter().any(|p| p == "browser.semantic.v1") {
+                    self.commands
+                        .advance_sequence(
+                            wire.next_command_sequence.ok_or(TransportError::Protocol)?,
+                        )
+                        .map_err(|_| TransportError::Protocol)?;
+                }
                 return Ok(Some(ClientEvent::ViewOpened(OpenedView {
                     wire,
                     _memory: memory,
@@ -702,7 +709,13 @@ impl Replica {
             }
             p::Kind::CommandResult => {
                 let result: p::CommandResult = codec::decode(&packet.payload, ceiling)?;
-                self.commands.result(result.command_seq, &result.status);
+                if result.status.eq_ignore_ascii_case("dispatched")
+                    && self.profiles.iter().any(|p| p == "browser.semantic.v1")
+                {
+                    self.commands.complete(result.command_seq);
+                } else {
+                    self.commands.result(result.command_seq, &result.status);
+                }
                 return Ok(Some(ClientEvent::CommandResult(result)));
             }
             p::Kind::ResumeAccepted => {

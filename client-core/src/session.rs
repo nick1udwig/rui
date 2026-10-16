@@ -27,6 +27,7 @@ const REQUIRED: &[&str] = &[
     "glyph.outline-single.v1",
 ];
 const SEMANTIC_PROFILES: &[&str] = &[
+    "browser.semantic.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
     "content.no-raster.v1",
@@ -1010,6 +1011,7 @@ mod tests {
         }
         pb::Record {
             record: Some(pb::record::Record::Semantic(pb::SemanticNode {
+                browser_input_type: None,
                 id: 1,
                 version,
                 role: pb::SemanticRole::Button as i32,
@@ -1190,6 +1192,47 @@ mod tests {
         assert!(s.acquire(0).is_err());
         s.close();
         assert_eq!(s.memory_used(), 0);
+    }
+    #[test]
+    fn browser_dispatch_receipt_and_high_water_are_negotiated() {
+        for browser in [false, true] {
+            let mut s = session(true);
+            if browser {
+                let r = s.replica.as_mut().unwrap();
+                let mut profiles = r.profiles().to_vec();
+                profiles.push("browser.semantic.v1".into());
+                let permissions = r.permissions().unwrap().clone();
+                r.configure(&profiles, &permissions).unwrap();
+            }
+            // Authenticated ViewOpened advances only the browser profile's queue.
+            let opened = p::ViewOpened {
+                view_id: vec![4; 16],
+                canvas_width: 800.,
+                canvas_height: 600.,
+                coverage: "semantic-only".into(),
+                next_command_sequence: Some(42),
+                ..Default::default()
+            };
+            s.receive(&bound(p::Kind::ViewOpened, &opened)).unwrap();
+            publish(&mut s, 1, None, false);
+            drain(&mut s);
+            s.presented(1).unwrap();
+            drain(&mut s);
+            grant(&mut s);
+            let seq = s.command(1, "Activate", Arguments::None).unwrap();
+            assert_eq!(seq, if browser { 42 } else { 1 });
+            drain(&mut s);
+            s.receive(&bound(
+                p::Kind::CommandResult,
+                &p::CommandResult {
+                    command_seq: seq,
+                    status: "Dispatched".into(),
+                    ..Default::default()
+                },
+            ))
+            .unwrap();
+            assert_eq!(s.pending_commands(), if browser { 0 } else { 1 });
+        }
     }
     #[test]
     fn native_actor_and_portable_session_agree_at_every_transcript_prefix() {

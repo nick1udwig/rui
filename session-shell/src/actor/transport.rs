@@ -610,6 +610,7 @@ impl NativeViews {
                                 .contains("RawInputBatch");
                         Ok(port::Reply::Opened {
                             description: port::ViewDescription {
+                                next_command_sequence: None,
                                 width: logical.width,
                                 height: logical.height,
                                 coverage: "complete".into(),

@@ -450,6 +450,7 @@ impl ControlledApplication {
         // geometry, masked character count, or raster fallback are transmitted.
         let secret_scene = scene(SECRET_SCENE_ID, 1, secret_rect, [0.1, 0.1, 0.1, 1.0]);
         let root = p::SemanticNode {
+            browser_input_type: None,
             id: SEMANTIC_ROOT_ID,
             version: 1,
             role: p::SemanticRole::Root as i32,
@@ -463,6 +464,7 @@ impl ControlledApplication {
             ..Default::default()
         };
         let counter = p::SemanticNode {
+            browser_input_type: None,
             id: COUNTER_ID,
             version: self.counter_clock,
             role: p::SemanticRole::Button as i32,
@@ -492,6 +494,7 @@ impl ControlledApplication {
             ..Default::default()
         };
         let secret = p::SemanticNode {
+            browser_input_type: None,
             id: SECRET_ID,
             version: if secret_visible { self.text_clock } else { 1 },
             role: p::SemanticRole::TextField as i32,

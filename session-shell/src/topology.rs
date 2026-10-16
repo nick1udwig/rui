@@ -539,6 +539,7 @@ impl Topology {
                 },
             ))));
             records.push(record(pb::record::Record::Semantic(pb::SemanticNode {
+                browser_input_type: None,
                 id: window.semantic(),
                 version: window.version,
                 role: 9,
