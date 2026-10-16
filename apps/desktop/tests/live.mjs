@@ -274,6 +274,53 @@ try {
   await dismiss.click();
   await save.waitFor();
   await deadline(() => save.isEnabled(), "modal closed");
+  source.stdin.write('{"op":"controls"}\n');
+  await page
+    .getByRole("button", {
+      name: "Show window: Semantic controls",
+      exact: true,
+    })
+    .click();
+  const volume = page.getByLabel("Volume", { exact: true });
+  await volume.waitFor();
+  await deadline(() => volume.isEditable(), "numeric control editable");
+  await volume.fill("42.5");
+  await volume
+    .locator("..")
+    .getByRole("button", { name: "Apply", exact: true })
+    .click();
+  const controlState = async () =>
+    JSON.parse(await readFile(saved + ".controls.json", "utf8"));
+  await deadline(
+    async () => (await controlState()).volume === 42.5,
+    "native numeric value",
+  );
+  await page.getByRole("button", { name: "Select: Beta", exact: true }).click();
+  await deadline(
+    async () => (await controlState()).selected === 1,
+    "native list selection",
+  );
+  await page
+    .getByRole("button", { name: "Select: Second tab", exact: true })
+    .click();
+  await deadline(
+    async () => (await controlState()).tab === 1,
+    "native tab selection",
+  );
+  await page
+    .getByRole("button", { name: "Scroll forward", exact: true })
+    .click();
+  await deadline(
+    async () => (await controlState()).scroll > 0,
+    "native scroll",
+  );
+  await page
+    .getByRole("button", {
+      name: "Show window: Existing desktop notes",
+      exact: true,
+    })
+    .click();
+  await document.waitFor();
   const out = resolve(root, "apps/desktop/test-output");
   await mkdir(out, { recursive: true });
   await page.screenshot({
@@ -326,6 +373,7 @@ try {
       window_navigation: true,
       closed_window_recovery: true,
       edit_save: true,
+      native_selection_values_scroll: true,
       stale_draft: true,
       modal: true,
       reconnect: true,

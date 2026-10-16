@@ -37,6 +37,7 @@ def activate(app):
     window.present()
     dialogs = []
     extra_windows = []
+    control_widgets = {}
     def command(fd, condition):
         line = sys.stdin.readline()
         if not line:
@@ -52,6 +53,54 @@ def activate(app):
             extra.present()
         elif request['op'] == 'close-window':
             if extra_windows: extra_windows.pop().destroy()
+        elif request['op'] == 'reorder-items':
+            items = control_widgets['items']
+            row = items.get_row_at_index(1)
+            items.remove(row)
+            items.prepend(row)
+        elif request['op'] == 'controls':
+            controls = Gtk.ApplicationWindow(application=app, title='Semantic controls', default_width=500, default_height=600)
+            panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            volume = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, .5)
+            volume.update_property([Gtk.AccessibleProperty.LABEL], ['Volume'])
+            volume.set_value(10)
+            panel.append(volume)
+            items = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
+            for name in ('Alpha', 'Beta'):
+                items.append(Gtk.Label(label=name))
+            control_widgets['items'] = items
+            items.select_row(items.get_row_at_index(0))
+            panel.append(items)
+            multiple = Gtk.ListBox(selection_mode=Gtk.SelectionMode.MULTIPLE)
+            for name in ('Gamma', 'Delta'):
+                multiple.append(Gtk.Label(label=name))
+            multiple.select_all()
+            panel.append(multiple)
+            tabs = Gtk.Notebook()
+            for name in ('First tab', 'Second tab'):
+                tabs.append_page(Gtk.Label(label='Content for ' + name), Gtk.Label(label=name))
+            panel.append(tabs)
+            scroll = Gtk.ScrolledWindow(vexpand=True)
+            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.ALWAYS)
+            scroll.set_child(Gtk.Label(label='\n'.join('Line ' + str(i) for i in range(100))))
+            panel.append(scroll)
+            def recorded(*_):
+                Path(sys.argv[1] + '.controls.json').write_text(json.dumps({
+                    'volume': volume.get_value(),
+                    'selected': items.get_selected_row().get_index() if items.get_selected_row() else -1,
+                    'multiselected': [row.get_index() for row in multiple.get_selected_rows()],
+                    'tab': tabs.get_current_page(),
+                    'scroll': scroll.get_vadjustment().get_value(),
+                }))
+            volume.connect('value-changed', recorded)
+            items.connect('row-selected', recorded)
+            multiple.connect('selected-rows-changed', recorded)
+            tabs.connect('switch-page', lambda *_: GLib.idle_add(lambda: (recorded(), False)[1]))
+            scroll.get_vadjustment().connect('value-changed', recorded)
+            controls.set_child(panel)
+            extra_windows.append(controls)
+            controls.present()
+            recorded()
         elif request['op'] == 'modal':
             dialog = Gtk.Window(title='Confirm action', transient_for=window, modal=True)
             button = Gtk.Button(label='Dismiss dialog')

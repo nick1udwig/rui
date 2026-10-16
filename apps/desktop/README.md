@@ -68,6 +68,10 @@ RUI leaves attached applications running. An app restart needs a new `apps` /
 - Accessible text, bounded full-field edits, default actions on buttons, menu
   items, tabs, links, and related actionable roles. Checkbox/radio defaults appear
   as buttons with their observed checked state.
+- Explicit single/multiple selection and deselection for exposed list items and
+  tabs. Numeric fields bind to the app's Value interface, validate finite values
+  against observed bounds, and expose scrollbar movement as bounded increments.
+  Reordering a list or changing a value invalidates old commands.
 - Phone-sized touch UI, host-authoritative values, preserved conflicting drafts,
   reconnect, device revocation, and app switching.
 - Password-role objects are redacted without querying their text or descendants.
@@ -105,7 +109,8 @@ space limit, 400 ms call timeout, 1.8 second observation deadline, and 2.4 secon
 owner timeout. Background observations do not block serving the cached client
 view. Reads run in batches of up to 32 concurrent D-Bus calls. Limits include
 64 discovered apps, eight approved apps, 512 visible native nodes (1,024 visited
-nodes), 128 children per node, depth 24, 8,192 calls, 16 KiB text fields and 768 KiB native
+nodes), up to 1,024 nodes including generated semantic controls, 128 children per
+node, depth 24, 8,192 calls, 16 KiB text fields and 768 KiB native
 responses. Limits fail closed, rather than silently truncating editable text.
 
 Before dispatch the worker verifies the source identity and rereads the entire
@@ -180,7 +185,7 @@ Each step is implemented, tested and corrected before its commit.
 
 1. **Done:** Preserve the verified existing-app foundation, including real Writer coverage.
 2. **Done:** Add explicit window navigation, modal routing and closed-window recovery.
-3. Add observed selection, numeric-value and scrolling controls, with source-side
+3. **Done:** Add observed selection, numeric-value and scrolling controls, with source-side
    revalidation and mobile rendering.
 4. Add a local sharing picker and per-application compatibility diagnostics.
 5. Extend native and mobile end-to-end coverage, repeat real-app verification and

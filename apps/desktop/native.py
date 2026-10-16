@@ -7,6 +7,7 @@ revalidation narrows races but AT-SPI has no atomic compare-and-set operation.
 """
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import resource
@@ -240,6 +241,7 @@ class DesktopReader(Reader):
                     node['actions'] = ['SetValue']
             else:
                 node['description'] = 'Text exceeds the 16 KiB limit; editing unavailable.'
+        original_children = {node['key']: list(node['children']) for node in nodes}
         branches = [node for node in nodes if node['children']]
         answers = self.batch([(node['key'], A + 'Accessible', 'GetChildren', None)
                               for node in branches])
@@ -248,6 +250,7 @@ class DesktopReader(Reader):
             if [identity(ref) for ref in refs] != node['children']:
                 raise ValueError('children changed during observation')
             node['children'] = [key for key in node['children'] if key in visible_keys]
+        self.add_controls(nodes, metadata, original_children)
         # A modal dialog blocks all other application subtrees. Multiple modal
         # roots are ambiguous; expose them read-only until the source resolves it.
         modal = [n['key'] for n in nodes if n.get('modal')]
@@ -279,6 +282,81 @@ class DesktopReader(Reader):
         fingerprint = hashlib.sha256(json.dumps(nodes, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         return {'nodes': nodes, 'fingerprint': fingerprint}
 
+    def add_controls(self, nodes, metadata, children):
+        """Project source-advertised Value and Selection operations as controls.
+
+        Virtual keys contain '#', which cannot occur in a native D-Bus path.
+        Their private bindings are rebuilt and fingerprinted before dispatch.
+        """
+        requests, operations = [], []
+        for key, (node, role, bits, interfaces) in metadata.items():
+            if A + 'Value' in interfaces and role in (48, 51, 52):
+                requests.append((key, 'org.freedesktop.DBus.Properties', 'GetAll',
+                                 self.GLib.Variant('(s)', (A + 'Value',))))
+                operations.append(('value', key, None))
+            if A + 'Selection' in interfaces:
+                for index, child in enumerate(children[key]):
+                    item = metadata.get(child)
+                    if item and item[2] & (1 << 22):
+                        requests.append((key, A + 'Selection', 'IsChildSelected',
+                                         self.GLib.Variant('(i)', (index,))))
+                        operations.append(('selection', key, (child, index)))
+
+        def control(parent, suffix, label, operation, disabled=False):
+            if len(nodes) >= 1024:
+                raise ValueError('semantic control ceiling')
+            key = (parent['key'][0], parent['key'][1] + '#' + suffix)
+            nodes.append({'key': key, 'parent': parent['key'], 'role': 'button',
+                          'label': label, 'children': [], 'operation': operation,
+                          'disabled': disabled, 'actions': [] if disabled else ['Activate']})
+            parent['children'].append(key)
+
+        def item_label(key):
+            node = metadata[key][0]
+            if node['label']:
+                return node['label']
+            pending = list(children[key])
+            for _ in range(32):
+                if not pending: break
+                child = pending.pop(0)
+                if child not in metadata: continue
+                candidate = metadata[child][0]
+                if candidate['label']: return candidate['label']
+                pending.extend(children[child])
+            return 'Unnamed item'
+
+        for (kind, key, extra), (answer,) in zip(operations, self.batch(requests)):
+            node, role, bits, interfaces = metadata[key]
+            if kind == 'selection':
+                child, index = extra
+                item = metadata[child][0]
+                selected = bool(answer)
+                multiple = bool(bits & (1 << 18))
+                method = 'DeselectChild' if selected and multiple else 'SelectChild'
+                prefix = 'Deselect' if selected and multiple else 'Selected' if selected else 'Select'
+                control(item, 'selection', f'{prefix}: {item_label(child)}',
+                        {'kind': 'selection', 'target': key, 'index': index,
+                         'child': child, 'selected': selected, 'method': method},
+                        node['disabled'] or item['disabled'] or selected and not multiple)
+            else:
+                low, high, current, increment = [answer[name] for name in
+                    ('MinimumValue', 'MaximumValue', 'CurrentValue', 'MinimumIncrement')]
+                if not all(type(v) in (int, float) and math.isfinite(v) for v in (low, high, current, increment)) or not low <= current <= high or increment < 0:
+                    raise ValueError('invalid numeric bounds')
+                writable = not node['disabled'] and not bits & (1 << 43)
+                limits = {'min': low, 'max': high, 'increment': increment, 'current': current}
+                node.update(role='text', kind='number', value=format(current, '.15g'),
+                            number=limits, actions=['SetValue'] if writable else [],
+                            description=f'Range {low:g} to {high:g}' + (f'; step {increment:g}' if increment else ''))
+                if not node['label']:
+                    node['label'] = 'Scroll position' if role == 48 else 'Value'
+                if role == 48 and high > low:
+                    step = max(increment, (high - low) / 10)
+                    for direction, value in [('back', max(low, current - step)), ('forward', min(high, current + step))]:
+                        control(node, 'scroll-' + direction, 'Scroll ' + direction,
+                                {'kind': 'number', 'target': key, 'value': value, 'limits': limits},
+                                not writable or value == current)
+
     def execute(self, request):
         if request['op'] == 'list':
             return self.discover()
@@ -297,16 +375,35 @@ class DesktopReader(Reader):
         if (node is None or node['fingerprint'] != request['fingerprint']
                 or action not in node['actions'] or node['disabled'] or time.time() >= expires):
             return {'status': 'rejected'}
-        if action == 'SetValue':
+        operation = node.get('operation', {})
+        target = key
+        interface, method, args = None, None, None
+        if (action == 'SetValue' and 'number' in node) or operation.get('kind') == 'number':
+            try:
+                value = float(text(request['value'], 128)) if action == 'SetValue' else operation['value']
+                limits = node['number'] if action == 'SetValue' else operation['limits']
+                if not math.isfinite(value) or not limits['min'] <= value <= limits['max']:
+                    return {'status': 'rejected'}
+            except (ValueError, TypeError, KeyError):
+                return {'status': 'rejected'}
+            target = identity(operation.get('target', key))
+            method, interface = 'Set', 'org.freedesktop.DBus.Properties'
+            args = self.GLib.Variant('(ssv)', (A + 'Value', 'CurrentValue', self.GLib.Variant('d', value)))
+        elif operation.get('kind') == 'selection' and action == 'Activate':
+            target = identity(operation['target'])
+            method, interface = operation['method'], A + 'Selection'
+            args = self.GLib.Variant('(i)', (operation['index'],))
+        elif action == 'SetValue':
             value = text(request['value'], MAX_TEXT)
-            method, interface, args = 'SetTextContents', 'EditableText', self.GLib.Variant('(s)', (value,))
+            method, interface, args = 'SetTextContents', A + 'EditableText', self.GLib.Variant('(s)', (value,))
         elif action == 'Activate':
-            method, interface, args = 'DoAction', 'Action', self.GLib.Variant('(i)', (0,))
+            method, interface, args = 'DoAction', A + 'Action', self.GLib.Variant('(i)', (0,))
         else:
             return {'status': 'rejected'}
         # Once the method is attempted, a timeout must never become a retry.
         try:
-            accepted = self.call(key, A + interface, method, args)[0]
+            reply = self.call(target, interface, method, args)
+            accepted = True if method == 'Set' else reply[0]
             result = {'status': 'dispatched' if accepted else 'rejected'}
             try:
                 result['capture'] = self.sample(request['source'])

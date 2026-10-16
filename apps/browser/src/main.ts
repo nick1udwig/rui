@@ -136,6 +136,10 @@ function createRow(node: Semantic): Row {
         ? kind
         : "text";
     input.id = `field-${node.id}`;
+    if (input instanceof HTMLInputElement && kind === "number") {
+      input.step = "any";
+      input.inputMode = "decimal";
+    }
     label.setAttribute("for", input.id);
     input.autocomplete = kind === "password" ? "current-password" : "off";
     input.dir = "auto";
@@ -214,6 +218,7 @@ function createRow(node: Semantic): Row {
       );
       try {
         client?.setChecked(node.id, checked);
+        if (client?.state) render(client.state);
       } catch (error) {
         say(error);
       }
@@ -228,6 +233,7 @@ function createRow(node: Semantic): Row {
     button.onclick = () => {
       try {
         client?.activate(node.id);
+        if (client?.state) render(client.state);
       } catch (error) {
         say(error);
       }

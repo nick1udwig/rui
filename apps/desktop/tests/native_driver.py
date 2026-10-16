@@ -69,6 +69,35 @@ def run():
             assert not next(n for n in modal['nodes'] if n.get('label') == 'Save document')['actions']
             dismiss = next(n for n in modal['nodes'] if n.get('label') == 'Dismiss dialog')
             assert dispatch(modal, dismiss, 'Activate')['status'] == 'dispatched'
+            source.stdin.write('{"op":"controls"}\n'); source.stdin.flush(); time.sleep(.3)
+            controls = DesktopReader().sample(app)
+            number = next(n for n in controls['nodes'] if n['label'] == 'Volume')
+            for value in ('nan', 'inf', '101', '-1', ''):
+                assert dispatch(controls, number, 'SetValue', value)['status'] == 'rejected'
+            assert dispatch(controls, number, 'SetValue', '65.5')['status'] == 'dispatched'
+            assert dispatch(controls, number, 'SetValue', '20')['status'] == 'rejected'
+            def state():
+                return json.loads(Path(str(target) + '.controls.json').read_text())
+            assert state()['volume'] == 65.5
+            def activate(label):
+                observed = DesktopReader().sample(app)
+                button = next(n for n in observed['nodes'] if n['label'] == label)
+                assert dispatch(observed, button, 'Activate')['status'] == 'dispatched', label
+            activate('Select: Beta')
+            assert state()['selected'] == 1
+            activate('Deselect: Gamma')
+            assert state()['multiselected'] == [1]
+            activate('Select: Gamma')
+            assert state()['multiselected'] == [0, 1]
+            activate('Select: Second tab')
+            assert state()['tab'] == 1
+            activate('Scroll forward')
+            assert state()['scroll'] > 0
+            observed = DesktopReader().sample(app)
+            old_item = next(n for n in observed['nodes'] if n['label'] == 'Select: Alpha')
+            source.stdin.write('{"op":"reorder-items"}\n'); source.stdin.flush(); time.sleep(.2)
+            assert dispatch(observed, old_item, 'Activate')['status'] == 'rejected'
+
             os.kill(source.pid, signal.SIGSTOP)
             before = time.monotonic()
             try:
@@ -86,7 +115,8 @@ def run():
                 pass
             print(json.dumps({'native': 'passed', 'existing_app': True, 'unicode_edit_and_save': True,
                               'password_redacted': True, 'stale_rejected': True, 'modal_guard': True,
-                              'stall_bounded': True, 'exit_rejected': True}))
+                              'selection_and_tabs': True, 'numeric_bounds': True, 'scroll': True,
+                              'reordered_selection_rejected': True, 'stall_bounded': True, 'exit_rejected': True}))
         finally:
             if source.poll() is None:
                 source.kill(); source.wait(timeout=3)
