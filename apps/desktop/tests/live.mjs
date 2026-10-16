@@ -398,6 +398,12 @@ try {
     async () => (await controlState()).volume === 42.5,
     "native numeric value",
   );
+  await page.getByRole("button", { name: "Actions", exact: true }).click();
+  await page.getByRole("button", { name: "Mark done", exact: true }).click();
+  await deadline(
+    async () => (await controlState()).completed,
+    "native menu action",
+  );
   await page.getByRole("button", { name: "Select: Beta", exact: true }).click();
   await deadline(
     async () => (await controlState()).selected === 1,
@@ -479,6 +485,7 @@ try {
       closed_window_recovery: true,
       edit_save: true,
       native_selection_values_scroll: true,
+      named_menu_actions: true,
       stale_draft: true,
       modal: true,
       reconnect: true,

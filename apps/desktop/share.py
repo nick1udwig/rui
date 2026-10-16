@@ -130,7 +130,8 @@ def run_picker(directory):
                     counts = report['counts']
                     summary = (f"{counts['windows']} windows · {counts['editable_text']} editable text fields · "
                                f"{counts['numeric_controls']} numeric controls · {counts['selection_controls']} selection controls · "
-                               f"{counts['actions']} actions · {counts['protected_fields']} protected fields")
+                               f"{counts['actions']} actions · {counts['protected_fields']} protected fields · "
+                               f"{counts['unnamed_controls']} unnamed controls unavailable")
                     row.append(Gtk.Label(label=summary + '\n' + report['scope'], wrap=True, xalign=0))
                 rows.append(row)
         refresh.connect('clicked', lambda _: submit('apps'))

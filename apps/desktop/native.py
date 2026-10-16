@@ -136,8 +136,8 @@ class DesktopReader(Reader):
         frontier = [(root, None)]
         depth = 0
         while frontier:
-            if depth > 24 or len(visited) + len(frontier) > 1024:
-                raise ValueError('application tree ceiling')
+            if depth > 64 or len(visited) + len(frontier) > 1024:
+                raise ValueError(f'application tree ceiling: depth {depth}, visited {len(visited) + len(frontier)}')
             for key, parent in frontier:
                 if key in visited or key[0] != root[0]:
                     raise ValueError('application cycle or cross-application reference')
@@ -251,6 +251,25 @@ class DesktopReader(Reader):
             if [identity(ref) for ref in refs] != node['children']:
                 raise ValueError('children changed during observation')
             node['children'] = [key for key in node['children'] if key in visible_keys]
+        # GTK menu items can advertise their label only on a descendant label.
+        # Use that observed text within the same control, never sibling guesses.
+        by_key = {node['key']: node for node in nodes}
+        for node in nodes:
+            if node['role'] != 'button' or node['label']:
+                continue
+            pending = list(node['children'])
+            for _ in range(32):
+                if not pending: break
+                child = by_key[pending.pop(0)]
+                if child['role'] == 'label' and child['label'] and child['label'] not in ('Password field — unavailable', 'Protected field — unavailable'):
+                    node['label'] = child['label']
+                    break
+                if child['role'] == 'group' and not child['actions']:
+                    pending.extend(child['children'])
+        for node in nodes:
+            if node['role'] == 'button' and not node['label']:
+                node.update(label='Unnamed control — unavailable', actions=[], disabled=True,
+                            description='The application did not expose an accessible name for this control.')
         self.add_controls(nodes, metadata, original_children)
         # A modal dialog blocks all other application subtrees. Multiple modal
         # roots are ambiguous; expose them read-only until the source resolves it.
@@ -372,6 +391,7 @@ class DesktopReader(Reader):
                 'numeric_controls': sum('number' in n for n in nodes),
                 'selection_controls': sum(n.get('operation', {}).get('kind') == 'selection' for n in nodes),
                 'actions': sum('Activate' in n['actions'] for n in nodes),
+                'unnamed_controls': sum(n['label'] == 'Unnamed control — unavailable' for n in nodes),
                 'protected_fields': sum(n['label'] in ('Password field — unavailable', 'Protected field — unavailable') for n in nodes),
             }
             return {'status': 'readable', 'counts': counts,
@@ -440,8 +460,16 @@ def main():
         data = json.dumps(result, separators=(',', ':')).encode()
         if len(data) > 768 * 1024:
             raise ValueError('response ceiling')
-    except Exception:
-        data = b'{"error":"Accessibility unavailable, app changed, or observation limit reached."}'
+    except Exception as error:
+        detail = str(error) if type(error) is ValueError else ''
+        safe_details = ('application tree ceiling', 'visible application tree ceiling',
+                        'semantic control ceiling', 'accessibility crawl deadline or call ceiling',
+                        'application exited or changed identity', 'children changed', 'parent changed',
+                        'invalid numeric bounds', 'text ceiling', 'child ceiling')
+        result = {'error': 'Accessibility unavailable, app changed, or observation limit reached.'}
+        if detail.startswith(safe_details):
+            result['detail'] = detail[:160]
+        data = json.dumps(result).encode()
     sys.stdout.buffer.write(data)
 
 

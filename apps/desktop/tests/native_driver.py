@@ -79,10 +79,31 @@ def run():
             def state():
                 return json.loads(Path(str(target) + '.controls.json').read_text())
             assert state()['volume'] == 65.5
+            def expect_state(key, value):
+                until = time.monotonic() + 3
+                while time.monotonic() < until:
+                    if state()[key] == value: return
+                    time.sleep(.01)
+                raise AssertionError((key, state()))
             def activate(label):
-                observed = DesktopReader().sample(app)
-                button = next(n for n in observed['nodes'] if n['label'] == label)
+                until = time.monotonic() + 3
+                button = None
+                while time.monotonic() < until:
+                    try:
+                        observed = DesktopReader().sample(app)
+                    except ValueError:
+                        time.sleep(.05)
+                        continue
+                    button = next((n for n in observed['nodes'] if n['label'] == label and 'Activate' in n['actions']), None)
+                    if button: break
+                    time.sleep(.05)
+                if button is None: print('missing action', label, [(n['label'], n['actions'], n.get('native_action')) for n in observed['nodes']], flush=True)
+                assert button is not None, label
                 assert dispatch(observed, button, 'Activate')['status'] == 'dispatched', label
+            assert any(n['label'] == 'Deeply nested content' for n in controls['nodes'])
+            activate('Actions')
+            activate('Mark done')
+            expect_state('completed', True)
             activate('Select: Beta')
             assert state()['selected'] == 1
             activate('Deselect: Gamma')
@@ -98,6 +119,16 @@ def run():
             source.stdin.write('{"op":"reorder-items"}\n'); source.stdin.flush(); time.sleep(.2)
             assert dispatch(observed, old_item, 'Activate')['status'] == 'rejected'
 
+            controls = DesktopReader().sample(app)
+            unnamed = next(n for n in controls['nodes'] if n['label'] == 'Unnamed control — unavailable')
+            assert dispatch(controls, unnamed, 'Activate')['status'] == 'rejected'
+            source.stdin.write('{"op":"too-deep"}\n'); source.stdin.flush(); time.sleep(.2)
+            try:
+                DesktopReader().sample(app)
+                raise AssertionError('unbounded native tree accepted')
+            except ValueError as error:
+                assert 'application tree ceiling' in str(error), str(error)
+            source.stdin.write('{"op":"close-window"}\n'); source.stdin.flush(); time.sleep(.2)
             diagnostic = DesktopReader().execute({'op': 'diagnose', 'source': app})
             assert diagnostic['counts']['editable_text'] >= 1
             assert diagnostic['counts']['numeric_controls'] >= 2
@@ -122,6 +153,7 @@ def run():
             print(json.dumps({'native': 'passed', 'existing_app': True, 'unicode_edit_and_save': True,
                               'password_redacted': True, 'stale_rejected': True, 'modal_guard': True,
                               'selection_and_tabs': True, 'numeric_bounds': True, 'scroll': True,
+                              'named_popover_actions': True, 'depth_bounded': True, 'unnamed_actions_rejected': True,
                               'reordered_selection_rejected': True, 'stall_bounded': True, 'exit_rejected': True}))
         finally:
             if source.poll() is None:

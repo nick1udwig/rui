@@ -58,9 +58,41 @@ def activate(app):
             row = items.get_row_at_index(1)
             items.remove(row)
             items.prepend(row)
+        elif request['op'] == 'too-deep':
+            extra = Gtk.ApplicationWindow(application=app, title='Bounded deep tree')
+            top = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            current = top
+            for _ in range(70):
+                child = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+                current.append(child)
+                current = child
+            current.append(Gtk.Label(label='Beyond the supported depth'))
+            extra.set_child(top)
+            extra_windows.append(extra)
+            extra.present()
         elif request['op'] == 'controls':
             controls = Gtk.ApplicationWindow(application=app, title='Semantic controls', default_width=500, default_height=600)
             panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            completed = [False]
+            menu_button = Gtk.MenuButton(label='Actions')
+            popover = Gtk.Popover()
+            mark = Gtk.Button(label='Mark done')
+            def mark_done(*_):
+                completed[0] = True
+                recorded()
+                menu_button.popdown()
+            mark.connect('clicked', mark_done)
+            popover.set_child(mark)
+            menu_button.set_popover(popover)
+            panel.append(menu_button)
+            panel.append(Gtk.Button())
+            deep = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            panel.append(deep)
+            for _ in range(32):
+                child = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+                deep.append(child)
+                deep = child
+            deep.append(Gtk.Label(label='Deeply nested content'))
             volume = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, .5)
             volume.update_property([Gtk.AccessibleProperty.LABEL], ['Volume'])
             volume.set_value(10)
@@ -85,13 +117,17 @@ def activate(app):
             scroll.set_child(Gtk.Label(label='\n'.join('Line ' + str(i) for i in range(100))))
             panel.append(scroll)
             def recorded(*_):
-                Path(sys.argv[1] + '.controls.json').write_text(json.dumps({
+                state_path = Path(sys.argv[1] + '.controls.json')
+                temporary = state_path.with_suffix('.tmp')
+                temporary.write_text(json.dumps({
                     'volume': volume.get_value(),
+                    'completed': completed[0],
                     'selected': items.get_selected_row().get_index() if items.get_selected_row() else -1,
                     'multiselected': [row.get_index() for row in multiple.get_selected_rows()],
                     'tab': tabs.get_current_page(),
                     'scroll': scroll.get_vadjustment().get_value(),
                 }))
+                temporary.replace(state_path)
             volume.connect('value-changed', recorded)
             items.connect('row-selected', recorded)
             multiple.connect('selected-rows-changed', recorded)

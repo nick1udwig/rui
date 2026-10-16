@@ -1,4 +1,4 @@
-// Explicit live-desktop smoke: only a new Writer instance and temporary document.
+// Explicit live-desktop smoke: owned Writer/Files instances and temporary data.
 import {
   chromium,
   webkit,
@@ -19,7 +19,10 @@ assert.ok(
   "Run explicitly from the host Wayland desktop",
 );
 const root = resolve(import.meta.dirname, "../../..");
-const directory = await mkdtemp(join(tmpdir(), "rui-existing-writer-"));
+const files = process.env.RUI_REAL_APP === "files";
+const appKind = files ? "files" : "writer";
+const directory = await mkdtemp(join(tmpdir(), `rui-existing-${appKind}-`));
+const folder = join(directory, "Files test");
 const documentPath = join(directory, "verification.txt");
 const original = "Existing Writer document before RUI";
 const edited = "Edited through the mobile client — 東京 👋";
@@ -68,21 +71,36 @@ const paragraph = async (value) => {
 };
 try {
   await writeFile(documentPath, original + "\n");
+  if (files) {
+    await mkdir(join(folder, "Example folder"), { recursive: true });
+    await writeFile(
+      join(folder, "example.txt"),
+      "Temporary file for semantic selection\n",
+    );
+    await writeFile(
+      join(folder, "long-" + "x".repeat(170) + ".txt"),
+      "Long filename layout check\n",
+    );
+  }
   source = spawn(
-    "/usr/bin/libreoffice",
-    [
-      `-env:UserInstallation=${pathToFileURL(join(directory, "profile")).href}`,
-      "--writer",
-      "--norestore",
-      "--nodefault",
-      "--nofirststartwizard",
-      documentPath,
-    ],
+    files ? "/usr/bin/python3" : "/usr/bin/libreoffice",
+    files
+      ? [join(root, "apps/desktop/tests/files_source.py"), folder]
+      : [
+          `-env:UserInstallation=${pathToFileURL(join(directory, "profile")).href}`,
+          "--writer",
+          "--norestore",
+          "--nodefault",
+          "--nofirststartwizard",
+          documentPath,
+        ],
     {
       detached: true,
       stdio: ["ignore", "ignore", "ignore"],
       env: {
         ...process.env,
+        LANG: "C.UTF-8",
+        LC_ALL: "C.UTF-8",
         GDK_BACKEND: "wayland",
         SAL_USE_VCLPLUGIN: "gtk3",
         SAL_ACCESSIBILITY_ENABLED: "1",
@@ -91,7 +109,7 @@ try {
       },
     },
   );
-  let app = await deadline(ownApp, "Writer accessibility registration");
+  let app = await deadline(ownApp, "existing app accessibility registration");
   // First-run Writer publishes its accessibility root before loading the UI.
   await new Promise((r) => setTimeout(r, 3000));
   // Wait for the real app to finish loading before sharing it.
@@ -102,14 +120,14 @@ try {
       app = await ownApp();
       return (
         app &&
-        (await native({ op: "capture", source: app })).nodes.some(
-          (n) => n.value === original,
+        (await native({ op: "capture", source: app })).nodes.some((n) =>
+          files ? n.label === "example.txt. File" : n.value === original,
         )
       );
     } catch {
       return false;
     }
-  }, "Writer document loaded");
+  }, "existing app content loaded");
   const cert = join(directory, "cert.pem"),
     key = join(directory, "key.pem");
   execFileSync(
@@ -211,75 +229,136 @@ try {
       page.getByRole("button", { name: "Release", exact: true }).isEnabled(),
     "control",
   );
-  // The isolated Writer profile has a first-run welcome tour. Handle it through
-  // the public UI, demonstrating that its modal correctly blocks the document.
-  for (let step = 0; step < 8; step++) {
-    const editor = await paragraph(original);
-    if (editor && (await editor.isEditable())) break;
-    const next = page.getByRole("button", {
-      name: /^(Next|Close|Finish|Start Using LibreOffice)$/,
+  if (files) {
+    await page
+      .getByRole("button", { name: "Select: example.txt. File", exact: true })
+      .click();
+    await deadline(
+      async () =>
+        (await native({ op: "capture", source: app })).nodes.some(
+          (n) => n.label === "Selected: example.txt. File" && !n.actions.length,
+        ),
+      "native file selection",
+    );
+    await page
+      .getByRole("button", {
+        name: "Select: Example folder. Folder",
+        exact: true,
+      })
+      .click();
+    await deadline(
+      async () =>
+        (await native({ op: "capture", source: app })).nodes.some(
+          (n) =>
+            n.label === "Selected: Example folder. Folder" && !n.actions.length,
+        ),
+      "native folder selection",
+    );
+    // The installed GTK/Nautilus build exposes some menu items without names.
+    // Their appearance must not grant a guessed default action to the client.
+    await page
+      .getByRole("button", { name: "Current Folder Menu", exact: true })
+      .click();
+    const unnamed = page.getByRole("button", {
+      name: "Unnamed control — unavailable",
+      exact: true,
     });
-    await deadline(() => next.count(), "welcome action");
-    const label = await next.first().innerText();
-    await next.first().click();
-    await new Promise((r) => setTimeout(r, 600));
-    console.log(`Writer welcome: ${label}`);
-  }
-  const editor = await deadline(async () => {
-    const e = await paragraph(original);
-    return e && (await e.isEditable()) ? e : undefined;
-  }, "editable Writer paragraph");
-  await editor.fill(edited);
-  await editor
-    .locator("..")
-    .getByRole("button", { name: "Apply", exact: true })
-    .click();
-  // Verify the real application through a separate native read, not the draft.
-  await deadline(async () => {
-    try {
-      return (await native({ op: "capture", source: app })).nodes.some(
-        (n) => n.value === edited,
-      );
-    } catch {
+    await unnamed.first().waitFor();
+    for (const button of await unnamed.all())
+      assert.equal(await button.isEnabled(), false);
+    await page
+      .getByRole("button", { name: "Current Folder Menu", exact: true })
+      .click();
+    assert.equal(
+      await readFile(join(folder, "example.txt"), "utf8"),
+      "Temporary file for semantic selection\n",
+    );
+  } else {
+    // The isolated Writer profile has a first-run welcome tour. Handle it through
+    // the public UI, demonstrating that its modal correctly blocks the document.
+    for (let step = 0; step < 8; step++) {
+      const editor = await paragraph(original);
+      if (editor && (await editor.isEditable())) break;
+      const next = page.getByRole("button", {
+        name: /^(Next|Close|Finish|Start Using LibreOffice)$/,
+      });
+      await deadline(() => next.count(), "welcome action");
+      const label = await next.first().innerText();
+      await next.first().click();
+      await new Promise((r) => setTimeout(r, 600));
+      console.log(`Writer welcome: ${label}`);
+    }
+    const editor = await deadline(async () => {
+      const e = await paragraph(original);
+      return e && (await e.isEditable()) ? e : undefined;
+    }, "editable Writer paragraph");
+    await editor.fill(edited);
+    await editor
+      .locator("..")
+      .getByRole("button", { name: "Apply", exact: true })
+      .click();
+    // Verify the real application through a separate native read, not the draft.
+    await deadline(async () => {
+      try {
+        return (await native({ op: "capture", source: app })).nodes.some(
+          (n) => n.value === edited,
+        );
+      } catch {
+        return false;
+      }
+    }, "host document edited");
+    const save = page.getByRole("button", { name: "Save", exact: true });
+    await deadline(() => save.isEnabled(), "Save enabled");
+    await save.click();
+    let confirmedFormat = false;
+    await deadline(async () => {
+      // Writer emits a UTF-8 BOM and a final paragraph newline for plain text.
+      if (
+        (await readFile(documentPath, "utf8"))
+          .replace(/^\uFEFF/, "")
+          .replace(/\r?\n$/, "") === edited
+      )
+        return true;
+      const confirm = page.getByRole("button", { name: /^(Use|Keep).*Text/ });
+      if (
+        !confirmedFormat &&
+        (await confirm
+          .first()
+          .isEnabled({ timeout: 500 })
+          .catch(() => false))
+      ) {
+        await confirm.first().click();
+        confirmedFormat = true;
+      }
       return false;
-    }
-  }, "host document edited");
-  const save = page.getByRole("button", { name: "Save", exact: true });
-  await deadline(() => save.isEnabled(), "Save enabled");
-  await save.click();
-  let confirmedFormat = false;
-  await deadline(async () => {
-    // Writer emits a UTF-8 BOM and a final paragraph newline for plain text.
-    if (
-      (await readFile(documentPath, "utf8"))
-        .replace(/^\uFEFF/, "")
-        .replace(/\r?\n$/, "") === edited
-    )
-      return true;
-    const confirm = page.getByRole("button", { name: /^(Use|Keep).*Text/ });
-    if (
-      !confirmedFormat &&
-      (await confirm
-        .first()
-        .isEnabled({ timeout: 500 })
-        .catch(() => false))
-    ) {
-      await confirm.first().click();
-      confirmedFormat = true;
-    }
-    return false;
-  }, "real file saved");
+    }, "real file saved");
+  }
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    "existing app content must fit the mobile viewport",
+  );
   const out = join(root, "apps/desktop/test-output");
   await mkdir(out, { recursive: true });
   await page.screenshot({
-    path: join(out, `writer-${engine}.png`),
+    path: join(out, `${appKind}-${engine}.png`),
     fullPage: true,
   });
   await page.reload();
-  await deadline(() => paragraph(edited), "reconnect to edited document");
+  const visibleContent = async () =>
+    files
+      ? await page
+          .getByRole("button", {
+            name: "Scroll to: example.txt. File",
+            exact: true,
+          })
+          .count()
+      : await paragraph(edited);
+  await deadline(visibleContent, "reconnect to existing app");
   host.stdin.write(`unshare ${id}\n`);
   await deadline(
-    async () => !(await paragraph(edited)),
+    async () => !(await visibleContent()),
     "unshare clears existing app",
   );
   host.stdin.write("quit\n");
@@ -290,22 +369,30 @@ try {
     "host must leave the existing application alive",
   );
   const report = {
-    app: "LibreOffice Writer",
+    app: files ? "GNOME Files (Nautilus)" : "LibreOffice Writer",
     engine,
     desktop: "existing Wayland session",
     sourceOpenedBeforeHost: true,
     mobileViewport: "390x844",
     pairing: true,
-    modalOnboarding: true,
-    readExistingDocument: true,
-    nativeUnicodeEdit: true,
-    savedFileVerified: true,
+    ...(files
+      ? {
+          nativeFileSelection: true,
+          nativeFolderSelection: true,
+          unnamedControlsUnavailable: true,
+        }
+      : {
+          modalOnboarding: true,
+          readExistingDocument: true,
+          nativeUnicodeEdit: true,
+          savedFileVerified: true,
+        }),
     reconnect: true,
     unshare: true,
     sourceSurvives: true,
   };
   await writeFile(
-    join(out, `writer-${engine}.json`),
+    join(out, `${appKind}-${engine}.json`),
     JSON.stringify(report, null, 2),
   );
   console.log(JSON.stringify(report));

@@ -97,6 +97,8 @@ RUI leaves attached applications running. An app restart needs a new `apps` /
   password role. Password entry is unavailable. This relies on applications
   exposing correct accessibility information; custom secret widgets cannot be
   identified universally.
+- Controls with no usable accessible name are unavailable. Source-advertised
+  scroll-to actions are identified as scrolling; they do not claim to open files.
 - Read-only presentation for unsupported fields/actions. No screenshots, graphics,
   canvas, video, clipboard, keyboard shortcuts, pointer injection, terminal input,
   compositor control, application launching, or guaranteed arbitrary-app coverage.
@@ -128,7 +130,7 @@ owner timeout. Background observations do not block serving the cached client
 view. Reads run in batches of up to 32 concurrent D-Bus calls. Limits include
 64 discovered apps, eight approved apps, 512 visible native nodes (1,024 visited
 nodes), up to 1,024 nodes including generated semantic controls, 128 children per
-node, depth 24, 8,192 calls, 16 KiB text fields and 768 KiB native
+node, depth 64, 8,192 calls, 16 KiB text fields and 768 KiB native
 responses. Limits fail closed, rather than silently truncating editable text.
 
 Before dispatch the worker verifies the source identity and rereads the entire
@@ -185,17 +187,49 @@ RUI_CLIENT_ENGINE=webkit node apps/desktop/tests/existing-desktop.mjs
 It owns and cleans up only its temporary app/profile/document. It does not share
 other running apps or change Tailscale configuration; a local TLS proxy exercises
 the mounted URL. Set `RUI_WEBKIT_EXECUTABLE` if a compatibility wrapper is needed.
-Physical iOS/Android devices and a broad third-party app matrix remain to test.
+`RUI_REAL_APP=files` runs the same real-desktop test against a separate Nautilus
+instance, an owned temporary folder and a private application bus. It verifies
+actual file/folder selection, long-filename mobile layout, unavailable unnamed
+menu items, reconnect and app
+lifetime. It does not attach to an existing personal file-manager process.
+
+Run all checks and retain a JSON report plus per-check logs:
+
+```sh
+RUI_WEBKIT_EXECUTABLE=/path/to/optional-webkit-wrapper \
+  python3 apps/desktop/tests/check.py --xvfb /path/to/Xvfb --real-desktop
+```
+
+Omit `RUI_WEBKIT_EXECUTABLE` on a supported Playwright installation. Omit
+`--real-desktop` for owned-display-only checks; `--engine chromium` limits the
+browser engine. Reports go to ignored `test-output/checks/`. The suite includes
+native guard tests, Chromium/WebKit mobile flows, Rust checks, client builds and
+the original browser workspace regression. Real-desktop checks require Writer,
+Nautilus and the host's `WAYLAND_DISPLAY`.
+
+### Observed compatibility
+
+| Source on this machine | Verified scope | Remaining gaps |
+| --- | --- | --- |
+| GTK4 4.22.4 fixture, two independently started apps | Sharing picker, windows, modal routing, Unicode edit/save, single/multiple selection, tabs, numeric bounds, scrolling, named popovers, stale/reordered controls, password redaction, depth limits, revoke/reconnect | A controlled fixture does not establish arbitrary-app coverage |
+| LibreOffice Writer 26.2.5, GTK3 backend | Existing Wayland window, welcome dialog, Unicode paragraph replacement and file save, reconnect/unshare, app survival | Large documents, formatting and other Writer workflows have not been established |
+| Nautilus 50.2.2, GTK4 backend | Existing Wayland window, file/folder selection, explicit scroll-to controls, reconnect/unshare, app survival | Unnamed menu items are disabled. Search editing and file opening remain unverified; the tested file-row default action scrolls rather than opens |
+
+The real-app and mobile tests use 390×844 touch browser contexts. Physical
+iOS/Android devices and a broader third-party app matrix remain to test.
 Omawrite did not register on this machine's accessibility bus during probing;
 its support is not established.
 
 ## Next steps
 
-1. Expand beyond Writer and the GTK fixture; record accessibility gaps and scale limits.
-2. Add selection/value interfaces and targeted adapters for useful unsupported
-   controls, driven by those applications.
-3. Add optional app launching and a host-side sharing UI. Keep existing-session
-   attachment as the default; compositor integration is a separate capability.
+1. Test physical mobile keyboards, orientation changes and assistive technology.
+2. Expand the compatibility matrix and investigate missing toolkit labels/text
+   interfaces. Targeted app adapters need explicit source identity and capability
+   evidence; unsupported controls must not be guessed.
+3. Add bounded paging or window-scoped reads for applications beyond the current
+   observation limits, then test large documents and collections.
+4. Consider optional application launching and compositor focus/window management
+   as separate capabilities. Existing-session attachment remains the default.
 
 ## Implementation sequence
 
@@ -206,7 +240,7 @@ Each step is implemented, tested and corrected before its commit.
 3. **Done:** Add observed selection, numeric-value and scrolling controls, with source-side
    revalidation and mobile rendering.
 4. **Done:** Add a local sharing picker and per-application compatibility diagnostics.
-5. Extend native and mobile end-to-end coverage, repeat real-app verification and
+5. **Done:** Extend native and mobile end-to-end coverage, repeat real-app verification and
    record the supported scope and remaining gaps.
 
 The target remains existing-session semantic interaction on Linux. Pixel streaming,

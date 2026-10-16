@@ -18,7 +18,10 @@ export function native(request) {
           return reject(Error("Accessibility worker unavailable or timed out"));
         try {
           const result = JSON.parse(stdout);
-          if (result.error) throw Error(result.error);
+          if (result.error)
+            throw Error(
+              result.detail ? `${result.error} ${result.detail}` : result.error,
+            );
           resolve(result);
         } catch (error) {
           reject(error);
@@ -320,12 +323,14 @@ export class DesktopWorkspace {
         const node = {
           role: raw.role,
           label:
-            raw.label ||
-            (raw.role === "text"
-              ? "Text"
-              : raw.role === "button"
-                ? "Activate"
-                : ""),
+            raw.native_action === "listitem.scroll-to"
+              ? `Scroll to: ${raw.label}`
+              : raw.label ||
+                (raw.role === "text"
+                  ? "Text"
+                  : raw.role === "button"
+                    ? "Activate"
+                    : ""),
           description: raw.description || "",
           actions: raw.actions,
           disabled: raw.disabled,
