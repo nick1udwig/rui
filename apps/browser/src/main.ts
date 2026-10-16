@@ -99,6 +99,22 @@ function enabled(node: Semantic) {
     node.states.get("Disabled") !== "True"
   );
 }
+const ariaRole: Record<string, string> = {
+  list: "list",
+  item: "listitem",
+  table: "table",
+  row: "row",
+  cell: "cell",
+  dialog: "region",
+};
+const rowShape = (kind: string) =>
+  kind.replace(/^view:(app|window)-active$/, "view:$1");
+function text(element: HTMLElement, value: string) {
+  if (element.textContent !== value) element.textContent = value;
+}
+function attribute(element: HTMLElement, name: string, value: string) {
+  if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+}
 function createRow(node: Semantic): Row {
   const group = node.role === "Group" || node.role === "Root",
     kind = node.browser_input_type ?? "";
@@ -110,14 +126,6 @@ function createRow(node: Semantic): Row {
   element.dataset.presentation = kind.startsWith("view:") ? kind.slice(5) : "";
   element.dataset.role = node.role;
   const structure = element.dataset.presentation;
-  const ariaRole: Record<string, string> = {
-    list: "list",
-    item: "listitem",
-    table: "table",
-    row: "row",
-    cell: "cell",
-    dialog: "region",
-  };
   if (ariaRole[structure]) element.setAttribute("role", ariaRole[structure]);
   if (structure === "dialog")
     element.setAttribute("aria-label", "Active dialog");
@@ -315,7 +323,7 @@ function render(state: State) {
     if (
       row &&
       (row.node.role !== node.role ||
-        row.kind !== (node.browser_input_type ?? ""))
+        rowShape(row.kind) !== rowShape(node.browser_input_type ?? ""))
     ) {
       row.element.remove();
       rows.delete(node.id);
@@ -326,34 +334,37 @@ function render(state: State) {
       rows.set(node.id, row);
     }
     row.node = node;
-    row.label.textContent = node.label ?? node.role;
+    const kind = node.browser_input_type ?? "";
+    if (row.kind !== kind) {
+      row.kind = kind;
+      row.element.dataset.presentation = kind.startsWith("view:")
+        ? kind.slice(5)
+        : "";
+      if (row.button) row.button.dataset.kind = kind;
+    }
+    text(row.label, node.label ?? node.role);
     if (!row.button) row.label.hidden = !node.label;
     if (row.filter) {
       row.filter.hidden = node.children.length < 5;
       if (row.filter.hidden) row.filter.value = "";
     }
-    row.description.textContent = node.description ?? "";
+    text(row.description, node.description ?? "");
     row.description.hidden = !node.description;
     if (row.button) {
-      row.button.textContent = node.label ?? "Activate";
-      row.button.setAttribute("aria-label", node.label ?? "Activate");
+      let label = node.label ?? "Activate";
+      attribute(row.button, "aria-label", label);
       if (
         workspace === "desktop" &&
         /^(Select|Selected|Deselect|Scroll to): /.test(node.label ?? "")
       ) {
-        row.button.textContent = node.label!.startsWith("Scroll to:")
+        label = node.label!.startsWith("Scroll to:")
           ? "Scroll into view"
           : node.label!.split(":")[0];
       }
-      if (
-        [
-          "view:app",
-          "view:app-active",
-          "view:window",
-          "view:window-active",
-        ].includes(row.kind)
-      ) {
-        row.button.setAttribute(
+      text(row.button, label);
+      if (["view:app", "view:window"].includes(rowShape(row.kind))) {
+        attribute(
+          row.button,
           "aria-pressed",
           String(row.kind.endsWith("-active")),
         );
@@ -375,14 +386,17 @@ function render(state: State) {
       } else {
         row.input.readOnly =
           !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
-        if (!row.dirty) row.input.value = sourceValue(node);
+        if (!row.dirty && row.input.value !== sourceValue(node))
+          row.input.value = sourceValue(node);
         if (
           row.dirty?.version !== undefined &&
           row.dirty.version !== node.version &&
           row.message
         )
-          row.message.textContent =
-            "The source changed. Your draft has been kept; discard it to edit the new value.";
+          text(
+            row.message,
+            "The source changed. Your draft has been kept; discard it to edit the new value.",
+          );
       }
     }
     if (row.apply) {

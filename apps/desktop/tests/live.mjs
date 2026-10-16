@@ -346,10 +346,17 @@ try {
     exact: true,
   });
   await otherWindow.waitFor();
+  const windowButton = await otherWindow.elementHandle();
   await otherWindow.click();
   await page
     .getByText("Content in the second window", { exact: true })
     .waitFor();
+  assert.equal(
+    await windowButton.evaluate(
+      (el) => el.isConnected && el.dataset.kind === "view:window-active",
+    ),
+    true,
+  );
   assert.equal(await document.count(), 0);
   source.stdin.write('{"op":"close-window"}\n');
   await document.waitFor();
