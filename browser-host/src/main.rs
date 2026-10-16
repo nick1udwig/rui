@@ -145,7 +145,7 @@ async fn main() -> Result<(), Error> {
             "Host commands: invite, approve CODE, deny CODE, devices, revoke CLIENT_ID, quit"
         );
         if std::env::var("RUI_WORKSPACE").as_deref() == Ok("desktop") {
-            eprintln!("Desktop commands: apps, share APP_ID, unshare APP_ID (approvals last until host exit)");
+            eprintln!("Desktop commands: apps, share APP_ID, unshare APP_ID, diagnose APP_ID (approvals last until host exit)");
         }
         for line in io::stdin().lock().lines().map_while(Result::ok) {
             let words: Vec<_> = line.split_whitespace().collect();
@@ -156,7 +156,7 @@ async fn main() -> Result<(), Error> {
                         let result = local_port.desktop_command("apps", None)?;
                         eprintln!("{}", serde_json::to_string_pretty(&result)?);
                     }
-                    [op @ ("share" | "unshare"), id] => {
+                    [op @ ("share" | "unshare" | "diagnose"), id] => {
                         let result = local_port.desktop_command(op, Some(id))?;
                         eprintln!("{}", serde_json::to_string_pretty(&result)?);
                     }
@@ -220,6 +220,7 @@ async fn main() -> Result<(), Error> {
         tokio::select! {
             accepted = admin.accept() => {
                 let (socket, _) = accepted?;
+                let peer_pid = socket.peer_cred().ok().and_then(|c| c.pid()).and_then(|pid| u32::try_from(pid).ok());
                 let Ok(permit) = permits.clone().try_acquire_owned() else { continue; };
                 let pairing = pairing.clone();
                 let pending = pending.clone();
@@ -231,7 +232,7 @@ async fn main() -> Result<(), Error> {
                     let mut line = String::new();
                     let read = tokio::time::timeout(Duration::from_secs(3), reader.read_line(&mut line)).await;
                     if !matches!(read, Ok(Ok(n)) if n <= 4096) { return; }
-                    let response = tokio::task::spawn_blocking(move || admin_request(&line, &pairing, &pending, &port))
+                    let response = tokio::task::spawn_blocking(move || admin_request(&line, &pairing, &pending, &port, peer_pid))
                         .await.unwrap_or(json!({"error":"host unavailable"}));
                     let _ = write.write_all(format!("{}\n",response).as_bytes()).await;
                 });
@@ -251,9 +252,25 @@ fn admin_request(
     pairing: &Mutex<PairingAuthority>,
     pending: &Mutex<BTreeMap<String, Pending>>,
     port: &BrowserPort,
+    peer_pid: Option<u32>,
 ) -> Value {
     let result = (|| -> Result<Value, Error> {
         let request: Value = serde_json::from_str(line)?;
+        // This socket lives in the owner's mode-0700 state directory. Public
+        // HTTP routes never forward these operations. Protect the picker by its
+        // kernel-observed PID before it creates an accessible window.
+        if request["op"] == "desktop-protect" {
+            let pid = peer_pid.ok_or("owner PID unavailable")?.to_string();
+            return Ok(port.desktop_command("protect", Some(&pid))?);
+        }
+        if request["op"] == "desktop" {
+            let op = request["command"].as_str().ok_or("desktop command")?;
+            if !matches!(op, "apps" | "share" | "unshare" | "diagnose") {
+                return Err("unsupported desktop command".into());
+            }
+            return Ok(port.desktop_command(op, request["id"].as_str())?);
+        }
+
         let mut entries = pending.lock().unwrap();
         let mut auth = pairing.lock().unwrap();
         let expired: Vec<_> = entries

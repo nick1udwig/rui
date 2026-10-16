@@ -2,12 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DesktopWorkspace } from "../workspace.mjs";
 
-function fixture() {
+function fixture(name = "Notes", localOnly = false) {
   const source = {
     root: [":1.2", "/app"],
     pid: 100,
     start: "200",
-    name: "Notes",
+    name,
+    local_only: localOnly,
   };
   let fingerprint = "a";
   let captures;
@@ -215,4 +216,41 @@ test("window navigation isolates content, retires controls and follows modals", 
   modal = false;
   await w.refresh();
   assert.ok(find("first document"));
+});
+
+test("local owner protection removes approvals and cannot be bypassed by stale IDs", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  const id = await share(w);
+  const old = await field(w);
+  await w.local({ op: "protect", id: "100" });
+  assert.equal(await field(w), undefined);
+  assert.equal((await w.dispatch(command(old))).status, "rejected");
+  assert.deepEqual((await w.local({ op: "apps" })).apps, []);
+  await assert.rejects(w.local({ op: "share", id }));
+  await assert.rejects(w.local({ op: "diagnose", id }));
+});
+
+test("closed shared apps remain removable and diagnostics never approve or publish content", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  const { apps } = await w.local({ op: "apps" });
+  await w.local({ op: "diagnose", id: apps[0].id });
+  assert.equal(w.approved.size, 0);
+  assert.equal(await field(w), undefined);
+  assert.equal(f.calls.at(-1).op, "diagnose");
+  const id = await share(w);
+  const invoke = w.invoke;
+  w.invoke = async (request) =>
+    request.op === "list" ? { apps: [] } : invoke(request);
+  const listing = await w.local({ op: "apps" });
+  assert.equal(listing.apps[0].shared, true);
+  assert.equal(listing.apps[0].available, false);
+  await w.local({ op: "unshare", id });
+  assert.equal(w.approved.size, 0);
+});
+
+test("the local-only sharing UI stays excluded after host restart", async () => {
+  const { workspace } = fixture("Notes", true);
+  assert.deepEqual((await workspace.local({ op: "apps" })).apps, []);
 });

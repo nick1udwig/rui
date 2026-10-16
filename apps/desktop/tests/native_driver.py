@@ -98,6 +98,12 @@ def run():
             source.stdin.write('{"op":"reorder-items"}\n'); source.stdin.flush(); time.sleep(.2)
             assert dispatch(observed, old_item, 'Activate')['status'] == 'rejected'
 
+            diagnostic = DesktopReader().execute({'op': 'diagnose', 'source': app})
+            assert diagnostic['counts']['editable_text'] >= 1
+            assert diagnostic['counts']['numeric_controls'] >= 2
+            assert diagnostic['counts']['selection_controls'] >= 4
+            assert 'Phone edit' not in json.dumps(diagnostic)
+            assert '/org/' not in json.dumps(diagnostic)
             os.kill(source.pid, signal.SIGSTOP)
             before = time.monotonic()
             try:

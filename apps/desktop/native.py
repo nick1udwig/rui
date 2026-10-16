@@ -79,7 +79,8 @@ class DesktopReader(Reader):
                 pid = self.pid(key)
                 stamp = process_stamp(pid)
                 name = text(self.props(key, 'Accessible').get('Name', ''))
-                apps.append({'root': key, 'pid': pid, 'start': stamp, 'name': name or f'Application {pid}'})
+                apps.append({'root': key, 'pid': pid, 'start': stamp, 'name': name or f'Application {pid}',
+                             'local_only': (Path('/proc') / str(pid) / 'comm').read_text().strip() == 'rui-share-ui'})
             except Exception:
                 continue  # One inaccessible app must not hide the others.
         return {'apps': apps}
@@ -362,6 +363,20 @@ class DesktopReader(Reader):
             return self.discover()
         if request['op'] == 'capture':
             return self.sample(request['source'])
+        if request['op'] == 'diagnose':
+            nodes = self.sample(request['source'])['nodes']
+            counts = {
+                'windows': sum(bool(n.get('window')) for n in nodes),
+                'text_fields': sum(n.get('kind') in ('text', 'textarea') for n in nodes),
+                'editable_text': sum(n.get('kind') in ('text', 'textarea') and 'SetValue' in n['actions'] for n in nodes),
+                'numeric_controls': sum('number' in n for n in nodes),
+                'selection_controls': sum(n.get('operation', {}).get('kind') == 'selection' for n in nodes),
+                'actions': sum('Activate' in n['actions'] for n in nodes),
+                'protected_fields': sum(n['label'] in ('Password field — unavailable', 'Protected field — unavailable') for n in nodes),
+            }
+            return {'status': 'readable', 'counts': counts,
+                    'scope': 'Observed accessibility only; graphics, password entry and compositor control are unavailable.'}
+
         if request['op'] != 'dispatch':
             raise ValueError('unsupported operation')
         # Account for process startup and time spent queued at the owner.

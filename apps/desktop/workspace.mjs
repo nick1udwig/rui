@@ -41,6 +41,7 @@ export class DesktopWorkspace {
   constructor(invoke = native) {
     this.invoke = invoke;
     this.catalog = new Map();
+    this.privatePids = new Set();
     this.approved = new Map();
     this.selected = undefined;
     this.generation = 0;
@@ -71,26 +72,50 @@ export class DesktopWorkspace {
       if (!Array.isArray(result.apps) || result.apps.length > 64)
         throw Error("Application limit");
       this.catalog = new Map(
-        result.apps.map((source) => {
-          const id = createHash("sha256")
-            .update(JSON.stringify([source.root, source.pid, source.start]))
-            .digest("hex")
-            .slice(0, 16);
-          return [id, source];
-        }),
+        result.apps
+          .filter(
+            (source) => !this.privatePids.has(source.pid) && !source.local_only,
+          )
+          .map((source) => {
+            const id = createHash("sha256")
+              .update(JSON.stringify([source.root, source.pid, source.start]))
+              .digest("hex")
+              .slice(0, 16);
+            return [id, source];
+          }),
       );
       return {
-        apps: [...this.catalog].map(([id, source]) => ({
-          id,
-          name: source.name,
-          pid: source.pid,
-          shared: this.approved.has(id),
-        })),
+        apps: [...new Map([...this.approved, ...this.catalog])].map(
+          ([id, source]) => ({
+            id,
+            name: source.name,
+            pid: source.pid,
+            shared: this.approved.has(id),
+            available: this.catalog.has(id),
+          }),
+        ),
       };
+    }
+    if (request.op === "protect") {
+      if (!/^[1-9][0-9]*$/.test(request.id || ""))
+        throw Error("Invalid owner PID");
+      const pid = Number(request.id);
+      this.privatePids.add(pid);
+      for (const [id, source] of this.catalog)
+        if (source.pid === pid) this.catalog.delete(id);
+      for (const [id, source] of this.approved)
+        if (source.pid === pid) await this.local({ op: "unshare", id });
+      return { protected: true };
+    }
+    if (request.op === "diagnose") {
+      const source = this.catalog.get(request.id);
+      if (!source || this.privatePids.has(source.pid))
+        throw Error("Application is no longer discoverable; refresh the list");
+      return this.invoke({ op: "diagnose", source });
     }
     if (request.op === "share") {
       const source = this.catalog.get(request.id);
-      if (!source)
+      if (!source || this.privatePids.has(source.pid))
         throw Error("Run apps and use an application ID from that list");
       if (this.approved.size >= 8 && !this.approved.has(request.id))
         throw Error("Eight shared applications maximum");

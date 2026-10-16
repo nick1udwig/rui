@@ -19,6 +19,8 @@ const directory = await mkdtemp(join(tmpdir(), "rui-desktop-live-"));
 const saved = join(directory, "document.txt");
 let source,
   second,
+  picker,
+  pickerSource,
   host,
   browser,
   proxy,
@@ -184,7 +186,108 @@ try {
       .slice(0, 16);
   const id = identifier(app),
     secondId = identifier(secondApp);
-  host.stdin.write(`share ${id}\n`);
+  picker = spawn(
+    "/usr/bin/python3",
+    ["apps/desktop/share.py", "--state-dir", join(directory, "state")],
+    { cwd: root, stdio: ["ignore", "ignore", "pipe"] },
+  );
+  picker.stderr.on("data", () => {});
+  const owner = await deadline(
+    async () =>
+      (await native({ op: "list" })).apps.find((a) => a.pid === picker.pid),
+    "local picker",
+  );
+  pickerSource = owner;
+  assert.equal(
+    owner.local_only,
+    true,
+    "kernel process marker also survives host restart",
+  );
+  const ownerAction = async (label) => {
+    const capture = await native({ op: "capture", source: owner });
+    const byKey = new Map(capture.nodes.map((n) => [JSON.stringify(n.key), n]));
+    const identity = `${app.name} (${app.pid})`;
+    const button = capture.nodes.find((n) => {
+      if (n.label !== label || !n.actions.includes("Activate")) return false;
+      let parent = n.parent && byKey.get(JSON.stringify(n.parent));
+      while (parent) {
+        if (
+          parent.children.some(
+            (k) => byKey.get(JSON.stringify(k))?.label === identity,
+          )
+        )
+          return true;
+        parent = parent.parent && byKey.get(JSON.stringify(parent.parent));
+      }
+      return false;
+    });
+    assert.ok(button, label);
+    assert.equal(
+      (
+        await native({
+          op: "dispatch",
+          source: owner,
+          key: button.key,
+          fingerprint: button.fingerprint,
+          action: "Activate",
+          expires: Date.now() + 2000,
+        })
+      ).status,
+      "dispatched",
+    );
+  };
+  await deadline(
+    async () =>
+      (await native({ op: "capture", source: owner })).nodes.some(
+        (n) => n.label === `${app.name} (${app.pid})`,
+      ),
+    "picker discovery",
+  );
+  const localApps = JSON.parse(
+    execFileSync(
+      "/usr/bin/python3",
+      [
+        "apps/desktop/share.py",
+        "--state-dir",
+        join(directory, "state"),
+        "--list",
+      ],
+      { encoding: "utf8", timeout: 10000 },
+    ),
+  ).apps;
+  assert.equal(
+    localApps.some((a) => a.pid === picker.pid),
+    false,
+    "owner picker must never be shareable",
+  );
+  await ownerAction("Check support");
+  await deadline(
+    async () =>
+      (await native({ op: "capture", source: owner })).nodes.some((n) =>
+        n.label.includes("Support checked;"),
+      ),
+    "local diagnostics",
+  );
+  assert.equal(
+    await page.getByLabel("Document", { exact: true }).count(),
+    0,
+    "diagnostics do not share content",
+  );
+  assert.equal(
+    await page.evaluate(
+      async () =>
+        (
+          await fetch(new URL("api/desktop", document.baseURI), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "apps" }),
+          })
+        ).status,
+    ),
+    404,
+    "no remote sharing endpoint",
+  );
+  await ownerAction("Share");
   const document = page.getByLabel("Document", { exact: true });
   await document.waitFor();
   assert.equal(await document.inputValue(), "Already open on the host");
@@ -369,6 +472,8 @@ try {
       mobile: "390x844 touch",
       mounted_path: mount,
       existing_app: true,
+      local_sharing_picker: true,
+      private_diagnostics: true,
       app_switching: true,
       window_navigation: true,
       closed_window_recovery: true,
@@ -383,6 +488,15 @@ try {
     }),
   );
 } catch (error) {
+  if (pickerSource)
+    console.error(
+      "Picker:",
+      (
+        await native({ op: "capture", source: pickerSource }).catch(() => ({
+          nodes: [],
+        }))
+      ).nodes.map((n) => n.label),
+    );
   console.error(
     "Client:",
     await page
@@ -395,6 +509,7 @@ try {
   throw error;
 } finally {
   await browser?.close();
+  await stop(picker);
   await stop(host);
   await stop(source);
   await stop(second);

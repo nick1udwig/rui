@@ -299,7 +299,9 @@ const rpc = socketServer((socket) => {
         invitationDeadline = Date.now() + 300_000;
         await printInvitation();
         result = { ok: true };
-      } else if (["apps", "share", "unshare"].includes(request.op)) {
+      } else if (
+        ["apps", "share", "unshare", "diagnose", "protect"].includes(request.op)
+      ) {
         try {
           result = await workspace.local(request);
         } catch (error) {

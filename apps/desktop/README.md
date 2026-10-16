@@ -33,12 +33,30 @@ The agent discovers the accessibility bus through `org.a11y.Bus.GetAddress`, or
 uses an explicitly supplied `AT_SPI_BUS_ADDRESS`. It does not change desktop
 settings or force accessibility into applications that have it disabled.
 
+For a local graphical picker, run this in another desktop terminal after the host
+starts (use the same `--state-dir` if you customized it):
+
+```sh
+python3 apps/desktop/share.py
+```
+
+Choose **Share**, **Stop sharing**, or **Check support**. Checking support reads
+local capability counts without sharing the app. Closed shared apps remain listed
+so their approval can be removed. The picker uses the private Unix socket, has no
+HTTP endpoint, and its own controls are excluded from sharing, including after a
+host restart. It requires GTK4/PyGObject. Device pairing approval remains in the
+host terminal.
+
+For scripts, `share.py --list` prints local app metadata and
+`share.py --diagnose APP_ID` prints counts. These options do not require GTK.
+
 In the host terminal:
 
 ```text
 apps
 share APP_ID
 unshare APP_ID
+diagnose APP_ID
 ```
 
 `apps` lists accessible application names, PIDs and opaque IDs locally. Copy an ID
@@ -187,7 +205,7 @@ Each step is implemented, tested and corrected before its commit.
 2. **Done:** Add explicit window navigation, modal routing and closed-window recovery.
 3. **Done:** Add observed selection, numeric-value and scrolling controls, with source-side
    revalidation and mobile rendering.
-4. Add a local sharing picker and per-application compatibility diagnostics.
+4. **Done:** Add a local sharing picker and per-application compatibility diagnostics.
 5. Extend native and mobile end-to-end coverage, repeat real-app verification and
    record the supported scope and remaining gaps.
 
