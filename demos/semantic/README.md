@@ -1,5 +1,7 @@
 # Semantic browser presentation
 
+See [getting started](../../docs/getting-started.md#semantic-editor) for prerequisites and a hands-on editor walkthrough.
+
 This separate consumer uses `BrowserClient` in semantic-only mode and the reusable
 `SemanticView` mapping with optional `SemanticControls`. It constructs no canvas
 and sends no Presented. Observers can navigate and select local text. Controllers

@@ -1,5 +1,8 @@
 # RUI implementation plans
 
+For current workspace capabilities and priorities, see [status and next steps](status.md).
+These plans preserve the original controlled-prototype baseline and the [P/C/L/S completion record](#implementation-record-2026-10-10).
+
 These plans extend RUI from its accepted controlled prototype toward a faster host, broader source coverage, reusable clients, and a semantic UI that can use a different layout from the host. They define implementation steps and completion evidence. The implementation record below distinguishes shipped scope from outstanding acceptance; the starting-point descriptions preserve the original baseline.
 
 The starting code is `5272eda` on `master`, reviewed on 2026-10-10. RFC milestones M0–M5 and all 79 original cases are accepted for the declared constrained GTK corpus and isolated session backend. The [acceptance record](../conformance/STATUS.md) remains the record of that scope. The four workstreams below add capabilities and performance goals beyond it.

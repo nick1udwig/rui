@@ -8,7 +8,9 @@ A visible Chromium browser runs on the Linux host. A responsive web client contr
 
 ## Start locally
 
-Prerequisites: the repository's pinned Rust/Node toolchains, `protoc`, Python 3, OpenSSL, Chromium, the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` 0.2.129. The browser app does not require GTK. Use a graphical Linux session with its `WAYLAND_DISPLAY` or `DISPLAY` environment; `--headless` is for automated tests.
+See the shared [prerequisites](../../docs/getting-started.md#prerequisites) for the tested Rust/Node versions and build tools.
+This app additionally needs Chromium, the WASM target, and `wasm-bindgen-cli` 0.2.129; GTK is not required.
+Use a graphical Linux session with its `WAYLAND_DISPLAY` or `DISPLAY` environment; `--headless` is for automated tests.
 
 ```sh
 rustup target add wasm32-unknown-unknown

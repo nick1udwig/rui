@@ -4,7 +4,7 @@ The GTK window on machine A owns the counter, text, list and menu. The browser d
 
 ## Run it
 
-Use the existing native demo dependencies, plus Node 26.8.1 (the browser package requires Node 26.8.1 or newer within 26.x), the WASM Rust target and the matching bindings CLI:
+Install the shared [GTK demo prerequisites](../../docs/getting-started.md#prerequisites), then add the WASM Rust target and matching bindings CLI:
 
 ```sh
 rustup target add wasm32-unknown-unknown

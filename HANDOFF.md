@@ -1,7 +1,8 @@
 # RUI implementation handoff
 
 This is a historical handoff from 2026-10-02, before M0–M5 acceptance and the browser-client extension.
-Its paused agents, open gates and dirty-work descriptions record that point in time. Current status is in [IMPLEMENTATION.md](IMPLEMENTATION.md) and [conformance/STATUS.md](conformance/STATUS.md).
+Its paused agents, open gates and dirty-work descriptions record that point in time.
+Current product scope is in [status and next steps](docs/status.md); the [implementation log](IMPLEMENTATION.md) and [acceptance record](conformance/STATUS.md) retain milestone evidence.
 
 Recorded 2026-10-02, approximately 21:15 UTC / 14:15 America/Los_Angeles.
 Implementation HEAD before this handoff: `b5b8266` on `master`.

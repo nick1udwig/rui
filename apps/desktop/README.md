@@ -27,8 +27,7 @@ also work here; `--http-local` is available for local development. The desktop
 mode launches Chromium only when you add `--with-browser`. Use a different port and path to run it alongside
 the browser workspace.
 
-System dependencies: Python 3 with PyGObject/Gio, the AT-SPI accessibility bus and
-registry, plus the browser workspace's Rust, Node/npm and OpenSSL build tools.
+System dependencies are Python 3 with PyGObject/Gio, the AT-SPI accessibility bus and registry, plus the shared [Rust, Node/npm, and OpenSSL build tools](../../docs/getting-started.md#prerequisites).
 The agent discovers the accessibility bus through `org.a11y.Bus.GetAddress`, or
 uses an explicitly supplied `AT_SPI_BUS_ADDRESS`. It does not change desktop
 settings or force accessibility into applications that have it disabled.

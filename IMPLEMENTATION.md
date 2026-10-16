@@ -1,3 +1,10 @@
+# Implementation log
+
+This log records the original prototype and subsequent P/C/L/S implementation work.
+Entries retain the remaining-work notes from their implementation stage.
+For the current desktop/browser workspaces and priorities, see [status and next steps](docs/status.md).
+Use [development and verification](docs/development.md) for checks and the [documentation index](docs/README.md) for component guides.
+
 P1 ownership diagnostics: matching crate/browser 0.1.1 adds a conservative Rust
 memoryPeak getter for cold/recovery/lifecycle reports, separate from JavaScript and
 socket/allocator capacity. Core and three-engine disposed/active ownership checks
@@ -96,7 +103,7 @@ serialization fixture covers all six records and maximum-width clocks/typed valu
 See docs/browser-integration.md. Semantic configuration, capability reporting,
 cache-loss APIs and clean external consumer validation are still tracked separately.
 
-# Implementation status
+## Accepted prototype
 
 The historical prototype acceptance covers RFC milestones M0–M5 and their 79 conformance cases, including the original performance cases.
 Deferred features in RFC section 14 remain outside that scope.
@@ -237,11 +244,9 @@ source-action harness remains about 153 ms p95 and browser latency varies.
 from presentation; generation-bound export, damage and the large native cost
 remain later measured optimizations.
 
-The [implementation plans](docs/implementation-plans.md) expand these four areas into sequenced changes, dependencies, acceptance criteria and validation commands for future implementors.
+The [implementation plans](docs/implementation-plans.md) preserve the sequenced changes, dependencies, acceptance criteria, validation commands, and completion evidence for these four workstreams.
+Their starting-point descriptions are historical baselines.
+Current priorities and coverage limits, including the newer existing-app and managed-browser workspaces, are collected in [status and next steps](docs/status.md).
 
-- **Performance:** the interactive host now captures from dirty notifications and publishes validated warm transactions. Client state export and rendering still need measured optimization; the larger reference workload also needs renderer optimization and fresh end-to-end measurements. The existing core already supports transactions and resource reuse.
-- **Broader source coverage:** the accepted GTK producer cooperates with a pinned application and constrained styles. Default styles still have named unsupported paint nodes; unmodified applications, shell decorations and general compositor desktops require additional adapters and measured coverage. The strict no-raster profile cannot represent arbitrary photos/video faithfully.
-- **Browser and library completion:** extend negotiated browser capabilities as needed, reduce state-copy/render overhead where measurements justify it. The npm package has a tested private tarball and compatibility/version policy; public registry release and broader device/external-machine acceptance remain future work. WASM/browser CI and the tested desktop engine matrix are now documented separately.
-- **Semantic presentation:** the independent semantic-only client proves the schema/action boundary. A generic semantic DOM presentation now covers two owned applications; physical mobile/screen-reader and external-machine acceptance remains outstanding.
-
-RFC section 14 deliberately defers mobile translation, independent application views, concurrent writers/CRDTs, general GPU streaming, audio/video, clipboard/file transfer, raster asset profiles, executable components, browser-engine capture and cross-compositor standardization. These are optional future scope, not unfinished M0–M5 gates.
+RFC section 14 records features deferred from the original M0–M5 scope.
+Subsequent semantic presentation and managed-browser work extend that baseline; the original deferral list is not a current inventory of unavailable features.

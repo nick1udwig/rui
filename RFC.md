@@ -1,9 +1,11 @@
 # RUI/0.1: Remote UI State Replication
 
-**Status:** proposed initial design, not an existing standard or an implemented remote-desktop product.  
-**Date:** 2026-10-01.  
-**Deliverables in this bundle:** this design and a machine-readable conformance-test specification.
-No runtime, renderer, GTK patch, or executable test suite is included.
+**Status:** historical initial design, not an external standard.
+**Date:** 2026-10-01.
+
+The original bundle contained this design and a machine-readable conformance-test specification, without a runtime or executable test suite.
+The repository now includes implementations and extensions beyond that original scope.
+See [current status and direction](docs/status.md), [implementation acceptance](conformance/STATUS.md), and the [profile index](docs/README.md#protocol-design-and-profiles) for the implemented system.
 
 ## 1. Decision and scope
 
