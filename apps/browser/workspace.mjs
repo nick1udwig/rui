@@ -4,6 +4,45 @@ import { randomBytes } from "node:crypto";
 import { readdir, realpath, lstat, mkdir } from "node:fs/promises";
 import { resolve, basename, sep } from "node:path";
 
+const INTERACTIVE = new Set([
+  "button",
+  "link",
+  "checkbox",
+  "radio",
+  "textbox",
+  "searchbox",
+  "combobox",
+  "spinbutton",
+  "slider",
+  "menuitem",
+  "tab",
+  "DisclosureTriangle",
+  "Date",
+  "DateTime",
+  "InputTime",
+]);
+const STRUCTURE = Object.freeze({
+  main: "document",
+  article: "document",
+  navigation: "navigation",
+  list: "list",
+  listitem: "item",
+  table: "table",
+  row: "row",
+  cell: "cell",
+  columnheader: "cell",
+  rowheader: "cell",
+  paragraph: "paragraph",
+  blockquote: "quote",
+});
+const INFORMATIONAL = new Set([
+  "StaticText",
+  "heading",
+  "alert",
+  "status",
+  "img",
+]);
+
 const MAX_NODES = 900,
   MAX_TEXT = 16_384;
 const clean = (value) => String(value ?? "").slice(0, MAX_TEXT / 4);
@@ -192,10 +231,10 @@ export class Workspace {
     this.semantic.targets.clear();
     for (const [token, s] of this.secrets)
       if (s.expires < Date.now()) this.secrets.delete(token);
-    const nodes = [],
+    const byId = new Map(),
       rootChildren = [];
     const add = (n) => {
-      nodes.push(n);
+      byId.set(n.id, n);
       return n.id;
     };
     const group = (key, label, children, kind = null) =>
@@ -359,55 +398,17 @@ export class Workspace {
           });
           const map = new Map(tree.nodes.map((n) => [n.nodeId, n]));
           const visit = async (ax) => {
-            if (!ax || included >= 600 || nodes.length >= MAX_NODES - 40)
-              return;
+            if (!ax || included >= 600 || byId.size >= MAX_NODES - 40) return;
             const role = ax.role?.value,
               label = clean(ax.name?.value),
               backend = ax.backendDOMNodeId;
             const props = Object.fromEntries(
               (ax.properties || []).map((p) => [p.name, p.value.value]),
             );
-            const interactive =
-              !!props.editable ||
-              [
-                "button",
-                "link",
-                "checkbox",
-                "radio",
-                "textbox",
-                "searchbox",
-                "combobox",
-                "spinbutton",
-                "slider",
-                "menuitem",
-                "tab",
-                "DisclosureTriangle",
-                "Date",
-                "DateTime",
-                "InputTime",
-              ].includes(role);
-            const structure = {
-              main: "document",
-              article: "document",
-              navigation: "navigation",
-              list: "list",
-              listitem: "item",
-              table: "table",
-              row: "row",
-              cell: "cell",
-              columnheader: "cell",
-              rowheader: "cell",
-              paragraph: "paragraph",
-              blockquote: "quote",
-            }[role];
+            const interactive = !!props.editable || INTERACTIVE.has(role);
+            const structure = STRUCTURE[role];
             const start = content.length;
-            const informational = [
-              "StaticText",
-              "heading",
-              "alert",
-              "status",
-              "img",
-            ].includes(role);
+            const informational = INFORMATIONAL.has(role);
             if (
               !ax.ignored &&
               (interactive || informational) &&
@@ -572,14 +573,14 @@ export class Workspace {
                 } else if (role === "img")
                   node.description = "Image description; image unavailable";
                 // AX exposes label text separately from its labelled control.
-                const previous = nodes.find((n) => n.id === content.at(-1));
+                const previous = byId.get(content.at(-1));
                 if (
                   previous?.role === "label" &&
                   previous.label === node.label &&
                   node.role !== "label"
                 ) {
                   content.pop();
-                  nodes.splice(nodes.indexOf(previous), 1);
+                  byId.delete(previous.id);
                 }
                 if (
                   !(
@@ -598,7 +599,7 @@ export class Workspace {
               structure &&
               !ax.ignored &&
               content.length > start &&
-              nodes.length < MAX_NODES - 40
+              byId.size < MAX_NODES - 40
             ) {
               const children = content.splice(start);
               const key = `${this.pages.get(page).id}:${this.pages.get(page).generation}:${frameId}:structure:${ax.nodeId}`;
@@ -680,13 +681,14 @@ export class Workspace {
       }
       rootChildren.push(group("downloads", "Host downloads", children));
     }
-    nodes.unshift(
+    const nodes = [
       this.semantic.node("root", {
         role: "root",
         label: "Remote browser",
         children: rootChildren,
       }),
-    );
+      ...byId.values(),
+    ];
     this.semantic.retain(nodes);
     const capture = { nodes, status };
     if (Buffer.byteLength(JSON.stringify(capture)) > 900_000)

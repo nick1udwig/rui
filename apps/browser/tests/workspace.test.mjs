@@ -75,6 +75,14 @@ test(
         return n;
       };
       const structured = await workspace.capture();
+      assert.equal(
+        structured.nodes.filter((n) => n.label === "Name").length,
+        1,
+      );
+      assert.equal(
+        new Set(structured.nodes.map((n) => n.id)).size,
+        structured.nodes.length,
+      );
       assert.ok(
         structured.nodes.some(
           (n) => n.kind === "view:heading1" && n.label === "Fixture page",
