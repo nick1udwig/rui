@@ -412,41 +412,45 @@ class DesktopReader(Reader):
         expires = request['expires'] / 1000
         if time.time() >= expires:
             return {'status': 'rejected'}
-        capture = self.sample(request['source'])
-        key = identity(request['key'])
-        node = next((n for n in capture['nodes'] if n['key'] == key), None)
-        action = request['action']
-        if (node is None or node['fingerprint'] != request['fingerprint']
-                or action not in node['actions'] or node['disabled'] or time.time() >= expires):
-            return {'status': 'rejected', 'reason': 'missing target' if node is None else
-                    'changed target' if node['fingerprint'] != request['fingerprint'] else
-                    'disabled target' if node['disabled'] else
-                    'expired command' if time.time() >= expires else 'unsupported action'}
-        operation = node.get('operation', {})
-        target = key
-        interface, method, args = None, None, None
-        if (action == 'SetValue' and 'number' in node) or operation.get('kind') == 'number':
-            try:
-                value = float(text(request['value'], 128)) if action == 'SetValue' else operation['value']
-                limits = node['number'] if action == 'SetValue' else operation['limits']
-                if not math.isfinite(value) or not limits['min'] <= value <= limits['max']:
+        try:
+            capture = self.sample(request['source'])
+            key = identity(request['key'])
+            node = next((n for n in capture['nodes'] if n['key'] == key), None)
+            action = request['action']
+            if (node is None or node['fingerprint'] != request['fingerprint']
+                    or action not in node['actions'] or node['disabled'] or time.time() >= expires):
+                return {'status': 'rejected', 'reason': 'missing target' if node is None else
+                        'changed target' if node['fingerprint'] != request['fingerprint'] else
+                        'disabled target' if node['disabled'] else
+                        'expired command' if time.time() >= expires else 'unsupported action'}
+            operation = node.get('operation', {})
+            target = key
+            interface, method, args = None, None, None
+            if (action == 'SetValue' and 'number' in node) or operation.get('kind') == 'number':
+                try:
+                    value = float(text(request['value'], 128)) if action == 'SetValue' else operation['value']
+                    limits = node['number'] if action == 'SetValue' else operation['limits']
+                    if not math.isfinite(value) or not limits['min'] <= value <= limits['max']:
+                        return {'status': 'rejected'}
+                except (ValueError, TypeError, KeyError):
                     return {'status': 'rejected'}
-            except (ValueError, TypeError, KeyError):
+                target = identity(operation.get('target', key))
+                method, interface = 'Set', 'org.freedesktop.DBus.Properties'
+                args = self.GLib.Variant('(ssv)', (A + 'Value', 'CurrentValue', self.GLib.Variant('d', value)))
+            elif operation.get('kind') == 'selection' and action == 'Activate':
+                target = identity(operation['target'])
+                method, interface = operation['method'], A + 'Selection'
+                args = self.GLib.Variant('(i)', (operation['index'],))
+            elif action == 'SetValue':
+                value = text(request['value'], MAX_TEXT)
+                method, interface, args = 'SetTextContents', A + 'EditableText', self.GLib.Variant('(s)', (value,))
+            elif action == 'Activate':
+                method, interface, args = 'DoAction', A + 'Action', self.GLib.Variant('(i)', (0,))
+            else:
                 return {'status': 'rejected'}
-            target = identity(operation.get('target', key))
-            method, interface = 'Set', 'org.freedesktop.DBus.Properties'
-            args = self.GLib.Variant('(ssv)', (A + 'Value', 'CurrentValue', self.GLib.Variant('d', value)))
-        elif operation.get('kind') == 'selection' and action == 'Activate':
-            target = identity(operation['target'])
-            method, interface = operation['method'], A + 'Selection'
-            args = self.GLib.Variant('(i)', (operation['index'],))
-        elif action == 'SetValue':
-            value = text(request['value'], MAX_TEXT)
-            method, interface, args = 'SetTextContents', A + 'EditableText', self.GLib.Variant('(s)', (value,))
-        elif action == 'Activate':
-            method, interface, args = 'DoAction', A + 'Action', self.GLib.Variant('(i)', (0,))
-        else:
-            return {'status': 'rejected'}
+        except Exception:
+            # No mutating call has been attempted; retry requires a fresh command.
+            return {'status': 'rejected', 'reason': 'observation unavailable'}
         # Once the method is attempted, a timeout must never become a retry.
         try:
             reply = self.call(target, interface, method, args)

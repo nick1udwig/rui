@@ -298,13 +298,36 @@ try {
   assert.ok(
     !(await page.locator("#view").textContent()).includes("not-in-publication"),
   );
-  await page.getByRole("button", { name: "Release", exact: true }).click();
+  await page.evaluate(() => {
+    const heading = document.querySelector("#view h1");
+    const input = [...document.querySelectorAll("#view input")].find(
+      (el) => el.value === "Mobile café Ω",
+    );
+    const range = document.createRange();
+    range.selectNodeContents(heading.firstChild);
+    input.focus();
+    input.setSelectionRange(2, 5);
+    window.renderProbe = { heading, text: heading.firstChild, input, range };
+    document.getElementById("release").click();
+  });
   await deadline(
     async () =>
       await page
         .getByRole("button", { name: "Run action", exact: true })
         .isDisabled(),
     "release disables actions",
+  );
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const { heading, text, input, range } = window.renderProbe;
+      return {
+        sameText: heading.firstChild === text,
+        selected: range.toString(),
+        focused: document.activeElement === input,
+        cursor: [input.selectionStart, input.selectionEnd],
+      };
+    }),
+    { sameText: true, selected: "Host fixture", focused: true, cursor: [2, 5] },
   );
   await page.reload();
   await deadline(

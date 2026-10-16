@@ -77,10 +77,27 @@ def parse_args(argv=None, workspace="browser"):
     return args
 
 
+def validate_inputs(args, workspace):
+    args.files_dir = args.files_dir.expanduser().resolve()
+    if workspace == 'browser' or getattr(args, 'with_browser', False):
+        if not args.files_dir.is_dir():
+            raise SystemExit('--files-dir must be an existing directory')
+        executable = Path(args.chromium).expanduser().resolve()
+        if not executable.is_file() or not os.access(executable, os.X_OK):
+            raise SystemExit('--chromium must name an executable file')
+        args.chromium = str(executable)
+    for option in ('cert', 'key'):
+        path = getattr(args, option)
+        if path is not None:
+            path = path.expanduser().resolve()
+            if not path.is_file() or not os.access(path, os.R_OK):
+                raise SystemExit(f'--{option} must name a readable file')
+            setattr(args, option, path)
+
+
 def main(workspace="browser"):
     args = parse_args(workspace=workspace)
-    if workspace == 'browser' and not args.files_dir.is_dir():
-        raise SystemExit('--files-dir must be an existing directory')
+    validate_inputs(args, workspace)
     os.umask(0o077)
     directory = args.state_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)

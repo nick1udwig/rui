@@ -1,7 +1,47 @@
+import { SemanticNodes } from "../shared/semantic-nodes.mjs";
 import { chromium } from "playwright";
 import { randomBytes } from "node:crypto";
 import { readdir, realpath, lstat, mkdir } from "node:fs/promises";
 import { resolve, basename, sep } from "node:path";
+
+const INTERACTIVE = new Set([
+  "button",
+  "link",
+  "checkbox",
+  "radio",
+  "textbox",
+  "searchbox",
+  "combobox",
+  "spinbutton",
+  "slider",
+  "menuitem",
+  "tab",
+  "DisclosureTriangle",
+  "Date",
+  "DateTime",
+  "InputTime",
+]);
+const STRUCTURE = Object.freeze({
+  main: "document",
+  article: "document",
+  navigation: "navigation",
+  list: "list",
+  listitem: "item",
+  table: "table",
+  row: "row",
+  cell: "cell",
+  columnheader: "cell",
+  rowheader: "cell",
+  paragraph: "paragraph",
+  blockquote: "quote",
+});
+const INFORMATIONAL = new Set([
+  "StaticText",
+  "heading",
+  "alert",
+  "status",
+  "img",
+]);
 
 const MAX_NODES = 900,
   MAX_TEXT = 16_384;
@@ -20,10 +60,7 @@ export class Workspace {
     this.context = context;
     this.files = files;
     this.downloadDir = downloads;
-    this.next = 10;
-    this.keys = new Map();
-    this.versions = new Map();
-    this.targets = new Map();
+    this.semantic = new SemanticNodes();
     this.pages = new Map();
     this.active = undefined;
     this.offset = 0;
@@ -123,38 +160,6 @@ export class Workspace {
       );
     });
   }
-  id(key) {
-    if (!this.keys.has(key)) {
-      if (this.next >= 1_000_000)
-        throw Error("Browser identity limit; restart host");
-      this.keys.set(key, this.next++);
-    }
-    return this.keys.get(key);
-  }
-  node(key, data, handler) {
-    const id = key === "root" ? 3 : this.id(key);
-    const node = {
-      id,
-      version: 1,
-      role: "label",
-      label: "",
-      description: "",
-      kind: null,
-      value: null,
-      children: [],
-      actions: [],
-      disabled: false,
-      ...data,
-    };
-    const signature = JSON.stringify({ ...node, version: 0 });
-    const prior = this.versions.get(id);
-    node.version = prior
-      ? prior.version + Number(prior.signature !== signature)
-      : 1;
-    this.versions.set(id, { signature, version: node.version });
-    if (handler) this.targets.set(id, { ...handler, node });
-    return node;
-  }
   async session(page, frame) {
     const entry = this.pages.get(page);
     if (!entry.sessions.has(frame))
@@ -223,20 +228,20 @@ export class Workspace {
     }
   }
   async capture() {
-    this.targets.clear();
+    this.semantic.targets.clear();
     for (const [token, s] of this.secrets)
       if (s.expires < Date.now()) this.secrets.delete(token);
-    const nodes = [],
+    const byId = new Map(),
       rootChildren = [];
     const add = (n) => {
-      nodes.push(n);
+      byId.set(n.id, n);
       return n.id;
     };
     const group = (key, label, children, kind = null) =>
-      add(this.node(key, { role: "group", label, children, kind }));
+      add(this.semantic.node(key, { role: "group", label, children, kind }));
     const button = (key, label, handler, disabled = false) =>
       add(
-        this.node(
+        this.semantic.node(
           key,
           { role: "button", label, actions: ["Activate"], disabled },
           handler,
@@ -247,7 +252,7 @@ export class Workspace {
     if (this.closed) {
       return {
         nodes: [
-          this.node("root", {
+          this.semantic.node("root", {
             role: "root",
             label: "Browser closed. Restart the host to continue.",
           }),
@@ -277,7 +282,7 @@ export class Workspace {
         prefix = `${entry.id}:${entry.generation}`;
       toolbar.push(
         add(
-          this.node(
+          this.semantic.node(
             `${prefix}:url`,
             {
               role: "text",
@@ -341,12 +346,16 @@ export class Workspace {
       const d = this.dialog,
         children = [];
       children.push(
-        add(this.node(`${d.id}:message`, { label: clean(d.dialog.message()) })),
+        add(
+          this.semantic.node(`${d.id}:message`, {
+            label: clean(d.dialog.message()),
+          }),
+        ),
       );
       if (d.dialog.type() === "prompt")
         children.push(
           add(
-            this.node(
+            this.semantic.node(
               `${d.id}:prompt`,
               {
                 role: "text",
@@ -389,55 +398,17 @@ export class Workspace {
           });
           const map = new Map(tree.nodes.map((n) => [n.nodeId, n]));
           const visit = async (ax) => {
-            if (!ax || included >= 600 || nodes.length >= MAX_NODES - 40)
-              return;
+            if (!ax || included >= 600 || byId.size >= MAX_NODES - 40) return;
             const role = ax.role?.value,
               label = clean(ax.name?.value),
               backend = ax.backendDOMNodeId;
             const props = Object.fromEntries(
               (ax.properties || []).map((p) => [p.name, p.value.value]),
             );
-            const interactive =
-              !!props.editable ||
-              [
-                "button",
-                "link",
-                "checkbox",
-                "radio",
-                "textbox",
-                "searchbox",
-                "combobox",
-                "spinbutton",
-                "slider",
-                "menuitem",
-                "tab",
-                "DisclosureTriangle",
-                "Date",
-                "DateTime",
-                "InputTime",
-              ].includes(role);
-            const structure = {
-              main: "document",
-              article: "document",
-              navigation: "navigation",
-              list: "list",
-              listitem: "item",
-              table: "table",
-              row: "row",
-              cell: "cell",
-              columnheader: "cell",
-              rowheader: "cell",
-              paragraph: "paragraph",
-              blockquote: "quote",
-            }[role];
+            const interactive = !!props.editable || INTERACTIVE.has(role);
+            const structure = STRUCTURE[role];
             const start = content.length;
-            const informational = [
-              "StaticText",
-              "heading",
-              "alert",
-              "status",
-              "img",
-            ].includes(role);
+            const informational = INFORMATIONAL.has(role);
             if (
               !ax.ignored &&
               (interactive || informational) &&
@@ -602,14 +573,14 @@ export class Workspace {
                 } else if (role === "img")
                   node.description = "Image description; image unavailable";
                 // AX exposes label text separately from its labelled control.
-                const previous = nodes.find((n) => n.id === content.at(-1));
+                const previous = byId.get(content.at(-1));
                 if (
                   previous?.role === "label" &&
                   previous.label === node.label &&
                   node.role !== "label"
                 ) {
                   content.pop();
-                  nodes.splice(nodes.indexOf(previous), 1);
+                  byId.delete(previous.id);
                 }
                 if (
                   !(
@@ -618,7 +589,7 @@ export class Workspace {
                     previous.label === node.label
                   )
                 )
-                  content.push(add(this.node(prefix, node, handler)));
+                  content.push(add(this.semantic.node(prefix, node, handler)));
                 included++;
               }
               if (interactive) return;
@@ -628,7 +599,7 @@ export class Workspace {
               structure &&
               !ax.ignored &&
               content.length > start &&
-              nodes.length < MAX_NODES - 40
+              byId.size < MAX_NODES - 40
             ) {
               const children = content.splice(start);
               const key = `${this.pages.get(page).id}:${this.pages.get(page).generation}:${frameId}:structure:${ax.nodeId}`;
@@ -646,7 +617,7 @@ export class Workspace {
       if (!content.length)
         content.push(
           add(
-            this.node("empty-content", {
+            this.semantic.node("empty-content", {
               label:
                 "No supported page content in this section. Try the previous section or another address.",
             }),
@@ -694,7 +665,7 @@ export class Workspace {
       for (const d of this.downloads) {
         children.push(
           add(
-            this.node(`${d.id}:download`, {
+            this.semantic.node(`${d.id}:download`, {
               label: d.name,
               description: d.status,
             }),
@@ -710,18 +681,15 @@ export class Workspace {
       }
       rootChildren.push(group("downloads", "Host downloads", children));
     }
-    nodes.unshift(
-      this.node("root", {
+    const nodes = [
+      this.semantic.node("root", {
         role: "root",
         label: "Remote browser",
         children: rootChildren,
       }),
-    );
-    // Bound identity caches to live nodes; numbers themselves are never reused.
-    const live = new Set(nodes.map((n) => n.id));
-    for (const [key, id] of this.keys) if (!live.has(id)) this.keys.delete(key);
-    for (const id of this.versions.keys())
-      if (!live.has(id)) this.versions.delete(id);
+      ...byId.values(),
+    ];
+    this.semantic.retain(nodes);
     const capture = { nodes, status };
     if (Buffer.byteLength(JSON.stringify(capture)) > 900_000)
       throw Error("Page semantic limit");
@@ -743,7 +711,7 @@ export class Workspace {
     try {
       // Refresh before resolving a public identity; a changed document never inherits it.
       await this.capture();
-      const target = this.targets.get(request.target);
+      const target = this.semantic.targets.get(request.target);
       if (
         !target ||
         target.node.version !== request.version ||

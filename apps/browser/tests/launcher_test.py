@@ -3,6 +3,8 @@ import importlib.util
 import io
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+from tempfile import TemporaryDirectory
 
 spec = importlib.util.spec_from_file_location('browser_launcher', Path(__file__).resolve().parents[1] / 'run.py')
 launcher = importlib.util.module_from_spec(spec)
@@ -55,6 +57,42 @@ class ListenerConfiguration(unittest.TestCase):
         self.assertEqual(direct.origin, 'https://host.example')
         local = launcher.parse_args(['--http-local', '--port', '80'])
         self.assertEqual(local.origin, 'http://localhost')
+
+
+class InputValidation(unittest.TestCase):
+    def test_missing_browser_inputs_fail_before_build_or_state_changes(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for workspace, flags in [('browser', []), ('desktop', ['--with-browser'])]:
+                args = launcher.parse_args(['--http-local', *flags, '--files-dir', str(root/'missing'),
+                                            '--state-dir', str(root/'state')], workspace=workspace)
+                with self.subTest(workspace=workspace), patch.object(launcher, 'parse_args', return_value=args), patch.object(launcher, 'run') as build:
+                    with self.assertRaisesRegex(SystemExit, '--files-dir'):
+                        launcher.main(workspace)
+                    build.assert_not_called()
+                    self.assertFalse(args.state_dir.exists())
+
+    def test_native_only_desktop_does_not_require_browser_inputs(self):
+        args = launcher.parse_args(['--http-local', '--files-dir', '/nonexistent-rui-files',
+                                    '--chromium', '/nonexistent-rui-chromium'], workspace='desktop')
+        launcher.validate_inputs(args, 'desktop')
+
+    def test_browser_executable_and_tls_files_are_checked(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root/'browser'
+            executable.write_text('#!/bin/sh\n')
+            args = launcher.parse_args(['--files-dir', str(root), '--chromium', str(executable),
+                                        '--cert', str(root/'cert'), '--key', str(root/'key')])
+            with self.assertRaisesRegex(SystemExit, '--chromium'):
+                launcher.validate_inputs(args, 'browser')
+            executable.chmod(0o700)
+            for option in ('cert', 'key'):
+                with self.assertRaisesRegex(SystemExit, '--' + option):
+                    launcher.validate_inputs(args, 'browser')
+                (root/option).write_text('fixture')
+            launcher.validate_inputs(args, 'browser')
+            self.assertEqual(args.chromium, str(executable.resolve()))
 
 
 if __name__ == '__main__':

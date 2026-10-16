@@ -1,7 +1,9 @@
 import { Workspace } from "./workspace.mjs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
-import { createServer as socketServer, createConnection } from "node:net";
+import { createServer as socketServer } from "node:net";
+import { readJson, requestJson } from "./json-stream.mjs";
+import { serveFrames } from "./framed-rpc.mjs";
 import { readFile, stat, chmod } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -35,39 +37,9 @@ const equal = (a, b) =>
   typeof a === "string" &&
   a.length === b.length &&
   timingSafeEqual(Buffer.from(a), Buffer.from(b));
-function admin(request) {
-  return new Promise((resolve, reject) => {
-    const socket = createConnection(resolvePath("admin.sock"));
-    let data = "";
-    socket.setTimeout(6000, () => socket.destroy(Error("Host deadline")));
-    socket.on("connect", () => socket.write(JSON.stringify(request) + "\n"));
-    socket.on("data", (chunk) => {
-      data += chunk;
-      if (data.length > 8192) socket.destroy(Error("Host response limit"));
-      else if (data.includes("\n")) {
-        socket.end();
-        try {
-          const result = JSON.parse(data);
-          if (result.error) reject(Error(result.error));
-          else resolve(result);
-        } catch (e) {
-          reject(e);
-        }
-      }
-    });
-    socket.on("error", reject);
-  });
-}
+const admin = (request) => requestJson(resolvePath("admin.sock"), request);
 function resolvePath(name) {
   return resolve(directory, name);
-}
-async function body(request) {
-  let data = "";
-  for await (const chunk of request) {
-    data += chunk;
-    if (Buffer.byteLength(data) > 65536) throw Error("Request limit");
-  }
-  return JSON.parse(data);
 }
 function respond(response, status, data) {
   response.writeHead(status, {
@@ -104,7 +76,7 @@ const handler = async (request, response) => {
         request.headers["content-type"] !== "application/json"
       )
         return respond(response, 403, { error: "Origin rejected" });
-      const data = await body(request);
+      const data = await readJson(request);
       if (url.pathname === "/api/pair") {
         for (const [ticket, pending] of pairings)
           if (pending.expires < Date.now()) pairings.delete(ticket);
@@ -282,53 +254,31 @@ let owner;
 const rpc = socketServer((socket) => {
   if (owner) return socket.destroy();
   owner = socket;
-  let pending = Buffer.alloc(0),
-    processing = false;
-  socket.on("data", async (chunk) => {
-    pending = Buffer.concat([pending, chunk]);
-    if (pending.length > 65540) return socket.destroy();
-    if (processing || pending.length < 4) return;
-    const size = pending.readUInt32BE(0);
-    if (size > 65536) return socket.destroy();
-    if (pending.length < size + 4) return;
-    processing = true;
-    const bytes = pending.subarray(4, size + 4);
-    pending = pending.subarray(size + 4);
-    try {
-      const request = JSON.parse(bytes);
-      let result;
-      if (request.op === "invite") {
-        invitation = randomBytes(32).toString("hex");
-        invitationDeadline = Date.now() + 300_000;
-        await printInvitation();
-        result = { ok: true };
-      } else if (
-        ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(
-          request.op,
-        )
-      ) {
-        try {
-          result = await workspace.local(request);
-        } catch (error) {
-          result = { error: error.message };
-        }
-      } else
-        result =
-          request.op === "capture"
-            ? await workspace.capture()
-            : request.op === "dispatch"
-              ? await workspace.dispatch(request)
-              : { error: "Unsupported operation" };
-      const data = Buffer.from(JSON.stringify(result));
-      if (data.length > 1024 * 1024) throw Error("Response limit");
-      const header = Buffer.alloc(4);
-      header.writeUInt32BE(data.length);
-      socket.write(Buffer.concat([header, data]));
-    } catch {
-      socket.destroy();
-    } finally {
-      processing = false;
-    }
+  void serveFrames(socket, async (request) => {
+    let result;
+    if (request.op === "invite") {
+      invitation = randomBytes(32).toString("hex");
+      invitationDeadline = Date.now() + 300_000;
+      await printInvitation();
+      result = { ok: true };
+    } else if (
+      ["apps", "share", "unshare", "diagnose", "protect", "session"].includes(
+        request.op,
+      )
+    ) {
+      try {
+        result = await workspace.local(request);
+      } catch (error) {
+        result = { error: error.message };
+      }
+    } else
+      result =
+        request.op === "capture"
+          ? await workspace.capture()
+          : request.op === "dispatch"
+            ? await workspace.dispatch(request)
+            : { error: "Unsupported operation" };
+    return result;
   });
   socket.on("close", () => {
     void shutdown();

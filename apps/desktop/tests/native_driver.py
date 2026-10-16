@@ -130,7 +130,7 @@ def run():
                 DesktopReader().sample(app)
                 raise AssertionError('unbounded native tree accepted')
             except ValueError as error:
-                assert 'application tree ceiling' in str(error), str(error)
+                assert str(error).startswith(('application tree ceiling', 'accessibility crawl deadline or call ceiling')), str(error)
             source.stdin.write('{"op":"close-window"}\n'); source.stdin.flush(); time.sleep(.2)
             diagnostic = DesktopReader().execute({'op': 'diagnose', 'source': app})
             assert diagnostic['counts']['editable_text'] >= 1
@@ -147,6 +147,11 @@ def run():
             finally:
                 os.kill(source.pid, signal.SIGCONT)
             assert time.monotonic() - before < 3
+            os.kill(source.pid, signal.SIGSTOP)
+            try:
+                assert dispatch(controls, unnamed, 'Activate')['status'] == 'rejected'
+            finally:
+                os.kill(source.pid, signal.SIGCONT)
             source.terminate(); source.wait(timeout=3)
             try:
                 DesktopReader().sample(app)

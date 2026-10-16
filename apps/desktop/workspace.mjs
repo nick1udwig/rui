@@ -1,3 +1,5 @@
+import { indexTree } from "./tree.mjs";
+import { SemanticNodes } from "../shared/semantic-nodes.mjs";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -61,6 +63,7 @@ export class DesktopWorkspace {
     this.catalog = new Map();
     this.privatePids = new Set();
     this.approved = new Map();
+    this.policyRevision = 0;
     this.sessionSharing = false;
     this.excluded = new Set();
     this.catalogRead = 0;
@@ -69,28 +72,37 @@ export class DesktopWorkspace {
     this.windowGeneration = 0;
     this.preferredWindow = undefined;
     this.activeWindow = undefined;
-    this.next = 10;
-    this.keys = new Map();
-    this.versions = new Map();
-    this.targets = new Map();
+    this.semantic = new SemanticNodes();
     this.sample = undefined;
     this.busy = undefined;
     this.closed = false;
     this.availability =
       "No applications shared. Use apps, then share ID in the host terminal.";
-    this.context = {
-      close: async () => {
-        this.closed = true;
-        clearInterval(this.timer);
-        await this.busy;
-        await this.browser?.close();
-      },
-    };
+    this.context = { close: () => this.close() };
     this.rebuild();
   }
+  close() {
+    if (this.closing) return this.closing;
+    this.closed = true;
+    this.policyRevision++;
+    clearInterval(this.timer);
+    this.approved.clear();
+    this.select(undefined);
+    return (this.closing = (async () => {
+      try {
+        await this.busy;
+      } finally {
+        await this.browser?.close();
+      }
+    })());
+  }
   async local(request) {
+    if (this.closed) throw Error("Desktop workspace is closed");
     if (request.op === "apps") {
+      const revision = this.policyRevision;
       const result = await this.invoke({ op: "list" });
+      if (this.closed || revision !== this.policyRevision)
+        throw Error("Sharing policy changed during discovery");
       if (!Array.isArray(result.apps) || result.apps.length > 64)
         throw Error("Application limit");
       if (this.browser && !this.browser.workspace.closed)
@@ -139,9 +151,18 @@ export class DesktopWorkspace {
     if (request.op === "session") {
       if (!["on", "off"].includes(request.id))
         throw Error("Use session on or session off");
+      this.policyRevision++;
       this.sessionSharing = request.id === "on";
       this.excluded.clear();
-      if (this.sessionSharing) return this.local({ op: "apps" });
+      if (this.sessionSharing) {
+        const revision = this.policyRevision;
+        try {
+          return await this.local({ op: "apps" });
+        } catch (error) {
+          if (revision === this.policyRevision) this.sessionSharing = false;
+          throw error;
+        }
+      }
       this.approved.clear();
       this.select(undefined);
       return { sessionSharing: false, apps: [] };
@@ -149,6 +170,7 @@ export class DesktopWorkspace {
     if (request.op === "protect") {
       if (!/^[1-9][0-9]*$/.test(request.id || ""))
         throw Error("Invalid owner PID");
+      this.policyRevision++;
       const pid = Number(request.id);
       this.privatePids.add(pid);
       for (const [id, source] of this.catalog)
@@ -169,7 +191,14 @@ export class DesktopWorkspace {
         throw Error("Run apps and use an application ID from that list");
       if (this.approved.size >= 65 && !this.approved.has(request.id))
         throw Error("64 native applications plus the managed browser maximum");
+      const revision = ++this.policyRevision;
       const sample = await this.invoke({ op: "capture", source });
+      if (
+        this.closed ||
+        revision !== this.policyRevision ||
+        this.privatePids.has(source.pid)
+      )
+        throw Error("Sharing policy changed while reading application");
       this.excluded.delete(request.id);
       this.approved.set(request.id, source);
       this.select(request.id);
@@ -181,6 +210,7 @@ export class DesktopWorkspace {
       return { shared: source.name, id: request.id };
     }
     if (request.op === "unshare") {
+      this.policyRevision++;
       if (this.sessionSharing) this.excluded.add(request.id);
       if (!this.approved.delete(request.id))
         throw Error("Application is not shared");
@@ -247,40 +277,23 @@ export class DesktopWorkspace {
     }
   }
   rebuild() {
-    const keys = new Map(),
-      versions = new Map(),
-      targets = new Map(),
-      nodes = [];
-    const idFor = (key) => {
-      if (!keys.has(key)) {
-        if (this.next >= 1_000_000)
-          throw Error("Desktop identity limit; restart the host");
-        keys.set(key, this.keys.get(key) ?? this.next++);
+    let tree;
+    if (this.sample) {
+      try {
+        tree = indexTree(this.sample.nodes);
+      } catch {
+        this.sample = undefined;
+        this.availability =
+          "Application returned an invalid or oversized tree. Retrying; no controls are active.";
       }
-      return keys.get(key);
-    };
-    const add = (key, data, handler, guard = "") => {
-      const id = key === "root" ? 3 : idFor(key);
-      const node = {
-        id,
-        version: 1,
-        role: "label",
-        label: "",
-        description: "",
-        children: [],
-        actions: [],
-        disabled: false,
-        ...data,
-      };
-      const signature = JSON.stringify([node, guard]);
-      const prior = this.versions.get(id);
-      node.version = prior
-        ? prior.version + Number(prior.signature !== signature)
-        : 1;
-      versions.set(id, { signature, version: node.version });
-      if (handler) targets.set(id, { ...handler, node });
+    }
+    const semantic = new SemanticNodes(this.semantic),
+      nodes = [];
+    const idFor = (key) => semantic.id(key);
+    const add = (key, data, handler, guard) => {
+      const node = semantic.node(key, data, handler, guard);
       nodes.push(node);
-      return id;
+      return node.id;
     };
     const apps = [];
     for (const [id, source] of this.approved) {
@@ -309,16 +322,13 @@ export class DesktopWorkspace {
       const source = this.approved.get(this.selected);
       // Drop layout-only containers and duplicated button labels from the
       // mobile presentation. Dispatch still validates the full native tree.
-      const byKey = new Map(
-        this.sample.nodes.map((n) => [JSON.stringify(n.key), n]),
-      );
-      const encoded = (node) => JSON.stringify(node.key);
+      const { byKey, keyOf, encoded, parentOf } = tree;
       const windows = this.sample.nodes.filter((node) => {
         if (!node.window) return false;
-        let parent = node.parent && byKey.get(JSON.stringify(node.parent));
+        let parent = parentOf(node);
         while (parent) {
           if (parent.window) return false;
-          parent = parent.parent && byKey.get(JSON.stringify(parent.parent));
+          parent = parentOf(parent);
         }
         return true;
       });
@@ -336,7 +346,7 @@ export class DesktopWorkspace {
       }
       if (!modals.length) this.preferredWindow = currentWindow;
       const prefix = `${this.generation}:${this.windowGeneration}:${this.selected}:`;
-      const nodeKey = (key) => prefix + JSON.stringify(key);
+      const nodeKey = (key) => prefix + keyOf(key);
       if (windows.length || modals.length) {
         const navigation = [...windows];
         if (!navigation.includes(chosen)) navigation.push(chosen);
@@ -364,7 +374,7 @@ export class DesktopWorkspace {
       const visible = [];
       const present = (raw, appRoot = false) => {
         const childKeys = raw.children.flatMap((key) => {
-          const child = byKey.get(JSON.stringify(key));
+          const child = byKey.get(keyOf(key));
           if (
             (raw.role === "button" || raw.role === "group") &&
             child.role === "label" &&
@@ -445,9 +455,8 @@ export class DesktopWorkspace {
       return this.rebuild();
     }
     add("root", { role: "root", label: "Desktop", children });
-    this.keys = keys;
-    this.versions = versions;
-    this.targets = targets;
+    semantic.retain(nodes);
+    this.semantic = semantic;
     this.publication = { nodes, status: this.availability };
   }
   async capture() {
@@ -456,7 +465,7 @@ export class DesktopWorkspace {
   async dispatch(request) {
     const expires = Date.now() + Math.min(2000, request.deadlineMs || 0);
     if (this.busy) await this.busy;
-    const target = this.targets.get(request.target);
+    const target = this.semantic.targets.get(request.target);
     if (
       !target ||
       target.node.version !== request.version ||
@@ -492,6 +501,7 @@ export class DesktopWorkspace {
       this.rebuild();
       return { status: "dispatched" };
     }
+    const generation = this.generation;
     this.busy = this.invoke({
       ...request,
       op: "dispatch",
@@ -506,6 +516,8 @@ export class DesktopWorkspace {
       const result = await this.busy;
       if (process.env.RUI_DESKTOP_TRACE)
         console.error("Desktop dispatch:", result.status, result.reason || "");
+      if (this.closed || generation !== this.generation)
+        return { status: result.status };
       // Publish the new observation before delivering the command result, so
       // subsequent actions cannot use the pre-edit application fingerprint.
       this.sample = result.capture;
@@ -514,6 +526,8 @@ export class DesktopWorkspace {
       this.rebuild();
       return { status: result.status };
     } catch {
+      if (this.closed || generation !== this.generation)
+        return { status: "unknown" };
       this.sample = undefined;
       this.availability = "Action outcome unknown. Refreshing the application…";
       this.rebuild();
@@ -524,7 +538,7 @@ export class DesktopWorkspace {
     }
   }
   stage(scope, secret) {
-    const target = this.targets.get(scope.target);
+    const target = this.semantic.targets.get(scope.target);
     if (
       !target ||
       target.source?.adapter !== "browser" ||
