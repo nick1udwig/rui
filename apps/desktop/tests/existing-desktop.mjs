@@ -204,7 +204,7 @@ try {
     .digest("hex")
     .slice(0, 16);
   host.stdin.write(`share ${id}\n`);
-  await deadline(() => paragraph(original), "existing document on client");
+  await page.getByRole("button", { name: /^Viewing:/ }).waitFor();
   await page.getByRole("button", { name: "Take control", exact: true }).click();
   await deadline(
     () =>

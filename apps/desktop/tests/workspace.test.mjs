@@ -34,7 +34,7 @@ function fixture() {
             label: "Document",
             kind: "textarea",
             value: "Host content",
-          fingerprint,
+            fingerprint,
             children: [],
             actions: ["SetValue"],
             disabled: false,
@@ -144,4 +144,75 @@ test("ambiguous native dispatch is never reported as safely rejected", async () 
   };
   assert.equal((await w.dispatch(command(await field(w)))).status, "unknown");
   await w.context.close();
+});
+
+test("window navigation isolates content, retires controls and follows modals", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  const key = (name) => [":1.2", "/" + name];
+  let names = ["first", "second"],
+    modal = false;
+  f.capture(() => ({
+    nodes: [
+      {
+        key: key("app"),
+        parent: null,
+        role: "group",
+        label: "Notes",
+        children: names.map(key),
+        actions: [],
+      },
+      ...names.flatMap((name) => [
+        {
+          key: key(name),
+          parent: key("app"),
+          role: "group",
+          label: name,
+          window: true,
+          modal: modal && name === "second",
+          children: [key(name + "-text")],
+          actions: [],
+        },
+        {
+          key: key(name + "-text"),
+          parent: key(name),
+          role: "text",
+          label: name + " document",
+          kind: "textarea",
+          value: name,
+          children: [],
+          actions: ["SetValue"],
+          fingerprint: name,
+        },
+      ]),
+    ],
+  }));
+  await share(w);
+  const find = (label) => w.publication.nodes.find((n) => n.label === label);
+  const old = find("first document");
+  assert.ok(old);
+  assert.equal(find("second document"), undefined);
+  const switcher = find("Show window: second");
+  assert.equal(
+    (await w.dispatch({ ...command(switcher), action: "Activate" })).status,
+    "dispatched",
+  );
+  assert.equal(find("first document"), undefined);
+  assert.ok(find("second document"));
+  assert.equal((await w.dispatch(command(old))).status, "rejected");
+  // Closing the selected window returns to a surviving window, with fresh IDs.
+  names = ["first"];
+  await w.refresh();
+  assert.notEqual(find("first document").id, old.id);
+  const restored = find("first document");
+  names = ["first", "second"];
+  modal = true;
+  await w.refresh();
+  assert.equal(find("first document"), undefined);
+  assert.ok(find("second document"));
+  assert.equal(find("Show window: first").disabled, true);
+  assert.equal((await w.dispatch(command(restored))).status, "rejected");
+  modal = false;
+  await w.refresh();
+  assert.ok(find("first document"));
 });

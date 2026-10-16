@@ -36,6 +36,7 @@ def activate(app):
     window.set_child(box)
     window.present()
     dialogs = []
+    extra_windows = []
     def command(fd, condition):
         line = sys.stdin.readline()
         if not line:
@@ -44,6 +45,13 @@ def activate(app):
         request = json.loads(line)
         if request['op'] == 'text':
             editor.get_buffer().set_text(request['value'])
+        elif request['op'] == 'window':
+            extra = Gtk.ApplicationWindow(application=app, title='Second notes window')
+            extra.set_child(Gtk.Label(label='Content in the second window'))
+            extra_windows.append(extra)
+            extra.present()
+        elif request['op'] == 'close-window':
+            if extra_windows: extra_windows.pop().destroy()
         elif request['op'] == 'modal':
             dialog = Gtk.Window(title='Confirm action', transient_for=window, modal=True)
             button = Gtk.Button(label='Dismiss dialog')

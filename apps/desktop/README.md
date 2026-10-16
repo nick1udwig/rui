@@ -44,7 +44,10 @@ unshare APP_ID
 `apps` lists accessible application names, PIDs and opaque IDs locally. Copy an ID
 into `share`. That authorizes that running application, including its accessible
 windows and dialogs, for paired devices. Up to eight applications can be shared;
-the mobile app switcher chooses one at a time. Switching the phone view does not
+the mobile app switcher chooses one at a time. Its window picker shows one
+accessible window at a time. A modal dialog takes precedence and returns to the
+previous window when dismissed; closing the selected window chooses a survivor.
+Switching the phone view does not
 raise or focus a host window. Sharing a new app selects it immediately.
 
 Scan the invitation, then type `approve CODE` on the host. Choose **Take control**
@@ -175,8 +178,8 @@ its support is not established.
 
 Each step is implemented, tested and corrected before its commit.
 
-1. Preserve the verified existing-app foundation, including real Writer coverage.
-2. Add explicit window navigation, modal routing and closed-window recovery.
+1. **Done:** Preserve the verified existing-app foundation, including real Writer coverage.
+2. **Done:** Add explicit window navigation, modal routing and closed-window recovery.
 3. Add observed selection, numeric-value and scrolling controls, with source-side
    revalidation and mobile rendering.
 4. Add a local sharing picker and per-application compatibility diagnostics.

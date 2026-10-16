@@ -222,6 +222,20 @@ try {
     async () => (await document.count()) > 0 && (await document.isEditable()),
     "first app editable",
   );
+  source.stdin.write('{"op":"window"}\n');
+  const otherWindow = page.getByRole("button", {
+    name: "Show window: Second notes window",
+    exact: true,
+  });
+  await otherWindow.waitFor();
+  await otherWindow.click();
+  await page
+    .getByText("Content in the second window", { exact: true })
+    .waitFor();
+  assert.equal(await document.count(), 0);
+  source.stdin.write('{"op":"close-window"}\n');
+  await document.waitFor();
+  await deadline(() => document.isEditable(), "closed window fallback");
   const edit = "From phone — 東京 👋";
   await document.fill(edit);
   await document
@@ -256,7 +270,7 @@ try {
     exact: true,
   });
   await dismiss.waitFor();
-  assert.equal(await save.isEnabled(), false);
+  assert.equal(await save.count(), 0);
   await dismiss.click();
   await save.waitFor();
   await deadline(() => save.isEnabled(), "modal closed");
@@ -309,6 +323,8 @@ try {
       mounted_path: mount,
       existing_app: true,
       app_switching: true,
+      window_navigation: true,
+      closed_window_recovery: true,
       edit_save: true,
       stale_draft: true,
       modal: true,

@@ -180,7 +180,7 @@ class DesktopReader(Reader):
                 node = {'key': key, 'parent': parent, 'role': 'group' if count else 'label',
                         'label': text(props.get('Name', '')), 'children': [], 'actions': [],
                         'disabled': not ((has(8) or has(24)) and has(25) and has(30)),
-                        'modal': has(16)}
+                        'modal': has(16), 'window': role in (16, 23, 69)}
                 nodes.append(node)
                 metadata[key] = (node, role, bits, interfaces)
                 if count:

@@ -44,6 +44,9 @@ export class DesktopWorkspace {
     this.approved = new Map();
     this.selected = undefined;
     this.generation = 0;
+    this.windowGeneration = 0;
+    this.preferredWindow = undefined;
+    this.activeWindow = undefined;
     this.next = 10;
     this.keys = new Map();
     this.versions = new Map();
@@ -116,6 +119,8 @@ export class DesktopWorkspace {
   }
   select(id) {
     this.selected = id;
+    this.preferredWindow = undefined;
+    this.activeWindow = undefined;
     this.generation++;
     this.sample = undefined;
     this.availability = id
@@ -209,13 +214,58 @@ export class DesktopWorkspace {
     ];
     if (this.sample && this.selected) {
       const source = this.approved.get(this.selected);
-      const prefix = `${this.generation}:${this.selected}:`;
-      const nodeKey = (key) => prefix + JSON.stringify(key);
       // Drop layout-only containers and duplicated button labels from the
       // mobile presentation. Dispatch still validates the full native tree.
       const byKey = new Map(
         this.sample.nodes.map((n) => [JSON.stringify(n.key), n]),
       );
+      const encoded = (node) => JSON.stringify(node.key);
+      const windows = this.sample.nodes.filter((node) => {
+        if (!node.window) return false;
+        let parent = node.parent && byKey.get(JSON.stringify(node.parent));
+        while (parent) {
+          if (parent.window) return false;
+          parent = parent.parent && byKey.get(JSON.stringify(parent.parent));
+        }
+        return true;
+      });
+      const modals = this.sample.nodes.filter((node) => node.modal);
+      const chosen =
+        modals.length === 1
+          ? modals[0]
+          : (windows.find((node) => encoded(node) === this.preferredWindow) ??
+            windows[0] ??
+            this.sample.nodes[0]);
+      const currentWindow = encoded(chosen);
+      if (this.activeWindow !== currentWindow) {
+        this.activeWindow = currentWindow;
+        this.windowGeneration++;
+      }
+      if (!modals.length) this.preferredWindow = currentWindow;
+      const prefix = `${this.generation}:${this.windowGeneration}:${this.selected}:`;
+      const nodeKey = (key) => prefix + JSON.stringify(key);
+      if (windows.length || modals.length) {
+        const navigation = [...windows];
+        if (!navigation.includes(chosen)) navigation.push(chosen);
+        children.push(
+          add("windows", {
+            role: "group",
+            label: modals.length ? "Dialog requires attention" : "Windows",
+            children: navigation.map((node, index) =>
+              add(
+                `window:${this.generation}:${encoded(node)}`,
+                {
+                  role: "button",
+                  label: `${node === chosen ? "Window: " : "Show window: "}${node.label || `Untitled ${index + 1}`}`,
+                  actions: modals.length ? [] : ["Activate"],
+                  disabled: !!modals.length,
+                },
+                { window: encoded(node) },
+              ),
+            ),
+          }),
+        );
+      }
       const visible = [];
       const present = (raw, appRoot = false) => {
         const childKeys = raw.children.flatMap((key) => {
@@ -238,7 +288,7 @@ export class DesktopWorkspace {
         visible.push({ ...raw, children: childKeys });
         return [raw.key];
       };
-      const roots = present(this.sample.nodes[0], true);
+      const roots = present(chosen, chosen === this.sample.nodes[0]);
       for (const raw of visible) {
         const key = nodeKey(raw.key),
           structural = raw.children.length > 0;
@@ -311,6 +361,12 @@ export class DesktopWorkspace {
         return { status: "rejected" };
       this.select(target.select);
       void this.refresh();
+      return { status: "dispatched" };
+    }
+    if (target.window) {
+      if (request.action !== "Activate") return { status: "rejected" };
+      this.preferredWindow = target.window;
+      this.rebuild();
       return { status: "dispatched" };
     }
     this.busy = this.invoke({
