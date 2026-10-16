@@ -203,12 +203,13 @@ try {
     true,
     "kernel process marker also survives host restart",
   );
-  const ownerAction = async (label) => {
+  const ownerAction = async (label, global = false) => {
     const capture = await native({ op: "capture", source: owner });
     const byKey = new Map(capture.nodes.map((n) => [JSON.stringify(n.key), n]));
     const identity = `${app.name} (${app.pid})`;
     const button = capture.nodes.find((n) => {
       if (n.label !== label || !n.actions.includes("Activate")) return false;
+      if (global) return true;
       let parent = n.parent && byKey.get(JSON.stringify(n.parent));
       while (parent) {
         if (
@@ -291,6 +292,13 @@ try {
   const document = page.getByLabel("Document", { exact: true });
   await document.waitFor();
   assert.equal(await document.inputValue(), "Already open on the host");
+  assert.equal(await page.locator('[data-presentation="content"]').count(), 1);
+  assert.equal(
+    await page
+      .locator('[data-presentation="app-active"] button[aria-pressed="true"]')
+      .count(),
+    1,
+  );
   assert.equal(
     (await page.content()).includes("never-publish-desktop-secret"),
     false,
@@ -301,14 +309,19 @@ try {
       page.getByRole("button", { name: "Release", exact: true }).isEnabled(),
     "control grant",
   );
-  host.stdin.write(`share ${secondId}\n`);
+  await ownerAction("Share this session", true);
+  await page
+    .getByRole("button", { name: `Open: ${app.name}`, exact: true })
+    .click();
   await deadline(
     async () =>
       (await document.count()) > 0 &&
       (await document.inputValue()) === "Second existing application",
     "second app selected",
   );
-  await page.getByRole("button", { name: /^Open:/ }).click();
+  await page
+    .getByRole("button", { name: `Open: ${app.name}`, exact: true })
+    .click();
   await deadline(
     async () =>
       (await document.count()) > 0 &&
@@ -318,7 +331,9 @@ try {
   host.stdin.write(`unshare ${secondId}\n`);
   await deadline(
     async () =>
-      (await page.getByRole("button", { name: /^Open:/ }).count()) === 0,
+      (await page
+        .getByRole("button", { name: `Open: ${app.name}`, exact: true })
+        .count()) === 0,
     "second app unshared",
   );
   await deadline(
@@ -451,10 +466,10 @@ try {
     "reconnect",
   );
   assert.equal(await document.inputValue(), "Changed on desktop");
-  host.stdin.write(`unshare ${id}\n`);
+  host.stdin.write("session off\n");
   await deadline(
     async () => (await document.count()) === 0,
-    "unshare clears content",
+    "stopping session clears content",
   );
   host.stdin.write(`share ${id}\n`);
   await document.waitFor();
@@ -479,6 +494,7 @@ try {
       mounted_path: mount,
       existing_app: true,
       local_sharing_picker: true,
+      session_sharing: true,
       private_diagnostics: true,
       app_switching: true,
       window_navigation: true,

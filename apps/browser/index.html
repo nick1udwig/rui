@@ -14,14 +14,16 @@
   <body>
     <header>
       <div>
-        <strong>RUI Browser</strong><span id="connection">Not paired</span>
+        <strong
+          ><span class="brand-mark" aria-hidden="true">r</span> RUI
+          Browser</strong
+        ><span id="connection">Not paired</span>
       </div>
       <nav aria-label="Session">
         <button id="connect">Connect</button
         ><button id="control" disabled>Take control</button
         ><button id="release" disabled>Release</button
-        ><button id="retry" hidden>Resolve pending action</button
-        ><button id="forget">Forget device</button>
+        ><button id="retry" hidden>Resolve pending action</button>
       </nav>
     </header>
     <main>
@@ -29,11 +31,15 @@
         <h1>Pair this device</h1>
         <p id="pair-status"></p>
       </section>
+      <div id="view"></div>
       <p id="status" role="status" aria-live="polite">
         Scan the host’s pairing QR code to begin.
       </p>
-      <p id="coverage"></p>
-      <div id="view"></div>
+      <details class="session-details">
+        <summary>Session details</summary>
+        <p id="coverage"></p>
+        <button id="forget">Forget device</button>
+      </details>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

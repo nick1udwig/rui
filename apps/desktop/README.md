@@ -24,7 +24,7 @@ tailscale serve --bg --https=443 --set-path=/desktop http://127.0.0.1:8445
 The launcher builds the existing Rust host, WASM client and web assets. Subsequent
 runs can add `--skip-build`. All browser launcher HTTPS/listen/public-path options
 also work here; `--http-local` is available for local development. The desktop
-mode does not launch Chromium. Use a different port and path to run it alongside
+mode launches Chromium only when you add `--with-browser`. Use a different port and path to run it alongside
 the browser workspace.
 
 System dependencies: Python 3 with PyGObject/Gio, the AT-SPI accessibility bus and
@@ -47,6 +47,15 @@ HTTP endpoint, and its own controls are excluded from sharing, including after a
 host restart. It requires GTK4/PyGObject. Device pairing approval remains in the
 host terminal.
 
+**Share this session** (or `session on` in the host terminal) includes all
+currently discoverable same-user applications and newly opened applications.
+The catalog refreshes every three seconds. **Stop sharing session** (`session off`)
+removes every approval and clears the client. Individual **Stop sharing** excludes
+that running app while session sharing continues; a newly started instance is a
+new app. The owner picker always remains excluded. This mode lasts only until
+stopped or the host exits; device pairing and control approval still apply.
+Applications that expose no accessibility remain unavailable.
+
 For scripts, `share.py --list` prints local app metadata and
 `share.py --diagnose APP_ID` prints counts. These options do not require GTK.
 
@@ -55,13 +64,15 @@ In the host terminal:
 ```text
 apps
 share APP_ID
+session on
+session off
 unshare APP_ID
 diagnose APP_ID
 ```
 
 `apps` lists accessible application names, PIDs and opaque IDs locally. Copy an ID
 into `share`. That authorizes that running application, including its accessible
-windows and dialogs, for paired devices. Up to eight applications can be shared;
+windows and dialogs, for paired devices. Up to 64 native applications plus the optional managed browser can be shared;
 the mobile app switcher chooses one at a time. Its window picker shows one
 accessible window at a time. A modal dialog takes precedence and returns to the
 previous window when dismissed; closing the selected window chooses a survivor.
@@ -79,6 +90,31 @@ access. `unshare APP_ID` removes that application's content and actions. Quittin
 RUI leaves attached applications running. An app restart needs a new `apps` /
 `share` approval, even if the name and PID are reused.
 
+## One session for desktop apps and web pages
+
+Add `--with-browser` to open an owned host Chromium alongside existing apps:
+
+```sh
+python3 apps/desktop/run.py --with-browser \
+  --public-url https://foo.tailnet.ts.net/desktop --port 8445
+python3 apps/desktop/share.py
+```
+
+Choose **Share this session**, or share **Web browser** individually (`share browser`
+in the host terminal). Switch apps on the phone. The browser offers tabs, address
+navigation, links, forms and a responsive structured reading view within the same
+paired session. Cookies and downloads stay in `STATE/browser`; the owned browser
+closes when RUI exits. Existing native apps continue running. The browser's existing
+password staging and action guards apply, including device/lease/target binding.
+Switching away from the browser clears staged passwords.
+
+This is a managed browser profile, not attachment to an arbitrary existing Chrome
+profile. Ordinary browser windows can still appear through AT-SPI, with the same
+coverage limits as other native apps. Web pages preserve headings, paragraphs,
+lists and tables; original site styles, scripts, images and canvas are not mirrored.
+No page code runs in the RUI client's origin. The browser workspace README lists
+its supported controls and remaining limits.
+
 ## Current scope
 
 - Existing app discovery and explicit local approval; no arbitrary client PID,
@@ -94,14 +130,14 @@ RUI leaves attached applications running. An app restart needs a new `apps` /
   reconnect, device revocation, and app switching.
 - Password-role objects are redacted without querying their text or descendants.
   All-mask text is also treated as protected because some GTK entries omit the
-  password role. Password entry is unavailable. This relies on applications
+  password role. Native password entry is unavailable. This relies on applications
   exposing correct accessibility information; custom secret widgets cannot be
   identified universally.
 - Controls with no usable accessible name are unavailable. Source-advertised
   scroll-to actions are identified as scrolling; they do not claim to open files.
 - Read-only presentation for unsupported fields/actions. No screenshots, graphics,
   canvas, video, clipboard, keyboard shortcuts, pointer injection, terminal input,
-  compositor control, application launching, or guaranteed arbitrary-app coverage.
+  compositor control, launching arbitrary native apps, or guaranteed arbitrary-app coverage.
 - Single shared selected app and one controlling device, as in the browser host.
   All paired viewers see the shared selection.
 
@@ -128,7 +164,7 @@ Blocking D-Bus work runs in disposable Python processes with a 384 MiB address
 space limit, 400 ms call timeout, 1.8 second observation deadline, and 2.4 second
 owner timeout. Background observations do not block serving the cached client
 view. Reads run in batches of up to 32 concurrent D-Bus calls. Limits include
-64 discovered apps, eight approved apps, 512 visible native nodes (1,024 visited
+64 discovered apps, 64 approved native apps plus the managed browser, 512 visible native nodes (1,024 visited
 nodes), up to 1,024 nodes including generated semantic controls, 128 children per
 node, depth 64, 8,192 calls, 16 KiB text fields and 768 KiB native
 responses. Limits fail closed, rather than silently truncating editable text.
@@ -215,8 +251,10 @@ Nautilus and the host's `WAYLAND_DISPLAY`.
 | LibreOffice Writer 26.2.5, GTK3 backend | Existing Wayland window, welcome dialog, Unicode paragraph replacement and file save, reconnect/unshare, app survival | Large documents, formatting and other Writer workflows have not been established |
 | Nautilus 50.2.2, GTK4 backend | Existing Wayland window, file/folder selection, explicit scroll-to controls, reconnect/unshare, app survival | Unnamed menu items are disabled. Search editing and file opening remain unverified; the tested file-row default action scrolls rather than opens |
 
-The real-app and mobile tests use 390×844 touch browser contexts. Physical
-iOS/Android devices and a broader third-party app matrix remain to test.
+The automated real-app and mobile tests use 390×844 touch browser contexts.
+The user also successfully tried the desktop demo on a physical phone. Device/OS
+specific IME, orientation, suspension and assistive-technology coverage, plus a
+broader third-party app matrix, remain to test.
 Omawrite did not register on this machine's accessibility bus during probing;
 its support is not established.
 
@@ -246,3 +284,31 @@ Each step is implemented, tested and corrected before its commit.
 The target remains existing-session semantic interaction on Linux. Pixel streaming,
 compositor window management, arbitrary app coverage and transactional semantics for
 unmodified apps are not implied by these steps.
+
+## Mobile presentation
+
+The client uses compact app and window strips, with app search when five or more
+apps are shared. Document, list, table, toolbar, tab and dialog regions keep their
+observed structure; fields and actions remain bound to host controls. Session
+status and compatibility details sit below the content. Rendering uses trusted
+client templates and plain text, never source-supplied HTML or scripts.
+
+Presentation hints use allowlisted `view:*` values on the existing optional
+`browser_input_type` field for non-input nodes. Input nodes retain their actual
+input type. Unknown hints are rejected by the host; older clients can still show
+the underlying group/label/control roles. Hints do not grant actions or access.
+
+
+### Realer desktop acceptance
+
+The consolidated runner also checks the managed browser inside the desktop
+workspace in mobile Chromium and WebKit, behind `/desktop` HTTPS proxying:
+headings/lists, expandable browser controls, native form actions, Unicode edits,
+password staging, remembered pairing, persistent login, host restart and revocation.
+Real native observations retry reads when an app changes its tree during capture;
+semantic actions are never automatically replayed.
+
+The next coverage work is larger app trees and missing native capabilities,
+followed by richer browser presentation beyond the current structured reading
+view. Session sharing discovers all accessible apps within its bound; it does not
+make inaccessible widgets or canvas applications controllable.

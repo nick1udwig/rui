@@ -254,3 +254,57 @@ test("the local-only sharing UI stays excluded after host restart", async () => 
   const { workspace } = fixture("Notes", true);
   assert.deepEqual((await workspace.local({ op: "apps" })).apps, []);
 });
+
+test("session sharing discovers new apps, honors exclusions and stops all access", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  const original = (await w.invoke({ op: "list" })).apps[0];
+  let available = [original];
+  const invoke = w.invoke;
+  w.invoke = async (r) => (r.op === "list" ? { apps: available } : invoke(r));
+  const enabled = await w.local({ op: "session", id: "on" });
+  assert.equal(enabled.sessionSharing, true);
+  assert.equal(enabled.apps[0].shared, true);
+  assert.equal(f.calls.filter((c) => c.op === "capture").length, 0);
+  await w.refresh();
+  const old = await field(w);
+  assert.ok(old);
+  available.push({
+    ...original,
+    root: [":1.3", "/app"],
+    pid: 101,
+    name: "New app",
+  });
+  let list = await w.local({ op: "apps" });
+  assert.equal(list.apps.length, 2);
+  assert.ok(list.apps.every((a) => a.shared));
+  await w.local({ op: "unshare", id: list.apps[1].id });
+  list = await w.local({ op: "apps" });
+  assert.equal(list.apps[1].shared, false);
+  await w.local({ op: "session", id: "off" });
+  assert.equal(w.approved.size, 0);
+  assert.equal(await field(w), undefined);
+  assert.equal((await w.dispatch(command(old))).status, "rejected");
+  await w.local({ op: "apps" });
+  assert.equal(w.approved.size, 0);
+});
+
+test("session discovery excludes owner UI and retires identities on process replacement", async () => {
+  const f = fixture(),
+    w = f.workspace;
+  const original = (await w.invoke({ op: "list" })).apps[0];
+  let available = [original, { ...original, pid: 102, local_only: true }];
+  const invoke = w.invoke;
+  w.invoke = async (r) => (r.op === "list" ? { apps: available } : invoke(r));
+  await w.local({ op: "session", id: "on" });
+  assert.equal(w.approved.size, 1);
+  const id = w.selected;
+  available = [{ ...original, start: "201" }];
+  await w.local({ op: "apps" });
+  assert.notEqual(w.selected, id);
+  assert.equal(w.approved.has(id), false);
+  await w.local({ op: "protect", id: "100" });
+  await w.local({ op: "apps" });
+  assert.equal(w.approved.size, 0);
+  await assert.rejects(w.local({ op: "session", id: "whatever" }));
+});

@@ -232,8 +232,8 @@ export class Workspace {
       nodes.push(n);
       return n.id;
     };
-    const group = (key, label, children) =>
-      add(this.node(key, { role: "group", label, children }));
+    const group = (key, label, children, kind = null) =>
+      add(this.node(key, { role: "group", label, children, kind }));
     const button = (key, label, handler, disabled = false) =>
       add(
         this.node(
@@ -270,7 +270,8 @@ export class Workspace {
       }
     }
     const page = this.active;
-    const toolbar = [];
+    const toolbar = [],
+      tools = [];
     if (page && !page.isClosed()) {
       const entry = this.pages.get(page),
         prefix = `${entry.id}:${entry.generation}`;
@@ -295,7 +296,7 @@ export class Workspace {
         ["reload", "Reload"],
       ])
         toolbar.push(button(`${prefix}:${op}`, label, { op, page }));
-      toolbar.push(
+      tools.push(
         button(
           `${prefix}:previous`,
           "Previous page section",
@@ -303,21 +304,21 @@ export class Workspace {
           this.offset === 0,
         ),
       );
-      toolbar.push(
+      tools.push(
         button(`${prefix}:next`, "Next page section", {
           op: "section",
           delta: 400,
         }),
       );
-      toolbar.push(
+      tools.push(
         button(`${prefix}:scroll`, "Scroll host page down", {
           op: "scroll",
           page,
         }),
       );
     }
-    toolbar.push(button("new-tab", "New tab", { op: "new" }));
-    rootChildren.push(group("toolbar", "Browser", toolbar));
+    tools.push(button("new-tab", "New tab", { op: "new" }));
+    rootChildren.push(group("toolbar", "Browser", toolbar, "view:toolbar"));
     const tabs = [];
     for (const [p, entry] of this.pages) {
       if (!this.dialog) entry.title = await p.title().catch(() => "Tab");
@@ -332,7 +333,10 @@ export class Workspace {
         button(`${entry.id}:close`, "Close tab", { op: "close", page: p }),
       );
     }
-    rootChildren.push(group("tabs", "Tabs", tabs));
+    rootChildren.push(group("tabs", "Tabs", tabs, "view:tabs"));
+    rootChildren.push(
+      group("browser-tools", "More browser controls", tools, "view:disclosure"),
+    );
     if (this.dialog) {
       const d = this.dialog,
         children = [];
@@ -370,7 +374,9 @@ export class Workspace {
           dialog: d,
         }),
       );
-      rootChildren.push(group(`${d.id}:dialog`, "Page dialog", children));
+      rootChildren.push(
+        group(`${d.id}:dialog`, "Page dialog", children, "view:dialog"),
+      );
     } else if (page && !page.isClosed()) {
       const content = [];
       let count = 0;
@@ -410,6 +416,21 @@ export class Workspace {
                 "DateTime",
                 "InputTime",
               ].includes(role);
+            const structure = {
+              main: "document",
+              article: "document",
+              navigation: "navigation",
+              list: "list",
+              listitem: "item",
+              table: "table",
+              row: "row",
+              cell: "cell",
+              columnheader: "cell",
+              rowheader: "cell",
+              paragraph: "paragraph",
+              blockquote: "quote",
+            }[role];
+            const start = content.length;
             const informational = [
               "StaticText",
               "heading",
@@ -425,7 +446,16 @@ export class Workspace {
               const index = count++;
               if (index >= this.offset && included < 400) {
                 const prefix = `${this.pages.get(page).id}:${this.pages.get(page).generation}:${frameId}:${backend || ax.nodeId}`;
-                let node = { label, role: "label" },
+                let node = {
+                    label,
+                    role: "label",
+                    kind:
+                      role === "heading"
+                        ? `view:heading${Math.max(1, Math.min(6, Number(props.level) || 2))}`
+                        : ["status", "alert"].includes(role)
+                          ? "view:status"
+                          : null,
+                  },
                   handler;
                 if (interactive && backend) {
                   const { tag, attributes } = await this.inspect(
@@ -581,17 +611,29 @@ export class Workspace {
                   content.pop();
                   nodes.splice(nodes.indexOf(previous), 1);
                 }
-                if (!(
-                  node.role === "label" &&
-                  previous?.role === "label" &&
-                  previous.label === node.label
-                ))
+                if (
+                  !(
+                    node.role === "label" &&
+                    previous?.role === "label" &&
+                    previous.label === node.label
+                  )
+                )
                   content.push(add(this.node(prefix, node, handler)));
                 included++;
               }
               if (interactive) return;
             }
             for (const id of ax.childIds || []) await visit(map.get(id));
+            if (
+              structure &&
+              !ax.ignored &&
+              content.length > start &&
+              nodes.length < MAX_NODES - 40
+            ) {
+              const children = content.splice(start);
+              const key = `${this.pages.get(page).id}:${this.pages.get(page).generation}:${frameId}:structure:${ax.nodeId}`;
+              content.push(group(key, label, children, `view:${structure}`));
+            }
           };
           await visit(tree.nodes[0]);
         } catch {
@@ -610,7 +652,9 @@ export class Workspace {
             }),
           ),
         );
-      rootChildren.push(group("page-content", "Page", content));
+      rootChildren.push(
+        group("page-content", "Page", content, "view:document"),
+      );
     }
     if (this.filePicker) {
       const picker = this.filePicker,

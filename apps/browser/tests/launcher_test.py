@@ -10,6 +10,11 @@ spec.loader.exec_module(launcher)
 
 
 class ListenerConfiguration(unittest.TestCase):
+    def test_managed_browser_is_an_explicit_desktop_option(self):
+        args = launcher.parse_args(['--http-local', '--with-browser'], workspace='desktop')
+        self.assertTrue(args.with_browser)
+        self.assertFalse(launcher.parse_args(['--http-local'], workspace='desktop').with_browser)
+
     def test_public_origin_is_independent_of_local_port(self):
         args = launcher.parse_args(['--public-url', 'https://Foo.tailnet.ts.net:443/', '--port', '8123'])
         self.assertEqual(args.origin, 'https://foo.tailnet.ts.net')

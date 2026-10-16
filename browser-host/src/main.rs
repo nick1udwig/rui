@@ -145,7 +145,7 @@ async fn main() -> Result<(), Error> {
             "Host commands: invite, approve CODE, deny CODE, devices, revoke CLIENT_ID, quit"
         );
         if std::env::var("RUI_WORKSPACE").as_deref() == Ok("desktop") {
-            eprintln!("Desktop commands: apps, share APP_ID, unshare APP_ID, diagnose APP_ID (approvals last until host exit)");
+            eprintln!("Desktop commands: apps, share APP_ID, unshare APP_ID, diagnose APP_ID, session on|off (approvals last until host exit)");
         }
         for line in io::stdin().lock().lines().map_while(Result::ok) {
             let words: Vec<_> = line.split_whitespace().collect();
@@ -156,7 +156,7 @@ async fn main() -> Result<(), Error> {
                         let result = local_port.desktop_command("apps", None)?;
                         eprintln!("{}", serde_json::to_string_pretty(&result)?);
                     }
-                    [op @ ("share" | "unshare" | "diagnose"), id] => {
+                    [op @ ("share" | "unshare" | "diagnose" | "session"), id] => {
                         let result = local_port.desktop_command(op, Some(id))?;
                         eprintln!("{}", serde_json::to_string_pretty(&result)?);
                     }
@@ -265,7 +265,7 @@ fn admin_request(
         }
         if request["op"] == "desktop" {
             let op = request["command"].as_str().ok_or("desktop command")?;
-            if !matches!(op, "apps" | "share" | "unshare" | "diagnose") {
+            if !matches!(op, "apps" | "share" | "unshare" | "diagnose" | "session") {
                 return Err("unsupported desktop command".into());
             }
             return Ok(port.desktop_command(op, request["id"].as_str())?);

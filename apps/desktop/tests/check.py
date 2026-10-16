@@ -30,6 +30,8 @@ def main():
     base.pop('RUI_CLIENT_ENGINE', None)
     checks = [
         ('workspace', ['node', 'apps/desktop/tests/workspace.test.mjs'], {}),
+        ('browser-bridge', ['node', '--test', 'apps/desktop/tests/browser.test.mjs'], {}),
+        ('browser-workspace', ['node', '--test', 'apps/browser/tests/workspace.test.mjs'], {}),
         ('atspi-regression', [sys.executable, '-m', 'unittest', 'adapters.atspi.test_observer', 'adapters.atspi.test_view'], {}),
         ('launcher', [sys.executable, '-m', 'unittest', 'discover', '-s', 'apps/browser/tests', '-p', '*_test.py'], {}),
         ('host-tests', ['cargo', 'test', '--offline', '--locked', '-p', 'rui-browser-host'], {}),
@@ -44,6 +46,9 @@ def main():
     for engine in args.engine or ['chromium', 'webkit']:
         checks.append((f'mobile-{engine}', native + [str(args.output / engine)],
                        {'RUI_DESKTOP_LIVE': '1', 'RUI_CLIENT_ENGINE': engine}))
+        checks.append((f'desktop-browser-{engine}', ['node', 'apps/browser/tests/live.mjs'],
+                       {'RUI_TEST_DESKTOP_BROWSER': '1', 'RUI_TEST_PROXY': '1', 'RUI_TEST_PATH': '/desktop',
+                        'RUI_CLIENT_ENGINE': engine, **({'RUI_CLIENT_EXECUTABLE': base['RUI_WEBKIT_EXECUTABLE']} if engine == 'webkit' and base.get('RUI_WEBKIT_EXECUTABLE') else {})}))
         if args.real_desktop:
             for app in ('writer', 'files'):
                 checks.append((f'{app}-{engine}', ['node', 'apps/desktop/tests/existing-desktop.mjs'],

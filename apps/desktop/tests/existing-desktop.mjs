@@ -65,6 +65,15 @@ const ownApp = async () => {
       return app;
   }
 };
+let lastObservationError;
+const observe = async (app) => {
+  try {
+    return await native({ op: "capture", source: app });
+  } catch (error) {
+    lastObservationError = String(error);
+    return { nodes: [] };
+  }
+};
 const paragraph = async (value) => {
   for (const field of await page.locator("textarea").all())
     if ((await field.inputValue()) === value) return field;
@@ -120,7 +129,7 @@ try {
       app = await ownApp();
       return (
         app &&
-        (await native({ op: "capture", source: app })).nodes.some((n) =>
+        (await observe(app)).nodes.some((n) =>
           files ? n.label === "example.txt. File" : n.value === original,
         )
       );
@@ -235,11 +244,14 @@ try {
       .click();
     await deadline(
       async () =>
-        (await native({ op: "capture", source: app })).nodes.some(
+        (await observe(app)).nodes.some(
           (n) => n.label === "Selected: example.txt. File" && !n.actions.length,
         ),
       "native file selection",
     );
+    await page
+      .getByRole("button", { name: "Selected: example.txt. File", exact: true })
+      .waitFor();
     await page
       .getByRole("button", {
         name: "Select: Example folder. Folder",
@@ -248,7 +260,7 @@ try {
       .click();
     await deadline(
       async () =>
-        (await native({ op: "capture", source: app })).nodes.some(
+        (await observe(app)).nodes.some(
           (n) =>
             n.label === "Selected: Example folder. Folder" && !n.actions.length,
         ),
@@ -287,6 +299,7 @@ try {
       await next.first().click();
       await new Promise((r) => setTimeout(r, 600));
       console.log(`Writer welcome: ${label}`);
+      if (label !== "Next") break;
     }
     const editor = await deadline(async () => {
       const e = await paragraph(original);
@@ -300,9 +313,7 @@ try {
     // Verify the real application through a separate native read, not the draft.
     await deadline(async () => {
       try {
-        return (await native({ op: "capture", source: app })).nodes.some(
-          (n) => n.value === edited,
-        );
+        return (await observe(app)).nodes.some((n) => n.value === edited);
       } catch {
         return false;
       }
@@ -397,6 +408,12 @@ try {
   );
   console.log(JSON.stringify(report));
 } catch (error) {
+  if (lastObservationError)
+    console.error("Last observation retry:", lastObservationError);
+  console.error(
+    "Dispatch diagnostics:",
+    logs.split("\n").filter((line) => line.includes("Desktop dispatch:")),
+  );
   console.error(
     "Temporary document:",
     JSON.stringify(

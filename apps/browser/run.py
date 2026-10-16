@@ -31,6 +31,8 @@ def parse_args(argv=None, workspace="browser"):
     parser.add_argument('--state-dir', type=Path, default=Path.home()/f'.local/state/rui/{workspace}')
     parser.add_argument('--files-dir', type=Path, default=Path.home()/'Downloads')
     parser.add_argument('--chromium', default='/usr/bin/chromium')
+    if workspace == 'desktop':
+        parser.add_argument('--with-browser', action='store_true', help='also open a managed host browser with responsive semantic pages')
     parser.add_argument('--skip-build', action='store_true')
     parser.add_argument('--headless', action='store_true', help='automated testing only')
     args = parser.parse_args(argv)
@@ -107,7 +109,8 @@ def main(workspace="browser"):
     metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--offline', '--locked', '--no-deps', '--format-version', '1'], cwd=ROOT))
     env = dict(os.environ, RUI_WORKSPACE=workspace, RUI_ORIGIN=args.origin, RUI_PUBLIC_PATH=args.public_path, RUI_WEB_PORT=str(args.port),
                RUI_WEB_LISTEN=args.listen, RUI_CHROMIUM=args.chromium, RUI_FILES_DIR=str(args.files_dir.resolve()),
-               RUI_HEADLESS='1' if args.headless else '0')
+               RUI_HEADLESS='1' if args.headless else '0',
+               RUI_DESKTOP_BROWSER='1' if getattr(args, 'with_browser', False) else '0')
     env.pop('RUI_WEB_CERT', None)
     env.pop('RUI_WEB_KEY', None)
     if args.cert:

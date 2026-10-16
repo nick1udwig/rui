@@ -42,7 +42,7 @@ let host,
 const fixture = createServer((req, res) => {
   res.setHeader("Content-Type", "text/html");
   res.end(
-    `<!doctype html><title>Live browser fixture</title><h1>Host fixture</h1><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a>`,
+    `<!doctype html><title>Live browser fixture</title><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a>`,
   );
 });
 await new Promise((r) => fixture.listen(0, "127.0.0.1", r));
@@ -75,12 +75,15 @@ const deadline = async (fn, message, ms = 20000) => {
   }
   throw Error(message);
 };
+const desktopBrowser = process.env.RUI_TEST_DESKTOP_BROWSER === "1";
 const startHost = () => {
+  let browserShared = false;
   logs = "";
   host = spawn(
     "python3",
     [
-      "apps/browser/run.py",
+      desktopBrowser ? "apps/desktop/run.py" : "apps/browser/run.py",
+      ...(desktopBrowser ? ["--with-browser"] : []),
       "--skip-build",
       "--headless",
       "--port",
@@ -98,6 +101,14 @@ const startHost = () => {
   host.stdout.on("data", (d) => (logs += d));
   host.stderr.on("data", (d) => {
     logs += d;
+    if (
+      desktopBrowser &&
+      !browserShared &&
+      logs.includes("Open on your phone:")
+    ) {
+      browserShared = true;
+      host.stdin.write("share browser\n");
+    }
   });
 };
 try {
@@ -225,6 +236,29 @@ try {
         .getByRole("button", { name: "Run action", exact: true })
         .isDisabled()),
     "page ready",
+  );
+  await page.getByRole("heading", { name: "Host fixture", level: 1 }).waitFor();
+  assert.ok(await page.getByRole("list").count());
+  const more = page.locator('[data-presentation="disclosure"] > summary');
+  assert.equal(
+    await page
+      .getByRole("button", { name: "New tab", exact: true })
+      .isVisible(),
+    false,
+  );
+  await more.click();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "New tab", exact: true })
+      .isVisible(),
+    true,
+  );
+  await more.click();
+  assert.equal(await page.locator("#view img").count(), 0);
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
   );
   await page.getByRole("button", { name: "Run action", exact: true }).click();
   await page.getByText("Action confirmed", { exact: true }).waitFor();

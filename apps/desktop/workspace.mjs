@@ -35,17 +35,35 @@ export function native(request) {
 
 export class DesktopWorkspace {
   static async launch() {
-    const workspace = new DesktopWorkspace();
+    const browser =
+      process.env.RUI_DESKTOP_BROWSER === "1"
+        ? await (
+            await import("./browser.mjs")
+          ).DesktopBrowser.launch(process.env.RUI_STATE)
+        : undefined;
+    const workspace = new DesktopWorkspace(native, browser);
     // Fail startup with a useful error when not launched in a desktop session.
-    await workspace.local({ op: "apps" });
+    try {
+      await workspace.local({ op: "apps" });
+    } catch (error) {
+      await browser?.close();
+      throw error;
+    }
     workspace.timer = setInterval(() => void workspace.refresh(), 500);
     return workspace;
   }
-  constructor(invoke = native) {
-    this.invoke = invoke;
+  constructor(invoke = native, browser) {
+    this.browser = browser;
+    this.invoke = (request) =>
+      request.source?.adapter === "browser"
+        ? browser.request(request)
+        : invoke(request);
     this.catalog = new Map();
     this.privatePids = new Set();
     this.approved = new Map();
+    this.sessionSharing = false;
+    this.excluded = new Set();
+    this.catalogRead = 0;
     this.selected = undefined;
     this.generation = 0;
     this.windowGeneration = 0;
@@ -65,6 +83,7 @@ export class DesktopWorkspace {
         this.closed = true;
         clearInterval(this.timer);
         await this.busy;
+        await this.browser?.close();
       },
     };
     this.rebuild();
@@ -74,20 +93,38 @@ export class DesktopWorkspace {
       const result = await this.invoke({ op: "list" });
       if (!Array.isArray(result.apps) || result.apps.length > 64)
         throw Error("Application limit");
+      if (this.browser && !this.browser.workspace.closed)
+        result.apps = [...result.apps, this.browser.source];
+      if (result.apps.length > 65) throw Error("Application limit");
       this.catalog = new Map(
         result.apps
           .filter(
             (source) => !this.privatePids.has(source.pid) && !source.local_only,
           )
           .map((source) => {
-            const id = createHash("sha256")
-              .update(JSON.stringify([source.root, source.pid, source.start]))
-              .digest("hex")
-              .slice(0, 16);
+            const id =
+              source.adapter === "browser"
+                ? "browser"
+                : createHash("sha256")
+                    .update(
+                      JSON.stringify([source.root, source.pid, source.start]),
+                    )
+                    .digest("hex")
+                    .slice(0, 16);
             return [id, source];
           }),
       );
+      this.catalogRead = Date.now();
+      if (this.sessionSharing) {
+        const next = new Map(
+          [...this.catalog].filter(([id]) => !this.excluded.has(id)),
+        );
+        this.approved = next;
+        if (!next.has(this.selected)) this.select(next.keys().next().value);
+        this.rebuild();
+      }
       return {
+        sessionSharing: this.sessionSharing,
         apps: [...new Map([...this.approved, ...this.catalog])].map(
           ([id, source]) => ({
             id,
@@ -98,6 +135,16 @@ export class DesktopWorkspace {
           }),
         ),
       };
+    }
+    if (request.op === "session") {
+      if (!["on", "off"].includes(request.id))
+        throw Error("Use session on or session off");
+      this.sessionSharing = request.id === "on";
+      this.excluded.clear();
+      if (this.sessionSharing) return this.local({ op: "apps" });
+      this.approved.clear();
+      this.select(undefined);
+      return { sessionSharing: false, apps: [] };
     }
     if (request.op === "protect") {
       if (!/^[1-9][0-9]*$/.test(request.id || ""))
@@ -120,18 +167,21 @@ export class DesktopWorkspace {
       const source = this.catalog.get(request.id);
       if (!source || this.privatePids.has(source.pid))
         throw Error("Run apps and use an application ID from that list");
-      if (this.approved.size >= 8 && !this.approved.has(request.id))
-        throw Error("Eight shared applications maximum");
+      if (this.approved.size >= 65 && !this.approved.has(request.id))
+        throw Error("64 native applications plus the managed browser maximum");
       const sample = await this.invoke({ op: "capture", source });
+      this.excluded.delete(request.id);
       this.approved.set(request.id, source);
       this.select(request.id);
       this.sample = sample;
       this.availability =
+        sample.status ||
         "Observed accessibility content. Graphics and password fields are unavailable.";
       this.rebuild();
       return { shared: source.name, id: request.id };
     }
     if (request.op === "unshare") {
+      if (this.sessionSharing) this.excluded.add(request.id);
       if (!this.approved.delete(request.id))
         throw Error("Application is not shared");
       if (this.selected === request.id)
@@ -146,6 +196,7 @@ export class DesktopWorkspace {
     throw Error("Unsupported desktop host command");
   }
   select(id) {
+    this.browser?.clearSecrets();
     this.selected = id;
     this.preferredWindow = undefined;
     this.activeWindow = undefined;
@@ -157,7 +208,18 @@ export class DesktopWorkspace {
     this.rebuild();
   }
   async refresh() {
-    if (this.closed || this.busy || !this.selected) return;
+    if (this.closed || this.busy) return;
+    if (this.sessionSharing && Date.now() - this.catalogRead > 3000) {
+      this.busy = this.local({ op: "apps" });
+      try {
+        await this.busy;
+      } catch {
+        this.catalogRead = Date.now();
+      } finally {
+        this.busy = undefined;
+      }
+    }
+    if (!this.selected || this.closed) return;
     const id = this.selected,
       generation = this.generation,
       source = this.approved.get(id);
@@ -167,6 +229,7 @@ export class DesktopWorkspace {
         if (this.generation !== generation || this.closed) return;
         this.sample = sample;
         this.availability =
+          sample.status ||
           "Observed accessibility content. Graphics and password fields are unavailable.";
       } catch {
         if (this.generation !== generation || this.closed) return;
@@ -226,6 +289,7 @@ export class DesktopWorkspace {
           `app:${id}`,
           {
             role: "button",
+            kind: id === this.selected ? "view:app-active" : "view:app",
             label: `${id === this.selected ? "Viewing: " : "Open: "}${source.name}`,
             actions: ["Activate"],
           },
@@ -237,6 +301,7 @@ export class DesktopWorkspace {
       add("apps", {
         role: "group",
         label: "Shared applications",
+        kind: "view:apps",
         children: apps,
       }),
     ];
@@ -279,11 +344,13 @@ export class DesktopWorkspace {
           add("windows", {
             role: "group",
             label: modals.length ? "Dialog requires attention" : "Windows",
+            kind: "view:windows",
             children: navigation.map((node, index) =>
               add(
                 `window:${this.generation}:${encoded(node)}`,
                 {
                   role: "button",
+                  kind: node === chosen ? "view:window-active" : "view:window",
                   label: `${node === chosen ? "Window: " : "Show window: "}${node.label || `Untitled ${index + 1}`}`,
                   actions: modals.length ? [] : ["Activate"],
                   disabled: !!modals.length,
@@ -299,7 +366,7 @@ export class DesktopWorkspace {
         const childKeys = raw.children.flatMap((key) => {
           const child = byKey.get(JSON.stringify(key));
           if (
-            raw.role === "button" &&
+            (raw.role === "button" || raw.role === "group") &&
             child.role === "label" &&
             child.label === raw.label &&
             !child.children.length &&
@@ -310,13 +377,17 @@ export class DesktopWorkspace {
         });
         if (
           appRoot ||
-          (raw.role === "group" && !raw.label && !raw.actions.length)
+          (raw.role === "group" &&
+            !raw.label &&
+            !raw.actions.length &&
+            !raw.presentation &&
+            !raw.kind)
         )
           return childKeys;
         visible.push({ ...raw, children: childKeys });
         return [raw.key];
       };
-      const roots = present(chosen, chosen === this.sample.nodes[0]);
+      const roots = present(chosen, true);
       for (const raw of visible) {
         const key = nodeKey(raw.key),
           structural = raw.children.length > 0;
@@ -334,13 +405,14 @@ export class DesktopWorkspace {
           description: raw.description || "",
           actions: raw.actions,
           disabled: raw.disabled,
-          ...(raw.kind ? { kind: raw.kind, value: raw.value } : {}),
+          kind: raw.kind || raw.presentation || null,
+          ...(raw.value !== undefined ? { value: raw.value } : {}),
           children: raw.children.map((k) => idFor(nodeKey(k))),
         };
         const handler = raw.actions.length
           ? { source, key: raw.key, fingerprint: raw.fingerprint }
           : undefined;
-        if (structural && (raw.kind || raw.actions.length)) {
+        if (structural && (raw.role === "text" || raw.actions.length)) {
           const content = add(
             key + ":control",
             { ...node, children: [] },
@@ -350,13 +422,21 @@ export class DesktopWorkspace {
           add(key, {
             role: "group",
             label: raw.label,
+            kind: raw.presentation || null,
             children: [content, ...node.children],
           });
         } else {
           add(key, node, handler, handler ? raw.fingerprint : "");
         }
       }
-      children.push(...roots.map((key) => idFor(nodeKey(key))));
+      children.push(
+        add("content", {
+          role: "group",
+          label: chosen.label || source.name,
+          kind: modals.length ? "view:dialog" : "view:content",
+          children: roots.map((key) => idFor(nodeKey(key))),
+        }),
+      );
     }
     if (nodes.length >= 1024) {
       this.sample = undefined;
@@ -384,8 +464,21 @@ export class DesktopWorkspace {
       !target.node.actions.includes(request.action) ||
       Date.now() >= expires ||
       this.closed
-    )
+    ) {
+      if (process.env.RUI_DESKTOP_TRACE)
+        console.error(
+          "Desktop dispatch:",
+          "rejected",
+          !target
+            ? "missing public target"
+            : target.node.version !== request.version
+              ? "changed public target"
+              : Date.now() >= expires
+                ? "public deadline"
+                : "disabled public action",
+        );
       return { status: "rejected" };
+    }
     if (target.select) {
       if (request.action !== "Activate" || !this.approved.has(target.select))
         return { status: "rejected" };
@@ -400,6 +493,7 @@ export class DesktopWorkspace {
       return { status: "dispatched" };
     }
     this.busy = this.invoke({
+      ...request,
       op: "dispatch",
       source: target.source,
       key: target.key,
@@ -410,6 +504,8 @@ export class DesktopWorkspace {
     });
     try {
       const result = await this.busy;
+      if (process.env.RUI_DESKTOP_TRACE)
+        console.error("Desktop dispatch:", result.status, result.reason || "");
       // Publish the new observation before delivering the command result, so
       // subsequent actions cannot use the pre-edit application fingerprint.
       this.sample = result.capture;
@@ -427,7 +523,16 @@ export class DesktopWorkspace {
       void this.refresh();
     }
   }
-  stage() {
-    throw Error("Desktop password input is unavailable");
+  stage(scope, secret) {
+    const target = this.targets.get(scope.target);
+    if (
+      !target ||
+      target.source?.adapter !== "browser" ||
+      target.node.kind !== "password" ||
+      target.node.version !== scope.version ||
+      !target.node.actions.includes("SetValue")
+    )
+      throw Error("Password input is unavailable for this target");
+    return this.browser.stage(scope, secret, target);
   }
 }
