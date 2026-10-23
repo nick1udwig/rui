@@ -1429,10 +1429,15 @@ fn capture(
     }
     let mut stamps = BTreeMap::new();
     let mut mutations = Vec::new();
+    let mut encoded = Vec::new();
     for record in &mut records {
         let (id, kind, version) = identity(record)?;
         let source_version = *version;
-        let digest: [u8; 32] = Sha256::digest(record.encode_to_vec()).into();
+        encoded.clear();
+        record
+            .encode(&mut encoded)
+            .map_err(|_| HostError::FixtureLimit)?;
+        let digest: [u8; 32] = Sha256::digest(&encoded).into();
         let old = projection.records.get(&id);
         let changed = old.is_none_or(|stamp| stamp.digest != digest);
         let version = match old {
@@ -1861,4 +1866,68 @@ fn install_resources(
     }
     projection.resources = resources;
     Ok(())
+}
+
+#[cfg(test)]
+mod capture_tests {
+    use super::*;
+
+    #[test]
+    fn capture_hashes_exact_source_records_before_projecting_versions() {
+        for secret in [String::new(), "x".repeat(64 * 1024)] {
+            let mut host = ControlledHost::new(HostConfig::default(), secret).unwrap();
+            let config = SessionConfig::default();
+            let session = host
+                .negotiate(
+                    VerifiedAuthorization {
+                        principal: "capture-test".into(),
+                        policy_version: 1,
+                        permissions: Permissions {
+                            can_view: true,
+                            can_control: false,
+                            actions: [READ_SECRET_PERMISSION.into()].into_iter().collect(),
+                        },
+                    },
+                    ClientHello {
+                        client_instance_id: [3; 16],
+                        supported_versions: [1].into_iter().collect(),
+                        supported_profiles: config.supported_profiles,
+                        required_profiles: config.required_profiles,
+                        receiver_limits: ReceiverLimits::default(),
+                        resume: None,
+                    },
+                    0,
+                )
+                .unwrap();
+            let projection = &host.projections[&session.client.client_instance_id];
+            let expected: BTreeMap<_, [u8; 32]> =
+                projection_records(host.source.records(projection), projection)
+                    .into_iter()
+                    .map(|mut record| {
+                        let id = identity(&mut record).unwrap().0;
+                        (id, Sha256::digest(record.encode_to_vec()).into())
+                    })
+                    .collect();
+            let first = capture(&host.source, projection, false).unwrap();
+            assert_eq!(first.stamps.len(), expected.len());
+            for (id, stamp) in &first.stamps {
+                assert_eq!(stamp.digest, expected[id]);
+            }
+            let projection = host
+                .projections
+                .get_mut(&session.client.client_instance_id)
+                .unwrap();
+            projection.records = first.stamps;
+            for stamp in projection.records.values_mut() {
+                stamp.version += 9;
+            }
+            let repeated = capture(&host.source, projection, true).unwrap();
+            assert!(repeated.mutations.is_empty());
+            for mut record in repeated.records {
+                let (id, _, version) = identity(&mut record).unwrap();
+                assert_eq!(*version, 10);
+                assert_eq!(repeated.stamps[&id].digest, expected[&id]);
+            }
+        }
+    }
 }
