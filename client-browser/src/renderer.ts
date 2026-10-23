@@ -838,20 +838,22 @@ function paintInto(p: Primitive, x: number, y: number, output: Color): Color {
   } else throw new Error("non-gradient paint");
   if (t < 0) return stops[0].color;
   if (t > 1) return stops[stops.length - 1].color;
-  let left = stops[0];
-  for (let i = 1; i < stops.length; i++) {
-    const right = stops[i];
-    if (t < right.offset) {
-      const f = (t - left.offset) / (right.offset - left.offset);
-      output.red = left.color.red * (1 - f) + right.color.red * f;
-      output.green = left.color.green * (1 - f) + right.color.green * f;
-      output.blue = left.color.blue * (1 - f) + right.color.blue * f;
-      output.alpha = left.color.alpha * (1 - f) + right.color.alpha * f;
-      return output;
-    }
-    left = right;
+  let low = 1,
+    high = stops.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (t < stops[middle].offset) high = middle;
+    else low = middle + 1;
   }
-  return left.color;
+  const left = stops[low - 1],
+    right = stops[low];
+  if (!right) return left.color;
+  const f = (t - left.offset) / (right.offset - left.offset);
+  output.red = left.color.red * (1 - f) + right.color.red * f;
+  output.green = left.color.green * (1 - f) + right.color.green * f;
+  output.blue = left.color.blue * (1 - f) + right.color.blue * f;
+  output.alpha = left.color.alpha * (1 - f) + right.color.alpha * f;
+  return output;
 }
 function composite(source: Layer, target: Layer, opacity: number): void {
   const b = source.bounds;
