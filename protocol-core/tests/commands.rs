@@ -368,6 +368,90 @@ fn cmd_009_applied_requires_evidence_and_can_have_no_visible_change() {
     }
 }
 #[test]
+fn outcome_retention_uses_global_receipt_order_across_clients_and_expiry() {
+    assert!(matches!(
+        CommandLedger::new(
+            [1; 16],
+            LedgerLimits {
+                max_outcomes: 0,
+                ..LedgerLimits::default()
+            }
+        ),
+        Err(LedgerError::InvalidLimits)
+    ));
+    let clients = ["charlie", "alice", "bob"].map(|principal| AuthenticatedClient {
+        principal: principal.into(),
+        ..client()
+    });
+    let arrivals = [
+        (0, 1, 0),
+        (1, 1, 4),
+        (2, 1, 4),
+        (0, 2, 8),
+        (2, 2, 11),
+        (1, 2, 11),
+        (0, 3, 12),
+        (1, 3, 30),
+    ];
+    for maximum in [1, 3, arrivals.len()] {
+        let mut ledger = CommandLedger::new(
+            [1; 16],
+            LedgerLimits {
+                max_outcomes: maximum,
+                outcome_ttl_ms: 10,
+                ..LedgerLimits::default()
+            },
+        )
+        .unwrap();
+        let mut retained = std::collections::VecDeque::new();
+        for (index, &(producer, sequence, now)) in arrivals.iter().enumerate() {
+            ledger
+                .submit(
+                    &clients[producer],
+                    &wire(sequence).encode_to_vec(),
+                    now,
+                    |_| Ok(()),
+                    |_| Ok(DispatchOutcome::Dispatched),
+                )
+                .unwrap();
+            retained.retain(|&old: &usize| arrivals[old].2 + 10 > now);
+            retained.push_back(index);
+            if retained.len() > maximum {
+                retained.pop_front();
+            }
+            for (old, &(producer, sequence, _)) in arrivals[..=index].iter().enumerate() {
+                let expected = if retained.contains(&old) {
+                    CommandStatus::Dispatched
+                } else {
+                    CommandStatus::OutcomeExpired
+                };
+                assert_eq!(
+                    ledger
+                        .get_result(&clients[producer], [1; 16], sequence, now)
+                        .unwrap()
+                        .status,
+                    expected,
+                    "maximum={maximum}, arrival={index}, command={old}"
+                );
+                assert_eq!(
+                    ledger
+                        .submit(
+                            &clients[producer],
+                            &wire(sequence).encode_to_vec(),
+                            now,
+                            |_| panic!("retry must not validate"),
+                            |_| panic!("retry must not dispatch"),
+                        )
+                        .unwrap()
+                        .status,
+                    expected
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn retention_is_bounded_without_forgetting_epoch_high_water() {
     let limits = LedgerLimits {
         max_clients: 1,
