@@ -281,14 +281,15 @@ class DesktopReader(Reader):
         # roots are ambiguous; expose them read-only until the source resolves it.
         modal = [n['key'] for n in nodes if n.get('modal')]
         by_key = {n['key']: n for n in nodes}
-        for node in nodes:
-            if modal:
-                k = node['key']
-                ancestry = []
-                while k is not None:
-                    ancestry.append(k)
-                    k = by_key[k]['parent']
-                if len(modal) != 1 or modal[0] not in ancestry:
+        if modal:
+            allowed = set()
+            pending = list(modal) if len(modal) == 1 else []
+            while pending:
+                key = pending.pop()
+                allowed.add(key)
+                pending.extend(by_key[key]['children'])
+            for node in nodes:
+                if node['key'] not in allowed:
                     node['actions'] = []
                     node['disabled'] = True
         # Revalidate the target, its ownership chain and all active modals.
