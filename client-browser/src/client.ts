@@ -704,21 +704,13 @@ export class BrowserClient {
     assertUint64(target);
     if (!this.hasControl) throw new Error("control unavailable");
     if (this.pendingCommands) throw new Error("wait for the preceding command");
-    const seq = this.session.activate(target);
-    this.causal.begin(seq);
-    this.options.timings?.command(seq);
-    this.flush();
-    return seq;
+    return this.trackCommand(this.session.activate(target));
   }
   focus(target: Id): bigint {
     assertUint64(target);
     if (!this.hasControl) throw new Error("control unavailable");
     if (this.pendingCommands) throw new Error("wait for the preceding command");
-    const seq = this.session.focus(target);
-    this.causal.begin(seq);
-    this.options.timings?.command(seq);
-    this.flush();
-    return seq;
+    return this.trackCommand(this.session.focus(target));
   }
   setChecked(target: Id, checked: boolean): bigint {
     assertUint64(target);
@@ -726,11 +718,7 @@ export class BrowserClient {
       throw new TypeError("expected a boolean value");
     if (!this.hasControl || this.pendingCommands)
       throw new Error("wait for current control and readiness");
-    const seq = this.session.setChecked(target, checked);
-    this.causal.begin(seq);
-    this.options.timings?.command(seq);
-    this.flush();
-    return seq;
+    return this.trackCommand(this.session.setChecked(target, checked));
   }
   /** browser.semantic.v1: explicit guarded full value, including opaque secret tokens. */
   setBrowserValue(target: Id, value: string): bigint {
@@ -750,11 +738,9 @@ export class BrowserClient {
     assertUint64(modelVersion);
     if (!this.hasControl || this.pendingCommands)
       throw new Error("wait for current control and readiness");
-    const seq = this.session.activateItem(collection, item, modelVersion);
-    this.causal.begin(seq);
-    this.options.timings?.command(seq);
-    this.flush();
-    return seq;
+    return this.trackCommand(
+      this.session.activateItem(collection, item, modelVersion),
+    );
   }
   captureEdit(target: Id): EditCapture {
     assertUint64(target);
@@ -797,17 +783,15 @@ export class BrowserClient {
       throw new Error("invalid edit capture");
     if (!this.hasControl) throw new Error("control unavailable");
     if (this.pendingCommands) throw new Error("wait for the preceding command");
-    const seq = this.session.replaceText(
-      capture.target,
-      capture.revision,
-      capture.textVersion,
-      content,
-      capture.token,
+    return this.trackCommand(
+      this.session.replaceText(
+        capture.target,
+        capture.revision,
+        capture.textVersion,
+        content,
+        capture.token,
+      ),
     );
-    this.causal.begin(seq);
-    this.options.timings?.command(seq);
-    this.flush();
-    return seq;
   }
   setSelection(target: Id, anchor: bigint, focus: bigint): bigint {
     assertUint64(target);
@@ -815,11 +799,13 @@ export class BrowserClient {
     assertUint64(focus);
     if (!this.hasControl) throw new Error("control unavailable");
     if (this.pendingCommands) throw new Error("wait for the preceding command");
-    const seq = this.session.setSelection(target, anchor, focus);
-    this.causal.begin(seq);
-    this.options.timings?.command(seq);
+    return this.trackCommand(this.session.setSelection(target, anchor, focus));
+  }
+  private trackCommand(sequence: bigint): bigint {
+    this.causal.begin(sequence);
+    this.options.timings?.command(sequence);
     this.flush();
-    return seq;
+    return sequence;
   }
   retryPending(): void {
     this.session.retryPending();
