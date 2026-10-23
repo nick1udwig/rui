@@ -66,6 +66,21 @@ impl Worker {
         serde_json::from_slice(&bytes).map_err(|_| TransportError::Protocol)
     }
 }
+struct Observation {
+    capture: Arc<Capture>,
+    snapshot: p::Snapshot,
+}
+impl Observation {
+    fn read(worker: &mut Worker) -> Result<Self, TransportError> {
+        let capture = serde_json::from_value(worker.call(json!({"op":"capture"}))?)
+            .map_err(|_| TransportError::Protocol)?;
+        let snapshot = projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
+        Ok(Self {
+            capture: Arc::new(capture),
+            snapshot,
+        })
+    }
+}
 struct Scope {
     alive: AtomicBool,
     owner: Arc<()>,
@@ -76,7 +91,7 @@ struct View {
     scope: Arc<Scope>,
     lifetime: AuthorizationLifetime,
     snapshot: p::Snapshot,
-    capture: Capture,
+    capture: Arc<Capture>,
     pending: Option<SharedPayload>,
     ready: bool,
     revoked: Option<Revoked>,
@@ -88,7 +103,7 @@ pub struct State {
     session: Id,
     views: BTreeMap<Id, View>,
     worker: Worker,
-    capture: Capture,
+    observation: Observation,
     last_capture: Instant,
     origin: Instant,
     stopped: Arc<AtomicBool>,
@@ -122,9 +137,7 @@ impl BrowserPort {
         Ok(result)
     }
     pub fn new(mut worker: Worker) -> Result<Self, TransportError> {
-        let capture: Capture = serde_json::from_value(worker.call(json!({"op":"capture"}))?)
-            .map_err(|_| TransportError::Protocol)?;
-        projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
+        let observation = Observation::read(&mut worker)?;
         let session = fresh_id();
         let epoch = fresh_id();
         let budget = MemoryBudget::new(128 << 20);
@@ -151,7 +164,7 @@ impl BrowserPort {
                 session,
                 views: BTreeMap::new(),
                 worker,
-                capture,
+                observation,
                 last_capture: Instant::now(),
                 origin: Instant::now(),
                 stopped: stopped.clone(),
@@ -279,23 +292,24 @@ impl State {
         if self.last_capture.elapsed() < Duration::from_millis(200) {
             return Ok(());
         }
-        let capture: Capture = serde_json::from_value(self.worker.call(json!({"op":"capture"}))?)
-            .map_err(|_| TransportError::Protocol)?;
-        projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
-        self.capture = capture;
+        self.observation = Observation::read(&mut self.worker)?;
         self.last_capture = Instant::now();
         Ok(())
     }
     fn publish(&mut self, id: Id, now: u64) -> Result<(), TransportError> {
         let v = self.views.get_mut(&id).ok_or(TransportError::Authority)?;
-        if !v.ready || v.capture == self.capture {
+        if !v.ready || Arc::ptr_eq(&v.capture, &self.observation.capture) {
             return Ok(());
         }
-        let target = projection::snapshot(&self.capture).map_err(|_| TransportError::Protocol)?;
+        if v.capture == self.observation.capture {
+            v.capture = self.observation.capture.clone();
+            return Ok(());
+        }
+        let target = self.observation.snapshot.clone();
         let candidate = publication_builder::build(&v.snapshot, target, &BTreeSet::new())
             .map_err(|_| TransportError::Receiver)?;
         if candidate.transaction.mutations.is_empty() {
-            v.capture = self.capture.clone();
+            v.capture = self.observation.capture.clone();
             return Ok(());
         }
         let envelope = p::Envelope {
@@ -322,7 +336,7 @@ impl State {
             .take_outbound(&v.session.client, v.session.view_id)
             .map_err(|_| TransportError::Authority)?;
         v.snapshot = candidate.snapshot;
-        v.capture = self.capture.clone();
+        v.capture = self.observation.capture.clone();
         v.ready = false;
         Ok(())
     }
@@ -361,8 +375,7 @@ impl State {
                     .sessions
                     .negotiate(Some(authorization), *hello, now)
                     .map_err(|_| TransportError::Authority)?;
-                let snapshot =
-                    projection::snapshot(&self.capture).map_err(|_| TransportError::Protocol)?;
+                let snapshot = self.observation.snapshot.clone();
                 let candidate =
                     publication_builder::build(&p::Snapshot::default(), snapshot, &BTreeSet::new())
                         .map_err(|_| TransportError::Receiver)?;
@@ -412,7 +425,7 @@ impl State {
                         scope,
                         lifetime,
                         snapshot,
-                        capture: self.capture.clone(),
+                        capture: self.observation.capture.clone(),
                         pending: Some(pending),
                         ready: false,
                         revoked: None,
@@ -531,7 +544,7 @@ impl State {
                     },
                     Operation::Command { family, bytes } => {
                         let auth = authority(&self.views[&id]);
-                        let nodes = self.views[&id].capture.nodes.clone();
+                        let capture = self.views[&id].capture.clone();
                         let worker = &mut self.worker;
                         let stopped = self.stopped.clone();
                         let started = Instant::now();
@@ -571,8 +584,10 @@ impl State {
                                     if remaining == 0 {
                                         return Err(DispatchFailure::Failed);
                                     }
-                                    let Some(node) =
-                                        nodes.iter().find(|node| node.id == command.target_id)
+                                    let Some(node) = capture
+                                        .nodes
+                                        .iter()
+                                        .find(|node| node.id == command.target_id)
                                     else {
                                         return Err(DispatchFailure::Failed);
                                     };
@@ -682,5 +697,282 @@ impl ProducerPort for BrowserPort {
             .await
             .map_err(|_| TransportError::Authority)?
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rui_protocol_core::session::{ClientHello, Permissions, VerifiedAuthorization};
+    use std::thread;
+
+    fn capture(value: &str, version: u64) -> Value {
+        json!({"nodes": [
+            {"id": 3, "version": 1, "role": "root", "label": "Desktop", "children": [10]},
+            {"id": 10, "version": version, "role": "text", "label": "Document",
+             "kind": "text", "value": value, "actions": ["SetValue"]}
+        ], "status": "Available"})
+    }
+
+    struct Fixture {
+        port: BrowserPort,
+        source: Arc<Mutex<Value>>,
+        requests: Arc<Mutex<Vec<Value>>>,
+        worker: thread::JoinHandle<()>,
+    }
+
+    fn fixture() -> Fixture {
+        let (socket, mut peer) = UnixStream::pair().unwrap();
+        let source = Arc::new(Mutex::new(capture("before", 40)));
+        let response = source.clone();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let log = requests.clone();
+        let worker = thread::spawn(move || {
+            let mut size = [0; 4];
+            while peer.read_exact(&mut size).is_ok() {
+                let mut request = vec![0; u32::from_be_bytes(size) as usize];
+                peer.read_exact(&mut request).unwrap();
+                let request: Value = serde_json::from_slice(&request).unwrap();
+                let reply = match request["op"].as_str() {
+                    Some("capture") => response.lock().unwrap().clone(),
+                    Some("dispatch") => json!({"status": "rejected"}),
+                    _ => panic!("unexpected worker request"),
+                };
+                log.lock().unwrap().push(request);
+                let bytes = serde_json::to_vec(&reply).unwrap();
+                peer.write_all(&(bytes.len() as u32).to_be_bytes()).unwrap();
+                peer.write_all(&bytes).unwrap();
+            }
+        });
+        Fixture {
+            port: BrowserPort::new(Worker { socket }).unwrap(),
+            source,
+            requests,
+            worker,
+        }
+    }
+
+    fn scoped(state: &mut State, connection: &Connection, operation: Operation) -> Reply {
+        state
+            .execute(Request::Scoped {
+                connection: connection.clone(),
+                operation,
+                now: 0,
+            })
+            .unwrap()
+    }
+
+    fn connect(state: &mut State, id: u8) -> (Connection, SharedPayload) {
+        let mut profiles = SessionConfig::default().supported_profiles;
+        profiles.extend(["semantics.only.v1".into(), PROFILE.into()]);
+        let Reply::Connected(connection) = state
+            .execute(Request::Connect {
+                authorization: VerifiedAuthorization {
+                    principal: format!("client-{id}"),
+                    policy_version: 1,
+                    permissions: Permissions {
+                        can_view: true,
+                        can_control: true,
+                        actions: ["SetValue".into()].into_iter().collect(),
+                    },
+                },
+                hello: Box::new(ClientHello {
+                    client_instance_id: [id; 16],
+                    supported_versions: [1].into_iter().collect(),
+                    supported_profiles: profiles.clone(),
+                    required_profiles: profiles,
+                    receiver_limits: Default::default(),
+                    resume: None,
+                }),
+                lifetime: AuthorizationLifetime::new(),
+                fresh_view: false,
+                now: 0,
+            })
+            .unwrap()
+        else {
+            panic!("expected connection")
+        };
+        let selection = state.selection.clone();
+        let Reply::Opened {
+            checkpoint: Some(checkpoint),
+            ..
+        } = scoped(
+            state,
+            &connection,
+            Operation::Open {
+                selection,
+                mirror_canvas_policy: "semantic-only".into(),
+            },
+        )
+        else {
+            panic!("expected checkpoint")
+        };
+        (connection, checkpoint)
+    }
+
+    fn ready(state: &mut State, connection: &Connection, witness: SharedPayload, revision: u64) {
+        for ack in [
+            Acknowledgement::Applied { revision, witness },
+            Acknowledgement::SemanticReady { revision },
+        ] {
+            scoped(state, connection, Operation::Ack(ack));
+        }
+    }
+
+    #[test]
+    fn views_share_observations_but_publish_independent_revisions() {
+        let Fixture {
+            port,
+            source,
+            requests,
+            worker,
+        } = fixture();
+        {
+            let mut state = port.state.lock().unwrap();
+            let (first, first_frame) = connect(&mut state, 1);
+            let (second, second_frame) = connect(&mut state, 2);
+            ready(&mut state, &first, first_frame, 1);
+            let original = state.observation.capture.clone();
+            for view in state.views.values() {
+                assert!(Arc::ptr_eq(&original, &view.capture));
+                assert_eq!(authority(view).targets[&10].target_version, 1);
+                assert_eq!(view.capture.nodes[1].version, 40);
+            }
+            *source.lock().unwrap() = capture("after", 41);
+            state.last_capture = Instant::now() - Duration::from_secs(1);
+            state.refresh().unwrap();
+            assert!(!Arc::ptr_eq(&original, &state.observation.capture));
+            assert_eq!(original.nodes[1].value, Some(json!("before")));
+            let expected = publication_builder::build(
+                &state.views[&[1; 16]].snapshot,
+                projection::snapshot(&state.observation.capture).unwrap(),
+                &BTreeSet::new(),
+            )
+            .unwrap();
+            state.publish([1; 16], 0).unwrap();
+            state.publish([2; 16], 0).unwrap();
+            let first_view = &state.views[&[1; 16]];
+            assert!(Arc::ptr_eq(&first_view.capture, &state.observation.capture));
+            assert_eq!(first_view.snapshot, expected.snapshot);
+            assert_eq!(first_view.snapshot.revision, 2);
+            assert_eq!(first_view.capture.nodes[1].version, 41);
+            assert_eq!(authority(first_view).targets[&10].target_version, 2);
+            let first_update = first_view.pending.clone().unwrap();
+            let envelope = p::Envelope::decode(first_update.as_ref()).unwrap();
+            assert_eq!(
+                p::Transaction::decode(envelope.payload.as_slice()).unwrap(),
+                expected.transaction
+            );
+            assert!(Arc::ptr_eq(&state.views[&[2; 16]].capture, &original));
+            assert_eq!(state.views[&[2; 16]].snapshot.revision, 1);
+            ready(&mut state, &second, second_frame, 1);
+            let Reply::Lease(lease) = scoped(
+                &mut state,
+                &second,
+                Operation::Control(Control::Acquire { request: [9; 16] }),
+            ) else {
+                panic!("expected control lease")
+            };
+            let command = p::SemanticCommand {
+                epoch: second.session().epoch.to_vec(),
+                view_id: second.session().view_id.to_vec(),
+                client_instance_id: second.session().client.client_instance_id.to_vec(),
+                command_seq: 1,
+                control_lease_id: lease.lease_id.to_vec(),
+                control_generation: lease.generation,
+                target_id: 10,
+                action_id: "SetValue".into(),
+                action_schema_version: 1,
+                observed_view_revision: 1,
+                preconditions: Some(p::Preconditions {
+                    target_version: Some(1),
+                    ..Default::default()
+                }),
+                arguments: Some(p::semantic_command::Arguments::SetValue(
+                    p::ValueArguments {
+                        value: Some(p::value_arguments::Value::Text("edit".into())),
+                    },
+                )),
+            };
+            assert!(matches!(
+                scoped(
+                    &mut state,
+                    &second,
+                    Operation::Command {
+                        family: CommandFamily::Semantic,
+                        bytes: command.encode_to_vec().into(),
+                    }
+                ),
+                Reply::Command(_)
+            ));
+            let dispatched = requests.lock().unwrap().last().unwrap().clone();
+            assert_eq!(dispatched["op"], "dispatch");
+            assert_eq!(dispatched["version"], 40);
+            assert_eq!(dispatched["target"], 10);
+            state.publish([2; 16], 0).unwrap();
+            assert_eq!(state.views[&[2; 16]].snapshot, expected.snapshot);
+            assert!(Arc::ptr_eq(
+                &state.views[&[2; 16]].capture,
+                &state.observation.capture
+            ));
+            ready(&mut state, &first, first_update, 2);
+            state.views.get_mut(&[1; 16]).unwrap().pending.take();
+            state.last_capture = Instant::now() - Duration::from_secs(1);
+            state.refresh().unwrap();
+            state.publish([1; 16], 0).unwrap();
+            assert!(state.views[&[1; 16]].pending.is_none());
+            assert_eq!(state.views[&[1; 16]].snapshot, expected.snapshot);
+            assert!(Arc::ptr_eq(
+                &state.views[&[1; 16]].capture,
+                &state.observation.capture
+            ));
+            source.lock().unwrap()["status"] = json!("Partial observation");
+            state.last_capture = Instant::now() - Duration::from_secs(1);
+            state.refresh().unwrap();
+            let status_only = publication_builder::build(
+                &expected.snapshot,
+                projection::snapshot(&state.observation.capture).unwrap(),
+                &BTreeSet::new(),
+            )
+            .unwrap();
+            state.publish([1; 16], 0).unwrap();
+            assert_eq!(state.views[&[1; 16]].snapshot, status_only.snapshot);
+            assert!(Arc::ptr_eq(
+                &state.views[&[1; 16]].capture,
+                &state.observation.capture
+            ));
+        }
+        drop(port);
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn invalid_observations_leave_current_capture_and_projection_intact() {
+        let Fixture {
+            port,
+            source,
+            worker,
+            ..
+        } = fixture();
+        {
+            let mut state = port.state.lock().unwrap();
+            let original = state.observation.capture.clone();
+            let original_projection = state.observation.snapshot.clone();
+            for invalid in [json!({"nodes": [], "status": "Unavailable"}), {
+                let mut value = capture("invalid", 41);
+                value["nodes"][0]["children"] = json!([999]);
+                value
+            }] {
+                *source.lock().unwrap() = invalid;
+                let stale = Instant::now() - Duration::from_secs(1);
+                state.last_capture = stale;
+                assert!(matches!(state.refresh(), Err(TransportError::Protocol)));
+                assert!(Arc::ptr_eq(&original, &state.observation.capture));
+                assert_eq!(state.observation.snapshot, original_projection);
+                assert_eq!(state.last_capture, stale);
+            }
+        }
+        drop(port);
+        worker.join().unwrap();
     }
 }
