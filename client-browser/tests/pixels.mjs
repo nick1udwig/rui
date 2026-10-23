@@ -231,6 +231,81 @@ export function checkPixels() {
     }),
   ]);
   close(pixel(canvas, 15, 15), [255, 0, 0, 255], "radial center");
+  const transparent = { red: 0, green: 0, blue: 0, alpha: 0 };
+  const stopCases = [
+    [0],
+    [0, 1],
+    [0, 0.5, 1],
+    [0, 0.5, 0.5, 1],
+    [0, 0.5 - 1e-8, 0.5, 0.5 + 1e-8, 1],
+    [0, 0, 0],
+    [0.5, 0.5, 0.5],
+    [1, 1, 1],
+    ...[17, 257, 4096].map((count) =>
+      Array.from(
+        { length: count },
+        (_, i) => Math.floor(i / 2) / Math.floor((count - 1) / 2),
+      ),
+    ),
+  ].map((offsets) =>
+    offsets.map((offset, i) => ({
+      offset,
+      color: [red, green, blue, transparent][i % 4],
+    })),
+  );
+  stopCases.push([
+    { offset: 0, color: transparent },
+    { offset: 1, color: transparent },
+  ]);
+  let gradientReferenceFrames = 0;
+  for (const stops of stopCases)
+    for (const radial of [false, true])
+      for (const degenerate of [false, true]) {
+        const gradient = radial
+          ? {
+              RadialGradient: {
+                rect,
+                center: { x: 16.5, y: 16.5 },
+                inner_radius: 4,
+                outer_radius: degenerate ? 4 : 12,
+                stops,
+                spread: "Pad",
+              },
+            }
+          : {
+              LinearGradient: {
+                rect,
+                start: { x: 8.5, y: 0 },
+                end: { x: degenerate ? 8.5 : 24.5, y: 0 },
+                stops,
+                spread: "Pad",
+              },
+            };
+        const records = [scene(3, gradient)];
+        render(records);
+        const referenceCanvas = document.createElement("canvas"),
+          reference = new CanvasRenderer(
+            referenceCanvas,
+            undefined,
+            undefined,
+            false,
+          );
+        reference.render(
+          state(records),
+          { width: 32, height: 32, origin: { x: 0, y: 0 }, scale: 1 },
+          () => rvp(),
+        );
+        const expected = referenceCanvas
+            .getContext("2d")
+            .getImageData(0, 0, 32, 32).data,
+          actual = canvas.getContext("2d").getImageData(0, 0, 32, 32).data;
+        assert(
+          actual.every((value, i) => value === expected[i]),
+          `gradient lookup differs: ${stops.length} stops, radial=${radial}, degenerate=${degenerate}`,
+        );
+        reference.dispose();
+        gradientReferenceFrames++;
+      }
   render([
     scene(3, "Group", [4], 1, I, { x: 4, y: 4, width: 8, height: 8 }),
     scene(4, solid(red), [], 1, { ...I, tx: 2, ty: 2 }),
@@ -452,6 +527,7 @@ export function checkPixels() {
   return {
     primitives: 9,
     linearBlending: true,
+    gradientReferenceFrames,
     isolatedOpacity: true,
     clips: true,
     sourceGlyphs: true,
