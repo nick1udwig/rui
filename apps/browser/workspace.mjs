@@ -69,9 +69,11 @@ export class Workspace {
     this.downloads = [];
     this.secrets = new Map();
     this.closed = false;
+    this.captureGeneration = 0;
     context.on("page", (p) => this.register(p));
     context.on("close", () => {
       this.closed = true;
+      this.invalidate();
       this.secrets.clear();
     });
     for (const p of context.pages()) this.register(p);
@@ -98,6 +100,21 @@ export class Workspace {
     );
     return new Workspace(context, files, downloads);
   }
+  invalidate() {
+    this.captureGeneration++;
+    this.observation = undefined;
+  }
+  async observe() {
+    if (this.observation && Date.now() - this.observationTime < 1000)
+      return this.observation;
+    const generation = this.captureGeneration;
+    const capture = await this.capture();
+    if (generation === this.captureGeneration) {
+      this.observation = capture;
+      this.observationTime = Date.now();
+    }
+    return capture;
+  }
   register(page) {
     if (this.pages.has(page)) return;
     if (this.pages.size >= 16) {
@@ -109,6 +126,16 @@ export class Workspace {
       generation: 1,
       sessions: new Map(),
     };
+    for (const event of [
+      "framenavigated",
+      "framedetached",
+      "close",
+      "crash",
+      "dialog",
+      "download",
+    ])
+      page.on(event, () => this.invalidate());
+    this.invalidate();
     this.pages.set(page, entry);
     this.active = page;
     page.on("framenavigated", () => {
@@ -152,9 +179,11 @@ export class Workspace {
       const path = resolve(this.downloadDir, `${item.id}-${item.name}`);
       void download.saveAs(path).then(
         () => {
+          this.invalidate();
           item.status = `Saved on host: ${path}`;
         },
         () => {
+          this.invalidate();
           item.status = "Download failed or cancelled";
         },
       );
@@ -162,8 +191,18 @@ export class Workspace {
   }
   async session(page, frame) {
     const entry = this.pages.get(page);
-    if (!entry.sessions.has(frame))
-      entry.sessions.set(frame, await this.context.newCDPSession(frame));
+    if (!entry.sessions.has(frame)) {
+      const session = await this.context.newCDPSession(frame);
+      session.on("Accessibility.nodesUpdated", () => this.invalidate());
+      session.on("Accessibility.loadComplete", () => this.invalidate());
+      try {
+        await session.send("Accessibility.enable");
+      } catch (error) {
+        await session.detach().catch(() => {});
+        throw error;
+      }
+      entry.sessions.set(frame, session);
+    }
     return entry.sessions.get(frame);
   }
   async frames(page) {
@@ -582,13 +621,11 @@ export class Workspace {
                   content.pop();
                   byId.delete(previous.id);
                 }
-                if (
-                  !(
-                    node.role === "label" &&
-                    previous?.role === "label" &&
-                    previous.label === node.label
-                  )
-                )
+                if (!(
+                  node.role === "label" &&
+                  previous?.role === "label" &&
+                  previous.label === node.label
+                ))
                   content.push(add(this.semantic.node(prefix, node, handler)));
                 included++;
               }
@@ -844,6 +881,8 @@ export class Workspace {
       return { status: "dispatched" };
     } catch {
       return { status: "unknown" };
+    } finally {
+      this.invalidate();
     }
   }
 }

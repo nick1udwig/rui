@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Bounded, disposable AT-SPI jobs for explicitly approved existing applications.
+"""Bounded, supervised AT-SPI jobs for explicitly approved existing applications.
 
 Native references stay on the private owner lane. No coordinate input, scripts,
 clipboard access, or compositor association. Mutations have observed semantics:
@@ -45,7 +45,7 @@ class DesktopReader(Reader):
     max_calls = 8192
     call_timeout_ms = 400
 
-    def __init__(self):
+    def __init__(self, observe_events=False):
         import gi
         gi.require_version('Gio', '2.0')
         from gi.repository import Gio
@@ -57,7 +57,7 @@ class DesktopReader(Reader):
                                         1000, None).unpack()[0]
         if not address or len(address) > 1024:
             raise ValueError('accessibility bus unavailable')
-        super().__init__(None, address, observe_events=False)
+        super().__init__(None, address, observe_events=observe_events)
         self.deadline = time.monotonic() + 1.8
 
     def props(self, key, interface):
@@ -136,6 +136,15 @@ class DesktopReader(Reader):
 
     def sample(self, source):
         root = self.verify(source)
+        if getattr(self, 'watching', False) and self.selected != {root[0]}:
+            for old in self.registered:
+                self.call(('org.a11y.atspi.Registry', '/org/a11y/atspi/registry'),
+                          A + 'Registry', 'DeregisterEvent', self.GLib.Variant('(ss)', ('object:', old)))
+            self.registered.clear()
+            self.selected = {root[0]}
+            self.call(('org.a11y.atspi.Registry', '/org/a11y/atspi/registry'),
+                      A + 'Registry', 'RegisterEvent', self.GLib.Variant('(sass)', ('object:', [], root[0])))
+            self.registered.add(root[0])
         nodes, metadata, visited = [], {}, set()
         frontier = [(root, None)]
         depth = 0
@@ -465,9 +474,47 @@ class DesktopReader(Reader):
             return {'status': 'unknown'}
 
 
+def persistent():
+    import select
+    reader = DesktopReader(observe_events=True)
+    reader.watching = True
+    buffer = b''
+    generation = reader.generation
+    while True:
+        reader.pump()
+        if generation != reader.generation:
+            generation = reader.generation
+            sys.stdout.buffer.write(b'{"dirty":true}\n')
+            sys.stdout.buffer.flush()
+        ready, _, _ = select.select([sys.stdin.fileno()], [], [], .05)
+        if not ready:
+            continue
+        chunk = os.read(sys.stdin.fileno(), 65537)
+        if not chunk:
+            return
+        buffer += chunk
+        if len(buffer) > 65536:
+            raise ValueError('request ceiling')
+        while b'\n' in buffer:
+            raw, buffer = buffer.split(b'\n', 1)
+            reader.calls = 0
+            reader.deadline = time.monotonic() + 1.8
+            try:
+                result = reader.execute(json.loads(raw))
+                data = json.dumps(result, separators=(',', ':')).encode()
+                if len(data) > 768 * 1024:
+                    raise ValueError('response ceiling')
+            except Exception:
+                data = b'{"error":"Accessibility unavailable, app changed, or observation limit reached."}'
+            sys.stdout.buffer.write(data + b'\n')
+            sys.stdout.buffer.flush()
+
+
 def main():
     resource.setrlimit(resource.RLIMIT_AS, (384 << 20, 384 << 20))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    if sys.argv[1:] == ["--worker"]:
+        return persistent()
     try:
         raw = sys.stdin.buffer.read(65537)
         if len(raw) > 65536:

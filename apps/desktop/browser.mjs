@@ -27,7 +27,7 @@ export class DesktopBrowser {
   }
   async run(request) {
     if (request.op === "capture") {
-      const capture = await this.workspace.capture();
+      const capture = await this.workspace.observe();
       const parents = new Map(
         capture.nodes.flatMap((n) => n.children.map((id) => [id, n.id])),
       );

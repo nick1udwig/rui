@@ -7,7 +7,7 @@ test("browser bridge preserves structure and remaps secret and action scopes", a
   const workspace = {
     pages: new Map([["page", {}]]),
     secrets: new Map([["token", "secret"]]),
-    capture: async () => ({
+    observe: async () => ({
       status: "Observed",
       nodes: [
         {
@@ -81,7 +81,7 @@ test("desktop browser approvals isolate public IDs and retire password scopes on
     pages: new Map(),
     secrets: new Map(),
     closed: false,
-    capture: async () => ({
+    observe: async () => ({
       status: "Observed",
       nodes: [
         {
@@ -123,8 +123,8 @@ test("desktop browser approvals isolate public IDs and retire password scopes on
       return { status: "dispatched" };
     },
   };
-  const originalCapture = workspace.capture;
-  workspace.capture = async () => {
+  const originalCapture = workspace.observe;
+  workspace.observe = async () => {
     const c = await originalCapture();
     c.nodes.push(
       {

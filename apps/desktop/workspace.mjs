@@ -1,3 +1,4 @@
+import { NativeWorker } from "./native-worker.mjs";
 import { indexTree } from "./tree.mjs";
 import { SemanticNodes } from "../shared/semantic-nodes.mjs";
 import { execFile } from "node:child_process";
@@ -43,11 +44,20 @@ export class DesktopWorkspace {
             await import("./browser.mjs")
           ).DesktopBrowser.launch(process.env.RUI_STATE)
         : undefined;
-    const workspace = new DesktopWorkspace(native, browser);
+    const worker = new NativeWorker(() => {
+      workspace.nativeDirty = true;
+      void workspace.refresh();
+    });
+    const workspace = new DesktopWorkspace(
+      (request) => worker.request(request),
+      browser,
+    );
+    workspace.worker = worker;
     // Fail startup with a useful error when not launched in a desktop session.
     try {
       await workspace.local({ op: "apps" });
     } catch (error) {
+      worker.close();
       await browser?.close();
       throw error;
     }
@@ -86,6 +96,7 @@ export class DesktopWorkspace {
     this.closed = true;
     this.policyRevision++;
     clearInterval(this.timer);
+    this.worker?.close();
     this.approved.clear();
     this.select(undefined);
     return (this.closing = (async () => {
@@ -226,6 +237,7 @@ export class DesktopWorkspace {
     throw Error("Unsupported desktop host command");
   }
   select(id) {
+    this.nativeDirty = true;
     this.browser?.clearSecrets();
     this.selected = id;
     this.preferredWindow = undefined;
@@ -253,6 +265,12 @@ export class DesktopWorkspace {
     const id = this.selected,
       generation = this.generation,
       source = this.approved.get(id);
+    if (this.worker && source?.adapter !== "browser") {
+      if (!this.nativeDirty && Date.now() - (this.nativeRead ?? 0) < 2000)
+        return;
+      this.nativeDirty = false;
+      this.nativeRead = Date.now();
+    }
     this.busy = (async () => {
       try {
         const sample = await this.invoke({ op: "capture", source });

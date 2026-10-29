@@ -283,3 +283,24 @@ test(
     }
   },
 );
+
+test("observations reuse clean captures and retain invalidations during capture", async () => {
+  const context = { on() {}, pages: () => [] };
+  const workspace = new Workspace(context, "", "");
+  let captures = 0;
+  workspace.capture = async () => ({ sequence: ++captures });
+  const first = await workspace.observe();
+  assert.equal(await workspace.observe(), first);
+  workspace.invalidate();
+  assert.notEqual(await workspace.observe(), first);
+  workspace.observationTime = 0;
+  assert.equal((await workspace.observe()).sequence, 3);
+  workspace.invalidate();
+  workspace.capture = async () => {
+    workspace.invalidate();
+    return { sequence: ++captures };
+  };
+  await workspace.observe();
+  await workspace.observe();
+  assert.equal(captures, 5);
+});

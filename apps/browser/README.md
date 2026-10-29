@@ -119,3 +119,7 @@ Physical phone acceptance: pair through a trusted HTTPS QR invitation; navigate 
 `run.py` owns the process group and profile lock. `rui-browser-host` owns authentication, control leases, the command ledger, source validation and RUI publications. The private Node worker owns Playwright/CDP and serves the static mobile app plus the same-origin WSS proxy. Private mode-0600 Unix sockets connect the worker and Rust host; the proxy verifies the internal RUI TLS identity. Public APIs expose pairing and password staging, never CDP, selectors or arbitrary script execution.
 
 The negotiated `browser.semantic.v1` profile adds optional input-type metadata and a reconnect command-sequence floor. Browser actions terminate with `Dispatched`; publication does not falsely claim an atomic DOM snapshot or causal completion. Existing GTK/vector profiles retain their existing command completion behavior.
+
+Clean browser observations are reused for up to one second.
+Accessibility and page lifecycle events invalidate this cache.
+Every command still captures and validates current source state before dispatch.

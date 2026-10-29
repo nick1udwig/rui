@@ -274,7 +274,9 @@ const rpc = socketServer((socket) => {
     } else
       result =
         request.op === "capture"
-          ? await workspace.capture()
+          ? await (workspace.observe
+              ? workspace.observe()
+              : workspace.capture())
           : request.op === "dispatch"
             ? await workspace.dispatch(request)
             : { error: "Unsupported operation" };

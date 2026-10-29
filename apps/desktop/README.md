@@ -159,10 +159,12 @@ Native D-Bus references remain on the owner lane. A source identity binds the
 accessibility connection, root, Unix PID, process start time and same-user UID.
 Public IDs are retired on unshare, observation loss, or selection replacement.
 
-Blocking D-Bus work runs in disposable Python processes with a 384 MiB address
-space limit, 400 ms call timeout, 1.8 second observation deadline, and 2.4 second
-owner timeout. Background observations do not block serving the cached client
-view. Reads run in batches of up to 32 concurrent D-Bus calls. Limits include
+Blocking D-Bus work runs in a supervised Python process with a 384 MiB address space limit, 400 ms call timeout, 1.8 second observation deadline, and 2.4 second owner timeout.
+The owner serializes bounded requests and restarts the worker after failure.
+Accessibility events request fresh observations; a two-second reconciliation covers missed events.
+Background observations do not block serving the cached client view.
+Reads run in batches of up to 32 concurrent D-Bus calls.
+Limits include
 64 discovered apps, 64 approved native apps plus the managed browser, 512 visible native nodes (1,024 visited
 nodes), up to 1,024 nodes including generated semantic controls, 128 children per
 node, depth 64, 8,192 calls, 16 KiB text fields and 768 KiB native
