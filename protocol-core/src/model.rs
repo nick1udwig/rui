@@ -861,7 +861,8 @@ impl Replica {
             }
         }
         self.commit(
-            candidate,
+            &mut candidate,
+            false,
             snapshot.required_resources,
             digest,
             memory,
@@ -898,59 +899,85 @@ impl Replica {
         if transaction.mutations.len() > self.limits.max_records {
             return Err(ModelError::Limit("mutations"));
         }
-        let mut candidate = self.state.clone();
+        let original_memory = std::mem::replace(&mut self.state_memory, self.budget.reserve(0)?);
+        let mut candidate = std::mem::take(&mut self.state);
+        let prior_revision = candidate.revision;
         candidate.revision = transaction.new_revision;
-        let mut seen = BTreeSet::new();
-        for mutation in transaction.mutations {
-            match mutation.mutation.ok_or(ModelError::Unsupported)? {
-                pb::mutation::Mutation::Put(wire_record) => {
-                    let record = convert_record(wire_record, &self.limits)?;
-                    let id = record.id();
-                    if !seen.insert(id) {
-                        return Err(ModelError::DuplicateId(id));
-                    }
-                    if candidate.retired.contains(&id) {
-                        return Err(ModelError::Retired(id));
-                    }
-                    match candidate.records.get(&id) {
-                        Some(old)
-                            if old.kind() != record.kind()
-                                || old.version().checked_add(1) != Some(record.version()) =>
-                        {
-                            return Err(ModelError::Version(id))
+        let mut undo = Vec::new();
+        let result = (|| {
+            let mut seen = BTreeSet::new();
+            for mutation in transaction.mutations {
+                match mutation.mutation.ok_or(ModelError::Unsupported)? {
+                    pb::mutation::Mutation::Put(wire_record) => {
+                        let record = convert_record(wire_record, &self.limits)?;
+                        let id = record.id();
+                        if !seen.insert(id) {
+                            return Err(ModelError::DuplicateId(id));
                         }
-                        None if record.version() != 1 => return Err(ModelError::Version(id)),
-                        _ => {}
+                        if candidate.retired.contains(&id) {
+                            return Err(ModelError::Retired(id));
+                        }
+                        match candidate.records.get(&id) {
+                            Some(old)
+                                if old.kind() != record.kind()
+                                    || old.version().checked_add(1) != Some(record.version()) =>
+                            {
+                                return Err(ModelError::Version(id))
+                            }
+                            None if record.version() != 1 => return Err(ModelError::Version(id)),
+                            _ => {}
+                        }
+                        if let Some(old) = candidate.records.get(&id) {
+                            validate_content_versions(old, &record)?;
+                        }
+                        undo.push((id, candidate.records.insert(id, record)));
                     }
-                    if let Some(old) = candidate.records.get(&id) {
-                        validate_content_versions(old, &record)?;
+                    pb::mutation::Mutation::Delete(wire_ref) => {
+                        let reference = convert_ref(wire_ref)?;
+                        if !seen.insert(reference.id) {
+                            return Err(ModelError::DuplicateId(reference.id));
+                        }
+                        let old = candidate
+                            .records
+                            .get(&reference.id)
+                            .ok_or(ModelError::Reference(reference.id))?;
+                        if old.kind() != reference.kind {
+                            return Err(ModelError::Reference(reference.id));
+                        }
+                        undo.push((reference.id, candidate.records.remove(&reference.id)));
+                        candidate.retired.insert(reference.id);
                     }
-                    candidate.records.insert(id, record);
-                }
-                pb::mutation::Mutation::Delete(wire_ref) => {
-                    let reference = convert_ref(wire_ref)?;
-                    if !seen.insert(reference.id) {
-                        return Err(ModelError::DuplicateId(reference.id));
-                    }
-                    let old = candidate
-                        .records
-                        .get(&reference.id)
-                        .ok_or(ModelError::Reference(reference.id))?;
-                    if old.kind() != reference.kind {
-                        return Err(ModelError::Reference(reference.id));
-                    }
-                    candidate.records.remove(&reference.id);
-                    candidate.retired.insert(reference.id);
                 }
             }
+            self.commit(
+                &mut candidate,
+                true,
+                transaction.required_resources,
+                digest,
+                memory,
+                available,
+            )
+        })();
+        if !matches!(result, Ok(ApplyOutcome::Applied { .. })) {
+            for (id, old) in undo {
+                match old {
+                    Some(record) => {
+                        candidate.records.insert(id, record);
+                    }
+                    None => {
+                        candidate.records.remove(&id);
+                    }
+                }
+                candidate.retired.remove(&id);
+            }
+            candidate.revision = prior_revision;
+            self.state = candidate;
+            self.state_memory = original_memory;
+        } else {
+            drop(undo);
+            drop(original_memory);
         }
-        self.commit(
-            candidate,
-            transaction.required_resources,
-            digest,
-            memory,
-            available,
-        )
+        result
     }
     fn reserve_stage(&self, allocation: usize) -> Result<MemoryReservation, ModelError> {
         let bytes = allocation
@@ -970,7 +997,8 @@ impl Replica {
     }
     fn commit(
         &mut self,
-        candidate: State,
+        candidate: &mut State,
+        preserve_pending_predecessor: bool,
         required: Vec<Vec<u8>>,
         digest: ResourceId,
         mut memory: MemoryReservation,
@@ -982,7 +1010,7 @@ impl Replica {
         if candidate.retired.len() > self.limits.max_retired {
             return Err(ModelError::Limit("retired IDs; start a new epoch"));
         }
-        validate_graph(&candidate, &self.limits)?;
+        validate_graph(candidate, &self.limits)?;
         let mut resources = candidate.resource_refs();
         let mut declared_only_graph_resources = true;
         for resource in required {
@@ -996,23 +1024,28 @@ impl Replica {
                 .estimated_bytes()
                 .saturating_add(set_memory(resources.len())),
         )?;
+        let missing = if has_missing {
+            Some(self.missing_output(&resources, available)?)
+        } else {
+            self.reserve_history()?;
+            None
+        };
         let pending = PendingState {
             declared_only_graph_resources,
-            state: candidate,
+            state: if has_missing && preserve_pending_predecessor {
+                candidate.clone()
+            } else {
+                std::mem::take(candidate)
+            },
             resources,
             digest,
             memory,
         };
-        if has_missing {
+        if let Some(missing) = missing {
             let revision = pending.state.revision;
-            let missing = self.missing_output(&pending.resources, available)?;
             self.pending = Some(pending);
             return Ok(ApplyOutcome::PendingResources { revision, missing });
         }
-        self.install(pending)
-    }
-    fn install(&mut self, pending: PendingState) -> Result<ApplyOutcome, ModelError> {
-        self.reserve_history()?;
         Ok(self.install_reserved(pending))
     }
     fn reserve_history(&mut self) -> Result<(), ModelError> {
@@ -1929,68 +1962,71 @@ fn validate_graph(state: &State, limits: &Limits) -> Result<(), ModelError> {
             return Err(ModelError::Ownership(*id));
         }
     }
-    for record in state.records.values() {
-        let owners = match record.kind() {
-            ObjectKind::Scene => Some((&scene_owners, &scene_roots)),
-            ObjectKind::Semantic => Some((&semantic_owners, &semantic_roots)),
+    let scene_index = ownership_index(
+        state
+            .records
+            .values()
+            .filter(|r| {
+                r.kind() == ObjectKind::Scene
+                    && (surfaces > 0 || limits.max_depth == 0 || scene_owners.contains_key(&r.id()))
+            })
+            .map(Record::id),
+        &scene_owners,
+        limits.max_depth,
+    )?;
+    let semantic_index = ownership_index(
+        state
+            .records
+            .values()
+            .filter(|r| {
+                r.kind() == ObjectKind::Semantic
+                    && (surfaces > 0
+                        || limits.max_depth == 0
+                        || semantic_owners.contains_key(&r.id()))
+            })
+            .map(Record::id),
+        &semantic_owners,
+        limits.max_depth,
+    )?;
+    let surface_owners = state
+        .records
+        .values()
+        .filter_map(|r| match r {
+            Record::Surface(s) => s.parent.map(|parent| (s.id, parent.id)),
             _ => None,
-        };
-        if let Some((owners, roots)) = owners {
-            let mut at = record.id();
-            let mut depth = 1;
-            let mut visited = BTreeSet::new();
-            while let Some(parent) = owners.get(&at) {
-                if !visited.insert(at) {
-                    return Err(ModelError::Ownership(at));
+        })
+        .collect();
+    ownership_index(
+        state
+            .records
+            .values()
+            .filter(|r| r.kind() == ObjectKind::Surface)
+            .map(Record::id),
+        &surface_owners,
+        limits.max_depth,
+    )?;
+    if surfaces > 0 {
+        for (index, roots) in [
+            (&scene_index, &scene_roots),
+            (&semantic_index, &semantic_roots),
+        ] {
+            for (id, (root, _)) in index {
+                if !roots.contains(root) {
+                    return Err(ModelError::Ownership(*id));
                 }
-                at = *parent;
-                depth += 1;
-                if depth > limits.max_depth {
-                    return Err(ModelError::Limit("ownership depth"));
-                }
-            }
-            if depth > limits.max_depth {
-                return Err(ModelError::Limit("ownership depth"));
-            }
-            if surfaces > 0 && !roots.contains(&at) {
-                return Err(ModelError::Ownership(record.id()));
-            }
-        }
-        if let Record::Surface(surface) = record {
-            let mut at = surface;
-            let mut depth = 1;
-            let mut seen = BTreeSet::new();
-            while let Some(parent) = at.parent {
-                if !seen.insert(at.id) {
-                    return Err(ModelError::Ownership(at.id));
-                }
-                at = match state.records.get(&parent.id) {
-                    Some(Record::Surface(v)) => v,
-                    _ => return Err(ModelError::Reference(parent.id)),
-                };
-                depth += 1;
-                if depth > limits.max_depth {
-                    return Err(ModelError::Limit("surface depth"));
-                }
-            }
-            if depth > limits.max_depth {
-                return Err(ModelError::Limit("surface depth"));
             }
         }
     }
-    // Bindings and authoritative focus must remain in their declared surface's
-    // ownership trees. Non-ownership semantic relations may cross those trees.
     let surface_of = |r: ObjectRef| -> Option<u64> {
-        let (owners, roots) = match r.kind {
-            ObjectKind::Scene => (&scene_owners, &scene_surfaces),
-            ObjectKind::Semantic => (&semantic_owners, &semantic_surfaces),
+        let (index, roots) = match r.kind {
+            ObjectKind::Scene => (&scene_index, &scene_surfaces),
+            ObjectKind::Semantic => (&semantic_index, &semantic_surfaces),
             _ => return None,
         };
-        let mut root = r.id;
-        while let Some(parent) = owners.get(&root) {
-            root = *parent;
-        }
-        roots.get(&root).copied()
+        index
+            .get(&r.id)
+            .and_then(|(root, _)| roots.get(root))
+            .copied()
     };
     for record in state.records.values() {
         match record {
@@ -2015,4 +2051,42 @@ fn validate_graph(state: &State, limits: &Limits) -> Result<(), ModelError> {
         }
     }
     Ok(())
+}
+
+fn ownership_index(
+    ids: impl Iterator<Item = u64>,
+    parents: &BTreeMap<u64, u64>,
+    max_depth: usize,
+) -> Result<BTreeMap<u64, (u64, usize)>, ModelError> {
+    let mut index = BTreeMap::<u64, (u64, usize)>::new();
+    let mut path = Vec::new();
+    let mut visiting = BTreeSet::new();
+    for id in ids {
+        let mut at = id;
+        let (root, mut depth) = loop {
+            if let Some(value) = index.get(&at) {
+                break *value;
+            }
+            if !visiting.insert(at) {
+                return Err(ModelError::Ownership(at));
+            }
+            path.push(at);
+            if path.len() > max_depth {
+                return Err(ModelError::Limit("ownership depth"));
+            }
+            match parents.get(&at) {
+                Some(parent) => at = *parent,
+                None => break (at, 0),
+            }
+        };
+        while let Some(id) = path.pop() {
+            depth += 1;
+            if depth > max_depth {
+                return Err(ModelError::Limit("ownership depth"));
+            }
+            visiting.remove(&id);
+            index.insert(id, (root, depth));
+        }
+    }
+    Ok(index)
 }

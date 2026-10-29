@@ -1223,3 +1223,41 @@ fn repeated_singular_string_fields_keep_retained_capacity_charged_after_commit()
     drop(replica);
     assert_eq!(budget.used(), 0);
 }
+
+#[test]
+fn late_transaction_failure_restores_replaced_deleted_and_inserted_records() {
+    let budget = MemoryBudget::new(128 << 20);
+    let mut replica = Replica::with_memory_budget(Limits::default(), budget.clone());
+    replica
+        .apply_snapshot(&snapshot(1, fixture()), &empty_resources())
+        .unwrap();
+    let before = replica.state().clone();
+    let retained = budget.used();
+    let mut changed = wire_semantic(&fixture(), 32);
+    changed.version = 2;
+    changed.label = Some("replacement".into());
+    let failed = transaction(
+        1,
+        vec![
+            put(p::record::Record::Semantic(changed.clone())),
+            delete(p::ObjectKind::Semantic, 31),
+            put(p::record::Record::Semantic(semantic(100, &[]))),
+        ],
+    );
+    for _ in 0..3 {
+        assert!(replica
+            .apply_transaction(&failed, &empty_resources())
+            .is_err());
+        assert_eq!(replica.state(), &before);
+        assert_eq!(budget.used(), retained);
+    }
+    replica
+        .apply_transaction(
+            &transaction(1, vec![put(p::record::Record::Semantic(changed))]),
+            &empty_resources(),
+        )
+        .unwrap();
+    assert_eq!(replica.state().revision, 2);
+    drop(replica);
+    assert_eq!(budget.used(), 0);
+}
