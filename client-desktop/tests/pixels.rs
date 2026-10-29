@@ -924,3 +924,64 @@ fn repeated_glyphs_share_geometry_but_never_survive_resource_replacement() {
     ));
     assert_eq!(budget.used(), 0);
 }
+
+#[test]
+fn wide_group_renders_with_bounded_sample_work() {
+    let children: Vec<_> = (2..258).collect();
+    let mut nodes = vec![group(1, &children)];
+    nodes.extend(
+        children
+            .into_iter()
+            .map(|id| solid(id, rect((id - 2) as f64 * 2.0, 0.0, 2.0, 8.0), red())),
+    );
+    let renderer = Renderer::new(
+        RenderLimits {
+            max_work: 1_000_000,
+            ..RenderLimits::default()
+        },
+        MemoryBudget::new(1 << 20),
+    )
+    .unwrap();
+    let frame = renderer
+        .render_scene(&state(nodes), reference(1), Viewport::new(512, 8), &())
+        .unwrap();
+    for x in 0..512 {
+        for y in 0..8 {
+            pixel(&frame, x, y, 1.0, 0.0, 0.0, 1.0);
+        }
+    }
+}
+
+#[test]
+fn tiled_composition_matches_independent_cropped_frames() {
+    let mut root = group(1, &(2..12).collect::<Vec<_>>());
+    root.opacity = 0.6;
+    let mut nodes = vec![
+        root,
+        solid(2, rect(15.25, 7.75, 50.5, 65.0), red()),
+        solid(3, rect(31.75, 31.25, 38.0, 20.5), blue()),
+    ];
+    nodes.extend((4..12).map(|id| solid(id, rect(id as f64 * 6.25, 20.5, 5.0, 40.25), red())));
+    let scene = state(nodes);
+    let renderer = renderer();
+    let full = renderer
+        .render_scene(&scene, reference(1), Viewport::new(73, 77), &())
+        .unwrap();
+    for top in (0..77).step_by(19) {
+        for left in (0..73).step_by(17) {
+            let mut viewport = Viewport::new((73 - left).min(17), (77 - top).min(19));
+            viewport.origin = Point {
+                x: left as f64,
+                y: top as f64,
+            };
+            let crop = renderer
+                .render_scene(&scene, reference(1), viewport, &())
+                .unwrap();
+            for y in 0..viewport.height {
+                for x in 0..viewport.width {
+                    assert_eq!(full.pixel(left + x, top + y), crop.pixel(x, y));
+                }
+            }
+        }
+    }
+}

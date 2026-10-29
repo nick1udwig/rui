@@ -14,6 +14,7 @@ use thiserror::Error;
 pub const PROFILE: &str = "renderer.cpu-samples2x2.cairo1184.v1";
 pub const CAIRO_VERSION: &str = "1.18.4";
 pub const CURSOR_PROFILE: &str = "cursor.vector.v1";
+const MIN_TILE_CHILDREN: usize = 8;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RenderProfile {
     pub cursor_vectors: bool,
@@ -1165,78 +1166,137 @@ impl Renderer {
         pixels
             .try_reserve_exact(count)
             .map_err(|_| RenderError::Allocation)?;
+        pixels.resize(count, LinearPixel::default());
+        let groups = || {
+            plan.nodes
+                .iter()
+                .enumerate()
+                .filter_map(|(index, node)| match &node.paint {
+                    Paint::Group(all) if all.len() >= MIN_TILE_CHILDREN => Some((index, all)),
+                    _ => None,
+                })
+        };
+        let tiled = groups().next().is_some();
+        let _tile_memory = self.budget.reserve(if tiled {
+            plan.nodes.len().saturating_mul(64)
+        } else {
+            0
+        })?;
+        let mut children: Vec<Vec<usize>> = if tiled {
+            plan.nodes.iter().map(|_| Vec::new()).collect()
+        } else {
+            Vec::new()
+        };
+        let groups: Vec<_> = groups().collect();
+        for (index, all) in &groups {
+            children[*index]
+                .try_reserve_exact(all.len())
+                .map_err(|_| RenderError::Allocation)?;
+        }
+        let tile_width = if tiled { 32 } else { viewport.width };
+        let tile_height = if tiled { 32 } else { viewport.height };
         let mut work = plan.work;
-        for y in 0..viewport.height {
-            for x in 0..viewport.width {
-                let mut sum = LinearPixel::default();
-                for sy in [0.25, 0.75] {
-                    for sx in [0.25, 0.75] {
-                        charge(&mut work, 1, &self.limits)?;
-                        let point = Point {
-                            x: viewport.origin.x + (x as f64 + sx) / viewport.scale,
-                            y: viewport.origin.y + (y as f64 + sy) / viewport.scale,
-                        };
-                        let mut result = LinearPixel::default();
-                        if plan.canvas.is_none_or(|canvas| contains(canvas, point)) {
-                            for surface in &plan.surfaces {
+        for top in (0..viewport.height).step_by(tile_height as usize) {
+            for left in (0..viewport.width).step_by(tile_width as usize) {
+                let bottom = (top + tile_height).min(viewport.height);
+                let right = (left + tile_width).min(viewport.width);
+                let tile = Bounds {
+                    x1: viewport.origin.x + left as f64 / viewport.scale,
+                    y1: viewport.origin.y + top as f64 / viewport.scale,
+                    x2: viewport.origin.x + right as f64 / viewport.scale,
+                    y2: viewport.origin.y + bottom as f64 / viewport.scale,
+                };
+                for (index, all) in &groups {
+                    children[*index].clear();
+                    charge(&mut work, all.len() as u64, &self.limits)?;
+                    children[*index].extend(all.iter().copied().filter(|child| {
+                        plan.nodes[*child]
+                            .bounds
+                            .is_some_and(|bounds| bounds.intersect(tile).is_some())
+                    }));
+                }
+                for y in top..bottom {
+                    for x in left..right {
+                        let mut sum = LinearPixel::default();
+                        for sy in [0.25, 0.75] {
+                            for sx in [0.25, 0.75] {
                                 charge(&mut work, 1, &self.limits)?;
-                                if surface.bounds.is_none_or(|b| !b.contains(point)) {
-                                    continue;
-                                }
-                                let Some(inverse) = surface.inverse else {
-                                    continue;
+                                let point = Point {
+                                    x: viewport.origin.x + (x as f64 + sx) / viewport.scale,
+                                    y: viewport.origin.y + (y as f64 + sy) / viewport.scale,
                                 };
-                                let local = inverse.point(point);
-                                valid_point(local)?;
-                                // render_scene uses an unbounded sentinel, render_view uses content_size.
-                                if surface.content.x.is_finite()
-                                    && !contains(surface.content, local)
-                                {
-                                    continue;
+                                let mut result = LinearPixel::default();
+                                if plan.canvas.is_none_or(|canvas| contains(canvas, point)) {
+                                    for surface in &plan.surfaces {
+                                        charge(&mut work, 1, &self.limits)?;
+                                        if surface.bounds.is_none_or(|b| !b.contains(point)) {
+                                            continue;
+                                        }
+                                        let Some(inverse) = surface.inverse else {
+                                            continue;
+                                        };
+                                        let local = inverse.point(point);
+                                        valid_point(local)?;
+                                        // render_scene uses an unbounded sentinel, render_view uses content_size.
+                                        if surface.content.x.is_finite()
+                                            && !contains(surface.content, local)
+                                        {
+                                            continue;
+                                        }
+                                        if surface.clip.is_some_and(|clip| !contains(clip, local)) {
+                                            continue;
+                                        }
+                                        let source = self
+                                            .sample(
+                                                surface.root,
+                                                point,
+                                                plan,
+                                                &children,
+                                                &mut work,
+                                            )?
+                                            .multiply(surface.opacity);
+                                        result = source.over(result);
+                                    }
+                                    if let Some(cursor) = &plan.cursor {
+                                        let local = Point {
+                                            x: point.x - cursor.origin.x,
+                                            y: point.y - cursor.origin.y,
+                                        };
+                                        valid_point(local)?;
+                                        charge(&mut work, 1, &self.limits)?;
+                                        let filled =
+                                            cursor.fill.contains(local, &mut work, &self.limits)?;
+                                        let outlined = cursor
+                                            .outline
+                                            .as_ref()
+                                            .map(|mask| {
+                                                mask.contains(local, &mut work, &self.limits)
+                                            })
+                                            .transpose()?
+                                            .unwrap_or(false);
+                                        if filled || outlined {
+                                            let channel = if cursor.white && filled && !outlined {
+                                                1.0
+                                            } else {
+                                                0.0
+                                            };
+                                            result = LinearPixel::from_color(Color {
+                                                red: channel,
+                                                green: channel,
+                                                blue: channel,
+                                                alpha: 1.0,
+                                            })
+                                            .over(result);
+                                        }
+                                    }
                                 }
-                                if surface.clip.is_some_and(|clip| !contains(clip, local)) {
-                                    continue;
-                                }
-                                let source = self
-                                    .sample(surface.root, point, plan, &mut work)?
-                                    .multiply(surface.opacity);
-                                result = source.over(result);
-                            }
-                            if let Some(cursor) = &plan.cursor {
-                                let local = Point {
-                                    x: point.x - cursor.origin.x,
-                                    y: point.y - cursor.origin.y,
-                                };
-                                valid_point(local)?;
-                                charge(&mut work, 1, &self.limits)?;
-                                let filled =
-                                    cursor.fill.contains(local, &mut work, &self.limits)?;
-                                let outlined = cursor
-                                    .outline
-                                    .as_ref()
-                                    .map(|mask| mask.contains(local, &mut work, &self.limits))
-                                    .transpose()?
-                                    .unwrap_or(false);
-                                if filled || outlined {
-                                    let channel = if cursor.white && filled && !outlined {
-                                        1.0
-                                    } else {
-                                        0.0
-                                    };
-                                    result = LinearPixel::from_color(Color {
-                                        red: channel,
-                                        green: channel,
-                                        blue: channel,
-                                        alpha: 1.0,
-                                    })
-                                    .over(result);
-                                }
+                                sum = sum.add(result);
                             }
                         }
-                        sum = sum.add(result);
+                        pixels[y as usize * viewport.width as usize + x as usize] =
+                            sum.multiply(0.25);
                     }
                 }
-                pixels.push(sum.multiply(0.25));
             }
         }
         Ok(Frame {
@@ -1276,6 +1336,7 @@ impl Renderer {
         index: usize,
         world: Point,
         plan: &Plan<'_>,
+        tile_children: &[Vec<usize>],
         work: &mut u64,
     ) -> Result<LinearPixel, RenderError> {
         *work = work
@@ -1297,10 +1358,17 @@ impl Renderer {
             return Ok(LinearPixel::default());
         }
         let paint = match &node.paint {
-            Paint::Group(children) => {
+            Paint::Group(all) => {
+                let children = if all.len() >= MIN_TILE_CHILDREN {
+                    &tile_children[index]
+                } else {
+                    all
+                };
                 let mut result = LinearPixel::default();
                 for child in children {
-                    result = self.sample(*child, world, plan, work)?.over(result);
+                    result = self
+                        .sample(*child, world, plan, tile_children, work)?
+                        .over(result);
                 }
                 result
             }
