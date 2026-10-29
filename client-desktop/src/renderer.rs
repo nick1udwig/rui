@@ -6,8 +6,9 @@ use rui_protocol_core::model::{
 use rui_protocol_core::resources::{
     MemoryBudget, MemoryError, MemoryReservation, ResourceError, ResourceKind, ResourceOffer,
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
+use std::rc::Rc;
 use thiserror::Error;
 
 pub const PROFILE: &str = "renderer.cpu-samples2x2.cairo1184.v1";
@@ -411,7 +412,7 @@ enum Paint<'a> {
     Linear(Rect, Point, Point, &'a [GradientStop]),
     Radial(Rect, Point, f64, f64, &'a [GradientStop]),
     Path(PathMask, Color),
-    Glyph(PathMask, f64, &'a [Point], Color),
+    Glyph(Rc<PathMask>, f64, &'a [Point], Color),
 }
 struct Node<'a> {
     bounds: Option<Bounds>,
@@ -538,6 +539,7 @@ impl Bounds {
     }
 }
 struct Plan<'a> {
+    glyphs: BTreeMap<([u8; 32], u64), Rc<PathMask>>,
     nodes: Vec<Node<'a>>,
     surfaces: Vec<SurfacePlan>,
     canvas: Option<Rect>,
@@ -851,6 +853,7 @@ impl Renderer {
             .try_reserve_exact(surface_count.max(1))
             .map_err(|_| RenderError::Allocation)?;
         Ok(Plan {
+            glyphs: BTreeMap::new(),
             nodes,
             surfaces,
             canvas: None,
@@ -1068,8 +1071,11 @@ impl Renderer {
                 for position in positions {
                     valid_point(*position)?;
                 }
-                Paint::Glyph(
-                    path::compile(
+                let key = (resource, (scale * size).to_bits());
+                let mask = if let Some(mask) = plan.glyphs.get(&key) {
+                    mask.clone()
+                } else {
+                    let mask = Rc::new(path::compile(
                         resource,
                         ResourceKind::GlyphOutline,
                         resources,
@@ -1079,11 +1085,11 @@ impl Renderer {
                         &self.limits,
                         &self.budget,
                         &mut plan.work,
-                    )?,
-                    *size,
-                    positions,
-                    *color,
-                )
+                    )?);
+                    plan.glyphs.insert(key, mask.clone());
+                    mask
+                };
+                Paint::Glyph(mask, *size, positions, *color)
             }
         };
         if !matches!(node.primitive, Primitive::Group) && !node.children.is_empty() {

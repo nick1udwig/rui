@@ -5,6 +5,7 @@ use rui_protocol_core::resources::{
     resource_digest, validate_vector_bytes, MemoryBudget, MemoryReservation, ResourceKind,
     ResourceLimits, ResourceProvenance,
 };
+use std::cell::RefCell;
 
 #[derive(Clone, Copy)]
 enum Flat {
@@ -103,7 +104,11 @@ pub(crate) struct StrokeStyle<'a> {
     pub dashes: &'a [f64],
     pub offset: f64,
 }
+const SAMPLE_CACHE_SIZE: usize = 256;
+type SampleCache = [Option<(u64, u64, bool)>; SAMPLE_CACHE_SIZE];
+
 pub(crate) struct PathMask {
+    samples: RefCell<Box<SampleCache>>,
     context: Context,
     bounds: (f64, f64, f64, f64),
     stroke: bool,
@@ -130,11 +135,22 @@ impl PathMask {
         if *work > limits.max_work {
             return Err(RenderError::Limit("sample work"));
         }
-        if self.stroke {
-            Ok(self.context.in_stroke(p.x, p.y)?)
-        } else {
-            Ok(self.context.in_fill(p.x, p.y)?)
+        let x = p.x.to_bits();
+        let y = p.y.to_bits();
+        let hash = x.wrapping_mul(0x9e3779b97f4a7c15) ^ y.rotate_left(29);
+        let slot = ((hash ^ (hash >> 32) ^ (hash >> 16)) as usize) % SAMPLE_CACHE_SIZE;
+        if let Some((old_x, old_y, inside)) = self.samples.borrow()[slot] {
+            if x == old_x && y == old_y {
+                return Ok(inside);
+            }
         }
+        let inside = if self.stroke {
+            self.context.in_stroke(p.x, p.y)?
+        } else {
+            self.context.in_fill(p.x, p.y)?
+        };
+        self.samples.borrow_mut()[slot] = Some((x, y, inside));
+        Ok(inside)
     }
 }
 
@@ -298,7 +314,7 @@ pub(crate) fn compile(
             .len()
             .saturating_add(dash_intervals)
             .saturating_mul(256)
-            .saturating_add(16_384),
+            .saturating_add(16_384 + std::mem::size_of::<SampleCache>()),
     )?;
     let surface = ImageSurface::create(Format::A8, 1, 1)?;
     let context = Context::new(&surface)?;
@@ -354,6 +370,7 @@ pub(crate) fn compile(
         context.fill_extents()?
     };
     Ok(PathMask {
+        samples: RefCell::new(Box::new([None; SAMPLE_CACHE_SIZE])),
         context,
         bounds,
         stroke: stroke.is_some(),

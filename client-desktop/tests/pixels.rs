@@ -886,3 +886,41 @@ fn session_canvas_and_surface_transform_clip_the_absolute_desktop() {
     pixel(&f, 2, 0, 0.0, 0.0, 0.0, 0.0);
     pixel(&f, 1, 1, 0.0, 0.0, 0.0, 0.0);
 }
+
+#[test]
+fn repeated_glyphs_share_geometry_but_never_survive_resource_replacement() {
+    let mut resources = Resources::default();
+    let digest = resources.add(ResourceKind::GlyphOutline, &box_path(0.0, 0.0, 1.0, 1.0));
+    let children: Vec<_> = (2..102).collect();
+    let mut nodes = vec![group(1, &children)];
+    for id in children {
+        nodes.push(node(
+            id,
+            Primitive::GlyphRun {
+                font: GlyphFont::Outline(digest),
+                size: 1.0,
+                glyph_ids: vec![0],
+                positions: vec![point((id - 2) as f64, 0.0)],
+                scalar_clusters: vec![0],
+                color: red(),
+            },
+        ));
+    }
+    let state = state(nodes);
+    let budget = MemoryBudget::new(1 << 20);
+    let renderer = Renderer::new(RenderLimits::default(), budget.clone()).unwrap();
+    let frame = renderer
+        .render_scene(&state, reference(1), Viewport::new(100, 1), &resources)
+        .unwrap();
+    for x in 0..100 {
+        pixel(&frame, x, 0, 1.0, 0.0, 0.0, 1.0);
+    }
+    drop(frame);
+    assert_eq!(budget.used(), 0);
+    resources.0.get_mut(&digest).unwrap().1[0] = 0;
+    assert!(matches!(
+        renderer.render_scene(&state, reference(1), Viewport::new(100, 1), &resources),
+        Err(RenderError::ResourceIntegrity)
+    ));
+    assert_eq!(budget.used(), 0);
+}
