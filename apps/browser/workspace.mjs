@@ -227,18 +227,15 @@ export class Workspace {
       .objectId;
   }
   async inspect(session, backendNodeId) {
-    const { node } = await session.send("DOM.describeNode", {
-      backendNodeId,
-      depth: 0,
-    });
-    const attributes = Object.fromEntries(
-      Array.from({ length: (node.attributes?.length || 0) / 2 }, (_, i) => [
-        node.attributes[i * 2],
-        node.attributes[i * 2 + 1],
-      ]),
-    );
-    return { tag: node.localName, attributes };
+    return this.call(session, backendNodeId, `function() {
+      return {tag: this.localName,
+        attributes: Object.fromEntries(Array.from(this.attributes || [], a => [a.name, a.value])),
+        value: this.type === "password" ? "" : String(this.value ?? this.innerText ?? ""),
+        plain: !this.isContentEditable || this.contentEditable === "plaintext-only" || this.children.length === 0,
+        options: this.localName === "select" ? Array.from(this.options).slice(0,128).map((o,i) => ({label:o.label,selected:o.selected,disabled:o.disabled,index:i,value:o.value})) : []};
+    }`);
   }
+
   async call(session, backendNodeId, functionDeclaration, args = [], page) {
     const objectId = await this.object(session, backendNodeId);
     // A synchronous alert/prompt blocks the evaluated function until answered.
@@ -436,6 +433,26 @@ export class Workspace {
             depth: 32,
           });
           const map = new Map(tree.nodes.map((n) => [n.nodeId, n]));
+          const inspections = new Map();
+          const candidates = tree.nodes.filter(n => n.backendDOMNodeId &&
+            (INTERACTIVE.has(n.role?.value) || n.properties?.some(p => p.name === "editable" && p.value.value)));
+          const positions = new Map(candidates.map((n, i) => [n.backendDOMNodeId, i]));
+          const inspect = async (backend) => {
+            const start = positions.get(backend);
+            const pending = [];
+            for (const n of start === undefined ? [{backendDOMNodeId: backend}] : candidates.slice(start, start + 8)) {
+              const id = n.backendDOMNodeId;
+              if (!inspections.has(id)) {
+                const pendingRead = this.inspect(session, id).then(value => ({value}), error => ({error}));
+                inspections.set(id, pendingRead);
+                pending.push(pendingRead);
+              }
+            }
+            await Promise.all(pending);
+            const result = await inspections.get(backend);
+            if (result.error) throw result.error;
+            return result.value;
+          };
           const visit = async (ax) => {
             if (!ax || included >= 600 || byId.size >= MAX_NODES - 40) return;
             const role = ax.role?.value,
@@ -468,10 +485,8 @@ export class Workspace {
                   },
                   handler;
                 if (interactive && backend) {
-                  const { tag, attributes } = await this.inspect(
-                    session,
-                    backend,
-                  );
+                  const source = await inspect(backend);
+                  const { tag, attributes } = source;
                   const type = (attributes.type || "").toLowerCase();
                   const base = {
                     page,
@@ -496,11 +511,7 @@ export class Workspace {
                     };
                     handler = { ...base, op: "file" };
                   } else if (tag === "select") {
-                    const options = await this.call(
-                      session,
-                      backend,
-                      "function(){return Array.from(this.options).slice(0,128).map((o,i)=>({label:o.label,selected:o.selected,disabled:o.disabled,index:i,value:o.value}));}",
-                    );
+                    const options = source.options;
                     const children = [];
                     for (const option of options)
                       children.push(
@@ -565,11 +576,6 @@ export class Workspace {
                         : allowedTypes.includes(type)
                           ? type
                           : "text";
-                    const source = await this.call(
-                      session,
-                      backend,
-                      'function(){return {value:this.type==="password"?"":String(this.value??this.innerText??""),plain:!this.isContentEditable||this.contentEditable==="plaintext-only"||this.children.length===0};}',
-                    );
                     const tooLarge = Buffer.byteLength(source.value) > MAX_TEXT;
                     node = {
                       ...node,
