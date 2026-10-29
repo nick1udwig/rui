@@ -1,3 +1,4 @@
+import { CaptureCache } from "./capture-cache.mjs";
 import { Workspace } from "./workspace.mjs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
@@ -251,6 +252,7 @@ await new Promise((resolve, reject) => {
 
 // Only the owner can reach this socket in the mode-0700 state directory.
 let owner;
+const captures = new CaptureCache();
 const rpc = socketServer((socket) => {
   if (owner) return socket.destroy();
   owner = socket;
@@ -273,14 +275,14 @@ const rpc = socketServer((socket) => {
       }
     } else
       result =
-        request.op === "capture"
+        ["capture", "captureIfChanged"].includes(request.op)
           ? await (workspace.observe
               ? workspace.observe()
               : workspace.capture())
           : request.op === "dispatch"
             ? await workspace.dispatch(request)
             : { error: "Unsupported operation" };
-    return result;
+    return request.op === "captureIfChanged" ? captures.reply(result, request.generation) : result;
   });
   socket.on("close", () => {
     void shutdown();

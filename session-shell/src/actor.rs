@@ -142,8 +142,40 @@ pub enum OwnerStatus {
     Poisoned,
     Stopped,
 }
-pub struct Pending(Receiver<Result<Received, ShellError>>);
+type ReplyWake = Arc<Mutex<Option<std::task::Waker>>>;
+pub struct Pending(Receiver<Result<Received, ShellError>>, ReplyWake);
+struct ReplySender(Option<SyncSender<Result<Received, ShellError>>>, ReplyWake);
+impl ReplySender {
+    fn send(mut self, value: Result<Received, ShellError>) -> Option<Result<Received, ShellError>> {
+        self.0
+            .take()
+            .unwrap()
+            .send(value)
+            .err()
+            .map(|failed| failed.0)
+    }
+}
+impl Drop for ReplySender {
+    fn drop(&mut self) {
+        drop(self.0.take());
+        let waker = self.1.lock().unwrap().take();
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+}
 impl Pending {
+    pub async fn receive(self) -> Result<Received, ShellError> {
+        std::future::poll_fn(move |cx| {
+            *self.1.lock().unwrap() = Some(cx.waker().clone());
+            match self.try_recv() {
+                Ok(Some(result)) => std::task::Poll::Ready(result),
+                Ok(None) => std::task::Poll::Pending,
+                Err(error) => std::task::Poll::Ready(Err(error)),
+            }
+        })
+        .await
+    }
     pub fn try_recv(&self) -> Result<Option<Result<Received, ShellError>>, ShellError> {
         match self.0.try_recv() {
             Ok(r) => Ok(Some(r)),
@@ -254,7 +286,7 @@ struct CheckpointKeeper {
 struct Request {
     operation: Operation,
     generation: u64,
-    reply: SyncSender<Result<Received, ShellError>>,
+    reply: ReplySender,
     _memory: MemoryReservation,
     #[cfg(feature = "transport")]
     _obligation: RequestObligation,
@@ -504,10 +536,11 @@ impl HostPort {
             RequestObligation(self.priority.clone())
         };
         let (reply, response) = mpsc::sync_channel(1);
+        let wake = Arc::new(Mutex::new(None));
         let request = Request {
             operation: make(),
             generation: self.priority.generation.load(Ordering::Acquire),
-            reply,
+            reply: ReplySender(Some(reply), wake.clone()),
             _memory: memory,
             #[cfg(feature = "transport")]
             _obligation: obligation,
@@ -515,7 +548,7 @@ impl HostPort {
         self.requests
             .try_send(request)
             .map_err(|_| ShellError::Limit)?;
-        Ok(Pending(response))
+        Ok(Pending(response, wake))
     }
     pub fn negotiate(
         &self,
@@ -1252,15 +1285,12 @@ impl Owner {
                                     _memory: memory,
                                 })
                             });
-                            if let Err(failed) = request.reply.send(result) {
-                                if let Ok(received) = failed.0 {
-                                    if let Response::Connected { connection, .. } = received.value()
-                                    {
-                                        if owner_priority.validate(connection).is_ok() {
-                                            let _ = broker.disconnect(connection.client(), now);
-                                            owner_priority.current.lock().unwrap()
-                                                [connection.0.priority_slot] = None;
-                                        }
+                            if let Some(Ok(received)) = request.reply.send(result) {
+                                if let Response::Connected { connection, .. } = received.value() {
+                                    if owner_priority.validate(connection).is_ok() {
+                                        let _ = broker.disconnect(connection.client(), now);
+                                        owner_priority.current.lock().unwrap()
+                                            [connection.0.priority_slot] = None;
                                     }
                                 }
                             }
@@ -2018,5 +2048,44 @@ mod tests {
             "resume must not restore presentation/control"
         );
         owner.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod reply_notifications {
+    use super::*;
+    use std::{
+        future::Future,
+        task::{Context, Poll, Wake, Waker},
+    };
+    struct Signal(AtomicBool, ReplyWake);
+    impl Wake for Signal {
+        fn wake(self: Arc<Self>) {
+            assert!(self.1.try_lock().is_ok(), "waker invoked under reply lock");
+            self.0.store(true, Ordering::Release);
+        }
+    }
+    #[test]
+    fn replies_and_sender_loss_wake_pending_receivers() {
+        for send in [false, true] {
+            let (sender, receiver) = mpsc::sync_channel(1);
+            let wake = Arc::new(Mutex::new(None));
+            let sender = ReplySender(Some(sender), wake.clone());
+            let signal = Arc::new(Signal(AtomicBool::new(false), wake.clone()));
+            let waker = Waker::from(signal.clone());
+            let mut context = Context::from_waker(&waker);
+            let mut future = Box::pin(Pending(receiver, wake).receive());
+            assert!(future.as_mut().poll(&mut context).is_pending());
+            if send {
+                assert!(sender.send(Err(ShellError::Limit)).is_none());
+            } else {
+                drop(sender);
+            }
+            assert!(signal.0.load(Ordering::Acquire));
+            assert!(matches!(
+                future.as_mut().poll(&mut context),
+                Poll::Ready(Err(_))
+            ));
+        }
     }
 }

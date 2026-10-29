@@ -14,7 +14,7 @@ use rui_transport::{
 use tokio::sync::Semaphore;
 
 /// A bounded asynchronous facade over the existing !Send native owner thread.
-/// Futures poll charged single-response channels; no task is spawned per call.
+/// Futures await charged single-response channels; no task is spawned per call.
 #[derive(Clone)]
 pub struct NativeProducerPort(Arc<Port>);
 struct Port {
@@ -122,14 +122,10 @@ impl NativeProducerPort {
     }
 }
 async fn receive(pending: Pending) -> Result<Received, TransportError> {
-    let deadline = Instant::now() + Duration::from_secs(3);
-    loop {
-        match pending.try_recv().map_err(error)? {
-            Some(received) => return received.map_err(error),
-            None if Instant::now() >= deadline => return Err(TransportError::Deadline),
-            None => tokio::time::sleep(Duration::from_millis(1)).await,
-        }
-    }
+    tokio::time::timeout(Duration::from_secs(3), pending.receive())
+        .await
+        .map_err(|_| TransportError::Deadline)?
+        .map_err(error)
 }
 impl ProducerPort for NativeProducerPort {
     fn transact(&self, request: port::Request) -> port::PortFuture<'_> {

@@ -90,6 +90,7 @@ pub struct State {
     worker: Worker,
     capture: Arc<Capture>,
     last_capture: Instant,
+    capture_generation: u64,
     origin: Instant,
     stopped: Arc<AtomicBool>,
     identity: Arc<()>,
@@ -153,6 +154,7 @@ impl BrowserPort {
                 worker,
                 capture: Arc::new(capture),
                 last_capture: Instant::now(),
+                capture_generation: 0,
                 origin: Instant::now(),
                 stopped: stopped.clone(),
                 identity: identity.clone(),
@@ -279,12 +281,24 @@ impl State {
         if self.last_capture.elapsed() < Duration::from_millis(200) {
             return Ok(());
         }
-        let capture: Capture = serde_json::from_value(self.worker.call(json!({"op":"capture"}))?)
-            .map_err(|_| TransportError::Protocol)?;
-        projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
-        if *self.capture != capture {
-            self.capture = Arc::new(capture);
+        let reply = self
+            .worker
+            .call(json!({"op":"captureIfChanged", "generation":self.capture_generation}))?;
+        let generation = reply["generation"]
+            .as_u64()
+            .filter(|g| *g > 0)
+            .ok_or(TransportError::Protocol)?;
+        if let Some(value) = reply.get("capture") {
+            let capture: Capture =
+                serde_json::from_value(value.clone()).map_err(|_| TransportError::Protocol)?;
+            projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
+            if *self.capture != capture {
+                self.capture = Arc::new(capture);
+            }
+        } else if generation != self.capture_generation {
+            return Err(TransportError::Protocol);
         }
+        self.capture_generation = generation;
         self.last_capture = Instant::now();
         Ok(())
     }
