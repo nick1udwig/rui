@@ -39,15 +39,7 @@ fn next(version: u64) -> Result<u64, BuildError> {
     version.checked_add(1).ok_or(BuildError::Clock)
 }
 fn reference(record: &p::Record) -> Result<p::ObjectRef, BuildError> {
-    use p::record::Record::*;
-    let (kind, id) = match record.record.as_ref().ok_or(BuildError::Invalid)? {
-        Surface(r) => (p::ObjectKind::Surface, r.id),
-        Scene(r) => (p::ObjectKind::Scene, r.id),
-        Semantic(r) => (p::ObjectKind::Semantic, r.id),
-        Text(r) => (p::ObjectKind::Text, r.id),
-        Binding(r) => (p::ObjectKind::Binding, r.id),
-        Session(r) => (p::ObjectKind::Session, r.id),
-    };
+    let (id, kind, _) = record.identity().ok_or(BuildError::Invalid)?;
     if id == 0 {
         return Err(BuildError::Invalid);
     }
@@ -60,43 +52,30 @@ pub fn clock(record: &p::Record) -> Result<SourceClock, BuildError> {
     use p::record::Record::*;
     let mut clock = SourceClock {
         kind: reference(record)?.kind,
-        version: 0,
+        version: record.identity().ok_or(BuildError::Invalid)?.2,
         text: None,
         collection: None,
         focus: None,
     };
-    clock.version = match record.record.as_ref().unwrap() {
-        Surface(r) => r.version,
-        Scene(r) => r.version,
-        Binding(r) => r.version,
+    match record.record.as_ref().unwrap() {
         Text(r) => {
             clock.text = Some(r.text_version);
-            r.version
         }
         Semantic(r) => {
             clock.collection = r.collection_model.as_ref().map(|c| c.version);
-            r.version
         }
         Session(r) => {
             clock.focus = Some(r.focus_generation);
-            r.version
         }
-    };
+        _ => {}
+    }
     if clock.version == 0 {
         return Err(BuildError::Invalid);
     }
     Ok(clock)
 }
 fn version(record: &mut p::Record, version: u64) {
-    use p::record::Record::*;
-    match record.record.as_mut().unwrap() {
-        Surface(r) => r.version = version,
-        Scene(r) => r.version = version,
-        Semantic(r) => r.version = version,
-        Text(r) => r.version = version,
-        Binding(r) => r.version = version,
-        Session(r) => r.version = version,
-    }
+    *record.version_mut().unwrap() = version;
 }
 fn normalize(target: &mut p::Record, old: Option<&p::Record>) -> Result<(), BuildError> {
     use p::record::Record::*;

@@ -1408,16 +1408,6 @@ fn projection_records(records: Vec<p::Record>, projection: &Projection) -> Vec<p
         .collect()
 }
 
-fn identity(record: &mut p::Record) -> Result<(u64, p::ObjectKind, &mut u64), HostError> {
-    match record.record.as_mut().ok_or(HostError::FixtureLimit)? {
-        p::record::Record::Surface(v) => Ok((v.id, p::ObjectKind::Surface, &mut v.version)),
-        p::record::Record::Scene(v) => Ok((v.id, p::ObjectKind::Scene, &mut v.version)),
-        p::record::Record::Semantic(v) => Ok((v.id, p::ObjectKind::Semantic, &mut v.version)),
-        p::record::Record::Text(v) => Ok((v.id, p::ObjectKind::Text, &mut v.version)),
-        p::record::Record::Binding(v) => Ok((v.id, p::ObjectKind::Binding, &mut v.version)),
-        p::record::Record::Session(v) => Ok((v.id, p::ObjectKind::Session, &mut v.version)),
-    }
-}
 fn capture(
     source: &ControlledApplication,
     projection: &Projection,
@@ -1430,8 +1420,7 @@ fn capture(
     let mut stamps = BTreeMap::new();
     let mut mutations = Vec::new();
     for record in &mut records {
-        let (id, kind, version) = identity(record)?;
-        let source_version = *version;
+        let (id, kind, source_version) = record.identity().ok_or(HostError::FixtureLimit)?;
         let digest: [u8; 32] = Sha256::digest(record.encode_to_vec()).into();
         let old = projection.records.get(&id);
         let changed = old.is_none_or(|stamp| stamp.digest != digest);
@@ -1450,7 +1439,7 @@ fn capture(
                 }
             }
         };
-        *identity(record)?.2 = version;
+        *record.version_mut().ok_or(HostError::FixtureLimit)? = version;
         if changed && changes {
             mutations.push(p::Mutation {
                 mutation: Some(p::mutation::Mutation::Put(record.clone())),

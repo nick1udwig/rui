@@ -155,26 +155,15 @@ pub(super) fn next_with_limits(
     ))
 }
 fn identity(record: &pb::Record) -> Result<(u64, i32, u64), ShellError> {
-    use pb::record::Record::*;
-    Ok(match record.record.as_ref().ok_or(ShellError::Geometry)? {
-        Surface(r) => (r.id, 1, r.version),
-        Scene(r) => (r.id, 2, r.version),
-        Semantic(r) => (r.id, 3, r.version),
-        Binding(r) => (r.id, 5, r.version),
-        Session(r) => (r.id, 6, r.version),
-        Text(_) => return Err(ShellError::Native("native shell has no text-model profile")),
-    })
+    let (id, kind, version) = record.identity().ok_or(ShellError::Geometry)?;
+    if kind == pb::ObjectKind::Text {
+        return Err(ShellError::Native("native shell has no text-model profile"));
+    }
+    Ok((id, kind as i32, version))
 }
 fn set_version(record: &mut pb::Record, version: u64) -> Result<(), ShellError> {
-    use pb::record::Record::*;
-    match record.record.as_mut().ok_or(ShellError::Geometry)? {
-        Surface(r) => r.version = version,
-        Scene(r) => r.version = version,
-        Semantic(r) => r.version = version,
-        Binding(r) => r.version = version,
-        Session(r) => r.version = version,
-        Text(_) => return Err(ShellError::Native("native shell has no text-model profile")),
-    }
+    identity(record)?;
+    *record.version_mut().unwrap() = version;
     Ok(())
 }
 

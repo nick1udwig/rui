@@ -1,9 +1,8 @@
 // Owned live host acceptance of the public semantic-only browser API.
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
+import { serveClient, wait } from "./check-support.mjs";
 import {
   readFile,
-  stat,
   mkdir,
   writeFile,
   mkdtemp,
@@ -13,7 +12,7 @@ import {
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { chromium } from "../../client-browser/node_modules/playwright/index.mjs";
 const root = resolve(import.meta.dirname, "../..");
 assert.equal(process.env.RUI_ISOLATED_DISPLAY, "1", "owned display required");
@@ -24,41 +23,7 @@ const temp = await mkdtemp(resolve(tmpdir(), "rui-semantic-session-"));
 const app = process.env.RUI_SEMANTIC_APPLICATION ?? "corpus";
 assert(["corpus", "editor"].includes(app));
 const publicRoot = resolve(root, "client-browser");
-const server = createServer(async (req, res) => {
-  try {
-    if (req.url === "/") {
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end("<!doctype html><title>Owned semantic session</title>");
-      return;
-    }
-    const path = resolve(
-      publicRoot,
-      "." + new URL(req.url, "http://localhost").pathname,
-    );
-    if (!path.startsWith(publicRoot + sep) || !(await stat(path)).isFile())
-      throw Error();
-    res.writeHead(200, {
-      "Content-Type": path.endsWith(".wasm")
-        ? "application/wasm"
-        : "text/javascript",
-    });
-    res.end(await readFile(path));
-  } catch {
-    res.writeHead(404);
-    res.end();
-  }
-});
-const wait = async (read, condition = Boolean) => {
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
-    try {
-      const value = await read();
-      if (condition(value)) return value;
-    } catch {}
-    await new Promise((r) => setTimeout(r, 25));
-  }
-  throw Error("convergence deadline");
-};
+const server = serveClient(publicRoot);
 let browser,
   host,
   logs = "";

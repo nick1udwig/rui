@@ -8,6 +8,33 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/rui.v1.rs"));
 }
 
+impl proto::Record {
+    /// Wire fields only; callers validate identity, clocks and allowed profiles.
+    pub fn identity(&self) -> Option<(u64, proto::ObjectKind, u64)> {
+        use proto::{record::Record::*, ObjectKind};
+        Some(match self.record.as_ref()? {
+            Surface(r) => (r.id, ObjectKind::Surface, r.version),
+            Scene(r) => (r.id, ObjectKind::Scene, r.version),
+            Semantic(r) => (r.id, ObjectKind::Semantic, r.version),
+            Text(r) => (r.id, ObjectKind::Text, r.version),
+            Binding(r) => (r.id, ObjectKind::Binding, r.version),
+            Session(r) => (r.id, ObjectKind::Session, r.version),
+        })
+    }
+
+    pub fn version_mut(&mut self) -> Option<&mut u64> {
+        use proto::record::Record::*;
+        Some(match self.record.as_mut()? {
+            Surface(r) => &mut r.version,
+            Scene(r) => &mut r.version,
+            Semantic(r) => &mut r.version,
+            Text(r) => &mut r.version,
+            Binding(r) => &mut r.version,
+            Session(r) => &mut r.version,
+        })
+    }
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum WireError {
     #[error("wire or decoded allocation limit exceeded")]
