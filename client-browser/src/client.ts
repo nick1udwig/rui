@@ -128,6 +128,7 @@ async function loadModule(asset: string | URL): Promise<WebAssembly.Module> {
   for (const name of [
     "session_new",
     "session_receive",
+    "session_stateChanges",
     "session_close",
     "session_pendingCommands",
     "session_setRequestNamespace",
@@ -265,6 +266,22 @@ export class BrowserClient {
       if (this.disposed || generation !== this.generation) break;
     }
   }
+  private exportState(): State {
+    if (!this.snapshot) return this.session.state() as State;
+    const known = new BigUint64Array(this.snapshot.records.size * 2);
+    let index = 0;
+    for (const [id, record] of this.snapshot.records) {
+      known[index++] = id;
+      known[index++] = Object.values(record)[0].version;
+    }
+    const changes = this.session.stateChanges(known) as State & {
+      removed: bigint[];
+    };
+    const records = new Map(this.snapshot.records);
+    for (const id of changes.removed) records.delete(id);
+    for (const [id, record] of changes.records) records.set(id, record);
+    return { revision: changes.revision, records, retired: changes.retired };
+  }
   get state(): State | undefined {
     return this.snapshot && structuredClone(this.snapshot);
   }
@@ -329,7 +346,7 @@ export class BrowserClient {
       this.invalidate();
       this.renderer?.reset?.();
       if (event.type === "applied") {
-        this.snapshot = this.session.state() as State;
+        this.snapshot = this.exportState();
         this.schedule();
       }
       this.emit(event);
@@ -485,7 +502,7 @@ export class BrowserClient {
                 this.resourceStarted = undefined;
               }
               const exported = this.options.timings ? performance.now() : 0;
-              this.snapshot = this.session.state() as State;
+              this.snapshot = this.exportState();
               this.options.timings?.record(
                 "wasmExport",
                 this.session.revision,

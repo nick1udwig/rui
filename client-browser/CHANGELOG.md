@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 — incremental browser updates
+
+- Add `Session.stateChanges` for scope-local committed record exports.
+- Reuse unchanged compiled scene nodes and invalidate ancestor geometry changes.
+- Install the matching JavaScript and WASM artifacts together.
+
 ## 0.1.2 — browser workspace support
 
 - Add negotiated `browser.semantic.v1`, optional browser input hints and guarded `setBrowserValue` for browser producers.

@@ -140,6 +140,10 @@ export class CanvasRenderer implements Renderer {
   private paths = new Map<string, Path>();
   private masks = new Map<string, Mask>();
   private cacheBytes = 0;
+  private graph = new Map<bigint, { key: string; node: Node }>();
+  private graphBytes = 0;
+  private nodeBuilds = 0;
+  private nodeHits = 0;
   private workingBytes = 0;
   private bufferBytes = 0;
   private frame: Float32Array | undefined;
@@ -164,17 +168,20 @@ export class CanvasRenderer implements Renderer {
   }
   private charge(n: number): void {
     const working = this.workingBytes + n;
-    if (working + this.cacheBytes + this.bufferBytes > this.memoryLimit) {
+    if (
+      working + this.cacheBytes + this.bufferBytes + this.graphBytes >
+      this.memoryLimit
+    ) {
       this.paths.clear();
       this.masks.clear();
       this.cacheBytes = 0;
-      if (working + this.bufferBytes > this.memoryLimit)
+      if (working + this.bufferBytes + this.graphBytes > this.memoryLimit)
         throw new Error("renderer memory limit");
     }
     this.workingBytes = working;
     this.peakBytes = Math.max(
       this.peakBytes,
-      this.workingBytes + this.cacheBytes + this.bufferBytes,
+      this.workingBytes + this.cacheBytes + this.bufferBytes + this.graphBytes,
     );
   }
   private path(d: Digest, resources: (digest: Digest) => Uint8Array): Path {
@@ -339,6 +346,8 @@ export class CanvasRenderer implements Renderer {
     if (!session || !("Session" in session))
       throw new Error("missing session canvas");
     const rootClips: Clip[] = [{ matrix, rect: session.Session.canvas }];
+    const nextGraph = new Map<bigint, { key: string; node: Node }>();
+    let graphBytes = 0;
     const compile = (
       scene: Scene,
       parent: Affine,
@@ -349,12 +358,28 @@ export class CanvasRenderer implements Renderer {
       const m = multiply(parent, scene.transform),
         c = scene.clip ? [...clips, { matrix: m, rect: scene.clip }] : clips;
       // The compiled graph is independently owned JS memory, beyond pixels.
-      this.charge(512 + c.length * 160 + scene.children.length * 32);
+      const key = JSON.stringify([scene, m, c, screen], (_, value) =>
+        typeof value === "bigint" ? String(value) : value,
+      );
+      const bytes =
+        640 + c.length * 160 + scene.children.length * 32 + key.length * 2;
+      this.charge(bytes);
+      graphBytes += bytes;
       const children = scene.children.map((ref) => {
         const r = state.records.get(ref.id);
         if (!r || !("Scene" in r)) throw new Error("missing scene");
         return compile(r.Scene, m, c, depth + 1);
       });
+      const prior = this.optimized ? this.graph.get(scene.id) : undefined;
+      if (
+        prior?.key === key &&
+        prior.node.children.length === children.length &&
+        children.every((child, i) => child === prior.node.children[i])
+      ) {
+        this.nodeHits++;
+        nextGraph.set(scene.id, prior);
+        return prior.node;
+      }
       let bounds =
         scene.primitive === "Group"
           ? children.reduce((b, n) => union(b, n.bounds), empty)
@@ -362,7 +387,8 @@ export class CanvasRenderer implements Renderer {
       for (const clip of c)
         bounds = intersect(bounds, transformed(clip.matrix, clip.rect));
       bounds = integral(intersect(bounds, screen));
-      return {
+      this.nodeBuilds++;
+      const node: Node = {
         id: scene.id,
         version: scene.version,
         matrix: m,
@@ -372,6 +398,8 @@ export class CanvasRenderer implements Renderer {
         primitive: scene.primitive,
         children,
       };
+      if (this.optimized) nextGraph.set(scene.id, { key, node });
+      return node;
     };
     const surfaces = [...state.records.values()]
       .flatMap((r) => ("Surface" in r && r.Surface.mapped ? [r.Surface] : []))
@@ -486,6 +514,8 @@ export class CanvasRenderer implements Renderer {
     );
     this.scratch.width = 0;
     this.scratch.height = 0;
+    this.graph = nextGraph;
+    this.graphBytes = this.optimized ? graphBytes : 0;
     this.workingBytes = 0;
   }
   private draw(
@@ -661,17 +691,27 @@ export class CanvasRenderer implements Renderer {
     outputAllocations: number;
     maskBuilds: number;
     maskHits: number;
+    nodeBuilds: number;
+    nodeHits: number;
   } {
     return {
-      ownedBytes: this.bufferBytes + this.cacheBytes + this.workingBytes,
+      ownedBytes:
+        this.bufferBytes +
+        this.cacheBytes +
+        this.workingBytes +
+        this.graphBytes,
       peakBytes: this.peakBytes,
       frameAllocations: this.frameAllocations,
       outputAllocations: this.outputAllocations,
       maskBuilds: this.maskBuilds,
       maskHits: this.maskHits,
+      nodeBuilds: this.nodeBuilds,
+      nodeHits: this.nodeHits,
     };
   }
   reset(): void {
+    this.graph.clear();
+    this.graphBytes = 0;
     this.paths.clear();
     this.masks.clear();
     this.cacheBytes = 0;

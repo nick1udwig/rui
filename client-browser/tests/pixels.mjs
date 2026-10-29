@@ -427,6 +427,22 @@ export function checkPixels() {
       { ...viewport, width: size, height: size },
       () => rvp(),
     );
+  const unchanged = state([scene(3, solid(red))]);
+  renderer.render(unchanged, viewport, () => rvp());
+  const builds = renderer.allocationStats().nodeBuilds;
+  renderer.render(unchanged, viewport, () => rvp());
+  assert(
+    renderer.allocationStats().nodeBuilds === builds &&
+      renderer.allocationStats().nodeHits > 0,
+    "unchanged nodes recompiled",
+  );
+  unchanged.records.get(3n).Scene.transform = { ...I, tx: 8 };
+  renderer.render(unchanged, viewport, () => rvp());
+  close(
+    pixel(canvas, 4, 4),
+    [0, 0, 0, 0],
+    "mutated transform reused compiled node",
+  );
   renderer.dispose();
   assert(
     renderer.allocationStats().ownedBytes === 0,

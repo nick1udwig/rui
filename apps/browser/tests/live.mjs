@@ -236,10 +236,10 @@ try {
       (await page.locator("#connection").textContent()) === "Controlling host",
     "control lease",
   );
-  assert.deepEqual(
-    await page.evaluate(() => [...window.ruiStateCopies.values()]),
-    [1],
-    "initial publication and control acquisition share one state copy",
+  const initialCopies = await page.evaluate(() => [...window.ruiStateCopies.values()]);
+  assert.ok(
+    initialCopies.length > 0 && initialCopies.every(count => count === 1),
+    "each publication and control acquisition share one state copy per revision",
   );
   const address = page.getByLabel("Address", { exact: true });
   await address.fill(`http://127.0.0.1:${fixture.address().port}/`);

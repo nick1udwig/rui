@@ -467,6 +467,29 @@ async function semanticSession() {
       "resource-free eviction invented a body",
     );
     throws(() => session.hitTest(0, 0, 10, 10, 0, 0, 1));
+    const committed = session.state();
+    const inventory = new BigUint64Array(
+      [...committed.records].flatMap(([id, record]) => [
+        id,
+        Object.values(record)[0].version,
+      ]),
+    );
+    assert(
+      session.stateChanges(inventory).records.size === 0,
+      "unchanged export copied records",
+    );
+    inventory[1] = 0n;
+    const changed = session.stateChanges(inventory);
+    assert(
+      changed.records.size === 1 && changed.records.has(inventory[0]),
+      "export omitted changed record",
+    );
+    assert(
+      session.stateChanges(new BigUint64Array()).records.size ===
+        committed.records.size,
+      "empty inventory did not export full state",
+    );
+    throws(() => session.stateChanges(new BigUint64Array([1n])));
     const seq = session.activate(1n);
     assert(seq === 1n, "command sequence changed");
     assert(Number(pick(drain()[0], 5)) === 50, "semantic command absent");

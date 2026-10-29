@@ -327,6 +327,57 @@ impl Session {
     pub fn state(&self) -> Result<JsValue, JsError> {
         value(self.inner.state().map_err(error)?)
     }
+    /// Export changed committed records against caller-owned, scope-local clocks.
+    #[wasm_bindgen(js_name = stateChanges)]
+    pub fn state_changes(&self, known: &[u64]) -> Result<JsValue, JsError> {
+        use std::collections::BTreeMap;
+        let state = self.inner.state().map_err(error)?;
+        if !known.len().is_multiple_of(2)
+            || known.len() > 2 * (state.records.len() + state.retired.len())
+        {
+            return Err(error("invalid export inventory"));
+        }
+        let _memory = self
+            .inner
+            .receiver()
+            .map_err(error)?
+            .memory_budget()
+            .reserve(
+                known
+                    .len()
+                    .saturating_mul(128)
+                    .saturating_add(state.records.len().saturating_mul(128)),
+            )
+            .map_err(error)?;
+        let versions: BTreeMap<_, _> = known
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| (pair[0], pair[1]))
+            .collect();
+        #[derive(serde::Serialize)]
+        struct Changes<'a> {
+            revision: u64,
+            records: BTreeMap<u64, &'a Record>,
+            retired: &'a std::collections::BTreeSet<u64>,
+            removed: Vec<u64>,
+        }
+        value(&Changes {
+            revision: state.revision,
+            records: state
+                .records
+                .iter()
+                .filter(|(id, record)| versions.get(id) != Some(&record.version()))
+                .map(|(id, record)| (*id, record))
+                .collect(),
+            retired: &state.retired,
+            removed: versions
+                .keys()
+                .filter(|id| !state.records.contains_key(id))
+                .copied()
+                .collect(),
+        })
+    }
     #[wasm_bindgen(js_name = resourceBytes)]
     pub fn resource_bytes(&self, digest: &[u8]) -> Result<Vec<u8>, JsError> {
         Ok(self

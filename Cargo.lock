@@ -921,7 +921,7 @@ dependencies = [
 
 [[package]]
 name = "rui-browser-host"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "getrandom 0.2.17",
  "prost",
@@ -937,7 +937,7 @@ dependencies = [
 
 [[package]]
 name = "rui-client-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "prost",
  "rui-protocol-core",
@@ -949,7 +949,7 @@ dependencies = [
 
 [[package]]
 name = "rui-client-desktop"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "cairo-rs",
  "cc",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "rui-client-wasm"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "rui-client-core",
  "rui-protocol-core",
@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "rui-host-broker"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "getrandom 0.2.17",
  "prost",
@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "rui-producer-sdk"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "libc",
  "prost",
@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "rui-protocol-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "prost",
  "prost-build",
@@ -1020,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "rui-session-shell"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "gtk4",
  "prost",
@@ -1034,7 +1034,7 @@ dependencies = [
 
 [[package]]
 name = "rui-transport"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "futures-util",
  "getrandom 0.2.17",
@@ -1058,7 +1058,7 @@ dependencies = [
 
 [[package]]
 name = "rui-wire"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "prost",
  "prost-build",
