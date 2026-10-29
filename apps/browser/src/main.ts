@@ -91,6 +91,7 @@ type Row = {
   filter?: HTMLInputElement;
 };
 const rows = new Map<bigint, Row>();
+let renderedState: State | undefined;
 function enabled(node: Semantic) {
   return (
     !!client?.hasControl &&
@@ -221,7 +222,7 @@ function createRow(node: Semantic): Row {
           input.value = "";
           row.dirty = undefined;
           staging = true;
-          if (client.state) render(client.state);
+          refresh();
           const staged = await api(
             "secret",
             { target: Number(node.id), secret: value },
@@ -242,7 +243,7 @@ function createRow(node: Semantic): Row {
         message.textContent = String(error);
       } finally {
         staging = false;
-        if (client?.state) render(client.state);
+        refresh();
       }
     };
     actions.append(apply, discard);
@@ -263,7 +264,7 @@ function createRow(node: Semantic): Row {
       );
       try {
         client?.setChecked(node.id, checked);
-        if (client?.state) render(client.state);
+        refresh();
       } catch (error) {
         say(error);
       }
@@ -278,7 +279,7 @@ function createRow(node: Semantic): Row {
     button.onclick = () => {
       try {
         client?.activate(node.id);
-        if (client?.state) render(client.state);
+        refresh();
       } catch (error) {
         say(error);
       }
@@ -304,12 +305,33 @@ function sourceValue(node: Semantic) {
       : "";
 }
 function reset() {
+  renderedState = undefined;
   authority++;
   for (const row of rows.values()) if (row.input) row.input.value = "";
   rows.clear();
   view.replaceChildren();
 }
+function refreshControls() {
+  for (const row of rows.values()) {
+    const node = row.node;
+    if (row.button)
+      row.button.disabled =
+        !enabled(node) || !node.actions.some((a) => a.id === "Activate");
+    if (row.input instanceof HTMLInputElement && row.input.type === "checkbox")
+      row.input.disabled = !enabled(node);
+    else if (row.input)
+      row.input.readOnly =
+        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
+    if (row.apply)
+      row.apply.disabled =
+        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
+  }
+}
+function refresh() {
+  if (renderedState) render(renderedState);
+}
 function render(state: State) {
+  renderedState = state;
   const nodes = new Map<bigint, Semantic>();
   for (const record of state.records.values())
     if ("Semantic" in record) nodes.set(record.Semantic.id, record.Semantic);
@@ -369,8 +391,6 @@ function render(state: State) {
           String(row.kind.endsWith("-active")),
         );
       }
-      row.button.disabled =
-        !enabled(node) || !node.actions.some((a) => a.id === "Activate");
     }
     if (row.input) {
       if (
@@ -382,10 +402,7 @@ function render(state: State) {
           "Boolean" in node.value &&
           node.value.Boolean
         );
-        row.input.disabled = !enabled(node);
       } else {
-        row.input.readOnly =
-          !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
         if (!row.dirty && row.input.value !== sourceValue(node))
           row.input.value = sourceValue(node);
         if (
@@ -400,13 +417,12 @@ function render(state: State) {
       }
     }
     if (row.apply) {
-      row.apply.disabled =
-        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
       row.apply.parentElement!.hidden = !node.actions.some(
         (a) => a.id === "SetValue",
       );
     }
   }
+  refreshControls();
   const place = (container: HTMLElement, ids: bigint[]) => {
     let cursor = container.firstElementChild;
     for (const id of ids) {
@@ -472,21 +488,21 @@ async function connectHost() {
         if (event.type === "connected") connected = true;
         if (event.type === "applied") {
           try {
-            render(client!.state!);
-            client!.semanticReady(client!.state!.revision);
+            const state = client!.state!;
+            render(state);
+            client!.semanticReady(state.revision);
           } catch (error) {
             say(error);
           }
         }
-        if (event.type === "semanticReady" && client?.state)
-          render(client.state);
+        if (event.type === "semanticReady") refreshControls();
         if (event.type === "control") {
           if (!event.granted) {
             authority++;
             for (const row of rows.values())
               if (row.kind === "password" && row.input) row.input.value = "";
           }
-          if (client?.state) render(client.state);
+          refresh();
         }
         if (event.type === "commandResult") {
           say(
@@ -503,7 +519,7 @@ async function connectHost() {
                 if (row.message) row.message.textContent = "Sent to host";
               } else if (row.message) row.message.textContent = event.status;
             }
-          if (client?.state) render(client.state);
+          refresh();
         }
         if (event.type === "disconnected") {
           connected = false;
@@ -551,7 +567,7 @@ async function connectHost() {
 connect.onclick = () => void connectHost();
 control.onclick = () => {
   try {
-    if (client?.state) client.semanticReady(client.state.revision);
+    if (client && renderedState) client.semanticReady(renderedState.revision);
     client?.requestControl();
   } catch (error) {
     say(error);
@@ -581,10 +597,10 @@ document.addEventListener("visibilitychange", () => {
     authority++;
     for (const row of rows.values())
       if (row.kind === "password" && row.input) row.input.value = "";
-  } else if (client?.state) {
-    render(client.state);
+  } else if (client && renderedState) {
+    refresh();
     try {
-      client.semanticReady(client.state.revision);
+      client.semanticReady(renderedState.revision);
     } catch {}
   }
 });

@@ -170,6 +170,16 @@ try {
     viewport: { width: 390, height: 844 },
     hasTouch: true,
   });
+  await context.addInitScript(() => {
+    const clone = window.structuredClone;
+    const copies = new Map();
+    window.ruiStateCopies = copies;
+    window.structuredClone = (value, options) => {
+      if (value?.records instanceof Map && typeof value.revision === "bigint")
+        copies.set(value.revision, (copies.get(value.revision) ?? 0) + 1);
+      return clone(value, options);
+    };
+  });
   page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -225,6 +235,11 @@ try {
     async () =>
       (await page.locator("#connection").textContent()) === "Controlling host",
     "control lease",
+  );
+  assert.deepEqual(
+    await page.evaluate(() => [...window.ruiStateCopies.values()]),
+    [1],
+    "initial publication and control acquisition share one state copy",
   );
   const address = page.getByLabel("Address", { exact: true });
   await address.fill(`http://127.0.0.1:${fixture.address().port}/`);
