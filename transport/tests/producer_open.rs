@@ -146,6 +146,12 @@ async fn heartbeat_waits_for_explicit_open_before_pumping_native_style_producer(
     assert!(port.opened.load(Ordering::Acquire));
     assert!(port.pumps.load(Ordering::Acquire) > 0);
     assert_eq!(port.premature.load(Ordering::Acquire), 0);
+    let pumps = port.pumps.load(Ordering::Acquire);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(
+        port.pumps.load(Ordering::Acquire) - pumps < 25,
+        "an idle view must not poll its producer at 500 Hz"
+    );
     drop(client);
     server.shutdown().await;
 }

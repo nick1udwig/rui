@@ -98,7 +98,10 @@ Reader termination cancels the pending response wait and invokes the producer's 
 It does not turn an already admitted native operation into a claimed success or undo a completed effect.
 Real TLS regressions in `tests/producer_disconnect.rs` cover close, EOF and ingress saturation while normal producer work remains blocked.
 
-Heartbeat publication polling starts only after the producer completes `OpenView`.
+Publication reconciliation starts only after the producer completes `OpenView`.
+Commands and control changes notify connected views.
+A 20 ms reconciliation timer covers external source changes and local revocations that do not yet provide notifications.
+Ready packets drain with socket backpressure and task yields, without waiting for that timer.
 An authenticated client may delay opening its view without causing a premature producer `Pump`; `tests/producer_open.rs` exercises that ordering over actual TLS against an owner that rejects polling before open.
 
 Semantic, raw input, text composition and source resize share the common exact-byte ledger.

@@ -24,7 +24,7 @@ use std::{
 };
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{mpsc, oneshot, Mutex, Semaphore},
+    sync::{mpsc, oneshot, watch, Mutex, Semaphore},
     task::{JoinHandle, JoinSet},
 };
 use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSocketMessage};
@@ -68,6 +68,7 @@ impl Default for ServerConfig {
     }
 }
 struct Shared {
+    changed: watch::Sender<()>,
     port: Arc<dyn ProducerPort>,
     pairing: Arc<StdMutex<PairingAuthority>>,
     active: StdMutex<BTreeSet<Id>>,
@@ -160,6 +161,7 @@ impl ProducerServerHandle {
             .map_err(|_| TransportError::Io)?;
         let address = listener.local_addr().map_err(|_| TransportError::Io)?;
         let shared = Arc::new(Shared {
+            changed: watch::channel(()).0,
             port,
             pairing,
             active: StdMutex::new(BTreeSet::new()),
@@ -356,14 +358,22 @@ async fn request(
     connection: &Connection,
     operation: Operation,
 ) -> Result<producer::Received, TransportError> {
-    shared
+    let changes_source = matches!(
+        &operation,
+        Operation::Command { .. } | Operation::Control(_)
+    );
+    let result = shared
         .port
         .transact(Request::Scoped {
             connection: connection.clone(),
             operation,
             now: shared.now(),
         })
-        .await
+        .await;
+    if changes_source {
+        shared.changed.send_replace(());
+    }
+    result
 }
 async fn reserve(
     shared: &Shared,
@@ -553,10 +563,14 @@ where
     if chunk == 0 {
         return Err(TransportError::Limit);
     }
-    let mut heartbeat = tokio::time::interval(Duration::from_millis(2));
+    let mut heartbeat = tokio::time::interval(Duration::from_millis(20));
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut changed = shared.changed.subscribe();
+    let mut delivery_ready = false;
     loop {
         tokio::select! {
             raw=incoming.recv()=>{
+                delivery_ready = true;
                 let frame=raw.ok_or(TransportError::Closed)?;let raw=&frame.bytes;let packet=codec::packet(raw,ceiling,binding)?;let kind=p::Kind::try_from(packet.kind).map_err(|_|TransportError::Protocol)?;
                 approved(shared,connection,approval,authorization)?;
                 if kind==p::Kind::OpenView{
@@ -600,7 +614,9 @@ where
                     match response{Ok(Some((kind,bytes)))=>send_recorded(recording.as_ref(),socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout,shared,connection,approval,authorization).await?,Ok(None)=>{},Err(TransportError::Authority)=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
                 }
             }
-            _=heartbeat.tick()=>{
+            _=async {
+                tokio::select! { _ = heartbeat.tick() => {}, _ = changed.changed() => {} }
+            }=>{
                 approved(shared,connection,approval,authorization)?;
                 if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout){return Err(TransportError::Deadline);}
                 // A producer view does not exist until Open completes. The
@@ -611,7 +627,14 @@ where
                 let Reply::Pump{publication,revoked}=received.value()else{return Err(TransportError::Protocol);};let publication=publication.clone();let revoked=revoked.clone();drop(received);
                 if let Some(notice)=revoked{send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ControlRevoked,&p::ControlRevoked{lease_id:notice.lease.to_vec(),generation:notice.generation,reason:notice.reason},binding),ceiling,timeout,shared,connection,approval,authorization).await?;}
             if delivery.can_start(){if let Some(frame)=queued.pop_front().or(publication){source_scope(&frame,session)?;delivery.install(Outgoing::new(frame,chunk,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}}
-                if let Some(packet)=delivery.next(binding)?{send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;}
+                delivery_ready = true;
+            }
+            _ = tokio::task::yield_now(), if delivery_ready => {
+                if let Some(packet) = delivery.next(binding)? {
+                    send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;
+                } else {
+                    delivery_ready = false;
+                }
             }
         }
     }
@@ -1163,6 +1186,7 @@ mod tests {
         .unwrap();
         (
             Arc::new(Shared {
+                changed: watch::channel(()).0,
                 port: Arc::new(port),
                 pairing: Arc::new(StdMutex::new(pairing)),
                 active: StdMutex::new(BTreeSet::new()),

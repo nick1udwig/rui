@@ -76,7 +76,7 @@ struct View {
     scope: Arc<Scope>,
     lifetime: AuthorizationLifetime,
     snapshot: p::Snapshot,
-    capture: Capture,
+    capture: Arc<Capture>,
     pending: Option<SharedPayload>,
     ready: bool,
     revoked: Option<Revoked>,
@@ -88,7 +88,7 @@ pub struct State {
     session: Id,
     views: BTreeMap<Id, View>,
     worker: Worker,
-    capture: Capture,
+    capture: Arc<Capture>,
     last_capture: Instant,
     origin: Instant,
     stopped: Arc<AtomicBool>,
@@ -151,7 +151,7 @@ impl BrowserPort {
                 session,
                 views: BTreeMap::new(),
                 worker,
-                capture,
+                capture: Arc::new(capture),
                 last_capture: Instant::now(),
                 origin: Instant::now(),
                 stopped: stopped.clone(),
@@ -282,13 +282,15 @@ impl State {
         let capture: Capture = serde_json::from_value(self.worker.call(json!({"op":"capture"}))?)
             .map_err(|_| TransportError::Protocol)?;
         projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
-        self.capture = capture;
+        if *self.capture != capture {
+            self.capture = Arc::new(capture);
+        }
         self.last_capture = Instant::now();
         Ok(())
     }
     fn publish(&mut self, id: Id, now: u64) -> Result<(), TransportError> {
         let v = self.views.get_mut(&id).ok_or(TransportError::Authority)?;
-        if !v.ready || v.capture == self.capture {
+        if !v.ready || Arc::ptr_eq(&v.capture, &self.capture) {
             return Ok(());
         }
         let target = projection::snapshot(&self.capture).map_err(|_| TransportError::Protocol)?;
