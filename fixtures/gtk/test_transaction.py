@@ -2,11 +2,36 @@
 import tempfile
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 from types import SimpleNamespace
 from adapters.gtk4.transaction import CaptureBudget, CaptureTransaction, BarrierRejected, METADATA_CHARGE, ArtifactQuota
 
 
 class ArtifactOwnership(unittest.TestCase):
+    def test_resource_reuse_keeps_quota_and_repairs_missing_or_changed_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'shared.rvp'
+            body = b'RVP1' + b'x' * 131072
+            path.write_bytes(body)
+            quota = ArtifactQuota(limit=len(body), max_files=1)
+            with patch.object(Path, 'write_bytes', autospec=True, side_effect=Path.write_bytes) as writes:
+                quota.write(path, body, reuse=True)
+                quota.write(path, body, reuse=True)
+                self.assertEqual(writes.call_count, 0)
+                self.assertEqual(quota.used, len(body))
+                with self.assertRaises(BarrierRejected):
+                    quota.write(Path(directory) / 'extra', b'x', reuse=True)
+                for changed in (body[:-1], body + b'x', b'broken' + body[6:]):
+                    path.write_bytes(changed)
+                    quota.write(path, body, reuse=True)
+                    self.assertEqual(path.read_bytes(), body)
+                path.unlink()
+                quota.write(path, body, reuse=True)
+                self.assertEqual(path.read_bytes(), body)
+                self.assertEqual(quota.used, len(body))
+            quota.discard(path)
+            self.assertEqual(quota.used, 0)
+
     def test_consumed_files_release_quota_for_sustained_replacement(self):
         with tempfile.TemporaryDirectory() as directory:
             quota = ArtifactQuota(limit=32, max_files=2)

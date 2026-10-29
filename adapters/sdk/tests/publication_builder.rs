@@ -268,3 +268,58 @@ fn every_transaction_chunk_cut_preserves_predecessor_and_exact_retry() {
         assert!(peer.memory_used() <= peer.memory_limit());
     }
 }
+
+#[test]
+fn clock_only_source_changes_preserve_records_even_at_clock_limits() {
+    let previous = p::Snapshot {
+        revision: 1,
+        records: vec![
+            p::Record {
+                record: Some(p::record::Record::Semantic(p::SemanticNode {
+                    id: 1,
+                    version: u64::MAX,
+                    collection_model: Some(p::CollectionModel {
+                        version: u64::MAX,
+                        total_count: Some(0),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })),
+            },
+            p::Record {
+                record: Some(p::record::Record::Session(p::SessionState {
+                    id: 2,
+                    version: u64::MAX,
+                    focus_generation: u64::MAX,
+                    ..Default::default()
+                })),
+            },
+        ],
+        ..Default::default()
+    };
+    let mut source = previous.clone();
+    for record in &mut source.records {
+        match record.record.as_mut().unwrap() {
+            p::record::Record::Semantic(r) => {
+                r.version = 1;
+                r.collection_model.as_mut().unwrap().version = 1;
+            }
+            p::record::Record::Session(r) => {
+                r.version = 1;
+                r.focus_generation = 1;
+            }
+            _ => unreachable!(),
+        }
+    }
+    let candidate = build(&previous, source.clone(), &BTreeSet::new()).unwrap();
+    assert_eq!(candidate.snapshot.records, previous.records);
+    assert!(candidate.transaction.mutations.is_empty());
+    let Some(p::record::Record::Semantic(r)) = &mut source.records[0].record else {
+        unreachable!()
+    };
+    r.collection_model.as_mut().unwrap().total_count = Some(1);
+    assert!(matches!(
+        build(&previous, source, &BTreeSet::new()),
+        Err(BuildError::Clock)
+    ));
+}

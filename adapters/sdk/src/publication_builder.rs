@@ -98,22 +98,6 @@ fn version(record: &mut p::Record, version: u64) {
         Session(r) => r.version = version,
     }
 }
-fn content(record: &p::Record) -> p::Record {
-    let mut copy = record.clone();
-    version(&mut copy, 0);
-    use p::record::Record::*;
-    match copy.record.as_mut().unwrap() {
-        Text(r) => r.text_version = 0,
-        Semantic(r) => {
-            if let Some(c) = &mut r.collection_model {
-                c.version = 0;
-            }
-        }
-        Session(r) => r.focus_generation = 0,
-        _ => {}
-    }
-    copy
-}
 fn normalize(target: &mut p::Record, old: Option<&p::Record>) -> Result<(), BuildError> {
     use p::record::Record::*;
     match (
@@ -131,11 +115,8 @@ fn normalize(target: &mut p::Record, old: Option<&p::Record>) -> Result<(), Buil
         (Semantic(t), Some(Semantic(o))) => {
             if let Some(c) = &mut t.collection_model {
                 c.version = if let Some(prior) = &o.collection_model {
-                    let mut a = c.clone();
-                    a.version = 0;
-                    let mut b = prior.clone();
-                    b.version = 0;
-                    if a != b {
+                    c.version = prior.version;
+                    if c != prior {
                         next(prior.version)?
                     } else {
                         prior.version
@@ -163,7 +144,8 @@ fn normalize(target: &mut p::Record, old: Option<&p::Record>) -> Result<(), Buil
     let new = match old {
         Some(old) => {
             let prior = clock(old)?;
-            if content(target) == content(old) {
+            version(target, prior.version);
+            if target == old {
                 prior.version
             } else {
                 next(prior.version)?

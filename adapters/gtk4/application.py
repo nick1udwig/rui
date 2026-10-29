@@ -172,7 +172,7 @@ class RegisteredApplication(CoherentView):
             'resource_kind_counts':{str(kind):sum(x['kind']==kind for x in offers.values()) for kind in (1,2)}}
         label=f'whole-{self.revision:04d}';frame['surface_key']='whole'
         if self.diagnostics:self.local_reference(label,frame)
-        manifest=json.dumps(frame,sort_keys=True,indent=2).encode()
+        manifest=json.dumps(frame,sort_keys=True,separators=(',',':')).encode()
         if len(manifest)>MAX_MANIFEST_BYTES:raise BarrierRejected('whole-view-manifest-ceiling')
         self.source.write_artifact(self.output,label+'.bin',envelope)
         self.source.write_artifact(self.output,label+'.json',manifest)

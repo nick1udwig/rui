@@ -6,6 +6,7 @@ authenticates a peer. Only fresh snapshot callbacks for an active barrier can
 complete it. The GTK fixture supplies the serialized source actor.
 """
 from collections import deque
+from adapters.sdk.artifacts import write_artifact
 import json
 import time
 
@@ -56,7 +57,7 @@ class ArtifactQuota:
         self.limit, self.max_files, self.used = limit, max_files, 0
         self.files = {}
 
-    def write(self, path, body):
+    def write(self, path, body, *, reuse=False):
         previous = self.files.get(path, 0)
         charge = self.used - previous + len(body)
         if charge > self.limit or (path not in self.files and len(self.files) >= self.max_files):
@@ -65,7 +66,7 @@ class ArtifactQuota:
         # without claiming a coherent publication; previous output stays owned.
         self.used = charge
         self.files[path] = len(body)
-        path.write_bytes(body)
+        write_artifact(path, body, reuse=reuse)
 
     def discard(self, path):
         """Release an explicitly owned superseded artifact, never a peer path."""

@@ -1,4 +1,5 @@
 import tempfile
+import json
 import unittest
 from adapters.sdk.producer import encode_semantic
 from conformance.full_reference import record as independently_decode_record
@@ -78,6 +79,14 @@ class ProducerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             label = source.write(Path(directory), frame)
             self.assertTrue((Path(directory) / (label + ".bin")).exists())
+            metadata = (Path(directory) / (label + ".json")).read_bytes()
+            self.assertEqual(json.loads(metadata), frame)
+            self.assertLess(len(metadata), len(json.dumps(frame, indent=2).encode()))
+            source.resources[resource["digest"]] = resource
+            frame['revision'] += 1
+            with patch.object(Path, 'write_bytes', autospec=True, side_effect=Path.write_bytes) as writes:
+                source.write(Path(directory), frame)
+                self.assertEqual([call.args[0].suffix for call in writes.call_args_list], ['.bin', '.json'])
             self.assertEqual((Path(directory) / (resource["digest"] + ".rvp")).read_bytes(), resource["body"])
         self.assertEqual(source.resources, {})
 

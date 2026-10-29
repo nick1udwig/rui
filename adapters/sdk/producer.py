@@ -5,6 +5,7 @@ caller. This SDK does not scrape pixels, authenticate, fetch assets or render.
 """
 from __future__ import annotations
 from adapters.sdk.timing import timings
+from adapters.sdk.artifacts import write_artifact
 import time
 
 import hashlib
@@ -480,11 +481,11 @@ class CoherentSource:
             result.append(record)
         return result
 
-    def write_artifact(self, output: Path, name: str, body: bytes):
+    def write_artifact(self, output: Path, name: str, body: bytes, *, reuse=False):
         if self.artifact_quota is not None:
-            self.artifact_quota.write(output / name, body)
+            self.artifact_quota.write(output / name, body, reuse=reuse)
         else:
-            (output / name).write_bytes(body)
+            write_artifact(output / name, body, reuse=reuse)
 
     def write(self, output: Path, frame: dict):
         output.mkdir(parents=True, exist_ok=True)
@@ -497,7 +498,7 @@ class CoherentSource:
             resource = self.resources[digest]
             if resource["kind"] not in (1, 2) or resource["provenance"] != resource["kind"] or not resource["body"].startswith(b"RVP1"):
                 raise ValueError("SDK geometry-only resource handoff")
-            self.write_artifact(output, digest + ".rvp", resource["body"])
+            self.write_artifact(output, digest + ".rvp", resource["body"], reuse=True)
             resources.append({key: value for key, value in resource.items() if key != "body"})
         frame["binding"] = binding
         frame["envelope_sha256"] = hashlib.sha256(envelope).hexdigest()
@@ -506,12 +507,11 @@ class CoherentSource:
                 "resource_bytes": sum(item["total_bytes"] for item in resources),
                 "resource_kind_counts": {str(kind): sum(item["kind"] == kind for item in resources) for kind in (1, 2)}}
         frame["resource_offers"] = resources
-        summary = dict(frame)
-        metadata = json.dumps(summary, indent=2, sort_keys=True) + "\n"
-        if len(metadata.encode()) > MAX_MANIFEST_BYTES:
+        metadata = (json.dumps(frame, separators=(',', ':'), sort_keys=True) + "\n").encode()
+        if len(metadata) > MAX_MANIFEST_BYTES:
             raise ValueError('capture manifest ceiling')
         self.write_artifact(output, label + ".bin", envelope)
-        self.write_artifact(output, label + ".json", metadata.encode())
+        self.write_artifact(output, label + ".json", metadata)
         # The artifact is the consumer handoff. No source memory cache or hidden
         # in-flight history retains old bodies after the exact files are written.
         self.resources.clear()
