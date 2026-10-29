@@ -266,10 +266,13 @@ impl ViewReceiver {
     pub fn context(&self) -> ResourceContext {
         self.context
     }
-    /// Trusted producer replay shares this receiver's memory ceiling and
-    /// preserves the exact committed retirement/history state.
+    /// Read-only committed reducer for trusted producer validation.
+    pub fn committed_replica(&self) -> Result<&Replica, ReceiverError> {
+        Ok(&self.inner()?.replica)
+    }
+    /// Independent producer replay under this receiver's memory ceiling.
     pub fn fork_committed(&self) -> Result<Replica, ReceiverError> {
-        let replica = &self.inner()?.replica;
+        let replica = self.committed_replica()?;
         Ok(replica.fork(replica.limits().clone())?)
     }
     pub fn memory_used(&self) -> usize {

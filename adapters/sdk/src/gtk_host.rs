@@ -2301,7 +2301,10 @@ fn install_replacement(sessions: &mut SessionBroker, view: &mut View) -> Result<
             && pending.context.is_some()
             && view.source_context == pending.context;
         let (kind, payload, clocks) = if delta {
-            let previous = view.consumer.fork_committed().map_err(CaptureError::from)?;
+            let previous = view
+                .consumer
+                .committed_replica()
+                .map_err(CaptureError::from)?;
             let candidate = publication_builder::build(
                 view.projection.as_ref().unwrap(),
                 pending.snapshot,
@@ -2316,10 +2319,9 @@ fn install_replacement(sessions: &mut SessionBroker, view: &mut View) -> Result<
                 .keys()
                 .copied()
                 .collect();
-            candidate
-                .validate(&previous, &available, previous.limits())
+            let payload = candidate
+                .validate(previous, &available, previous.limits())
                 .map_err(|_| GtkHostError::Unsupported)?;
-            let payload = candidate.transaction.encode_to_vec();
             pending.snapshot = candidate.snapshot;
             (
                 pb::MessageKind::Transaction,

@@ -220,11 +220,11 @@ impl Candidate {
         previous: &Replica,
         available: &BTreeSet<[u8; 32]>,
         limits: &Limits,
-    ) -> Result<(), BuildError> {
+    ) -> Result<Vec<u8>, BuildError> {
         let mut delta = previous.fork(limits.clone())?;
         let mut snapshot = previous.fork(limits.clone())?;
-        let delta_outcome =
-            delta.apply_transaction(&self.transaction.encode_to_vec(), available)?;
+        let payload = self.transaction.encode_to_vec();
+        let delta_outcome = delta.apply_transaction(&payload, available)?;
         let snapshot_outcome =
             snapshot.apply_snapshot(&self.snapshot.encode_to_vec(), available)?;
         if !matches!(delta_outcome, ApplyOutcome::Applied { .. })
@@ -234,6 +234,6 @@ impl Candidate {
         {
             return Err(BuildError::Divergence);
         }
-        Ok(())
+        Ok(payload)
     }
 }
