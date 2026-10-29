@@ -118,24 +118,54 @@ pub fn decode_bound_envelope(
     Ok(envelope)
 }
 
-pub fn decode_snapshot(bytes: &[u8], limits: &Limits) -> Result<proto::Snapshot, WireError> {
-    preflight(bytes, Context::Snapshot, limits.max_snapshot_bytes, limits)?;
-    let result = proto::Snapshot::decode(bytes).map_err(decode_error)?;
-    required_features(&result.required_features)?;
-    Ok(result)
+pub(crate) struct Preflighted<'a, T> {
+    bytes: &'a [u8],
+    allocation: usize,
+    message: std::marker::PhantomData<T>,
 }
-
-pub fn decode_transaction(bytes: &[u8], limits: &Limits) -> Result<proto::Transaction, WireError> {
-    preflight(
-        bytes,
-        Context::Transaction,
-        limits.max_transaction_bytes,
-        limits,
-    )?;
-    let result = proto::Transaction::decode(bytes).map_err(decode_error)?;
-    required_features(&result.required_features)?;
-    Ok(result)
+impl<T> Preflighted<'_, T> {
+    pub(crate) fn allocation(&self) -> usize {
+        self.allocation
+    }
 }
+macro_rules! publication_decoder {
+    ($prepare:ident, $decode:ident, $message:ident, $context:ident, $limit:ident) => {
+        pub(crate) fn $prepare<'a>(
+            bytes: &'a [u8],
+            limits: &Limits,
+        ) -> Result<Preflighted<'a, proto::$message>, WireError> {
+            Ok(Preflighted {
+                bytes,
+                allocation: preflight(bytes, Context::$context, limits.$limit, limits)?,
+                message: std::marker::PhantomData,
+            })
+        }
+        impl Preflighted<'_, proto::$message> {
+            pub(crate) fn decode(self) -> Result<proto::$message, WireError> {
+                let result = proto::$message::decode(self.bytes).map_err(decode_error)?;
+                required_features(&result.required_features)?;
+                Ok(result)
+            }
+        }
+        pub fn $decode(bytes: &[u8], limits: &Limits) -> Result<proto::$message, WireError> {
+            $prepare(bytes, limits)?.decode()
+        }
+    };
+}
+publication_decoder!(
+    prepare_snapshot,
+    decode_snapshot,
+    Snapshot,
+    Snapshot,
+    max_snapshot_bytes
+);
+publication_decoder!(
+    prepare_transaction,
+    decode_transaction,
+    Transaction,
+    Transaction,
+    max_transaction_bytes
+);
 
 pub fn decode_semantic_command(
     bytes: &[u8],

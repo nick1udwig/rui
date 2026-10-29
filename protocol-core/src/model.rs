@@ -809,19 +809,14 @@ impl Replica {
         bytes: &[u8],
         available: &BTreeSet<ResourceId>,
     ) -> Result<ApplyOutcome, ModelError> {
-        let allocation = wire::preflight(
-            bytes,
-            wire::Context::Snapshot,
-            self.limits.max_snapshot_bytes,
-            &self.limits,
-        )?;
+        let input = wire::prepare_snapshot(bytes, &self.limits)?;
         let revision = wire::publication_header(bytes, wire::Context::Snapshot)?.0;
         let digest: ResourceId = Sha256::digest(bytes).into();
         if let Some(outcome) = self.known(revision, &digest, available)? {
             return Ok(outcome);
         }
-        let memory = self.reserve_stage(allocation)?;
-        let snapshot = wire::decode_snapshot(bytes, &self.limits)?;
+        let memory = self.reserve_stage(input.allocation())?;
+        let snapshot = input.decode()?;
         drop(snapshot.required_features);
         if snapshot.revision == 0 || snapshot.revision <= self.state.revision {
             return Err(ModelError::Revision {
@@ -874,19 +869,14 @@ impl Replica {
         bytes: &[u8],
         available: &BTreeSet<ResourceId>,
     ) -> Result<ApplyOutcome, ModelError> {
-        let allocation = wire::preflight(
-            bytes,
-            wire::Context::Transaction,
-            self.limits.max_transaction_bytes,
-            &self.limits,
-        )?;
+        let input = wire::prepare_transaction(bytes, &self.limits)?;
         let revision = wire::publication_header(bytes, wire::Context::Transaction)?.1;
         let digest: ResourceId = Sha256::digest(bytes).into();
         if let Some(outcome) = self.known(revision, &digest, available)? {
             return Ok(outcome);
         }
-        let memory = self.reserve_stage(allocation)?;
-        let transaction = wire::decode_transaction(bytes, &self.limits)?;
+        let memory = self.reserve_stage(input.allocation())?;
+        let transaction = input.decode()?;
         drop(transaction.required_features);
         if self.state.revision == 0
             || transaction.base_revision != self.state.revision
