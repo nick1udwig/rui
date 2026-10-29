@@ -135,7 +135,10 @@ impl ProducerPort for NativeProducerPort {
         };
         // Own the exact incoming body under the native shared budget before
         // constructing either the queued request or its asynchronous future.
-        let bytes = request_memory(&request);
+        let bytes = match port::request_allocation(&request, 128 << 10) {
+            Ok(bytes) => bytes,
+            Err(error) => return Box::pin(std::future::ready(Err(error))),
+        };
         let pending = match self
             .0
             .host
@@ -194,42 +197,6 @@ impl ProducerPort for NativeProducerPort {
             }
         })
     }
-}
-fn request_memory(request: &port::Request) -> usize {
-    let mut bytes = 128 << 10;
-    match request {
-        port::Request::Connect {
-            authorization,
-            hello,
-            ..
-        } => {
-            bytes += authorization.principal.capacity();
-            for value in authorization
-                .permissions
-                .actions
-                .iter()
-                .chain(&hello.supported_profiles)
-                .chain(&hello.required_profiles)
-            {
-                bytes += 512 + value.capacity();
-            }
-        }
-        port::Request::Scoped { operation, .. } => match operation {
-            port::Operation::Command { bytes: body, .. } => bytes += body.capacity(),
-            port::Operation::Open {
-                selection,
-                mirror_canvas_policy,
-            } => bytes += selection.capacity() + mirror_canvas_policy.capacity(),
-            port::Operation::Resources { digests, .. } => bytes += digests.capacity() * 32,
-            port::Operation::Evicted {
-                digests,
-                previously_missing,
-                ..
-            } => bytes += (digests.capacity() + previously_missing.capacity()) * 32,
-            _ => {}
-        },
-    }
-    bytes
 }
 fn error(error: ShellError) -> TransportError {
     match error {

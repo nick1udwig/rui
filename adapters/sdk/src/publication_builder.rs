@@ -139,13 +139,10 @@ fn inventory(snapshot: &p::Snapshot) -> Result<BTreeMap<u64, &p::Record>, BuildE
     if snapshot.records.len() > MAX_RECORDS || snapshot.encoded_len() > MAX_BYTES {
         return Err(BuildError::Invalid);
     }
-    let mut records = BTreeMap::new();
-    for record in &snapshot.records {
-        let id = reference(record)?.id;
+    let records = rui_protocol_core::wire::record_inventory(&snapshot.records)
+        .map_err(|_| BuildError::Invalid)?;
+    for record in records.values() {
         clock(record)?;
-        if records.insert(id, record).is_some() {
-            return Err(BuildError::Invalid);
-        }
     }
     Ok(records)
 }

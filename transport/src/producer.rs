@@ -189,6 +189,65 @@ pub struct Revoked {
     pub generation: u64,
     pub reason: String,
 }
+/// Conservative owned request storage, independent of adapter admission policy.
+pub fn request_allocation(request: &Request, base: usize) -> Result<usize, TransportError> {
+    let mut bytes = base;
+    let mut add = |n: usize| -> Result<(), TransportError> {
+        bytes = bytes.checked_add(n).ok_or(TransportError::Limit)?;
+        Ok(())
+    };
+    match request {
+        Request::Connect {
+            authorization,
+            hello,
+            ..
+        } => {
+            add(authorization.principal.capacity())?;
+            for value in authorization
+                .permissions
+                .actions
+                .iter()
+                .chain(&hello.supported_profiles)
+                .chain(&hello.required_profiles)
+            {
+                add(512usize
+                    .checked_add(value.capacity())
+                    .ok_or(TransportError::Limit)?)?;
+            }
+        }
+        Request::Scoped { operation, .. } => match operation {
+            Operation::Command { bytes, .. } => add(bytes.capacity())?,
+            Operation::Open {
+                selection,
+                mirror_canvas_policy,
+            } => {
+                add(selection.capacity())?;
+                add(mirror_canvas_policy.capacity())?;
+            }
+            Operation::Resources { digests, .. } => add(digests
+                .capacity()
+                .checked_mul(32)
+                .ok_or(TransportError::Limit)?)?,
+            Operation::Evicted {
+                digests,
+                previously_missing,
+                ..
+            } => {
+                add(digests
+                    .capacity()
+                    .checked_mul(32)
+                    .ok_or(TransportError::Limit)?)?;
+                add(previously_missing
+                    .capacity()
+                    .checked_mul(32)
+                    .ok_or(TransportError::Limit)?)?;
+            }
+            _ => {}
+        },
+    }
+    Ok(bytes)
+}
+
 pub enum Reply {
     Connected(Connection),
     Opened {

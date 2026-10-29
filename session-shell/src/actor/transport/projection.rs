@@ -69,14 +69,18 @@ pub(super) fn next_with_limits(
     // source vocabulary is <=16 windows, each with six bounded records.
     let mut memory = budget.reserve(2 << 20)?;
     let mut records = source.records().to_vec();
+    let prior =
+        rui_protocol_core::wire::record_inventory(old.map_or(&[], |p| p.records.as_slice()))
+            .map_err(|_| ShellError::Geometry)?;
+    let current = rui_protocol_core::wire::record_inventory(&records)
+        .map_err(|_| ShellError::Geometry)?
+        .keys()
+        .copied()
+        .collect::<BTreeSet<_>>();
     let mut mutations = Vec::with_capacity(records.len() + old.map_or(0, |p| p.records.len()));
     for record in &mut records {
         let (id, kind, _) = identity(record)?;
-        if let Some(previous) = old.and_then(|p| {
-            p.records
-                .iter()
-                .find(|r| identity(r).is_ok_and(|(i, _, _)| i == id))
-        }) {
+        if let Some(previous) = prior.get(&id).copied() {
             let (_, previous_kind, version) = identity(previous)?;
             if kind != previous_kind {
                 return Err(ShellError::Geometry);
@@ -118,10 +122,7 @@ pub(super) fn next_with_limits(
     if let Some(old) = old {
         for previous in &old.records {
             let (id, kind, _) = identity(previous)?;
-            if !records
-                .iter()
-                .any(|r| identity(r).is_ok_and(|(i, _, _)| i == id))
-            {
+            if !current.contains(&id) {
                 retired.insert(id);
                 mutations.push(pb::Mutation {
                     mutation: Some(pb::mutation::Mutation::Delete(pb::ObjectRef { kind, id })),

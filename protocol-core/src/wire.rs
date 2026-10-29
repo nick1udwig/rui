@@ -35,6 +35,20 @@ impl proto::Record {
     }
 }
 
+/// Index records without copying their payloads; reject ambiguous identities.
+pub fn record_inventory(
+    records: &[proto::Record],
+) -> Result<std::collections::BTreeMap<u64, &proto::Record>, WireError> {
+    let mut index = std::collections::BTreeMap::new();
+    for record in records {
+        let (id, _, _) = record.identity().ok_or(WireError::Envelope)?;
+        if id == 0 || index.insert(id, record).is_some() {
+            return Err(WireError::Envelope);
+        }
+    }
+    Ok(index)
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum WireError {
     #[error("wire or decoded allocation limit exceeded")]

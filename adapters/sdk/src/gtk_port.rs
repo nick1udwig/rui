@@ -1032,78 +1032,32 @@ fn session_charge(session: &NegotiatedSession) -> usize {
     bytes
 }
 fn request_charge(request: &Request) -> Result<usize, TransportError> {
-    let mut bytes = REQUEST_CHARGE;
-    match request {
+    let oversized = match request {
         Request::Connect {
             authorization,
             hello,
             ..
         } => {
-            if authorization.permissions.actions.len() > 512
+            authorization.permissions.actions.len() > 512
                 || hello.supported_profiles.len() > 512
                 || hello.required_profiles.len() > 512
                 || authorization.principal.len() > 4096
-            {
-                return Err(TransportError::Limit);
-            }
-            bytes = bytes
-                .checked_add(authorization.principal.capacity())
-                .ok_or(TransportError::Limit)?;
-            for value in authorization
-                .permissions
-                .actions
-                .iter()
-                .chain(&hello.supported_profiles)
-                .chain(&hello.required_profiles)
-            {
-                bytes = bytes
-                    .checked_add(512 + value.capacity())
-                    .ok_or(TransportError::Limit)?;
-            }
         }
         Request::Scoped { operation, .. } => match operation {
-            Operation::Command { bytes: body, .. } => {
-                if body.len() > 32 << 10 {
-                    return Err(TransportError::Limit);
-                }
-                bytes = bytes
-                    .checked_add(body.capacity())
-                    .ok_or(TransportError::Limit)?;
-            }
-            Operation::Open {
-                selection,
-                mirror_canvas_policy,
-            } => {
-                bytes = bytes
-                    .checked_add(selection.capacity())
-                    .and_then(|n| n.checked_add(mirror_canvas_policy.capacity()))
-                    .ok_or(TransportError::Limit)?;
-            }
-            Operation::Resources { digests, .. } => {
-                if digests.len() > MAX_DIGESTS {
-                    return Err(TransportError::Limit);
-                }
-                bytes = bytes
-                    .checked_add(digests.capacity() * 32)
-                    .ok_or(TransportError::Limit)?;
-            }
+            Operation::Command { bytes, .. } => bytes.len() > 32 << 10,
+            Operation::Resources { digests, .. } => digests.len() > MAX_DIGESTS,
             Operation::Evicted {
                 digests,
                 previously_missing,
                 ..
-            } => {
-                if digests.len() > MAX_DIGESTS || previously_missing.len() > MAX_DIGESTS {
-                    return Err(TransportError::Limit);
-                }
-                bytes = bytes
-                    .checked_add(digests.capacity() * 32)
-                    .and_then(|n| n.checked_add(previously_missing.capacity() * 32))
-                    .ok_or(TransportError::Limit)?;
-            }
-            _ => {}
+            } => digests.len() > MAX_DIGESTS || previously_missing.len() > MAX_DIGESTS,
+            _ => false,
         },
+    };
+    if oversized {
+        return Err(TransportError::Limit);
     }
-    Ok(bytes)
+    rui_transport::producer::request_allocation(request, REQUEST_CHARGE)
 }
 
 #[cfg(test)]
