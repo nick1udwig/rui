@@ -8,14 +8,23 @@ import {
 } from "@rui/client-browser";
 import "./style.css";
 const app = document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML = `<main><header><p class="eyebrow">RUI / VECTOR ARCADE</p><h1 id="title">Geometry across the wire.</h1><p>A native desktop game, controlled here. Every line is drawn from the host’s RUI scene.</p></header><section class="toolbar"><label>Host credential <input id="credential" type="file"></label><button id="connect">Connect</button><button id="control" disabled>Take control</button><button id="release" disabled>Release control</button><label>Render scale <select id="zoom"><option value="0.5">½×</option><option value="0.75" selected>¾×</option><option value="1">1×</option><option value="1.5">1½×</option><option value="2">2×</option></select></label></section><p id="status" role="status">Choose the credential printed by the host.</p><section class="cabinet"><div class="viewport"><canvas id="screen" aria-label="Remote vector game"></canvas></div></section><section id="controls" aria-label="Game controls"></section><section class="metrics"><div><strong id="fps">0</strong><span>presented frames / s</span></div><div><strong id="bandwidth">0</strong><span>KiB / s received</span></div><div><strong id="draw">0</strong><span>ms draw / frame</span></div><div><strong id="lines">0</strong><span>retained line slots</span></div></section><footer><p id="keyboard">← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start</p><p>Host simulation · RUI Protobuf · vector scene updates · local rasterization</p><p>Fixed-width beam presentation. CRT glow and remote audio are outside this demo.</p></footer></main>`;
+app.innerHTML = `<main><header><p class="eyebrow">RUI / VECTOR ARCADE</p><h1 id="title">Geometry across the wire.</h1><p>A native desktop game, controlled here. Every line is drawn from the host’s RUI scene.</p></header><section class="toolbar"><label>Connection code <input id="code" type="text" placeholder="ABCD-1234-EF56" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32"></label><button id="connect">Connect</button><button id="control" disabled>Take control</button><button id="release" disabled>Release control</button><label>Render scale <select id="zoom"><option value="0.5">½×</option><option value="0.75" selected>¾×</option><option value="1">1×</option><option value="1.5">1½×</option><option value="2">2×</option></select></label></section><p id="status" role="status">Scan the host QR code, or enter its connection code.</p><section class="cabinet"><div class="viewport"><canvas id="screen" aria-label="Remote vector game"></canvas></div></section><section id="controls" aria-label="Game controls"></section><section class="metrics"><div><strong id="fps">0</strong><span>presented frames / s</span></div><div><strong id="bandwidth">0</strong><span>KiB / s received</span></div><div><strong id="draw">0</strong><span>ms draw / frame</span></div><div><strong id="lines">0</strong><span>retained line slots</span></div></section><footer><p id="keyboard">← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start</p><p>Host simulation · RUI Protobuf · vector scene updates · local rasterization</p><p>Fixed-width beam presentation. CRT glow and remote audio are outside this demo.</p></footer></main>`;
 const element = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>("screen");
 canvas.tabIndex = 0;
 canvas.onclick = () => canvas.focus();
 const status = element("status");
-const credential = element<HTMLInputElement>("credential");
+const codeInput = element<HTMLInputElement>("code");
+const invitation = new URLSearchParams(location.hash.slice(1)).get("code");
+if (location.hash)
+  history.replaceState(null, "", location.pathname + location.search);
+if (invitation) codeInput.value = invitation;
+let savedCredential: string | undefined;
+try {
+  savedCredential = sessionStorage.getItem("rui.game.credential") ?? undefined;
+} catch {}
+
 const connect = element<HTMLButtonElement>("connect");
 const control = element<HTMLButtonElement>("control");
 const release = element<HTMLButtonElement>("release");
@@ -146,13 +155,36 @@ function relinquish() {
   controlling = false;
 }
 connect.onclick = async () => {
-  const file = credential.files?.[0];
-  if (!file || file.size !== 32) {
-    status.textContent = "Choose the host’s 32-byte credential.";
-    return;
-  }
   connect.disabled = true;
   try {
+    if (codeInput.value.trim()) {
+      const response = await fetch("/api/game/pair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: codeInput.value }),
+        cache: "no-store",
+        credentials: "omit",
+        referrerPolicy: "no-referrer",
+      });
+      const result = await response.json();
+      if (!response.ok) throw Error(result.error ?? "Connection code rejected");
+      if (
+        typeof result.credential !== "string" ||
+        !/^[a-f0-9]{64}$/.test(result.credential)
+      )
+        throw Error("Invalid host authorization");
+      savedCredential = result.credential;
+      try {
+        sessionStorage.setItem("rui.game.credential", savedCredential!);
+      } catch {}
+      codeInput.value = "";
+    }
+    if (!savedCredential || !/^[a-f0-9]{64}$/.test(savedCredential))
+      throw Error("Enter the connection code printed by the host.");
+    const credential = Uint8Array.from(
+      savedCredential.match(/.{2}/g)!,
+      (byte) => parseInt(byte, 16),
+    );
     client?.dispose();
     client = await BrowserClient.create({
       url: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/rui`,
@@ -162,7 +194,7 @@ connect.onclick = async () => {
       canvas,
       renderer,
       transport,
-      credential: async () => new Uint8Array(await file.arrayBuffer()),
+      credential: async () => credential.slice(),
       onEvent(event) {
         if (event.type === "connected") {
           status.textContent = "Connected as observer. Take control to play.";
@@ -423,3 +455,8 @@ Object.defineProperty(window, "ruiGame", {
     held,
   }),
 });
+
+codeInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") connect.click();
+});
+if (invitation) connect.click();

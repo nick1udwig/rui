@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, stat } from "node:fs/promises";
 import { spawn, execFileSync } from "node:child_process";
 import { resolve, join } from "node:path";
 import { tmpdir, cpus } from "node:os";
@@ -60,6 +60,18 @@ const native = () =>
   readFile(join(state, "mame/frame.json"), "utf8").then(JSON.parse);
 try {
   await wait(async () => (await fetch("http://127.0.0.1:5173")).ok);
+  const invitation = await wait(() =>
+    readFile(join(state, "connection.txt"), "utf8"),
+  );
+  const code = invitation.match(/Connection code: ([A-F0-9-]+)/)[1];
+  let qrUrl = invitation.match(/Scan to connect: (\S+)/)[1];
+  assert(
+    (await readFile(join(state, "connection.svg"), "utf8")).startsWith("<svg"),
+  );
+  assert.equal((await stat(join(state, "connection.txt"))).mode & 0o777, 0o600);
+  await assert.rejects(stat(join(state, "client.credential")), {
+    code: "ENOENT",
+  });
   browser = await chromium.launch({
     headless: true,
     executablePath: process.env.RUI_WASM_CHROMIUM ?? "/usr/bin/chromium",
@@ -89,9 +101,7 @@ try {
     if (message.type() === "error") logs += "\nCONSOLE " + message.text();
   });
   await page.goto("http://127.0.0.1:5173");
-  await page
-    .locator("#credential")
-    .setInputFiles(join(state, "client.credential"));
+  await page.locator("#code").fill(code.toLowerCase());
   await page.locator("#connect").click();
   await wait(() => page.locator("#control").isEnabled());
   await page.locator("#control").click();
@@ -178,15 +188,31 @@ try {
   await wait(native, (frame) => (frame.mask & 4) !== 0);
   await page.close();
   await wait(native, (frame) => frame.mask === 0);
+  launcher.stdin.write("invite\n");
+  const renewed = await wait(
+    () => readFile(join(state, "connection.txt"), "utf8"),
+    (value) => value !== invitation,
+  );
+  qrUrl = renewed.match(/Scan to connect: (\S+)/)[1];
+  const oldCode = await fetch("http://127.0.0.1:5173/api/game/pair", {
+    method: "POST",
+    headers: {
+      Origin: "http://127.0.0.1:5173",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ code }),
+  });
+  assert.equal(oldCode.status, 403);
   const mobile = await browser.newPage({
     viewport: { width: 390, height: 844 },
     isMobile: true,
     hasTouch: true,
   });
-  await mobile.goto("http://127.0.0.1:5173");
-  await mobile
-    .locator("#credential")
-    .setInputFiles(join(state, "client.credential"));
+  await mobile.goto(qrUrl);
+  await wait(() => mobile.locator("#control").isEnabled());
+  assert.equal(new URL(mobile.url()).hash, "");
+  assert.equal(await mobile.locator("#code").inputValue(), "");
+  await mobile.reload();
   await mobile.locator("#connect").click();
   await wait(() => mobile.locator("#control").isEnabled());
   await mobile.locator("#control").click();
@@ -238,6 +264,10 @@ try {
     litPixels,
     mobileTouch: true,
     reconnect: true,
+    connectionCode: true,
+    qrLinkAutoConnect: true,
+    invitationRotation: true,
+    noCredentialFile: true,
     nativeInputs: true,
     releaseOnBlur: true,
     releaseOnDisconnect: true,

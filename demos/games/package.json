@@ -10,11 +10,12 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@rui/client-browser": "file:../../client-browser"
+    "@rui/client-browser": "file:../../client-browser",
+    "qrcode": "1.5.4"
   },
   "devDependencies": {
-    "vite": "8.3.4",
+    "@types/node": "26.6.5",
     "typescript": "5.9.3",
-    "@types/node": "26.6.5"
+    "vite": "8.3.4"
   }
 }

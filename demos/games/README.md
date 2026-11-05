@@ -17,8 +17,9 @@ Run on a graphical Linux desktop:
 python3 demos/games/run.py --rompath /path/to/roms
 ```
 
-Open the printed browser URL and choose the printed `client.credential` file.
-Choose **Connect**, then **Take control**.
+Scan the printed QR code to open the game and connect automatically.
+Or open the printed browser URL, enter the connection code, and choose **Connect**.
+Choose **Take control** to play.
 For Battlezone, press **Insert coin** twice, then **Start**.
 For Asteroids, one coin is sufficient.
 Use the on-screen hold buttons or the keyboard controls below the canvas.
@@ -32,11 +33,19 @@ Use `--game asteroid` for the original proof case.
 Use `--skip-build` on later runs.
 Use `--mame /path/to/binary` for a custom MAME executable.
 Use `--plugins /path/to/mame/plugins` for an extracted MAME distribution.
-Use `--state /path/to/new-directory` to retain logs and the temporary credential after shutdown.
+Use `--state /path/to/new-directory` to retain logs, `connection.txt`, and the QR image `connection.svg` after shutdown.
 Use `--public-host HOST --cert CERT --key KEY` for a browser-trusted HTTPS connection from another device.
-Copy only the client credential to that device through your existing secure channel.
+Set `--public-host` to the computer's Tailscale IP or name for a phone connection.
+The QR must point to that address, not `localhost` or the bind address `0.0.0.0`.
+The default HTTP frontend can be used over Tailscale; use the HTTPS options above when browser-trusted HTTPS is required.
+Connection codes expire after five minutes; type `invite` in the host terminal to print and save a new code and QR.
+Keep the code private: it grants access to this demo's viewing and control authorization.
+Redemption is restricted to the configured browser origin and limited to 20 attempts per minute across all clients.
+The browser removes the code from the URL and keeps its authorization in tab-scoped session storage for reconnects.
+The authorization lasts until the host exits or revokes it; code expiry does not disconnect an authorized browser.
 The backend binds loopback; Vite verifies the backend certificate and checks the browser Origin.
-One credential and one remote controller are supplied by this development demo.
+One shared game authorization and one remote controller are supplied by this development demo.
+No raw credential file is written.
 
 ## Boundaries
 

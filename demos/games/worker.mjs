@@ -3,12 +3,18 @@ import { spawn } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createServer } from "vite";
+import { createPairing, printPairing } from "./pairing.mjs";
 import {
   GameSource,
   ASTEROIDS_CONTROLS,
   BATTLEZONE_CONTROLS,
 } from "./model.mjs";
 const directory = process.env.RUI_STATE;
+const pairing = createPairing({
+  credential: process.env.RUI_GAME_CREDENTIAL,
+  origin: process.env.RUI_ORIGIN,
+});
+delete process.env.RUI_GAME_CREDENTIAL;
 const native = join(directory, "mame");
 mkdirSync(native, { recursive: true, mode: 0o700 });
 const game = process.env.RUI_GAME;
@@ -93,7 +99,10 @@ const server = createSocket((socket) => {
         let response;
         try {
           const request = JSON.parse(body);
-          if (request.op === "capture") response = source.capture();
+          if (request.op === "invite") {
+            await printPairing(pairing, directory);
+            response = { ok: true };
+          } else if (request.op === "capture") response = source.capture();
           else if (request.op === "captureIfChanged") {
             source.read();
             response = {
@@ -136,11 +145,17 @@ process.env.RUI_HOST_URL = `wss://127.0.0.1:${backend.port}`;
 const web = await createServer({
   root: import.meta.dirname,
   configFile: resolve(import.meta.dirname, "vite.config.ts"),
+  plugins: [
+    {
+      name: "game-pairing",
+      configureServer(server) {
+        server.middlewares.use(pairing.middleware);
+      },
+    },
+  ],
 });
 await web.listen();
-console.log(
-  `Vector arcade: ${process.env.RUI_ORIGIN}\nCredential: ${join(directory, "client.credential")}`,
-);
+await printPairing(pairing, directory);
 async function stop() {
   if (exiting) return;
   exiting = true;

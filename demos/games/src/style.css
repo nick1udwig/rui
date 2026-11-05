@@ -47,7 +47,7 @@ label {
 }
 button,
 select,
-input::file-selector-button {
+input {
   border: 1px solid #30424b;
   background: #14252d;
   color: #dcece9;
@@ -66,8 +66,11 @@ button.held {
   border-color: #8ce6ac;
 }
 input {
-  max-width: 235px;
-  font-size: 12px;
+  width: 200px;
+  max-width: 100%;
+  min-height: 44px;
+  font-size: 16px;
+  cursor: text;
 }
 #status {
   font-size: 13px;

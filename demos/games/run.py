@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--cert', type=Path)
     parser.add_argument('--key', type=Path)
     parser.add_argument('--skip-build', action='store_true')
-    parser.add_argument('--state', type=Path, help='keep logs and credentials in this new directory')
+    parser.add_argument('--state', type=Path, help='keep logs and connection QR in this new directory')
     args = parser.parse_args()
     if bool(args.cert) != bool(args.key):
         parser.error('supply both --cert and --key')
@@ -57,7 +57,7 @@ def main():
             environment['RUI_MAME_PLUGINS'] = str(args.plugins.resolve())
         if args.cert:
             environment.update(RUI_WEB_CERT=str(args.cert.resolve()), RUI_WEB_KEY=str(args.key.resolve()))
-        child = subprocess.Popen([str(Path(metadata['target_directory'])/'release/rui-browser-host'), str(directory), str(ROOT/'demos/games/worker.mjs')], cwd=ROOT, env=environment, stdin=subprocess.PIPE, start_new_session=True, text=True)
+        child = subprocess.Popen([str(Path(metadata['target_directory'])/'release/rui-browser-host'), str(directory), str(ROOT/'demos/games/worker.mjs')], cwd=ROOT, env=environment, start_new_session=True, text=True)
         def interrupted(*_):
             raise KeyboardInterrupt
         signal.signal(signal.SIGTERM, interrupted)
