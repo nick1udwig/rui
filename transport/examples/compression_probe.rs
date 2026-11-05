@@ -3,7 +3,11 @@ use prost::Message;
 use rui_protocol_core::{
     publication::publication_digest, session::ReceiverLimits, wire::proto as core,
 };
-use rui_transport::{codec, compression::compress_publication_chunk, proto as p};
+use rui_transport::{
+    codec,
+    compression::{compress_publication_chunk, compress_with_history},
+    proto as p,
+};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -11,9 +15,11 @@ use std::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 3 {
+    if args.len() < 3 || args.len() > 4 {
         return Err("usage: compression_probe FRAMED_CORE_ENVELOPES OUTPUT_PACKETS".into());
     }
+    let use_history = args.get(3).is_some_and(|v| v == "history");
+    let mut history = rui_wire::compression::History::default();
     let mut input = File::open(&args[1])?;
     let mut output = File::create(&args[2])?;
     let binding = Some(([1; 16], [2; 16], [4; 16]));
@@ -37,6 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "content.no-raster.v1",
                 "glyph.outline-single.v1",
                 "transport.zstd-chunks.v1",
+                "transport.zstd-history.v1",
             ]
             .map(str::to_owned)
             .to_vec(),
@@ -101,10 +108,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 binding,
             );
             plain_bytes += packet.encoded_len();
-            compress_publication_chunk(&mut packet)?;
+            if use_history {
+                compress_with_history(&mut packet, &mut history)?;
+            } else {
+                compress_publication_chunk(&mut packet)?;
+            }
             encoded_bytes += packet.encoded_len();
             chunks += 1;
-            if packet.kind == p::Kind::ZstdPublicationChunk as i32 {
+            if matches!(
+                p::Kind::try_from(packet.kind)?,
+                p::Kind::ZstdPublicationChunk | p::Kind::ZstdHistoryChunk
+            ) {
                 compressed_chunks += 1;
             }
             send(packet)?;

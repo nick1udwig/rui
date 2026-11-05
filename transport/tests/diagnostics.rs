@@ -82,6 +82,12 @@ async fn exact_post_auth_trace_binds_resources_commands_replies_and_revocation()
                         assert_eq!(packet.payload, command);
                     }
                     kinds.insert(packet.kind);
+                    if matches!(
+                        p::Kind::try_from(packet.kind),
+                        Ok(p::Kind::ZstdPublicationChunk | p::Kind::ZstdHistoryChunk)
+                    ) {
+                        kinds.insert(p::Kind::PublicationChunk as i32);
+                    }
                 }
                 for kind in [
                     p::Kind::OpenView,
@@ -223,6 +229,7 @@ fn inspect_private_trace(owner: &Diagnostics, view: [u8; 16], exact: bool, obser
             let mut publications = std::collections::BTreeMap::<Vec<u8>, Vec<u8>>::new();
             let mut resources = std::collections::BTreeMap::<Vec<u8>, Vec<u8>>::new();
             let mut saw_private_command = false;
+            let mut history = rui_wire::compression::History::default();
             for entry in entries {
                 assert_no_private_bytes(format!("{entry:?}").as_bytes());
                 if !exact {
@@ -239,8 +246,25 @@ fn inspect_private_trace(owner: &Diagnostics, view: [u8; 16], exact: bool, obser
                         .windows(EDITED_SECRET.len())
                         .any(|part| part == EDITED_SECRET.as_bytes());
                 }
-                if packet.kind == p::Kind::PublicationChunk as i32 {
-                    let chunk = p::PublicationChunk::decode(packet.payload.as_slice()).unwrap();
+                if matches!(
+                    p::Kind::try_from(packet.kind),
+                    Ok(p::Kind::SnapshotBegin | p::Kind::AbortPublication)
+                ) {
+                    history.clear();
+                }
+                if matches!(
+                    p::Kind::try_from(packet.kind),
+                    Ok(p::Kind::PublicationChunk
+                        | p::Kind::ZstdPublicationChunk
+                        | p::Kind::ZstdHistoryChunk)
+                ) {
+                    let mut chunk = p::PublicationChunk::decode(packet.payload.as_slice()).unwrap();
+                    if packet.kind == p::Kind::ZstdHistoryChunk as i32 {
+                        chunk.data = history.decode(&chunk.data, 65536).unwrap();
+                    } else if packet.kind == p::Kind::ZstdPublicationChunk as i32 {
+                        chunk.data = rui_wire::compression::decode(&chunk.data, 65536).unwrap();
+                    }
+                    history.update(&chunk.data);
                     publications
                         .entry(chunk.publication_id)
                         .or_default()

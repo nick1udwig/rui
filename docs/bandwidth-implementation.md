@@ -35,3 +35,24 @@ node demos/games/bench/check-compression.mjs demos/games/evidence/comparison/bzo
 ```
 
 Repeat with `asteroid` for the other trace.
+
+## Bounded history compression
+
+The optional history extension uses the last 256 KiB of decoded publication data as a dictionary.
+The sender chooses the smallest of ordinary, independent Zstandard, and history Zstandard encoding for each chunk.
+Every history packet includes a digest of the required base; reconnects and snapshots reset history.
+
+| Trace | Original packet bytes | History packet bytes | Reduction | History Mb/s |
+| --- | ---: | ---: | ---: | ---: |
+| Battlezone | 3,767,190 | 371,588 | 90.1% | 0.372 |
+| Asteroids | 1,745,698 | 271,219 | 84.5% | 0.271 |
+
+These counts use the same complete publication-packet boundary as the independent results.
+All 400 decoded WASM states match direct original-envelope replay exactly.
+The history path still uses more bytes than the earlier native-resolution H.264 payload, while using fewer than its 1280 × 960 payload.
+This comparison does not equalize media transport or recovery traffic.
+
+Pass `history` as the final argument to `compression_probe` to exercise this path.
+The WASM check command is unchanged.
+The regression suite injects connection loss at both compressed chunk kinds and checks reconstruction of authoritative state and rendered pixels.
+Diagnostic privacy checks now inspect decoded publication bodies, including history-compressed data.

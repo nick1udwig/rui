@@ -526,6 +526,13 @@ where
     let binding = Some((session.session_id, session.epoch, session.view_id));
     let timeout = shared.config.send_timeout;
     let compress = session.profiles.contains("transport.zstd-chunks.v1");
+    let use_history = compress && session.profiles.contains("transport.zstd-history.v1");
+    let mut history = rui_wire::compression::History::default();
+    let _history_memory = if use_history {
+        Some(reserve(shared, connection, rui_wire::compression::HISTORY_MEMORY).await?)
+    } else {
+        None
+    };
     let mut delivery =
         Delivery::new(reserve(shared, connection, Delivery::reservation_bytes()).await?);
     let hello = p::ServerHello {
@@ -632,7 +639,8 @@ where
             }
             _ = tokio::task::yield_now(), if delivery_ready => {
                 if let Some(mut packet) = delivery.next(binding)? {
-                    if compress && packet.kind == p::Kind::PublicationChunk as i32 { let _memory = reserve(shared, connection, 4 * 1024 * 1024).await?; crate::compression::compress_publication_chunk(&mut packet)?; }
+                    if use_history && matches!(p::Kind::try_from(packet.kind), Ok(p::Kind::SnapshotBegin | p::Kind::AbortPublication)) { history.clear(); }
+                    if compress && packet.kind == p::Kind::PublicationChunk as i32 { let _memory = reserve(shared, connection, 4 * 1024 * 1024).await?; if use_history { crate::compression::compress_with_history(&mut packet, &mut history)?; } else { crate::compression::compress_publication_chunk(&mut packet)?; } }
                     send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;
                 } else {
                     delivery_ready = false;

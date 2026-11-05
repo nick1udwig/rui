@@ -1078,6 +1078,7 @@ dependencies = [
  "prost-build",
  "rui-protocol-core",
  "ruzstd",
+ "sha2",
  "thiserror",
  "zeroize",
 ]

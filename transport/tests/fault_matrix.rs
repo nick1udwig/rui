@@ -337,7 +337,10 @@ async fn exercise(transaction: bool, cut: Option<usize>, delay: Duration) -> Vec
 async fn every_actual_tls_publication_and_resource_boundary_recovers_exact_state_and_pixels() {
     for transaction in [false, true] {
         let trace = exercise(transaction, None, Duration::ZERO).await;
-        assert!(trace.contains(&p::Kind::ZstdPublicationChunk));
+        assert!(trace.iter().any(|kind| matches!(
+            kind,
+            p::Kind::ZstdPublicationChunk | p::Kind::ZstdHistoryChunk
+        )));
         assert!(trace.contains(&p::Kind::PublicationCommit));
         if !transaction {
             assert!(

@@ -166,7 +166,10 @@ impl Default for SessionConfig {
             supported_profiles: profiles
                 .iter()
                 .cloned()
-                .chain(["transport.zstd-chunks.v1".into()])
+                .chain([
+                    "transport.zstd-chunks.v1".into(),
+                    "transport.zstd-history.v1".into(),
+                ])
                 .collect(),
             required_profiles: profiles,
             receiver_limits: ReceiverLimits::default(),

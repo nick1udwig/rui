@@ -101,6 +101,7 @@ pub struct Replica {
     profiles: Vec<String>,
     permissions: Option<p::Permissions>,
     capabilities_memory: Option<MemoryReservation>,
+    compression_history: Option<(rui_wire::compression::History, MemoryReservation)>,
     awaiting_resume: Option<u64>,
     resume_applied: Option<u64>,
     resume_needed: Option<u64>,
@@ -151,6 +152,7 @@ impl Replica {
             profiles: Vec::new(),
             permissions: None,
             capabilities_memory: None,
+            compression_history: None,
             resume_applied: None,
             resume_needed: None,
         }
@@ -166,6 +168,7 @@ impl Replica {
         Ok(())
     }
     pub fn install_capabilities(&mut self, capabilities: NegotiatedCapabilities) {
+        self.compression_history = None;
         self.profiles = capabilities.profiles;
         self.permissions = Some(capabilities.permissions);
         self.capabilities_memory = Some(capabilities.memory);
@@ -286,6 +289,7 @@ impl Replica {
         Ok(())
     }
     pub fn disconnect(&mut self) {
+        self.compression_history = None;
         self.connected = false;
         self.awaiting_resume = None;
         self.receiver.disconnect();
@@ -567,15 +571,40 @@ impl Replica {
                 })));
             }
             p::Kind::SnapshotBegin | p::Kind::TransactionBegin => {
+                if kind == p::Kind::SnapshotBegin {
+                    self.compression_history = None;
+                }
                 let wire: p::PublicationBegin = codec::decode(&packet.payload, ceiling)?;
                 let begin = codec::publication_begin(kind, wire)?;
                 self.receiver
                     .begin_publication(context, begin)
                     .map_err(|_| TransportError::Receiver)?;
             }
-            p::Kind::PublicationChunk | p::Kind::ZstdPublicationChunk => {
+            p::Kind::PublicationChunk
+            | p::Kind::ZstdPublicationChunk
+            | p::Kind::ZstdHistoryChunk => {
                 let mut chunk: p::PublicationChunk = codec::decode(&packet.payload, ceiling)?;
-                let _compression_memory = if kind == p::Kind::ZstdPublicationChunk {
+                let use_history = self
+                    .profiles
+                    .iter()
+                    .any(|p| p == "transport.zstd-history.v1")
+                    && self
+                        .profiles
+                        .iter()
+                        .any(|p| p == "transport.zstd-chunks.v1");
+                if kind == p::Kind::ZstdHistoryChunk && !use_history {
+                    return Err(TransportError::Protocol);
+                }
+                if use_history && self.compression_history.is_none() {
+                    let memory = self
+                        .receiver
+                        .memory_budget()
+                        .reserve(rui_wire::compression::HISTORY_MEMORY)
+                        .map_err(|_| TransportError::Limit)?;
+                    self.compression_history =
+                        Some((rui_wire::compression::History::default(), memory));
+                }
+                let _compression_memory = if kind != p::Kind::PublicationChunk {
                     if !self
                         .profiles
                         .iter()
@@ -586,10 +615,24 @@ impl Replica {
                     let memory = self
                         .receiver
                         .memory_budget()
-                        .reserve(rui_wire::compression::DECODE_MEMORY)
+                        .reserve(
+                            rui_wire::compression::DECODE_MEMORY
+                                + if kind == p::Kind::ZstdHistoryChunk {
+                                    2 * rui_wire::compression::HISTORY_BYTES
+                                } else {
+                                    0
+                                },
+                        )
                         .map_err(|_| TransportError::Limit)?;
-                    chunk.data =
-                        rui_wire::compression::decode(&chunk.data, self.limits.chunk_bytes)?;
+                    chunk.data = if kind == p::Kind::ZstdHistoryChunk {
+                        self.compression_history
+                            .as_ref()
+                            .ok_or(TransportError::Protocol)?
+                            .0
+                            .decode(&chunk.data, self.limits.chunk_bytes)?
+                    } else {
+                        rui_wire::compression::decode(&chunk.data, self.limits.chunk_bytes)?
+                    };
                     Some(memory)
                 } else {
                     None
@@ -605,6 +648,9 @@ impl Replica {
                         &chunk.data,
                     )
                     .map_err(|_| TransportError::Receiver)?;
+                if let Some((history, _)) = &mut self.compression_history {
+                    history.update(&chunk.data);
+                }
             }
             p::Kind::PublicationCommit => {
                 let commit: p::PublicationCommit = codec::decode(&packet.payload, ceiling)?;
@@ -625,6 +671,7 @@ impl Replica {
                 return self.outcome(outcome, replies).map(Some);
             }
             p::Kind::AbortPublication => {
+                self.compression_history = None;
                 let abort: p::AbortPublication = codec::decode(&packet.payload, ceiling)?;
                 self.receiver
                     .abort_publication(context, codec::id(&abort.publication_id)?)

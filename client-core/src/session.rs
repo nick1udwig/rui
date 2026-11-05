@@ -15,6 +15,7 @@ use sha2::{Digest as _, Sha256};
 use std::collections::VecDeque;
 const PROFILES: &[&str] = &[
     "transport.zstd-chunks.v1",
+    "transport.zstd-history.v1",
     "game.vector.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
@@ -30,6 +31,7 @@ const REQUIRED: &[&str] = &[
 ];
 const SEMANTIC_PROFILES: &[&str] = &[
     "transport.zstd-chunks.v1",
+    "transport.zstd-history.v1",
     "browser.semantic.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
