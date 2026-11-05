@@ -8,6 +8,7 @@ rui-protocol-core = { path = "../protocol-core" }
 prost = "0.13"
 thiserror = "2"
 zeroize = "1"
+ruzstd = "0.7.3"
 
 [build-dependencies]
 prost-build = "0.13"

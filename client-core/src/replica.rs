@@ -573,8 +573,27 @@ impl Replica {
                     .begin_publication(context, begin)
                     .map_err(|_| TransportError::Receiver)?;
             }
-            p::Kind::PublicationChunk => {
-                let chunk: p::PublicationChunk = codec::decode(&packet.payload, ceiling)?;
+            p::Kind::PublicationChunk | p::Kind::ZstdPublicationChunk => {
+                let mut chunk: p::PublicationChunk = codec::decode(&packet.payload, ceiling)?;
+                let _compression_memory = if kind == p::Kind::ZstdPublicationChunk {
+                    if !self
+                        .profiles
+                        .iter()
+                        .any(|p| p == "transport.zstd-chunks.v1")
+                    {
+                        return Err(TransportError::Protocol);
+                    }
+                    let memory = self
+                        .receiver
+                        .memory_budget()
+                        .reserve(rui_wire::compression::DECODE_MEMORY)
+                        .map_err(|_| TransportError::Limit)?;
+                    chunk.data =
+                        rui_wire::compression::decode(&chunk.data, self.limits.chunk_bytes)?;
+                    Some(memory)
+                } else {
+                    None
+                };
                 if chunk.data.len() > self.limits.chunk_bytes {
                     return Err(TransportError::Limit);
                 }

@@ -68,6 +68,7 @@ pub const SUPPORTED_FEATURES: &[&str] = &[
     "semantics.only.v1",
     "browser.semantic.v1",
     "game.vector.v1",
+    "transport.zstd-chunks.v1",
     "glyph.outline-single.v1",
     "cursor.vector.v1",
     "text.clock.gtk-editable4224.v1",

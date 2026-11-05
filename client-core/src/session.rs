@@ -14,6 +14,7 @@ use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use std::collections::VecDeque;
 const PROFILES: &[&str] = &[
+    "transport.zstd-chunks.v1",
     "game.vector.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
@@ -28,6 +29,7 @@ const REQUIRED: &[&str] = &[
     "glyph.outline-single.v1",
 ];
 const SEMANTIC_PROFILES: &[&str] = &[
+    "transport.zstd-chunks.v1",
     "browser.semantic.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
@@ -990,6 +992,28 @@ mod tests {
         missing.close();
         assert_eq!(missing.memory_peak(), 0);
     }
+    #[test]
+    fn compressed_chunks_require_negotiation() {
+        let mut s = Session::new([3; 16], "fixture".into()).unwrap();
+        s.start(&[7; 32]).unwrap();
+        drain(&mut s);
+        let packet: p::Packet = codec::decode(&hello(2, false), s.ceiling()).unwrap();
+        let mut server: p::ServerHello = codec::decode(&packet.payload, s.ceiling()).unwrap();
+        server
+            .selected_profiles
+            .retain(|p| p != "transport.zstd-chunks.v1");
+        s.receive(&bound(p::Kind::ServerHello, &server)).unwrap();
+        assert!(s
+            .receive(&bound(
+                p::Kind::ZstdPublicationChunk,
+                &p::PublicationChunk {
+                    publication_id: vec![1; 16],
+                    index: 0,
+                    data: zstd::bulk::compress(b"test", 3).unwrap()
+                }
+            ))
+            .is_err());
+    }
     fn record(version: u64, digest: Option<[u8; 32]>) -> pb::Record {
         if let Some(digest) = digest {
             return pb::Record {
@@ -1075,11 +1099,11 @@ mod tests {
         ))
         .unwrap();
         s.receive(&bound(
-            p::Kind::PublicationChunk,
+            p::Kind::ZstdPublicationChunk,
             &p::PublicationChunk {
                 publication_id: id.clone(),
                 index: 0,
-                data: bytes.clone(),
+                data: zstd::bulk::compress(&bytes, 3).unwrap(),
             },
         ))
         .unwrap();

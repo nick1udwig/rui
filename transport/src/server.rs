@@ -525,6 +525,7 @@ where
     let session = connection.session();
     let binding = Some((session.session_id, session.epoch, session.view_id));
     let timeout = shared.config.send_timeout;
+    let compress = session.profiles.contains("transport.zstd-chunks.v1");
     let mut delivery =
         Delivery::new(reserve(shared, connection, Delivery::reservation_bytes()).await?);
     let hello = p::ServerHello {
@@ -630,7 +631,8 @@ where
                 delivery_ready = true;
             }
             _ = tokio::task::yield_now(), if delivery_ready => {
-                if let Some(packet) = delivery.next(binding)? {
+                if let Some(mut packet) = delivery.next(binding)? {
+                    if compress && packet.kind == p::Kind::PublicationChunk as i32 { let _memory = reserve(shared, connection, 4 * 1024 * 1024).await?; crate::compression::compress_publication_chunk(&mut packet)?; }
                     send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;
                 } else {
                     delivery_ready = false;
