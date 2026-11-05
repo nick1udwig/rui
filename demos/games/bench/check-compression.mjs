@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { exportState } from "../../structured/state.mjs";
 import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import init, {
@@ -43,6 +44,8 @@ session.start(new Uint8Array(32).fill(7));
 while (session.nextOutbound()) {}
 const originals = frames(gunzipSync(await readFile(source)));
 let count = 0;
+let revision = 0n;
+let incremental;
 let publicationMs = 0;
 const decodeMs = [];
 for (const packet of frames(await readFile(packets))) {
@@ -50,12 +53,15 @@ for (const packet of frames(await readFile(packets))) {
   session.receive(packet);
   while (session.nextOutbound()) {}
   publicationMs += performance.now() - start;
-  if (session.revision > BigInt(count)) {
+  if (session.revision !== revision) {
+    revision = session.revision;
     decodeMs.push(publicationMs);
     publicationMs = 0;
     const publication = Buffer.alloc(16);
     publication.writeBigUInt64BE(BigInt(count + 1));
     reference.receiveEnvelope(publication, originals[count]);
+    incremental = exportState(session, incremental);
+    assert.deepEqual(incremental, reference.state());
     assert.deepEqual(session.state(), reference.state());
     count++;
   }

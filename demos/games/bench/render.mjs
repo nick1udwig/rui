@@ -9,6 +9,12 @@ import { createHash } from "node:crypto";
 const root = resolve(import.meta.dirname, "../../..");
 const directory = resolve(process.argv[2] ?? "");
 assert(process.argv[2], "usage: node render.mjs CAPTURE_DIRECTORY");
+const widths = (process.env.RUI_BENCH_WIDTHS ?? "320,640,1280")
+  .split(",")
+  .map(Number);
+assert(widths.length && widths.every((w) => [320, 640, 1280].includes(w)));
+const runs = Number(process.env.RUI_BENCH_RUNS ?? 3);
+assert(Number.isInteger(runs) && runs >= 1 && runs <= 5);
 const capture = JSON.parse(await readFile(resolve(directory, "capture.json")));
 const server = createServer(async (request, response) => {
   try {
@@ -59,17 +65,13 @@ try {
     await appendFile(activeFile, bytes);
   });
   const results = [];
-  for (const [width, height] of [
-    [320, 240],
-    [640, 480],
-    [1280, 960],
-  ]) {
+  for (const [width, height] of widths.map((w) => [w, (w * 3) / 4])) {
     activeFile = resolve(directory, `${width}.rgba`);
     nextFrame = 0;
     frameBytes = width * height * 4;
     await writeFile(activeFile, "");
     const measured = await page.evaluate(
-      async ({ width, height }) => {
+      async ({ width, height, repetitions }) => {
         const { default: init, Receiver } =
           await import("/client-browser/wasm/rui_client_wasm.js");
         const { CanvasRenderer } =
@@ -90,7 +92,7 @@ try {
         }
 
         const runs = [];
-        for (let run = 0; run < 4; run++) {
+        for (let run = 0; run < repetitions + 1; run++) {
           const canvas = document.createElement("canvas");
           document.body.replaceChildren(canvas);
           const receiver = new Receiver(
@@ -146,7 +148,7 @@ try {
         }
         return { width, height, frames: frames.length, runs };
       },
-      { width, height },
+      { width, height, repetitions: runs },
     );
     assert.equal(nextFrame, capture.frames);
     const file = await stat(activeFile);

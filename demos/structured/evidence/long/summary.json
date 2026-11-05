@@ -1,0 +1,280 @@
+{
+  "sourceHashes": {
+    "browser-host/src/bin/scene-trace.rs": "ef63c565b9bbd213cb19a70393a388e214e1d309e576b54b1f268555795a9788",
+    "transport/src/compression.rs": "bb41b123398fb3432e9e2e90673f33133939ca97d359200f115b7b3b59a31929",
+    "demos/structured/workloads.py": "44be0d1e7719baa2d97b3adecb6102127b09d4da53e816b63c8857d977e3c7c8",
+    "demos/structured/network.mjs": "16aa10ee69389640fb0fb36d2a2aeec9cd37d2987f0458bf1b1d299592d2bf02",
+    "demos/structured/state.mjs": "7412b7a60e03097fc2bab580bccc966fba36300bfd3126d575da2de2d370d471"
+  },
+  "workloads": [
+    {
+      "workload": "editor",
+      "capture": {
+        "game": "editor",
+        "fps": 25,
+        "seconds": 60,
+        "frames": 1500,
+        "scope": "authored controlled workload; final quarter idle; source-owned 5x7 font"
+      },
+      "sceneSha256": "ee82bd7f08ac2230e9918206ee94a5c27f40c03aceb13bc507ffab621dc33a6a",
+      "compression": {
+        "chunks": 1502,
+        "compressed_chunks": 1502,
+        "compressed_publication_packet_bytes": 708330,
+        "frames": 1500,
+        "plain_publication_packet_bytes": 4443051,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing"
+      },
+      "wasm": {
+        "frames": 1500,
+        "exactWasmState": true,
+        "releasedMemory": true,
+        "wasmAccountedPeakBytes": 5232904,
+        "receiveAndAckMsP50": 1.1346899999996367,
+        "receiveAndAckMsP95": 1.5492080000000215,
+        "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+      },
+      "network": {
+        "publications": 1500,
+        "receivedPackets": 4503,
+        "applicationDownBytes": 708616,
+        "applicationUpBytes": 189223,
+        "tlsDownBytes": 790006,
+        "tlsUpBytes": 275148,
+        "cold": {
+          "tlsDownBytes": 14218,
+          "tlsUpBytes": 2558,
+          "elapsedMs": 39.45103399999999
+        },
+        "appliedRoundTripMsP50": 3.331243000000086,
+        "appliedRoundTripMsP95": 3.659117000000151,
+        "wasmAccountedPeakBytes": 5232904,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "recovery": {
+        "publications": 750,
+        "receivedPackets": 2253,
+        "applicationDownBytes": 339296,
+        "applicationUpBytes": 94977,
+        "tlsDownBytes": 381586,
+        "tlsUpBytes": 138902,
+        "cold": {
+          "tlsDownBytes": 14133,
+          "tlsUpBytes": 2560,
+          "elapsedMs": 35.31845200000001
+        },
+        "appliedRoundTripMsP50": 3.279651000000058,
+        "appliedRoundTripMsP95": 3.964375999999902,
+        "wasmAccountedPeakBytes": 5231124,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "applicationMbps": 0.094444,
+      "tlsBothDirectionsMbps": 0.14202053333333334
+    },
+    {
+      "workload": "scroll",
+      "capture": {
+        "game": "scroll",
+        "fps": 25,
+        "seconds": 60,
+        "frames": 1500,
+        "scope": "authored controlled workload; final quarter idle; source-owned 5x7 font"
+      },
+      "sceneSha256": "4e6fd3edef1ee3f73a55e0d17d389c9bd4d67d330d950c11b54a46c9fea75de0",
+      "compression": {
+        "chunks": 1509,
+        "compressed_chunks": 1509,
+        "compressed_publication_packet_bytes": 616226,
+        "frames": 1500,
+        "plain_publication_packet_bytes": 1757121,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing"
+      },
+      "wasm": {
+        "frames": 1500,
+        "exactWasmState": true,
+        "releasedMemory": true,
+        "wasmAccountedPeakBytes": 17658752,
+        "receiveAndAckMsP50": 1.3734960000001593,
+        "receiveAndAckMsP95": 2.6099130000002333,
+        "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+      },
+      "network": {
+        "publications": 1500,
+        "receivedPackets": 4510,
+        "applicationDownBytes": 616512,
+        "applicationUpBytes": 189223,
+        "tlsDownBytes": 697792,
+        "tlsUpBytes": 275148,
+        "cold": {
+          "tlsDownBytes": 36305,
+          "tlsUpBytes": 2558,
+          "elapsedMs": 52.912192000000005
+        },
+        "appliedRoundTripMsP50": 3.3775009999999384,
+        "appliedRoundTripMsP95": 4.257829000000129,
+        "wasmAccountedPeakBytes": 17658752,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "recovery": {
+        "publications": 750,
+        "receivedPackets": 2260,
+        "applicationDownBytes": 323138,
+        "applicationUpBytes": 94977,
+        "tlsDownBytes": 365418,
+        "tlsUpBytes": 138902,
+        "cold": {
+          "tlsDownBytes": 36186,
+          "tlsUpBytes": 2560,
+          "elapsedMs": 58.54753499999998
+        },
+        "appliedRoundTripMsP50": 3.800386000000117,
+        "appliedRoundTripMsP95": 5.260536000000002,
+        "wasmAccountedPeakBytes": 17658896,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "applicationMbps": 0.08216346666666666,
+      "tlsBothDirectionsMbps": 0.12972533333333333
+    },
+    {
+      "workload": "chart",
+      "capture": {
+        "game": "chart",
+        "fps": 25,
+        "seconds": 60,
+        "frames": 1500,
+        "scope": "authored controlled workload; final quarter idle; source-owned 5x7 font"
+      },
+      "sceneSha256": "67447758c18f836a68a754fd5ce3465ecd0c676c6fbecc9b8af1df2c73cc47f8",
+      "compression": {
+        "chunks": 1500,
+        "compressed_chunks": 1500,
+        "compressed_publication_packet_bytes": 2435046,
+        "frames": 1500,
+        "plain_publication_packet_bytes": 11226670,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing"
+      },
+      "wasm": {
+        "frames": 1500,
+        "exactWasmState": true,
+        "releasedMemory": true,
+        "wasmAccountedPeakBytes": 2996574,
+        "receiveAndAckMsP50": 1.2877359999999953,
+        "receiveAndAckMsP95": 1.5785880000000247,
+        "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+      },
+      "network": {
+        "publications": 1500,
+        "receivedPackets": 4501,
+        "applicationDownBytes": 2435332,
+        "applicationUpBytes": 189223,
+        "tlsDownBytes": 2516554,
+        "tlsUpBytes": 275148,
+        "cold": {
+          "tlsDownBytes": 6356,
+          "tlsUpBytes": 2558,
+          "elapsedMs": 40.141616
+        },
+        "appliedRoundTripMsP50": 3.6666869999999108,
+        "appliedRoundTripMsP95": 4.712586000000044,
+        "wasmAccountedPeakBytes": 2996574,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "recovery": {
+        "publications": 750,
+        "receivedPackets": 2251,
+        "applicationDownBytes": 909251,
+        "applicationUpBytes": 94977,
+        "tlsDownBytes": 951473,
+        "tlsUpBytes": 138902,
+        "cold": {
+          "tlsDownBytes": 6381,
+          "tlsUpBytes": 2560,
+          "elapsedMs": 54.07056499999999
+        },
+        "appliedRoundTripMsP50": 4.36453599999993,
+        "appliedRoundTripMsP95": 6.665064999999913,
+        "wasmAccountedPeakBytes": 2996530,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "applicationMbps": 0.3246728,
+      "tlsBothDirectionsMbps": 0.37222693333333334
+    },
+    {
+      "workload": "diagram",
+      "capture": {
+        "game": "diagram",
+        "fps": 25,
+        "seconds": 60,
+        "frames": 1500,
+        "scope": "authored controlled workload; final quarter idle; source-owned 5x7 font"
+      },
+      "sceneSha256": "30df09758368b27abcb50b863357b5f4675b257b334b7a75f2e8edd80836862c",
+      "compression": {
+        "chunks": 1500,
+        "compressed_chunks": 1500,
+        "compressed_publication_packet_bytes": 963970,
+        "frames": 1500,
+        "plain_publication_packet_bytes": 2683538,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing"
+      },
+      "wasm": {
+        "frames": 1500,
+        "exactWasmState": true,
+        "releasedMemory": true,
+        "wasmAccountedPeakBytes": 3037194,
+        "receiveAndAckMsP50": 1.8746199999999362,
+        "receiveAndAckMsP95": 4.306894999999713,
+        "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+      },
+      "network": {
+        "publications": 1500,
+        "receivedPackets": 4501,
+        "applicationDownBytes": 964256,
+        "applicationUpBytes": 189223,
+        "tlsDownBytes": 1045478,
+        "tlsUpBytes": 275148,
+        "cold": {
+          "tlsDownBytes": 5969,
+          "tlsUpBytes": 2558,
+          "elapsedMs": 65.676793
+        },
+        "appliedRoundTripMsP50": 3.662188999999671,
+        "appliedRoundTripMsP95": 5.146560000000022,
+        "wasmAccountedPeakBytes": 3037194,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "recovery": {
+        "publications": 750,
+        "receivedPackets": 2251,
+        "applicationDownBytes": 422094,
+        "applicationUpBytes": 94977,
+        "tlsDownBytes": 464316,
+        "tlsUpBytes": 138902,
+        "cold": {
+          "tlsDownBytes": 5999,
+          "tlsUpBytes": 2560,
+          "elapsedMs": 49.887079
+        },
+        "appliedRoundTripMsP50": 3.808806999999888,
+        "appliedRoundTripMsP95": 5.1650960000000055,
+        "wasmAccountedPeakBytes": 3037102,
+        "messageDelayMs": 0,
+        "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+      },
+      "applicationMbps": 0.12852933333333333,
+      "tlsBothDirectionsMbps": 0.1760834666666667
+    }
+  ],
+  "assets": {
+    "rawBytes": 1305401,
+    "independentGzipBytes": 334715,
+    "scope": "Sum of all browser distribution JS and WASM; not measured browser transfer, HTTP caching, Brotli or a video player bundle."
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "workload": "chart",
+  "width": 320,
+  "height": 240,
+  "frames": 300,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+  "devicePixelRatio": 1,
+  "traceBytes": 492586,
+  "generatedClientPacketBytes": 38023,
+  "fetchAndInitMs": 34.400000005960464,
+  "firstFrameMs": 122.5,
+  "reduceExportRenderMsP50": 18.599999994039536,
+  "reduceExportRenderMsP95": 42.69999998807907,
+  "wasmAccountedPeakBytes": 2992222,
+  "renderer": {
+    "ownedBytes": 40693924,
+    "peakBytes": 41278016,
+    "frameAllocations": 1,
+    "outputAllocations": 1,
+    "maskBuilds": 32871,
+    "maskHits": 40929,
+    "nodeBuilds": 33171,
+    "nodeHits": 40929
+  },
+  "scope": "Chromium touch/viewport emulation on the desktop; functional runner check only",
+  "physicalPhone": false
+}

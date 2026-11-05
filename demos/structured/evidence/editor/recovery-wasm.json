@@ -1,0 +1,1 @@
+{"frames":150,"exactWasmState":true,"releasedMemory":true,"wasmAccountedPeakBytes":5238288,"receiveAndAckMsP50":1.844316000000049,"receiveAndAckMsP95":2.3738970000000563,"timingScope":"one Node/WASM replay including negotiation; excludes state export, rendering, network and input"}
