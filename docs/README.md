@@ -36,6 +36,7 @@ The profiles below document implemented contracts and extensions.
 
 - [Current status](status.md): distinguish existing-app semantics, managed browsing, and the original controlled prototype.
 - [Application matrix](application-matrix.md), [GTK coverage](gtk-coverage.md), and [square-border lowering](gtk-square-borders.md): supported cooperating source content and explicit gaps.
+- [Game vector/raster comparison](game-vector-raster-comparison.md): paired payload, processing, quality, and scaling measurements with reproducible scripts.
 - [Performance](performance.md), [large workloads](large-performance.md), and [performance gates](performance-gates.md): measurements, procedures, and unmet targets.
 - [Dirty notifications](dirty-notifications.md), [incremental GTK publications](incremental-gtk.md), [browser rendering](browser-render-performance.md), and [browser lifecycle](browser-lifecycle-performance.md): changes and retained evidence.
 - [Browser CI](browser-ci.md): reproducible three-engine checks and the pinned native runner.

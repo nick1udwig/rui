@@ -91,3 +91,8 @@ The [retained local results](evidence/) record the measured game sessions.
 These are local functional acceptance runs, not a comparison against a video codec or an Internet latency benchmark.
 The current adapter sends per-line scene records, so bandwidth remains substantial and varies with scene complexity.
 No lower-bandwidth-than-video claim is established.
+
+## Vector versus raster analysis
+
+The [paired comparison report](../../docs/game-vector-raster-comparison.md) measures bandwidth, processing cost, image quality, scaling, and protocol limits against PNG and low-latency H.264.
+The [supporting scripts](bench/README.md) can replay the retained workloads without ROMs or capture new games.
