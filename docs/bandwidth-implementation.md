@@ -108,3 +108,11 @@ With `--render`, it renders all 400 frames at three resolutions and compares the
 It records source, publication, renderer, and WASM hashes with byte counts in `summary.json`.
 Rendering needs Chromium and a local listener.
 Without `--render`, byte and WASM state checks still run; existing render results in the output directory are checked when present.
+
+## Segment cache follow-up
+
+Derived browser rectangles now use a stable internal version, while their cache keys still include geometry, color, transforms, clips, and viewport bounds.
+A batch version change alone therefore does not rebuild unchanged segments.
+The public state and wire format are unchanged.
+A regression test verifies reuse on a version-only update and exact optimized/reference pixels across 20 mixed geometry, color, transform, opacity, and clip updates.
+The retained game measurements above precede this cache follow-up; their packet counts are unchanged.

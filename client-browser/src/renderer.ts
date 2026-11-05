@@ -390,6 +390,7 @@ export class CanvasRenderer implements Renderer {
             {
               ...scene,
               id: -(scene.id << 32n) - BigInt(i + 1),
+              version: 0n,
               children: [],
               clip: null,
               opacity: 1,
