@@ -123,9 +123,13 @@ impl BrowserPort {
         Ok(result)
     }
     pub fn new(mut worker: Worker) -> Result<Self, TransportError> {
+        let game = std::env::var("RUI_WORKSPACE").as_deref() == Ok("game");
         let capture: Capture = serde_json::from_value(worker.call(json!({"op":"capture"}))?)
             .map_err(|_| TransportError::Protocol)?;
         projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
+        if capture.vectors.is_some() != game {
+            return Err(TransportError::Protocol);
+        }
         let session = fresh_id();
         let epoch = fresh_id();
         let budget = MemoryBudget::new(128 << 20);
@@ -135,7 +139,11 @@ impl BrowserPort {
             max_history_bytes: 2 << 20,
             ..Default::default()
         };
-        for profile in ["semantics.only.v1", PROFILE] {
+        for profile in if game {
+            vec!["glyph.outline-single.v1", "game.vector.v1"]
+        } else {
+            vec!["semantics.only.v1", PROFILE]
+        } {
             config.supported_profiles.insert(profile.into());
             config.required_profiles.insert(profile.into());
         }
@@ -158,7 +166,9 @@ impl BrowserPort {
                 origin: Instant::now(),
                 stopped: stopped.clone(),
                 identity: identity.clone(),
-                selection: if std::env::var("RUI_WORKSPACE").as_deref() == Ok("desktop") {
+                selection: if game {
+                    "game".into()
+                } else if std::env::var("RUI_WORKSPACE").as_deref() == Ok("desktop") {
                     "desktop".into()
                 } else {
                     "browser".into()
@@ -268,6 +278,9 @@ impl State {
             }
         }
         while let Some(cleanup) = self.sessions.take_cleanup() {
+            if self.selection == "game" {
+                let _ = self.worker.call(json!({"op":"releaseInputs"}));
+            }
             if let Some(v) = self.views.get_mut(&cleanup.lease.client.client_instance_id) {
                 v.revoked = Some(Revoked {
                     lease: cleanup.lease.lease_id,
@@ -278,7 +291,9 @@ impl State {
         }
     }
     fn refresh(&mut self) -> Result<(), TransportError> {
-        if self.last_capture.elapsed() < Duration::from_millis(200) {
+        if self.last_capture.elapsed()
+            < Duration::from_millis(if self.selection == "game" { 33 } else { 200 })
+        {
             return Ok(());
         }
         let reply = self
@@ -292,6 +307,9 @@ impl State {
             let capture: Capture =
                 serde_json::from_value(value.clone()).map_err(|_| TransportError::Protocol)?;
             projection::snapshot(&capture).map_err(|_| TransportError::Protocol)?;
+            if capture.vectors.is_some() != (self.selection == "game") {
+                return Err(TransportError::Protocol);
+            }
             if *self.capture != capture {
                 self.capture = Arc::new(capture);
             }
@@ -474,7 +492,12 @@ impl State {
                         mirror_canvas_policy,
                     } => {
                         if selection != self.selection
-                            || mirror_canvas_policy != "semantic-only"
+                            || mirror_canvas_policy
+                                != if self.selection == "game" {
+                                    "host-canvas"
+                                } else {
+                                    "semantic-only"
+                                }
                             || scope.opened.swap(true, Ordering::AcqRel)
                         {
                             return Err(TransportError::Protocol);
@@ -485,9 +508,18 @@ impl State {
                                     .ledger
                                     .high_water(&client)
                                     .checked_add(1),
-                                width: 1280.,
-                                height: 900.,
-                                coverage: "semantic-only".into(),
+                                width: if self.selection == "game" {
+                                    640.
+                                } else {
+                                    1280.
+                                },
+                                height: if self.selection == "game" { 480. } else { 900. },
+                                coverage: if self.selection == "game" {
+                                    "complete"
+                                } else {
+                                    "semantic-only"
+                                }
+                                .into(),
                                 input_modes: vec!["semantic.v1".into()],
                                 input_devices: vec![],
                             },
@@ -510,6 +542,14 @@ impl State {
                             Acknowledgement::SemanticReady { revision } => {
                                 self.sessions
                                     .acknowledge_semantic_ready(&client, view, revision)
+                                    .map_err(|_| TransportError::Authority)?;
+                                if self.views[&id].snapshot.revision == revision {
+                                    self.views.get_mut(&id).unwrap().ready = true;
+                                }
+                            }
+                            Acknowledgement::Presented { revision } if self.selection == "game" => {
+                                self.sessions
+                                    .acknowledge_presented(&client, view, revision)
                                     .map_err(|_| TransportError::Authority)?;
                                 if self.views[&id].snapshot.revision == revision {
                                     self.views.get_mut(&id).unwrap().ready = true;

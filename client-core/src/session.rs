@@ -14,6 +14,7 @@ use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use std::collections::VecDeque;
 const PROFILES: &[&str] = &[
+    "game.vector.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
     "content.no-raster.v1",
@@ -922,7 +923,11 @@ mod tests {
             p::Kind::ServerHello,
             &p::ServerHello {
                 selected_version: 1,
-                selected_profiles: PROFILES.iter().map(|s| (*s).into()).collect(),
+                selected_profiles: PROFILES
+                    .iter()
+                    .filter(|p| **p != "game.vector.v1")
+                    .map(|s| (*s).into())
+                    .collect(),
                 negotiated_limits: Some(codec::wire_limits(&ReceiverLimits {
                     envelope_bytes: 128 << 10,
                     ..Default::default()
@@ -1194,17 +1199,17 @@ mod tests {
         assert_eq!(s.memory_used(), 0);
     }
     #[test]
-    fn browser_dispatch_receipt_and_high_water_are_negotiated() {
-        for browser in [false, true] {
+    fn source_dispatch_receipt_and_high_water_are_negotiated() {
+        for profile in [None, Some("browser.semantic.v1"), Some("game.vector.v1")] {
             let mut s = session(true);
-            if browser {
+            if let Some(profile) = profile {
                 let r = s.replica.as_mut().unwrap();
                 let mut profiles = r.profiles().to_vec();
-                profiles.push("browser.semantic.v1".into());
+                profiles.push(profile.into());
                 let permissions = r.permissions().unwrap().clone();
                 r.configure(&profiles, &permissions).unwrap();
             }
-            // Authenticated ViewOpened advances only the browser profile's queue.
+            // Only a negotiated dispatch-receipt profile advances the queue.
             let opened = p::ViewOpened {
                 view_id: vec![4; 16],
                 canvas_width: 800.,
@@ -1220,7 +1225,7 @@ mod tests {
             drain(&mut s);
             grant(&mut s);
             let seq = s.command(1, "Activate", Arguments::None).unwrap();
-            assert_eq!(seq, if browser { 42 } else { 1 });
+            assert_eq!(seq, if profile.is_some() { 42 } else { 1 });
             drain(&mut s);
             s.receive(&bound(
                 p::Kind::CommandResult,
@@ -1231,7 +1236,7 @@ mod tests {
                 },
             ))
             .unwrap();
-            assert_eq!(s.pending_commands(), if browser { 0 } else { 1 });
+            assert_eq!(s.pending_commands(), if profile.is_some() { 0 } else { 1 });
         }
     }
     #[test]

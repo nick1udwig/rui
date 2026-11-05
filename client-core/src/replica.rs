@@ -550,7 +550,11 @@ impl Replica {
                 if codec::id(&wire.view_id)? != self.context.view_id {
                     return Err(TransportError::Binding);
                 }
-                if self.profiles.iter().any(|p| p == "browser.semantic.v1") {
+                if self
+                    .profiles
+                    .iter()
+                    .any(|p| matches!(p.as_str(), "browser.semantic.v1" | "game.vector.v1"))
+                {
                     self.commands
                         .advance_sequence(
                             wire.next_command_sequence.ok_or(TransportError::Protocol)?,
@@ -710,7 +714,10 @@ impl Replica {
             p::Kind::CommandResult => {
                 let result: p::CommandResult = codec::decode(&packet.payload, ceiling)?;
                 if result.status.eq_ignore_ascii_case("dispatched")
-                    && self.profiles.iter().any(|p| p == "browser.semantic.v1")
+                    && self
+                        .profiles
+                        .iter()
+                        .any(|p| matches!(p.as_str(), "browser.semantic.v1" | "game.vector.v1"))
                 {
                     self.commands.complete(result.command_seq);
                 } else {

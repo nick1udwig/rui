@@ -79,6 +79,14 @@ async fn main() -> Result<(), Error> {
     let directory = PathBuf::from(&args[1]);
     let approvals_path = directory.join("devices.json");
     let mut authority = PairingAuthority::new(32)?;
+    if std::env::var("RUI_WORKSPACE").as_deref() == Ok("game") {
+        let client = [3; 16];
+        let request = authority.request_local_pairing(client)?;
+        let credential = authority.approve_local(request.request_id, permissions(client))?;
+        let path = directory.join("client.credential");
+        fs::write(&path, credential.expose_for_tls_authentication())?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    }
     if approvals_path.exists() {
         for record in serde_json::from_slice::<Vec<Value>>(&fs::read(&approvals_path)?)? {
             let client =

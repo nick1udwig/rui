@@ -1,0 +1,12 @@
+{
+  "game": "asteroid",
+  "fps": 25,
+  "inputAckP95Ms": 25.599999994039536,
+  "samples": 16,
+  "maxLines": 132,
+  "litPixels": 4827,
+  "nativeInputs": true,
+  "releaseOnBlur": true,
+  "releaseOnDisconnect": true,
+  "receivedKiBPerSecond": 141.3359375
+}

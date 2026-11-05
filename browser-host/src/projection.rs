@@ -28,6 +28,15 @@ pub struct Node {
 pub struct Capture {
     pub nodes: Vec<Node>,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vectors: Option<VectorFrame>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct VectorFrame {
+    pub sequence: u64,
+    pub slots: usize,
+    pub lines: Vec<[f64; 7]>,
 }
 pub fn reference(id: u64) -> p::ObjectRef {
     p::ObjectRef {
@@ -238,11 +247,146 @@ pub fn snapshot(capture: &Capture) -> Result<p::Snapshot, &'static str> {
             ..Default::default()
         })),
     });
+    if let Some(frame) = &capture.vectors {
+        add_vectors(&mut records, frame)?;
+    }
     Ok(p::Snapshot {
         revision: 1,
         records,
         ..Default::default()
     })
+}
+
+fn add_vectors(records: &mut Vec<p::Record>, frame: &VectorFrame) -> Result<(), &'static str> {
+    if frame.sequence == 0 || frame.slots > 2048 || frame.lines.len() > frame.slots {
+        return Err("vector frame bounds");
+    }
+    if records
+        .iter()
+        .any(|r| matches!(&r.record, Some(p::record::Record::Semantic(n)) if n.id >= 100))
+    {
+        return Err("vector identity overlap");
+    }
+    let scene_ref = |id| p::ObjectRef {
+        kind: p::ObjectKind::Scene as i32,
+        id,
+    };
+    let identity = p::Affine {
+        xx: 1.,
+        yy: 1.,
+        ..Default::default()
+    };
+    for record in records.iter_mut() {
+        match &mut record.record {
+            Some(p::record::Record::Surface(s)) => {
+                s.desktop_rect.as_mut().unwrap().width = 640.;
+                s.desktop_rect.as_mut().unwrap().height = 480.;
+                s.content_size = Some(p::Size {
+                    width: 640.,
+                    height: 480.,
+                });
+                s.scene_root = Some(scene_ref(100));
+                s.visual_coverage = p::VisualCoverage::Complete as i32;
+                s.source_capture_tokens = vec![
+                    b"mame-vector-beams-v1".to_vec(),
+                    frame.sequence.to_be_bytes().to_vec(),
+                ];
+                s.unsupported_features.clear();
+            }
+            Some(p::record::Record::Session(s)) => {
+                s.canvas.as_mut().unwrap().width = 640.;
+                s.canvas.as_mut().unwrap().height = 480.;
+            }
+            _ => {}
+        }
+    }
+    let mut children = Vec::with_capacity(frame.slots + 1);
+    for slot in 0..=frame.slots {
+        let id = 101 + slot as u64;
+        children.push(scene_ref(id));
+        let (primitive, transform) = if slot == 0 {
+            (
+                p::scene_node::Primitive::SolidRect(p::SolidRect {
+                    rect: Some(p::Rect {
+                        width: 640.,
+                        height: 480.,
+                        ..Default::default()
+                    }),
+                    color: Some(p::Color {
+                        alpha: 1.,
+                        ..Default::default()
+                    }),
+                }),
+                identity.clone(),
+            )
+        } else if let Some(line) = frame.lines.get(slot - 1) {
+            if line.iter().any(|x| !x.is_finite())
+                || line[..4].iter().any(|x| x.abs() > 4096.)
+                || line[4..].iter().any(|x| !(0.0..=1.0).contains(x))
+            {
+                return Err("vector coordinate/color bounds");
+            }
+            let dx = line[2] - line[0];
+            let dy = line[3] - line[1];
+            let length = dx.hypot(dy);
+            let (xx, yx) = if length > 0. {
+                (dx / length, dy / length)
+            } else {
+                (1., 0.)
+            };
+            (
+                p::scene_node::Primitive::SolidRect(p::SolidRect {
+                    rect: Some(p::Rect {
+                        x: 0.,
+                        y: -0.6,
+                        width: length.max(0.8),
+                        height: 1.2,
+                    }),
+                    color: Some(p::Color {
+                        red: line[4],
+                        green: line[5],
+                        blue: line[6],
+                        alpha: 1.,
+                    }),
+                }),
+                p::Affine {
+                    xx,
+                    yx,
+                    xy: -yx,
+                    yy: xx,
+                    tx: line[0],
+                    ty: line[1],
+                },
+            )
+        } else {
+            (
+                p::scene_node::Primitive::Group(p::Group {}),
+                identity.clone(),
+            )
+        };
+        records.push(p::Record {
+            record: Some(p::record::Record::Scene(p::SceneNode {
+                id,
+                version: 1,
+                transform: Some(transform),
+                opacity: 1.,
+                primitive: Some(primitive),
+                ..Default::default()
+            })),
+        });
+    }
+    records.push(p::Record {
+        record: Some(p::record::Record::Scene(p::SceneNode {
+            id: 100,
+            version: 1,
+            transform: Some(identity),
+            opacity: 1.,
+            ordered_children: children,
+            primitive: Some(p::scene_node::Primitive::Group(p::Group {})),
+            ..Default::default()
+        })),
+    });
+    Ok(())
 }
 
 #[cfg(test)]
@@ -263,6 +407,7 @@ mod tests {
                 disabled: false,
             }],
             status: "Observed".into(),
+            vectors: None,
         }
     }
     #[test]
@@ -276,6 +421,57 @@ mod tests {
         b.id = 11;
         b.children = vec![10];
         c.nodes.extend([a, b]);
+        assert!(snapshot(&c).is_err());
+    }
+    #[test]
+    fn vector_scene_passes_reducer() {
+        let mut c = capture();
+        c.vectors = Some(VectorFrame {
+            sequence: 1,
+            slots: 1,
+            lines: vec![[10., 10., 100., 100., 1., 1., 1.]],
+        });
+        let s = snapshot(&c).unwrap();
+        let mut replica = rui_protocol_core::model::Replica::new(Default::default());
+        replica
+            .apply_snapshot(&prost::Message::encode_to_vec(&s), &BTreeSet::new())
+            .unwrap();
+        let previous = s;
+        c.vectors.as_mut().unwrap().sequence = 2;
+        c.vectors.as_mut().unwrap().lines.clear();
+        let next = rui_producer_sdk::publication_builder::build(
+            &previous,
+            snapshot(&c).unwrap(),
+            &BTreeSet::new(),
+        )
+        .unwrap();
+        next.validate(&replica, &BTreeSet::new(), &Default::default())
+            .unwrap();
+        replica
+            .apply_transaction(
+                &prost::Message::encode_to_vec(&next.transaction),
+                &BTreeSet::new(),
+            )
+            .unwrap();
+        c.vectors.as_mut().unwrap().sequence = 3;
+        c.vectors
+            .as_mut()
+            .unwrap()
+            .lines
+            .push([20., 30., 60., 90., 0., 1., 0.]);
+        let restored = rui_producer_sdk::publication_builder::build(
+            &next.snapshot,
+            snapshot(&c).unwrap(),
+            &BTreeSet::new(),
+        )
+        .unwrap();
+        restored
+            .validate(&replica, &BTreeSet::new(), &Default::default())
+            .unwrap();
+        c.vectors.as_mut().unwrap().slots = 2049;
+        assert!(snapshot(&c).is_err());
+        c.vectors.as_mut().unwrap().slots = 1;
+        c.vectors.as_mut().unwrap().lines[0][0] = f64::NAN;
         assert!(snapshot(&c).is_err());
     }
     #[test]
