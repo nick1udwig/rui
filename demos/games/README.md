@@ -22,9 +22,11 @@ Or open the printed browser URL, enter the connection code, and choose **Connect
 Choose **Take control** to play.
 For Battlezone, press **Insert coin** twice, then **Start**.
 For Asteroids, one coin is sufficient.
-Use the on-screen hold buttons or the keyboard controls below the canvas.
+Use the on-screen hold buttons or the keyboard controls listed in the side panel.
 Click the canvas to return keyboard focus to the game.
-The render-scale control changes local vector rasterization without requesting a new source resolution.
+The screen keeps a 4:3 frame that fits the window.
+The resolution control changes local vector rasterization without requesting a new source resolution.
+The default resolution follows the displayed screen size, up to 960 × 720 on desktop and 640 × 480 on touch devices.
 The page reports presented frames, received RUI bytes, draw time, and retained line slots.
 Byte counts include RUI messages and exclude TLS and socket overhead.
 
@@ -94,7 +96,7 @@ The checked Chromium mobile layout uses a 390 × 844 viewport; a physical phone 
 2. Connect, take control, insert two coins, and start Battlezone.
 3. Drive with the arrow keys and hold Space to fire.
 4. Show the live frame-rate and received-byte counters.
-5. Change render scale to demonstrate local vector rasterization from the same host coordinate system.
+5. Change the resolution to demonstrate local vector rasterization from the same host coordinate system.
 6. Release control and reconnect from a phone browser to show the touch layout.
 
 The [retained local results](evidence/) record the measured game sessions.

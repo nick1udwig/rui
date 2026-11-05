@@ -7,8 +7,74 @@ import {
   type TransportFactory,
 } from "@rui/client-browser";
 import "./style.css";
+const icon = (body: string) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const icons = {
+  up: icon('<path d="M6 15l6-6 6 6"/>'),
+  down: icon('<path d="M6 9l6 6 6-6"/>'),
+  left: icon('<path d="M15 6l-6 6 6 6"/>'),
+  right: icon('<path d="M9 6l6 6-6 6"/>'),
+  thrust: icon('<path d="M6 12l6-6 6 6M6 18l6-6 6 6"/>'),
+  fire: icon(
+    '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+  ),
+  hyper: icon(
+    '<circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><circle cx="12" cy="12" r="2.5"/>',
+  ),
+  coin: icon('<circle cx="12" cy="12" r="8"/><path d="M12 8v8"/>'),
+  start: icon('<path d="M8 5.5v13l10-6.5z"/>'),
+};
+type Key = { area: string; icon: keyof typeof icons; text: string };
+const layouts: Record<string, { keys: Key[]; captions: [string, string][] }> = {
+  bzone: {
+    keys: [
+      { area: "lf", icon: "up", text: "Forward" },
+      { area: "lr", icon: "down", text: "Reverse" },
+      { area: "fire", icon: "fire", text: "Fire" },
+      { area: "rf", icon: "up", text: "Forward" },
+      { area: "rr", icon: "down", text: "Reverse" },
+      { area: "coin", icon: "coin", text: "Coin" },
+      { area: "start", icon: "start", text: "Start" },
+    ],
+    captions: [
+      ["lc", "Left track"],
+      ["rc", "Right track"],
+    ],
+  },
+  asteroid: {
+    keys: [
+      { area: "left", icon: "left", text: "Left" },
+      { area: "right", icon: "right", text: "Right" },
+      { area: "fire", icon: "fire", text: "Fire" },
+      { area: "thrust", icon: "thrust", text: "Thrust" },
+      { area: "hyper", icon: "hyper", text: "Hyperspace" },
+      { area: "coin", icon: "coin", text: "Coin" },
+      { area: "start", icon: "start", text: "Start" },
+    ],
+    captions: [],
+  },
+};
+const keyHelp: Record<string, [string[], string][]> = {
+  bzone: [
+    [["C"], "Coin, twice"],
+    [["Enter"], "Start"],
+    [["↑", "↓"], "Drive"],
+    [["←", "→"], "Turn"],
+    [["Space"], "Fire"],
+    [["W", "S"], "Left track"],
+    [["I", "K"], "Right track"],
+  ],
+  asteroid: [
+    [["C"], "Coin"],
+    [["Enter"], "Start"],
+    [["←", "→"], "Rotate"],
+    [["↑"], "Thrust"],
+    [["Space"], "Fire"],
+    [["H"], "Hyperspace"],
+  ],
+};
 const app = document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML = `<main><header><p class="eyebrow">RUI / VECTOR ARCADE</p><h1 id="title">Geometry across the wire.</h1><p>A native desktop game, controlled here. Every line is drawn from the host’s RUI scene.</p></header><section class="toolbar"><label>Connection code <input id="code" type="text" placeholder="ABCD-1234-EF56" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32"></label><button id="connect">Connect</button><button id="control" disabled>Take control</button><button id="release" disabled>Release control</button><label>Render scale <select id="zoom"><option value="0.5">½×</option><option value="0.75" selected>¾×</option><option value="1">1×</option><option value="1.5">1½×</option><option value="2">2×</option></select></label></section><p id="status" role="status">Scan the host QR code, or enter its connection code.</p><section class="cabinet"><div class="viewport"><canvas id="screen" aria-label="Remote vector game"></canvas></div></section><section id="controls" aria-label="Game controls"></section><section class="metrics"><div><strong id="fps">0</strong><span>presented frames / s</span></div><div><strong id="bandwidth">0</strong><span>KiB / s received</span></div><div><strong id="draw">0</strong><span>ms draw / frame</span></div><div><strong id="lines">0</strong><span>retained line slots</span></div></section><footer><p id="keyboard">← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start</p><p>Host simulation · RUI Protobuf · vector scene updates · local rasterization</p><p>Fixed-width beam presentation. CRT glow and remote audio are outside this demo.</p></footer></main>`;
+app.innerHTML = `<div class="app"><header class="topbar"><div class="brand"><svg class="mark" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 23h22M14 4 6 23M14 4l8 19M14 4v19"/></svg><div class="brand-text"><span class="brand-name">RUI ARCADE</span><h1 id="title">Vector arcade</h1></div></div><span class="pill" id="pill">Offline</span></header><div class="layout"><section class="stage"><div class="bezel"><div class="screen"><canvas id="screen" aria-label="Remote vector game"></canvas><div class="overlay"><form class="connect" id="connect-form"><h2>Connect to the host</h2><p>Scan the QR code in the host terminal, or enter its connection code.</p><div class="field"><input id="code" type="text" placeholder="ABCD-1234-EF56" aria-label="Connection code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32"><button class="btn primary" id="connect" type="submit">Connect</button></div><p class="hint" id="hint"></p></form></div></div></div><div class="session"><p id="status" role="status">Not connected.</p><label class="select">Resolution <select id="zoom"><option value="0.5">320×240</option><option value="0.75">480×360</option><option value="1">640×480</option><option value="1.5">960×720</option><option value="2">1280×960</option></select></label><button class="btn" id="release" disabled>Release</button><button class="btn primary" id="control" disabled>Take control</button></div></section><aside class="deck"><section class="panel"><h2 class="panel-title"><span>Controls</span></h2><div id="controls" aria-label="Game controls"><p class="placeholder">Controls appear when the game streams.</p></div></section><section class="panel"><h2 class="panel-title"><span>Telemetry</span><span>RUI bytes, excl. TLS</span></h2><div class="metrics"><div><strong id="fps">0</strong><span>frames / s</span></div><div><strong id="bandwidth">0</strong><span>KiB / s in</span></div><div><strong id="draw">0</strong><span>ms draw</span></div><div><strong id="lines">0</strong><span>line slots</span></div></div></section><section class="panel keys-panel" id="keys-panel" hidden><h2 class="panel-title"><span>Keyboard</span><span>click screen to focus</span></h2><dl class="keys" id="keys"></dl></section><p class="note">MAME runs on the host. The browser receives the RUI vector scene and rasterizes it locally with fixed-width beams. CRT glow and audio are not sent.</p></aside></div></div>`;
 const element = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>("screen");
@@ -28,8 +94,33 @@ try {
 const connect = element<HTMLButtonElement>("connect");
 const control = element<HTMLButtonElement>("control");
 const release = element<HTMLButtonElement>("release");
+const pill = element("pill");
+const hint = element("hint");
+const stateLabels = {
+  offline: "Offline",
+  connecting: "Connecting",
+  observing: "Observing",
+  control: "In control",
+};
+function setState(state: keyof typeof stateLabels) {
+  document.body.dataset.state = state;
+  pill.textContent = stateLabels[state];
+}
+function setStatus(text: string, error = false) {
+  status.textContent = text;
+  hint.textContent = text;
+  hint.classList.toggle("error", error);
+}
+setState("offline");
+if (savedCredential)
+  hint.textContent = "Saved authorization found. Connect, or enter a new code.";
 const nativeRenderer = new CanvasRenderer(canvas);
-let zoom = innerWidth < 600 ? 0.5 : 0.75;
+const scales = [0.5, 0.75, 1, 1.5, 2];
+const fitted = canvas.getBoundingClientRect().width * devicePixelRatio;
+let zoom = Math.min(
+  scales.find((scale) => 640 * scale >= fitted * 0.9) ?? 2,
+  matchMedia("(hover: none)").matches ? 1 : 1.5,
+);
 element<HTMLSelectElement>("zoom").value = String(zoom);
 const renderer = {
   render(
@@ -134,7 +225,7 @@ function flush() {
     commandStarted = performance.now();
     lastHeartbeat = performance.now();
   } catch (error) {
-    status.textContent = String(error);
+    setStatus(String(error), true);
     /* Wait for current presentation/readiness before retrying. */
   }
 }
@@ -151,11 +242,18 @@ function clear() {
 }
 function relinquish() {
   clear();
-  if (controlling) client?.releaseControl();
+  if (controlling) {
+    client?.releaseControl();
+    setState("observing");
+  }
   controlling = false;
 }
+element<HTMLFormElement>("connect-form").onsubmit = (event) =>
+  event.preventDefault();
 connect.onclick = async () => {
   connect.disabled = true;
+  setState("connecting");
+  setStatus("Connecting…");
   try {
     if (codeInput.value.trim()) {
       const response = await fetch("/api/game/pair", {
@@ -197,7 +295,8 @@ connect.onclick = async () => {
       credential: async () => credential.slice(),
       onEvent(event) {
         if (event.type === "connected") {
-          status.textContent = "Connected as observer. Take control to play.";
+          setState("observing");
+          setStatus("Observing. Take control to play.");
           control.disabled = false;
         }
         if (event.type === "control") {
@@ -207,9 +306,12 @@ connect.onclick = async () => {
           control.disabled = event.granted;
           release.disabled = !event.granted;
           if (!event.granted) clear();
-          status.textContent = event.granted
-            ? "You control the desktop game."
-            : "Observer. Take control to play.";
+          setState(event.granted ? "control" : "observing");
+          setStatus(
+            event.granted
+              ? "You control the desktop game."
+              : "Observing. Take control to play.",
+          );
         }
         if (event.type === "presented") {
           frames++;
@@ -224,19 +326,44 @@ connect.onclick = async () => {
           );
           if (!buttons.size) {
             game = nodes[0]?.label?.includes("track") ? "bzone" : "asteroid";
-            document.body.classList.toggle("battlezone", game === "bzone");
-            element("title").textContent =
-              game === "bzone"
-                ? "Battlezone. Across the wire."
-                : "Asteroids. Across the wire.";
-            element("keyboard").textContent =
-              game === "bzone"
-                ? "C twice, then Enter to start · ↑ ↓ drive · ← → turn · Space fire · W/S left track · I/K right track"
-                : "← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start";
+            const layout = layouts[game];
+            const title = game === "bzone" ? "Battlezone" : "Asteroids";
+            document.body.classList.add(game === "bzone" ? "battlezone" : "asteroid");
+            element("title").textContent = title;
+            document.title = `${title} · RUI arcade`;
+            element("keys").innerHTML = keyHelp[game]
+              .map(
+                ([keys, action]) =>
+                  `<dt>${keys.map((key) => `<kbd>${key}</kbd>`).join("")}</dt><dd>${action}</dd>`,
+              )
+              .join("");
+            element("keys-panel").hidden = false;
+            const controlsElement = element("controls");
+            controlsElement.replaceChildren();
+            for (const [area, text] of layout.captions) {
+              const caption = document.createElement("span");
+              caption.className = "caption";
+              caption.style.gridArea = area;
+              caption.textContent = text;
+              controlsElement.append(caption);
+            }
             targets = nodes.map((n) => n.id);
-            for (const node of nodes) {
+            nodes.forEach((node, index) => {
+              const key = layout.keys[index];
               const button = document.createElement("button");
-              button.textContent = node.label ?? "Control";
+              const label = node.label ?? "Control";
+              button.setAttribute("aria-label", label);
+              button.title = label;
+              if (key) {
+                button.className = `key ${key.area}`;
+                button.classList.toggle("fire", key.area === "fire");
+                button.classList.toggle("small", index >= 5);
+                button.style.gridArea = key.area;
+                button.innerHTML = `${icons[key.icon]}<span>${key.text}</span>`;
+              } else {
+                button.className = "key";
+                button.textContent = label;
+              }
               button.disabled = !controlling;
               button.onpointerdown = (event) => {
                 event.preventDefault();
@@ -269,8 +396,8 @@ connect.onclick = async () => {
                 }
               };
               buttons.set(node.id, button);
-              element("controls").append(button);
-            }
+              controlsElement.append(button);
+            });
           }
           for (const node of nodes) {
             const value =
@@ -294,21 +421,25 @@ connect.onclick = async () => {
             controlling &&
             (event.status === "Dispatched" || event.status === "Applied")
           )
-            status.textContent = "You control the desktop game.";
+            setStatus("You control the desktop game.");
           if (event.status !== "Dispatched" && event.status !== "Applied") {
             sent.clear();
-            status.textContent = `Input: ${event.status}`;
+            setStatus(`Input: ${event.status}`, true);
           }
           flush();
         }
-        if (event.type === "error") status.textContent = `Host: ${event.code}`;
+        if (event.type === "error") setStatus(`Host: ${event.code}`, true);
         if (event.type === "failure") {
           controlling = false;
           clear();
-          status.textContent = event.message;
+          setState("offline");
+          setStatus(event.message, true);
           connect.disabled = false;
         }
         if (event.type === "disconnected") {
+          if (document.body.dataset.state !== "offline")
+            setStatus("Disconnected from the host.");
+          setState("offline");
           controlling = false;
           clear();
           connect.disabled = false;
@@ -319,7 +450,8 @@ connect.onclick = async () => {
     });
     await client.connect();
   } catch (error) {
-    status.textContent = String(error);
+    setState("offline");
+    setStatus(error instanceof Error ? error.message : String(error), true);
     connect.disabled = false;
   }
 };
@@ -456,7 +588,4 @@ Object.defineProperty(window, "ruiGame", {
   }),
 });
 
-codeInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") connect.click();
-});
 if (invitation) connect.click();
