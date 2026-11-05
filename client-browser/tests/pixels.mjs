@@ -132,6 +132,33 @@ export function checkPixels() {
     "timing report aliases recorder",
   );
   timings.clear();
+  assert(
+    JSON.stringify(timings.report().stages) === "{}",
+    "empty timing report has stages",
+  );
+  for (let i = 0; i < 12; i++)
+    timings.record(
+      ["receipt", "preparation", "submission"][i % 3],
+      BigInt(i),
+      12 - i,
+      99,
+    );
+  const mixed = timings.report();
+  assert(
+    JSON.stringify(mixed.stages) ===
+      JSON.stringify({
+        preparation: { count: 2, p50: 2, p95: 5, p99: 5 },
+        submission: { count: 2, p50: 1, p95: 4, p99: 4 },
+        receipt: { count: 1, p50: 3, p95: 3, p99: 3 },
+      }),
+    "mixed timing stage order, sample counts or percentiles changed",
+  );
+  assert(
+    mixed.dropped === 7 &&
+      mixed.samples.map((sample) => sample.durationMs).join() === "5,4,3,2,1",
+    "timing aggregation changed chronological samples",
+  );
+  timings.clear();
   timings.command(1n);
   timings.present(7n);
   timings.result(1n, 7n, "Applied");

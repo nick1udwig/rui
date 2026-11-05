@@ -106,11 +106,11 @@ export class Timings {
       string,
       { count: number; p50: number; p95: number; p99: number }
     > = {};
-    for (const stage of new Set(samples.map((s) => s.stage))) {
-      const values = samples
-        .filter((s) => s.stage === stage)
-        .map((s) => s.durationMs)
-        .sort((a, b) => a - b);
+    const durations: Record<string, number[]> = Object.create(null);
+    for (const sample of samples)
+      (durations[sample.stage] ??= []).push(sample.durationMs);
+    for (const [stage, values] of Object.entries(durations)) {
+      values.sort((a, b) => a - b);
       const percentile = (p: number) =>
         values[Math.max(0, Math.ceil(values.length * p) - 1)];
       stages[stage] = {
