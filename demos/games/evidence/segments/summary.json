@@ -1,0 +1,152 @@
+{
+  "games": [
+    {
+      "game": "bzone",
+      "source_sha256": "de951016ee7dafd7cc707ed657cc47d4926cbe7937d6878f097c9e47e99cad7f",
+      "core_sha256": "9936499e626f50490609e87fa26c3ac0d0b1069cf32ca27c4f9b7c6933d63925",
+      "seconds": 8,
+      "independent": {
+        "chunks": 200,
+        "compressed_chunks": 200,
+        "compressed_publication_packet_bytes": 467309,
+        "frames": 200,
+        "plain_publication_packet_bytes": 2275412,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing",
+        "wasm": {
+          "frames": 200,
+          "exactWasmState": true,
+          "releasedMemory": true,
+          "wasmAccountedPeakBytes": 2488635,
+          "receiveAndAckMsP50": 0.2386349999999311,
+          "receiveAndAckMsP95": 0.37350500000000864,
+          "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+        },
+        "mbps": 0.467309
+      },
+      "history": {
+        "chunks": 200,
+        "compressed_chunks": 200,
+        "compressed_publication_packet_bytes": 176308,
+        "frames": 200,
+        "plain_publication_packet_bytes": 2275412,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing",
+        "wasm": {
+          "frames": 200,
+          "exactWasmState": true,
+          "releasedMemory": true,
+          "wasmAccountedPeakBytes": 3000311,
+          "receiveAndAckMsP50": 1.0701850000000093,
+          "receiveAndAckMsP95": 1.5047849999999983,
+          "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+        },
+        "mbps": 0.176308
+      },
+      "pixels": [
+        {
+          "width": 320,
+          "height": 240,
+          "frames": 200,
+          "rgbaSha256": "2c7408791ed5235b4711a5fb3bacde40a6892eec77f0a185ba8a155151f08d90"
+        },
+        {
+          "width": 640,
+          "height": 480,
+          "frames": 200,
+          "rgbaSha256": "8058efccf90c6df47e04460d88a73e98565259f1a5f1906701686eb06064f40a"
+        },
+        {
+          "width": 1280,
+          "height": 960,
+          "frames": 200,
+          "rgbaSha256": "c634f4b30b70cfdf82d701cd62a7f956141771563d37d48d6d9601030596321f"
+        }
+      ],
+      "renderer_environment": {
+        "browser": "155.0.8059.84",
+        "cpu": "12th Gen Intel(R) Core(TM) i7-1280P",
+        "kernel": "7.2.15-1-omarchy",
+        "node": "v26.13.0",
+        "hashes": {
+          "client-browser/dist/renderer.js": "df36362a44fa2e8cbf6c2ad926009dba59b2b5fac5bc510dd8cd3fa2f9c4001f",
+          "client-browser/wasm/rui_client_wasm_bg.wasm": "f5db5f27a49be5fc9afac5a8bc8f556a3e3fb6151561a2a1d9b7d62a0d06455d",
+          "browser-host/src/projection.rs": "dfe7a8d4a02b739bf68c864c7e814ab91f8a385e788bbc2b68c486d10a852c4a",
+          "browser-host/src/bin/game-trace.rs": "d640446d7c82b7039249dad289f0431a07c8134e8c3f96891c8938f034af4eb4"
+        }
+      }
+    },
+    {
+      "game": "asteroid",
+      "source_sha256": "707777b477e210b2301ddc64d5b1b0edd821edc7451bfdb393355987b4d92cb7",
+      "core_sha256": "e7a3cf5b9be014a0f6ee96ebec5436c14aee438e40f182734f3ae1c9be5c0000",
+      "seconds": 8,
+      "independent": {
+        "chunks": 200,
+        "compressed_chunks": 200,
+        "compressed_publication_packet_bytes": 369171,
+        "frames": 200,
+        "plain_publication_packet_bytes": 1514772,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing",
+        "wasm": {
+          "frames": 200,
+          "exactWasmState": true,
+          "releasedMemory": true,
+          "wasmAccountedPeakBytes": 2457775,
+          "receiveAndAckMsP50": 0.14573599999999942,
+          "receiveAndAckMsP95": 0.201036000000002,
+          "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+        },
+        "mbps": 0.369171
+      },
+      "history": {
+        "chunks": 200,
+        "compressed_chunks": 200,
+        "compressed_publication_packet_bytes": 174647,
+        "frames": 200,
+        "plain_publication_packet_bytes": 1514772,
+        "scope": "publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing",
+        "wasm": {
+          "frames": 200,
+          "exactWasmState": true,
+          "releasedMemory": true,
+          "wasmAccountedPeakBytes": 2977623,
+          "receiveAndAckMsP50": 0.985935999999981,
+          "receiveAndAckMsP95": 1.2994550000000231,
+          "timingScope": "one Node/WASM replay including negotiation; excludes state export, rendering, network and input"
+        },
+        "mbps": 0.174647
+      },
+      "pixels": [
+        {
+          "width": 320,
+          "height": 240,
+          "frames": 200,
+          "rgbaSha256": "e273999ae82a5b19c33442f2e656549dcb32083f36f39e6363e7bc96f00aba3e"
+        },
+        {
+          "width": 640,
+          "height": 480,
+          "frames": 200,
+          "rgbaSha256": "65b5dd9c4ba95d45dc6b3b0ac32fec98fa994572304dfd52ae4ebd20ef67013c"
+        },
+        {
+          "width": 1280,
+          "height": 960,
+          "frames": 200,
+          "rgbaSha256": "6f5fe048b726c8981049a614999808edf72c73c57986f972a6a0151b61519655"
+        }
+      ],
+      "renderer_environment": {
+        "browser": "155.0.8059.84",
+        "cpu": "12th Gen Intel(R) Core(TM) i7-1280P",
+        "kernel": "7.2.15-1-omarchy",
+        "node": "v26.13.0",
+        "hashes": {
+          "client-browser/dist/renderer.js": "df36362a44fa2e8cbf6c2ad926009dba59b2b5fac5bc510dd8cd3fa2f9c4001f",
+          "client-browser/wasm/rui_client_wasm_bg.wasm": "f5db5f27a49be5fc9afac5a8bc8f556a3e3fb6151561a2a1d9b7d62a0d06455d",
+          "browser-host/src/projection.rs": "dfe7a8d4a02b739bf68c864c7e814ab91f8a385e788bbc2b68c486d10a852c4a",
+          "browser-host/src/bin/game-trace.rs": "d640446d7c82b7039249dad289f0431a07c8134e8c3f96891c8938f034af4eb4"
+        }
+      }
+    }
+  ]
+}

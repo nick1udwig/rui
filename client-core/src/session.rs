@@ -17,6 +17,7 @@ const PROFILES: &[&str] = &[
     "transport.zstd-chunks.v1",
     "transport.zstd-history.v1",
     "game.vector.v1",
+    "geometry.segments.v1",
     "mirror2d.core.v1",
     "semantics.core.v1",
     "content.no-raster.v1",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — compact segment geometry
+
+- Add the optional `geometry.segments.v1` profile and `SegmentBatch` primitive.
+- Update exhaustive primitive switches for the new variant.
+- Deploy matching JavaScript and WASM assets together.
+- Clients without the profile can still use producers that do not require it.
+
 ## 0.1.3 — incremental browser updates
 
 - Add `Session.stateChanges` for scope-local committed record exports.

@@ -17,8 +17,8 @@ use std::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 4 {
-        return Err("usage: game-trace FRAMES_JSONL OUTPUT_BINARY OUTPUT_JSON".into());
+    if args.len() != 4 && !(args.len() == 5 && args[4] == "--legacy") {
+        return Err("usage: game-trace FRAMES_JSONL OUTPUT_BINARY OUTPUT_JSON [--legacy]".into());
     }
     let mut output = File::create(&args[2])?;
     let mut previous = p::Snapshot::default();
@@ -35,7 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "vectors":{"sequence":index+1,"slots":slots,"lines":lines}
         }))?;
         let started = Instant::now();
-        let target = projection::snapshot(&capture)?;
+        let target = if args.len() == 4 {
+            projection::snapshot(&capture)?
+        } else {
+            projection::snapshot_with_vectors(&capture, false)?
+        };
         let candidate = publication_builder::build(&previous, target, &BTreeSet::new())?;
         let (kind, payload) = if index == 0 {
             (p::MessageKind::Snapshot, candidate.snapshot.encode_to_vec())

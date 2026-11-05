@@ -985,3 +985,39 @@ fn tiled_composition_matches_independent_cropped_frames() {
         }
     }
 }
+
+#[test]
+fn segment_batch_preserves_order_opacity_clipping_and_degenerate_beams() {
+    let segments = vec![
+        [2., 4., 22., 16., 0.5, 0., 0., 0.5],
+        [22., 4., 2., 16., 0., 0., 0.75, 0.75],
+        [12., 10., 12., 10., 0., 1., 0., 1.],
+    ];
+    let mut batch = node(
+        1,
+        Primitive::SegmentBatch {
+            segments: segments.clone(),
+            width: 3.,
+            minimum_length: 2.,
+        },
+    );
+    batch.opacity = 0.6;
+    batch.clip = Some(rect(4., 2., 16., 18.));
+    batch.transform.tx = 1.25;
+    let actual = render(vec![batch.clone()], 32, 32, &());
+    batch.primitive = Primitive::Group;
+    batch.children = (2..5).map(reference).collect();
+    let mut nodes = vec![batch];
+    for (i, segment) in segments.iter().enumerate() {
+        let (rect, transform, color) = segment_geometry(segment, 3., 2.);
+        let mut child = solid(i as u64 + 2, rect, color);
+        child.transform = transform;
+        nodes.push(child);
+    }
+    let expected = render(nodes, 32, 32, &());
+    for y in 0..32 {
+        for x in 0..32 {
+            assert_eq!(actual.pixel(x, y), expected.pixel(x, y));
+        }
+    }
+}

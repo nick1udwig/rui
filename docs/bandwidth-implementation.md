@@ -56,3 +56,55 @@ Pass `history` as the final argument to `compression_probe` to exercise this pat
 The WASM check command is unchanged.
 The regression suite injects connection loss at both compressed chunk kinds and checks reconstruction of authoritative state and rendered pixels.
 Diagnostic privacy checks now inspect decoded publication bodies, including history-compressed data.
+
+## Compact ordered geometry
+
+The [segment profile](../spec/segments-profile.md) carries ordered float64 endpoints and colors in one scene record.
+The game producer now uses this profile; the browser and native renderers implement it.
+No game simulation moves to the client, and no coordinate or color quantization is used.
+The general primitive also applies to charts, diagrams, and wireframes.
+Other application producers retain their existing representations and benefit from transport compression alone.
+
+| Trace | Segment packet bytes, plain | Independent Zstandard | History Zstandard | History Mb/s | Native H.264 Mb/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Battlezone | 2,275,412 | 467,309 | 176,308 | 0.176 | 0.323 |
+| Asteroids | 1,514,772 | 369,171 | 174,647 | 0.175 | 0.217 |
+
+The combined changes reduce publication packet bytes by 95.3% for Battlezone and 90.0% for Asteroids against the original session encoding.
+They use 45.5% and 19.6% fewer bytes than the earlier native-resolution H.264 CRF18 veryfast payloads.
+These are eight-second retained workload results, not a claim of superiority over every H.264 setting or every application.
+The RUI counts include publication metadata, but exclude handshake, acknowledgements, controls, and TLS/WebSocket framing.
+The H.264 counts exclude equivalent network framing and controls.
+At 320 × 240, the earlier H.264 payloads remain smaller than this RUI stream.
+The segment stream is independent of display resolution.
+
+All 1,200 frame renders are byte-identical to the retained original pixels: 400 frames at each of 320 × 240, 640 × 480, and 1280 × 960.
+Both independent and history compression pass exact WASM state checks for every publication.
+The [retained results](../demos/games/evidence/segments/summary.json) include hashes, memory accounting, and decode timing.
+In one desktop Node/WASM replay, history receive-and-acknowledge p95 was 1.50 ms for Battlezone and 1.30 ms for Asteroids.
+This excludes rendering, state export, network latency, and input handling; it is not a phone result.
+The history decoder reserves more memory and uses more CPU than independent compression.
+The rendering runs overlapped regression work, so their timing samples do not establish a rendering speed improvement.
+
+Core, producer, native renderer, transport, browser conformance, and installed-package checks pass.
+These include segment preflight bounds, blending, clipping, degenerate geometry, memory accounting, and the existing TLS recovery fault matrix.
+
+The browser package and Rust crates advance to 0.2.0 because the public primitive union gains a variant.
+Update exhaustive primitive switches and deploy matching JavaScript and WASM assets together.
+Older clients reject the new game producer's required profile during negotiation.
+The historical `game-trace --legacy` export remains available for original evidence reproduction.
+
+Reproduce the production path with:
+
+```sh
+cargo build --release --locked -p rui-browser-host --bin game-trace -p rui-transport --example compression_probe
+python3 client-wasm/build.py
+npm --prefix client-browser run build
+python3 demos/games/bench/check-segments.py --output /tmp/rui-segments --render
+```
+
+The script checks both compression modes through the built WASM session receiver and requires every committed state to match direct core replay.
+With `--render`, it renders all 400 frames at three resolutions and compares their hashes to the retained original pixels.
+It records source, publication, renderer, and WASM hashes with byte counts in `summary.json`.
+Rendering needs Chromium and a local listener.
+Without `--render`, byte and WASM state checks still run; existing render results in the output directory are checked when present.

@@ -183,7 +183,7 @@ def verify_projector(binary, captures, expected):
         source = root / "frames.jsonl"
         target = root / "publications.rui"
         source.write_text("".join(json.dumps(frame) + "\n" for frame in captures))
-        subprocess.run([str(binary), str(source), str(target), str(root / "publications.json")], check=True, capture_output=True)
+        subprocess.run([str(binary), str(source), str(target), str(root / "publications.json"), "--legacy"], check=True, capture_output=True)
         if target.read_bytes() != expected:
             raise ValueError("decoded source does not rebuild the original RUI publications")
     return True

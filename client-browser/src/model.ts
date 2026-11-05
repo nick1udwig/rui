@@ -43,6 +43,13 @@ export interface Stop {
 }
 export type Primitive =
   | "Group"
+  | {
+      SegmentBatch: {
+        segments: number[][];
+        width: number;
+        minimum_length: number;
+      };
+    }
   | { SolidRect: { rect: Rect; color: Color } }
   | { RoundedRect: { rect: Rect; radii: Radii; color: Color } }
   | { Border: { rect: Rect; radii: Radii; width: number; color: Color } }

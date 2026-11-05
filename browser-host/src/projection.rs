@@ -45,6 +45,9 @@ pub fn reference(id: u64) -> p::ObjectRef {
     }
 }
 pub fn snapshot(capture: &Capture) -> Result<p::Snapshot, &'static str> {
+    snapshot_with_vectors(capture, true)
+}
+pub fn snapshot_with_vectors(capture: &Capture, batch: bool) -> Result<p::Snapshot, &'static str> {
     if capture.nodes.is_empty() || capture.nodes.len() > 1024 || capture.status.len() > 512 {
         return Err("capture bounds");
     }
@@ -248,16 +251,25 @@ pub fn snapshot(capture: &Capture) -> Result<p::Snapshot, &'static str> {
         })),
     });
     if let Some(frame) = &capture.vectors {
-        add_vectors(&mut records, frame)?;
+        add_vectors(&mut records, frame, batch)?;
     }
     Ok(p::Snapshot {
         revision: 1,
         records,
+        required_features: if batch && capture.vectors.is_some() {
+            vec!["geometry.segments.v1".into()]
+        } else {
+            vec![]
+        },
         ..Default::default()
     })
 }
 
-fn add_vectors(records: &mut Vec<p::Record>, frame: &VectorFrame) -> Result<(), &'static str> {
+fn add_vectors(
+    records: &mut Vec<p::Record>,
+    frame: &VectorFrame,
+    batch: bool,
+) -> Result<(), &'static str> {
     if frame.sequence == 0 || frame.slots > 2048 || frame.lines.len() > frame.slots {
         return Err("vector frame bounds");
     }
@@ -300,8 +312,17 @@ fn add_vectors(records: &mut Vec<p::Record>, frame: &VectorFrame) -> Result<(), 
             _ => {}
         }
     }
-    let mut children = Vec::with_capacity(frame.slots + 1);
-    for slot in 0..=frame.slots {
+    for line in &frame.lines {
+        if line.iter().any(|x| !x.is_finite())
+            || line[..4].iter().any(|x| x.abs() > 4096.)
+            || line[4..].iter().any(|x| !(0.0..=1.0).contains(x))
+        {
+            return Err("vector coordinate/color bounds");
+        }
+    }
+    let slots = if batch { 1 } else { frame.slots };
+    let mut children = Vec::with_capacity(slots + 1);
+    for slot in 0..=slots {
         let id = 101 + slot as u64;
         children.push(scene_ref(id));
         let (primitive, transform) = if slot == 0 {
@@ -319,13 +340,20 @@ fn add_vectors(records: &mut Vec<p::Record>, frame: &VectorFrame) -> Result<(), 
                 }),
                 identity.clone(),
             )
+        } else if batch {
+            (
+                p::scene_node::Primitive::SegmentBatch(p::SegmentBatch {
+                    data: frame
+                        .lines
+                        .iter()
+                        .flat_map(|line| line.iter().copied().chain([1.0]))
+                        .collect(),
+                    width: 1.2,
+                    minimum_length: 0.8,
+                }),
+                identity.clone(),
+            )
         } else if let Some(line) = frame.lines.get(slot - 1) {
-            if line.iter().any(|x| !x.is_finite())
-                || line[..4].iter().any(|x| x.abs() > 4096.)
-                || line[4..].iter().any(|x| !(0.0..=1.0).contains(x))
-            {
-                return Err("vector coordinate/color bounds");
-            }
             let dx = line[2] - line[0];
             let dy = line[3] - line[1];
             let length = dx.hypot(dy);

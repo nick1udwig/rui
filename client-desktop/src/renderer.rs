@@ -811,8 +811,16 @@ impl Renderer {
         let count = state
             .records
             .values()
-            .filter(|r| matches!(r, Record::Scene(_)))
-            .count();
+            .map(|r| match r {
+                Record::Scene(node) => {
+                    1 + match &node.primitive {
+                        Primitive::SegmentBatch { segments, .. } => segments.len(),
+                        _ => 0,
+                    }
+                }
+                _ => 0,
+            })
+            .sum::<usize>();
         if count > self.limits.max_nodes {
             return Err(RenderError::Limit("scene nodes"));
         }
@@ -912,6 +920,51 @@ impl Renderer {
                         visited,
                         depth + 1,
                     )?);
+                }
+                Paint::Group(children)
+            }
+            Primitive::SegmentBatch {
+                segments,
+                width,
+                minimum_length,
+            } => {
+                if segments.len() > 2048 {
+                    return Err(RenderError::Limit("segments"));
+                }
+                if !width.is_finite()
+                    || *width <= 0.0
+                    || !minimum_length.is_finite()
+                    || *minimum_length < 0.0
+                {
+                    return Err(RenderError::Limit("segment dimensions"));
+                }
+                let mut children = Vec::with_capacity(segments.len());
+                for segment in segments {
+                    charge(&mut plan.work, 1, &self.limits)?;
+                    let (rect, transform, color) = rui_protocol_core::model::segment_geometry(
+                        segment,
+                        *width,
+                        *minimum_length,
+                    );
+                    valid_rect(rect)?;
+                    valid_color(color)?;
+                    let matrix = matrix.compose(Matrix::from_affine(transform));
+                    let inverse = matrix.inverse(&self.limits)?;
+                    let bounds = if inverse.is_some() {
+                        Bounds::rect(rect)
+                            .map(|b| b.transformed(matrix))
+                            .transpose()?
+                    } else {
+                        None
+                    };
+                    children.push(plan.nodes.len());
+                    plan.nodes.push(Node {
+                        bounds,
+                        inverse,
+                        clip: None,
+                        opacity: 1.0,
+                        paint: Paint::Rect(rect, color),
+                    });
                 }
                 Paint::Group(children)
             }

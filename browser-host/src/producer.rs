@@ -140,7 +140,11 @@ impl BrowserPort {
             ..Default::default()
         };
         for profile in if game {
-            vec!["glyph.outline-single.v1", "game.vector.v1"]
+            vec![
+                "glyph.outline-single.v1",
+                "game.vector.v1",
+                "geometry.segments.v1",
+            ]
         } else {
             vec!["semantics.only.v1", PROFILE]
         } {

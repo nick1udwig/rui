@@ -308,6 +308,9 @@ impl NetworkClient {
         hello
             .supported_profiles
             .insert("transport.zstd-history.v1".into());
+        hello
+            .supported_profiles
+            .insert("geometry.segments.v1".into());
         let deadline = Duration::from_secs(5);
         // Only the authenticated explicit busy code is retryable. Generic
         // credential/pin/I/O failures leave the retained owner intact.
@@ -467,6 +470,9 @@ impl NetworkClient {
         hello
             .supported_profiles
             .insert("transport.zstd-history.v1".into());
+        hello
+            .supported_profiles
+            .insert("geometry.segments.v1".into());
         let deadline = Duration::from_secs(5);
         let mut ceiling = hello.receiver_limits.envelope_bytes.min(1024 * 1024);
         if ceiling < websocket::MIN_MESSAGE {

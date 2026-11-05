@@ -42,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "semantics.core.v1",
                 "content.no-raster.v1",
                 "glyph.outline-single.v1",
+                "geometry.segments.v1",
                 "transport.zstd-chunks.v1",
                 "transport.zstd-history.v1",
             ]
@@ -82,6 +83,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 t.mutations.len(),
             )
         };
+        if kind == p::Kind::SnapshotBegin {
+            history.clear();
+        }
         let mut id = vec![0; 16];
         id[..8].copy_from_slice(&revision.to_be_bytes());
         let begin = p::PublicationBegin {

@@ -11,7 +11,8 @@ Resource/publication transfer, negotiation, recovery and lease APIs are Rust mod
 [The transport implementation](../transport/README.md) binds these APIs to authenticated TLS/WebSocket messages.
 Semantic, raw-input, composition and resize commands share one exact-byte sequence ledger.
 
-The scene vocabulary includes Group, SolidRect, RoundedRect, Border, LinearGradient, RadialGradient, FillPath, StrokePath, and GlyphRun.
+The core scene vocabulary includes Group, SolidRect, RoundedRect, Border, LinearGradient, RadialGradient, FillPath, StrokePath, and GlyphRun.
+The optional [segment profile](segments-profile.md) adds SegmentBatch.
 Their supported geometry and paint rules are defined in [rendering-profile.md](rendering-profile.md).
 The [CPU reference renderer](renderer-profile.md) implements this vocabulary.
 Unknown required mutations, record kinds, primitives and features fail explicitly; unsupported native effects remain named coverage gaps.

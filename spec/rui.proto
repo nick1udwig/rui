@@ -37,6 +37,8 @@ message Surface {
   repeated bytes source_capture_tokens = 21; repeated string unsupported_features = 22;
 }
 message Group {}
+// Ordered independent solid segments: x1,y1,x2,y2,premultiplied r,g,b,a.
+message SegmentBatch { repeated double data = 1; double width = 2; double minimum_length = 3; }
 message SolidRect { Rect rect = 1; Color color = 2; }
 // All new primitive messages reserve tags below128 for required behavior.
 // Only optional metadata may use tags128 and above.
@@ -71,7 +73,7 @@ message SceneNode {
   oneof primitive {
     Group group = 10; SolidRect solid_rect = 11; FillPath fill_path = 12; GlyphRun glyph_run = 13;
     RoundedRect rounded_rect = 14; Border border = 15; LinearGradient linear_gradient = 16;
-    RadialGradient radial_gradient = 17; StrokePath stroke_path = 18;
+    RadialGradient radial_gradient = 17; StrokePath stroke_path = 18; SegmentBatch segment_batch = 19;
   }
   repeated bytes resource_refs = 20;
 }

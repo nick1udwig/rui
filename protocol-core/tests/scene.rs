@@ -114,6 +114,7 @@ fn stroke() -> p::StrokePath {
 fn all() -> Vec<p::scene_node::Primitive> {
     vec![
         p::scene_node::Primitive::Group(p::Group {}),
+        p::scene_node::Primitive::SegmentBatch(segments()),
         p::scene_node::Primitive::SolidRect(p::SolidRect {
             rect: Some(bounds()),
             color: Some(color()),
@@ -234,7 +235,7 @@ fn retained(replica: &Replica) -> &Primitive {
 }
 
 #[test]
-fn all_nine_primitives_roundtrip_protobuf_and_commit_typed_records() {
+fn all_primitives_roundtrip_protobuf_and_commit_typed_records() {
     let records = all()
         .into_iter()
         .enumerate()
@@ -255,7 +256,7 @@ fn all_nine_primitives_roundtrip_protobuf_and_commit_typed_records() {
         replica.apply_snapshot(&bytes, &available()).unwrap(),
         ApplyOutcome::Applied { revision: 1 }
     );
-    assert_eq!(replica.state().records.len(), 9);
+    assert_eq!(replica.state().records.len(), 10);
     assert_eq!(replica.resource_refs(), &available());
     let kinds = replica
         .state()
@@ -267,6 +268,7 @@ fn all_nine_primitives_roundtrip_protobuf_and_commit_typed_records() {
             };
             match scene.primitive {
                 Primitive::Group => "Group",
+                Primitive::SegmentBatch { .. } => "SegmentBatch",
                 Primitive::SolidRect { .. } => "SolidRect",
                 Primitive::FillPath { .. } => "FillPath",
                 Primitive::GlyphRun { .. } => "GlyphRun",
@@ -282,6 +284,7 @@ fn all_nine_primitives_roundtrip_protobuf_and_commit_typed_records() {
         kinds,
         vec![
             "Group",
+            "SegmentBatch",
             "SolidRect",
             "FillPath",
             "GlyphRun",
@@ -743,7 +746,7 @@ fn packed_unpacked_and_mixed_dash_encodings_share_preallocation_limits() {
 
 #[test]
 fn unknown_required_variants_and_options_fail_even_beside_known_variants() {
-    for tag in [19, 99] {
+    for tag in [21, 99] {
         let mut node =
             scene(1, 1, Some(p::scene_node::Primitive::Group(p::Group {}))).encode_to_vec();
         field(tag, &[], &mut node);
@@ -858,4 +861,67 @@ fn dimensionless_miter_ratio_uses_its_own_ceiling_with_small_geometry_limits() {
     assert_eq!(*width, 0.01);
     assert_eq!(*miter_limit, 2.0);
     assert_eq!(replica.state().revision, 1);
+}
+
+fn segments() -> p::SegmentBatch {
+    p::SegmentBatch {
+        data: vec![10., 20., 100., 80., 0.5, 0.25, 0., 0.75],
+        width: 1.2,
+        minimum_length: 0.8,
+    }
+}
+
+#[test]
+fn segment_batches_validate_shape_dimensions_coordinates_and_premultiplication() {
+    for (index, value) in [
+        (0, f64::NAN),
+        (1, f64::INFINITY),
+        (2, 2e9),
+        (4, -1.),
+        (4, 1.),
+        (7, 0.1),
+    ] {
+        let mut batch = segments();
+        batch.data[index] = value;
+        reject(p::scene_node::Primitive::SegmentBatch(batch));
+    }
+    let mut batch = segments();
+    batch.data.pop();
+    reject(p::scene_node::Primitive::SegmentBatch(batch));
+    let mut batch = segments();
+    batch.data = batch.data.repeat(2049);
+    reject(p::scene_node::Primitive::SegmentBatch(batch));
+    for value in [0., -1., f64::NAN, f64::INFINITY] {
+        let mut batch = segments();
+        batch.width = value;
+        reject(p::scene_node::Primitive::SegmentBatch(batch));
+    }
+    for value in [-1., f64::NAN, f64::INFINITY] {
+        let mut batch = segments();
+        batch.minimum_length = value;
+        reject(p::scene_node::Primitive::SegmentBatch(batch));
+    }
+    accepted(p::scene_node::Primitive::SegmentBatch(segments()));
+}
+
+#[test]
+fn segment_preflight_counts_merged_packed_and_unpacked_values() {
+    let mut packed = Vec::new();
+    field(1, &vec![0; 1024 * 8 * 8], &mut packed);
+    let mut node = scene(1, 1, None).encode_to_vec();
+    field(19, &packed, &mut node);
+    field(19, &packed, &mut node);
+    let mut unpacked = vec![9];
+    unpacked.extend_from_slice(&0f64.to_le_bytes());
+    field(19, &unpacked, &mut node);
+    assert_eq!(
+        wire::decode_snapshot(&raw_snapshot(&node), &Limits::default()),
+        Err(WireError::Limit)
+    );
+    let mut unknown = segments().encode_to_vec();
+    field(4, &[], &mut unknown);
+    assert!(matches!(
+        wire::decode_snapshot(&raw_primitive(19, &unknown), &Limits::default()),
+        Err(WireError::Unsupported(_))
+    ));
 }

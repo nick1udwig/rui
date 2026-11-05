@@ -220,6 +220,11 @@ pub enum GlyphFont {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum Primitive {
     Group,
+    SegmentBatch {
+        segments: Vec<[f64; 8]>,
+        width: f64,
+        minimum_length: f64,
+    },
     SolidRect {
         rect: Rect,
         color: Color,
@@ -522,6 +527,7 @@ impl State {
                     vector_memory(&s.children)
                         + set_memory(s.resources.len())
                         + match &s.primitive {
+                            Primitive::SegmentBatch { segments, .. } => vector_memory(segments),
                             Primitive::GlyphRun {
                                 glyph_ids,
                                 positions,
@@ -1504,6 +1510,37 @@ fn convert_record(value: pb::Record, limits: &Limits) -> Result<Record, ModelErr
         pb::record::Record::Scene(v) => {
             let primitive = match v.primitive.ok_or(ModelError::Unsupported)? {
                 pb::scene_node::Primitive::Group(_) => Primitive::Group,
+                pb::scene_node::Primitive::SegmentBatch(v) => {
+                    if v.data.len() % 8 != 0 || v.data.len() / 8 > 2048 {
+                        return Err(ModelError::Limit("segments"));
+                    }
+                    let width = number(v.width, limits)?;
+                    let minimum_length = number(v.minimum_length, limits)?;
+                    if width <= 0.0 || minimum_length < 0.0 {
+                        return Err(invalid("segment dimensions"));
+                    }
+                    let mut segments = Vec::with_capacity(v.data.len() / 8);
+                    for values in v.data.chunks_exact(8) {
+                        let segment: [f64; 8] = values.try_into().unwrap();
+                        for value in &segment[..4] {
+                            number(*value, limits)?;
+                        }
+                        color(pb::Color {
+                            red: segment[4],
+                            green: segment[5],
+                            blue: segment[6],
+                            alpha: segment[7],
+                        })?;
+                        let (rect, _, _) = segment_geometry(&segment, width, minimum_length);
+                        number(rect.width, limits)?;
+                        segments.push(segment);
+                    }
+                    Primitive::SegmentBatch {
+                        segments,
+                        width,
+                        minimum_length,
+                    }
+                }
                 pb::scene_node::Primitive::SolidRect(v) => Primitive::SolidRect {
                     rect: rect(required(v.rect, "solid rect")?, limits)?,
                     color: color(required(v.color, "solid color")?)?,
@@ -2079,4 +2116,38 @@ fn ownership_index(
         }
     }
     Ok(index)
+}
+
+/// Lower a butt-ended segment to the existing oriented rectangle semantics.
+pub fn segment_geometry(s: &[f64; 8], width: f64, minimum_length: f64) -> (Rect, Affine, Color) {
+    let dx = s[2] - s[0];
+    let dy = s[3] - s[1];
+    let length = dx.hypot(dy);
+    let (xx, yx) = if length > 0.0 {
+        (dx / length, dy / length)
+    } else {
+        (1.0, 0.0)
+    };
+    (
+        Rect {
+            x: 0.0,
+            y: -width / 2.0,
+            width: length.max(minimum_length),
+            height: width,
+        },
+        Affine {
+            xx,
+            yx,
+            xy: -yx,
+            yy: xx,
+            tx: s[0],
+            ty: s[1],
+        },
+        Color {
+            red: s[4],
+            green: s[5],
+            blue: s[6],
+            alpha: s[7],
+        },
+    )
 }
