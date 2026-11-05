@@ -8,6 +8,7 @@ The current game adapter uses more bandwidth and more client processing than the
 At 640 × 480 and 25 frames/s, Battlezone needs **3.71 Mb/s of RUI publication payload**, versus **0.32 Mb/s for H.264 CRF18 veryfast** and **1.14 Mb/s for exact lossless RGB H.264 veryfast**.
 Asteroids needs **1.69 Mb/s**, versus **0.22 Mb/s** and **1.04 Mb/s**, respectively.
 These are paired visual-payload measurements, rather than full-session packet captures.
+The follow-up [bandwidth directions report](rui-bandwidth-directions.md) tests temporal compression and compact beam encodings and examines broader architecture options.
 
 RUI's demonstrated advantages are local vector scaling without a new source stream and bandwidth savings against independent PNG frames at native and 2× resolution.
 Its projection/serialization stage is small; complete host CPU savings remain unmeasured.

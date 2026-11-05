@@ -4,6 +4,24 @@ This harness compares the current RUI game visual projection with raster encodin
 It does not replace the game demo's transport, controller, or security policy.
 The main findings are in [the report](../../../docs/game-vector-raster-comparison.md).
 
+## Bandwidth strategy probes
+
+The follow-up [directions report](../../../docs/rui-bandwidth-directions.md) compares bounded temporal compression and compact source geometry.
+Its probes use retained traces without starting MAME, a browser, or a server.
+Use Python 3.14 or newer with the standard-library `compression.zstd` module.
+
+```sh
+cargo build --release --locked -p rui-browser-host --bin game-trace
+python3 demos/games/bench/strategies.py --output /tmp/rui-strategies --game-trace target/release/game-trace
+python3 -m unittest discover -s demos/games/bench -p test_strategies.py -v
+```
+
+The output directory must be new.
+The optional `--game-trace` argument verifies that reconstructed geometry produces byte-identical original RUI publications.
+Every compression probe flushes and verifies each update before processing the next one.
+Source-array sizes omit protocol records and controls; they are estimates for a new representation, not complete transport measurements.
+The [retained results](../evidence/strategies/README.md) contain settings, hashes, per-frame sizes, and verification results.
+
 ## Prerequisites
 
 Use Linux with FFmpeg containing `libx264`, `libx264rgb`, and PNG encoders, Node, Chromium, and the existing RUI Rust/WASM build tools.
