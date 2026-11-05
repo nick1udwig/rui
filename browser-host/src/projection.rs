@@ -338,7 +338,7 @@ fn add_vectors(
                         ..Default::default()
                     }),
                 }),
-                identity.clone(),
+                identity,
             )
         } else if batch {
             (
@@ -351,7 +351,7 @@ fn add_vectors(
                     width: 1.2,
                     minimum_length: 0.8,
                 }),
-                identity.clone(),
+                identity,
             )
         } else if let Some(line) = frame.lines.get(slot - 1) {
             let dx = line[2] - line[0];
@@ -387,10 +387,7 @@ fn add_vectors(
                 },
             )
         } else {
-            (
-                p::scene_node::Primitive::Group(p::Group {}),
-                identity.clone(),
-            )
+            (p::scene_node::Primitive::Group(p::Group {}), identity)
         };
         records.push(p::Record {
             record: Some(p::record::Record::Scene(p::SceneNode {

@@ -1520,8 +1520,7 @@ fn convert_record(value: pb::Record, limits: &Limits) -> Result<Record, ModelErr
                         return Err(invalid("segment dimensions"));
                     }
                     let mut segments = Vec::with_capacity(v.data.len() / 8);
-                    for values in v.data.chunks_exact(8) {
-                        let segment: [f64; 8] = values.try_into().unwrap();
+                    for &segment in v.data.as_chunks::<8>().0 {
                         for value in &segment[..4] {
                             number(*value, limits)?;
                         }
