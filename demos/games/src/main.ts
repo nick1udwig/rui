@@ -8,7 +8,7 @@ import {
 } from "@rui/client-browser";
 import "./style.css";
 const app = document.querySelector<HTMLDivElement>("#app")!;
-app.innerHTML = `<main><header><p class="eyebrow">RUI / VECTOR ARCADE</p><h1>Geometry across the wire.</h1><p>A native desktop game, controlled here. Every line is drawn from the host’s RUI scene.</p></header><section class="toolbar"><label>Host credential <input id="credential" type="file"></label><button id="connect">Connect</button><button id="control" disabled>Take control</button><button id="release" disabled>Release control</button><label>Render scale <select id="zoom"><option value="0.5">½×</option><option value="0.75" selected>¾×</option><option value="1">1×</option><option value="1.5">1½×</option><option value="2">2×</option></select></label></section><p id="status" role="status">Choose the credential printed by the host.</p><section class="cabinet"><div class="viewport"><canvas id="screen" aria-label="Remote vector game"></canvas></div></section><section id="controls" aria-label="Game controls"></section><section class="metrics"><div><strong id="fps">0</strong><span>presented frames / s</span></div><div><strong id="bandwidth">0</strong><span>KiB / s received</span></div><div><strong id="draw">0</strong><span>ms draw / frame</span></div><div><strong id="lines">0</strong><span>retained line slots</span></div></section><footer><p>← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start</p><p>Host simulation · RUI Protobuf · vector scene updates · local rasterization</p><p>Fixed-width beam presentation. CRT glow and remote audio are outside this demo.</p></footer></main>`;
+app.innerHTML = `<main><header><p class="eyebrow">RUI / VECTOR ARCADE</p><h1 id="title">Geometry across the wire.</h1><p>A native desktop game, controlled here. Every line is drawn from the host’s RUI scene.</p></header><section class="toolbar"><label>Host credential <input id="credential" type="file"></label><button id="connect">Connect</button><button id="control" disabled>Take control</button><button id="release" disabled>Release control</button><label>Render scale <select id="zoom"><option value="0.5">½×</option><option value="0.75" selected>¾×</option><option value="1">1×</option><option value="1.5">1½×</option><option value="2">2×</option></select></label></section><p id="status" role="status">Choose the credential printed by the host.</p><section class="cabinet"><div class="viewport"><canvas id="screen" aria-label="Remote vector game"></canvas></div></section><section id="controls" aria-label="Game controls"></section><section class="metrics"><div><strong id="fps">0</strong><span>presented frames / s</span></div><div><strong id="bandwidth">0</strong><span>KiB / s received</span></div><div><strong id="draw">0</strong><span>ms draw / frame</span></div><div><strong id="lines">0</strong><span>retained line slots</span></div></section><footer><p id="keyboard">← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start</p><p>Host simulation · RUI Protobuf · vector scene updates · local rasterization</p><p>Fixed-width beam presentation. CRT glow and remote audio are outside this demo.</p></footer></main>`;
 const element = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const canvas = element<HTMLCanvasElement>("screen");
@@ -20,7 +20,8 @@ const connect = element<HTMLButtonElement>("connect");
 const control = element<HTMLButtonElement>("control");
 const release = element<HTMLButtonElement>("release");
 const nativeRenderer = new CanvasRenderer(canvas);
-let zoom = 0.75;
+let zoom = innerWidth < 600 ? 0.5 : 0.75;
+element<HTMLSelectElement>("zoom").value = String(zoom);
 const renderer = {
   render(
     state: State,
@@ -54,8 +55,19 @@ let incoming = 0,
 const transport: TransportFactory = (url, callbacks) => {
   const ws = new WebSocket(url, "rui.v1");
   ws.binaryType = "arraybuffer";
-  ws.onopen = () => callbacks.opened();
+  ws.onopen = () => {
+    if (ws.protocol === "rui.v1") callbacks.opened();
+    else {
+      ws.close();
+      callbacks.failed();
+    }
+  };
   ws.onmessage = (event) => {
+    if (!(event.data instanceof ArrayBuffer)) {
+      ws.close();
+      callbacks.failed();
+      return;
+    }
     incoming += event.data.byteLength;
     totalIncoming += event.data.byteLength;
     callbacks.message(event.data);
@@ -77,6 +89,11 @@ const transport: TransportFactory = (url, callbacks) => {
 };
 let client: BrowserClient | undefined;
 let controlling = false;
+let game = "asteroid";
+const keyState = new Set<string>();
+const pointerState = new Set<bigint>();
+const pulseTimers = new Map<bigint, ReturnType<typeof setTimeout>>();
+const pressedAt = new Map<bigint, number>();
 const wanted = new Map<bigint, boolean>();
 const sent = new Map<bigint, boolean>();
 let held = false;
@@ -113,6 +130,11 @@ function flush() {
   }
 }
 function clear() {
+  keyState.clear();
+  pointerState.clear();
+  pressedAt.clear();
+  for (const timer of pulseTimers.values()) clearTimeout(timer);
+  pulseTimers.clear();
   wanted.clear();
   sent.clear();
   held = false;
@@ -148,6 +170,8 @@ connect.onclick = async () => {
         }
         if (event.type === "control") {
           controlling = event.granted;
+          for (const button of buttons.values())
+            button.disabled = !event.granted;
           control.disabled = event.granted;
           release.disabled = !event.granted;
           if (!event.granted) clear();
@@ -167,29 +191,49 @@ connect.onclick = async () => {
                 : [],
           );
           if (!buttons.size) {
+            game = nodes[0]?.label?.includes("track") ? "bzone" : "asteroid";
+            document.body.classList.toggle("battlezone", game === "bzone");
+            element("title").textContent =
+              game === "bzone"
+                ? "Battlezone. Across the wire."
+                : "Asteroids. Across the wire.";
+            element("keyboard").textContent =
+              game === "bzone"
+                ? "C twice, then Enter to start · ↑ ↓ drive · ← → turn · Space fire · W/S left track · I/K right track"
+                : "← → steer · Space fire · ↑ thrust · H hyperspace · C coin · Enter start";
             targets = nodes.map((n) => n.id);
             for (const node of nodes) {
               const button = document.createElement("button");
               button.textContent = node.label ?? "Control";
-              button.disabled = false;
+              button.disabled = !controlling;
               button.onpointerdown = (event) => {
                 event.preventDefault();
                 button.setPointerCapture(event.pointerId);
-                set(node.id, true);
+                pointerState.add(node.id);
+                press(node.id);
               };
-              button.onpointerup = () => set(node.id, false);
-              button.onpointercancel = () => set(node.id, false);
-              button.onlostpointercapture = () => set(node.id, false);
+              button.onpointerup = () => {
+                pointerState.delete(node.id);
+                releaseButton(node.id);
+              };
+              button.onpointercancel = () => {
+                pointerState.delete(node.id);
+                releaseButton(node.id);
+              };
+              button.onlostpointercapture = () => {
+                pointerState.delete(node.id);
+                releaseButton(node.id);
+              };
               button.onkeydown = (event) => {
                 if (event.key === " " || event.key === "Enter") {
                   event.preventDefault();
-                  if (!event.repeat) set(node.id, true);
+                  if (!event.repeat) press(node.id);
                 }
               };
               button.onkeyup = (event) => {
                 if (event.key === " " || event.key === "Enter") {
                   event.preventDefault();
-                  set(node.id, false);
+                  releaseButton(node.id);
                 }
               };
               buttons.set(node.id, button);
@@ -210,8 +254,15 @@ connect.onclick = async () => {
           flush();
         }
         if (event.type === "commandResult") {
-          inputTimes.push(performance.now() - commandStarted);
-          if (inputTimes.length > 1024) inputTimes.shift();
+          if (event.status === "Dispatched") {
+            inputTimes.push(performance.now() - commandStarted);
+            if (inputTimes.length > 1024) inputTimes.shift();
+          }
+          if (
+            controlling &&
+            (event.status === "Dispatched" || event.status === "Applied")
+          )
+            status.textContent = "You control the desktop game.";
           if (event.status !== "Dispatched" && event.status !== "Applied") {
             sent.clear();
             status.textContent = `Input: ${event.status}`;
@@ -245,6 +296,30 @@ control.onclick = () => {
   canvas.focus();
 };
 release.onclick = relinquish;
+function press(id: bigint) {
+  const timer = pulseTimers.get(id);
+  if (timer) clearTimeout(timer);
+  pulseTimers.delete(id);
+  pressedAt.set(id, performance.now());
+  set(id, true);
+}
+function releaseButton(id: bigint) {
+  if (targets.indexOf(id) >= 5) {
+    const remaining = 180 - (performance.now() - (pressedAt.get(id) ?? 0));
+    if (remaining > 0) {
+      if (!pulseTimers.has(id))
+        pulseTimers.set(
+          id,
+          setTimeout(() => {
+            pulseTimers.delete(id);
+            set(id, false);
+          }, remaining),
+        );
+      return;
+    }
+  }
+  set(id, false);
+}
 const keys: Record<string, number> = {
   ArrowLeft: 0,
   ArrowRight: 1,
@@ -254,21 +329,66 @@ const keys: Record<string, number> = {
   KeyC: 5,
   Enter: 6,
 };
+function keyboardValues(): boolean[] {
+  const has = (...codes: string[]) => codes.some((code) => keyState.has(code));
+  if (game === "bzone") {
+    const drive = Number(has("ArrowUp")) - Number(has("ArrowDown"));
+    const turn = Number(has("ArrowRight")) - Number(has("ArrowLeft"));
+    const left = drive + turn + Number(has("KeyW")) - Number(has("KeyS"));
+    const right = drive - turn + Number(has("KeyI")) - Number(has("KeyK"));
+    return [
+      left > 0,
+      left < 0,
+      has("Space"),
+      right > 0,
+      right < 0,
+      has("KeyC"),
+      has("Enter"),
+    ];
+  }
+  return targets.map((_, i) =>
+    Object.entries(keys).some(
+      ([key, index]) => index === i && keyState.has(key),
+    ),
+  );
+}
 for (const type of ["keydown", "keyup"] as const)
   window.addEventListener(type, (event) => {
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLSelectElement ||
       event.target instanceof HTMLButtonElement ||
-      !controlling ||
-      !(event.code in keys)
+      !controlling
     )
       return;
+    const supported =
+      game === "bzone"
+        ? [
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+            "Space",
+            "KeyC",
+            "Enter",
+            "KeyW",
+            "KeyS",
+            "KeyI",
+            "KeyK",
+          ].includes(event.code)
+        : event.code in keys;
+    if (!supported) return;
     event.preventDefault();
     if (event.repeat) return;
-    const id = targets[keys[event.code]];
-    if (id !== undefined) set(id, type === "keydown");
-    held = type === "keydown";
+    if (type === "keydown") keyState.add(event.code);
+    else keyState.delete(event.code);
+    const values = keyboardValues();
+    targets.forEach((id, i) => {
+      const value = values[i] || pointerState.has(id);
+      if (value && !wanted.get(id)) press(id);
+      else if (!value && wanted.get(id)) releaseButton(id);
+    });
+    held = keyState.size > 0;
   });
 window.addEventListener("blur", relinquish);
 document.addEventListener("visibilitychange", () => {
@@ -297,6 +417,7 @@ Object.defineProperty(window, "ruiGame", {
     inputTimes: [...inputTimes],
     receivedBytes: totalIncoming,
     presentedFrames: totalPresented,
+    game,
     outgoing,
     targets: targets.map(String),
     held,

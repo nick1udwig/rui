@@ -1,12 +1,18 @@
 {
   "game": "asteroid",
-  "fps": 25,
-  "inputAckP95Ms": 25.599999994039536,
-  "samples": 16,
-  "maxLines": 132,
-  "litPixels": 4827,
+  "fps": 25.166666666666668,
+  "measureSeconds": 6,
+  "mameVersion": "0.289 (mame0289-dirty)",
+  "cpu": "12th Gen Intel(R) Core(TM) i7-1280P",
+  "browserVersion": "155.0.8059.84",
+  "inputAckP95Ms": 23.30000001192093,
+  "samples": 19,
+  "litPixels": 4929,
+  "mobileTouch": true,
+  "reconnect": true,
   "nativeInputs": true,
   "releaseOnBlur": true,
   "releaseOnDisconnect": true,
-  "receivedKiBPerSecond": 141.3359375
+  "receivedKiBPerSecond": 146.43131510416666,
+  "finalLineCount": 133
 }

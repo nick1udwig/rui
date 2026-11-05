@@ -1,0 +1,18 @@
+{
+  "game": "bzone",
+  "fps": 25,
+  "measureSeconds": 30,
+  "mameVersion": "0.289 (mame0289-dirty)",
+  "cpu": "12th Gen Intel(R) Core(TM) i7-1280P",
+  "browserVersion": "155.0.8059.84",
+  "inputAckP95Ms": 30.400000005960464,
+  "samples": 89,
+  "litPixels": 12877,
+  "mobileTouch": true,
+  "reconnect": true,
+  "nativeInputs": true,
+  "releaseOnBlur": true,
+  "releaseOnDisconnect": true,
+  "receivedKiBPerSecond": 231.92835286458333,
+  "finalLineCount": 258
+}

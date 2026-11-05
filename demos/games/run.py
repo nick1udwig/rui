@@ -7,7 +7,6 @@ from pathlib import Path
 import signal
 import subprocess
 import tempfile
-import time
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -18,7 +17,7 @@ def run(*args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--game', choices=['asteroid'], default='asteroid')
+    parser.add_argument('--game', choices=['asteroid', 'bzone'], default='bzone')
     parser.add_argument('--mame', default='mame')
     parser.add_argument('--rompath', type=Path, required=True)
     parser.add_argument('--plugins', type=Path)

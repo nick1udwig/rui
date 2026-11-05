@@ -2,6 +2,9 @@ local directory = assert(os.getenv('RUI_GAME_STATE'))
 local subscriptions, lines, controls = {}, {}, {}
 local sequence, input_revision, input_mask = 0, 0, 0
 local fields = { 'P1 Button 1', 'P1 Button 2', 'P1 Button 3', 'P1 Button 4', 'P1 Button 5', 'Coin 1', '1 Player Start' }
+if os.getenv('RUI_GAME') == 'bzone' then
+    fields = { 'P1 Left Stick/Up', 'P1 Left Stick/Down', 'P1 Button 1', 'P1 Right Stick/Up', 'P1 Right Stick/Down', 'Coin 1', '1 Player Start' }
+end
 local function linear(v)
     if v <= 0.04045 then return v / 12.92 end
     return ((v + 0.055) / 1.055) ^ 2.4
@@ -35,6 +38,7 @@ subscriptions[2] = device:add_line_notifier(function(x0, y0, x1, y1, color, inte
     local r = linear(((color >> 16) & 255) / 255 * intensity / 255)
     local g = linear(((color >> 8) & 255) / 255 * intensity / 255)
     local b = linear((color & 255) / 255 * intensity / 255)
+    if os.getenv('RUI_GAME') == 'bzone' then r, b = r * 0.25, b * 0.4 end
     lines[#lines + 1] = string.format('[%.4f,%.4f,%.4f,%.4f,%.6f,%.6f,%.6f]',
         x0 / width * 640, y0 / height * 480,
         x1 / width * 640, y1 / height * 480, r, g, b)

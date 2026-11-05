@@ -1,14 +1,18 @@
 import { createServer as createSocket } from "node:net";
 import { spawn } from "node:child_process";
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createServer } from "vite";
-import { GameSource } from "./model.mjs";
+import {
+  GameSource,
+  ASTEROIDS_CONTROLS,
+  BATTLEZONE_CONTROLS,
+} from "./model.mjs";
 const directory = process.env.RUI_STATE;
 const native = join(directory, "mame");
 mkdirSync(native, { recursive: true, mode: 0o700 });
 const game = process.env.RUI_GAME;
-if (game !== "asteroid") throw new Error("unsupported game");
+if (!["asteroid", "bzone"].includes(game)) throw new Error("unsupported game");
 const log = (await import("node:fs")).openSync(
   join(directory, "mame.log"),
   "w",
@@ -60,7 +64,10 @@ child.on("exit", (code) => {
     process.exit(code || 1);
   }
 });
-const source = new GameSource(native);
+const source = new GameSource(
+  native,
+  game === "bzone" ? BATTLEZONE_CONTROLS : ASTEROIDS_CONTROLS,
+);
 const deadline = Date.now() + 20000;
 while (!existsSync(join(native, "frame.json"))) {
   if (Date.now() > deadline)

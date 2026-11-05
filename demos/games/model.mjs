@@ -9,6 +9,15 @@ export const ASTEROIDS_CONTROLS = [
   "Insert coin",
   "Start",
 ];
+export const BATTLEZONE_CONTROLS = [
+  "Left track forward",
+  "Left track reverse",
+  "Fire",
+  "Right track forward",
+  "Right track reverse",
+  "Insert coin",
+  "Start",
+];
 export class GameSource {
   constructor(directory, labels = ASTEROIDS_CONTROLS) {
     this.directory = directory;
@@ -64,7 +73,8 @@ export class GameSource {
           id: 3,
           version: 1,
           role: "root",
-          label: "Vector arcade",
+          label:
+            this.labels === BATTLEZONE_CONTROLS ? "Battlezone" : "Asteroids",
           children: this.labels.map((_, i) => 4 + i),
         },
         ...this.labels.map((label, i) => ({
