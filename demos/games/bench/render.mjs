@@ -15,6 +15,7 @@ const widths = (process.env.RUI_BENCH_WIDTHS ?? "320,640,1280")
 assert(widths.length && widths.every((w) => [320, 640, 1280].includes(w)));
 const runs = Number(process.env.RUI_BENCH_RUNS ?? 3);
 assert(Number.isInteger(runs) && runs >= 1 && runs <= 5);
+const hashOnly = process.env.RUI_BENCH_HASH_ONLY === "1";
 const capture = JSON.parse(await readFile(resolve(directory, "capture.json")));
 const server = createServer(async (request, response) => {
   try {
@@ -58,6 +59,12 @@ try {
   let activeFile,
     nextFrame = 0,
     frameBytes = 0;
+  let frameHashes = [];
+  await page.exposeFunction("saveHash", (index, hash) => {
+    assert.equal(index, nextFrame++);
+    assert.match(hash, /^[a-f0-9]{64}$/);
+    frameHashes.push(hash);
+  });
   await page.exposeFunction("saveFrame", async (index, encoded) => {
     assert.equal(index, nextFrame++);
     const bytes = Buffer.from(encoded, "base64");
@@ -69,9 +76,10 @@ try {
     activeFile = resolve(directory, `${width}.rgba`);
     nextFrame = 0;
     frameBytes = width * height * 4;
-    await writeFile(activeFile, "");
+    frameHashes = [];
+    if (!hashOnly) await writeFile(activeFile, "");
     const measured = await page.evaluate(
-      async ({ width, height, repetitions }) => {
+      async ({ width, height, repetitions, hashOnly }) => {
         const { default: init, Receiver } =
           await import("/client-browser/wasm/rui_client_wasm.js");
         const { CanvasRenderer } =
@@ -135,6 +143,18 @@ try {
               const data = canvas
                 .getContext("2d")
                 .getImageData(0, 0, width, height).data;
+              if (hashOnly) {
+                const digest = new Uint8Array(
+                  await crypto.subtle.digest("SHA-256", data),
+                );
+                await window.saveHash(
+                  i,
+                  [...digest]
+                    .map((v) => v.toString(16).padStart(2, "0"))
+                    .join(""),
+                );
+                continue;
+              }
               let string = "";
               for (let k = 0; k < data.length; k += 16384)
                 string += String.fromCharCode(...data.subarray(k, k + 16384));
@@ -148,18 +168,27 @@ try {
         }
         return { width, height, frames: frames.length, runs };
       },
-      { width, height, repetitions: runs },
+      { width, height, repetitions: runs, hashOnly },
     );
     assert.equal(nextFrame, capture.frames);
-    const file = await stat(activeFile);
-    assert.equal(file.size, capture.frames * frameBytes);
-    const hash = createHash("sha256");
-    for await (const chunk of createReadStream(activeFile)) hash.update(chunk);
-    measured.rgbaSha256 = hash.digest("hex");
+    if (hashOnly) {
+      measured.rgbaFrameSha256 = frameHashes;
+    } else {
+      const file = await stat(activeFile);
+      assert.equal(file.size, capture.frames * frameBytes);
+      const hash = createHash("sha256");
+      for await (const chunk of createReadStream(activeFile))
+        hash.update(chunk);
+      measured.rgbaSha256 = hash.digest("hex");
+    }
     results.push(measured);
     console.log(JSON.stringify({ width, height, frames: measured.frames }));
   }
-  const hashes = {};
+  const hashes = {
+    publicationStream: createHash("sha256")
+      .update(await readFile(resolve(directory, "publications.rui")))
+      .digest("hex"),
+  };
   for (const name of [
     "client-browser/dist/renderer.js",
     "client-browser/wasm/rui_client_wasm_bg.wasm",

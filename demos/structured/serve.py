@@ -4,8 +4,20 @@ import argparse
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 import urllib.parse
+import stream
 ROOT=Path(__file__).resolve().parents[2]
 class Handler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        path=urllib.parse.urlsplit(self.path).path
+        if path.startswith('/stream/'):
+            name=path[8:]
+            if name not in ('objects','flattened'):
+                self.send_error(404);return
+            source=self.server.data/name/'publications.packets'
+            if not source.is_file():self.send_error(404);return
+            stream.serve(self,source);return
+        return super().do_GET()
+
     def translate_path(self,path):
         path=urllib.parse.unquote(urllib.parse.urlsplit(path).path)
         base=self.server.data if path.startswith('/data/') else ROOT
@@ -15,7 +27,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not relative:relative='demos/structured/phone.html'
         target=(base/relative).resolve()
         if not target.is_relative_to(base):return str(base/'not-found')
-        if base==ROOT and not (relative.startswith('client-browser/dist/') or relative.startswith('client-browser/wasm/') or relative in ('demos/structured/phone.html','demos/structured/state.mjs')):return str(base/'not-found')
+        if base==ROOT and not (relative.startswith('client-browser/dist/') or relative.startswith('client-browser/wasm/') or relative in ('demos/structured/phone.html','demos/structured/state.mjs','demos/structured/live.html')):return str(base/'not-found')
         return str(target)
     def list_directory(self,path):self.send_error(404);return None
 

@@ -38,6 +38,7 @@ The profiles below document implemented contracts and extensions.
 - [Application matrix](application-matrix.md), [GTK coverage](gtk-coverage.md), and [square-border lowering](gtk-square-borders.md): supported cooperating source content and explicit gaps.
 - [Game vector/raster comparison](game-vector-raster-comparison.md): paired payload, processing, quality, and scaling measurements with reproducible scripts.
 - [RUI bandwidth directions](rui-bandwidth-directions.md): measured compression and compact geometry probes, plus transport and architecture options for competing with H.264.
+- [Source-aware replay](source-aware-demo.md): retained objects, camera transforms, paired pixels, and next directions.
 - [Structured workload measurements](structured-bandwidth.md): broader paired workloads, transport accounting, recovery, and device limits.
 - [Bandwidth implementation](bandwidth-implementation.md): deployed code paths, production encoder measurements, and receiver checks.
 - [Performance](performance.md), [large workloads](large-performance.md), and [performance gates](performance-gates.md): measurements, procedures, and unmet targets.

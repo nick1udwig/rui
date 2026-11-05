@@ -65,3 +65,31 @@ This runner downloads a trace and replays it locally; it is not a live key-to-ph
 Repeat after clearing site data for cold assets, and without clearing for a warm run.
 Battery energy needs separate device instrumentation.
 `check-phone.mjs` verifies the touch layout in desktop Chromium; its result explicitly says that no physical phone was measured.
+
+## Source-aware object and camera experiment
+
+Generate and measure an authored 32-object scene in retained and flattened forms.
+The retained form changes eight object poses and one camera transform, while object geometry stays cached.
+The flattened form projects the same endpoints into one changing segment batch.
+The script requires identical pixel hashes at 320 × 240, 640 × 480, and 1280 × 960 before it compares either form with video.
+The flattened renderer sends per-frame SHA-256 hashes to the harness, so only the retained-object movie needs raw pixel storage.
+Use `--reuse-render` after an interrupted run; complete captures are reused only when publication, renderer, and WASM hashes match and the required pixel data is present.
+
+```sh
+python demos/structured/run-objects.py --output /tmp/rui-objects
+node demos/structured/check-live.mjs /tmp/rui-objects
+python3 demos/structured/serve.py --data /tmp/rui-objects --host 0.0.0.0 --port 8099
+```
+
+Open `http://HOST:8099/demos/structured/live.html`, where `HOST` is the desktop or its Tailscale address.
+Select a representation and select **Play from host**.
+Pause, change local resolution, then resume.
+The server waits for real browser presentation acknowledgements and keeps at most one publication in flight.
+A pause longer than 60 seconds can close the fixture connection; select **Play from host** to restart.
+The page retains the final image so that resolution can also change after playback.
+Its byte counters count received RUI packets, excluding network framing.
+
+This is a live WebSocket replay of host-authored state, not a live emulator or client-side simulation.
+The trace server is a bounded read-only fixture with no production authorization or input control.
+The authenticated MAME demo remains separate.
+The [source-aware report](../../docs/source-aware-demo.md) records the measured benefit and limits.

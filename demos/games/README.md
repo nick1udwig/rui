@@ -44,8 +44,9 @@ The adapter presents fixed-width opaque vector beams on black.
 Battlezone uses a green beam tint.
 MAME's additive blending, CRT glow, cabinet artwork, and audio are excluded.
 This presentation is a declared vector approximation of the native game's appearance.
-Every beam becomes an ordinary transformed RUI rectangle.
-Line slots remain allocated when a beam disappears, so continuous play does not retire and reissue scene identities each frame.
+The current producer sends ordered endpoints and colors in a compact `SegmentBatch`.
+The renderer preserves the earlier transformed-rectangle beam semantics.
+The batch has a stable scene identity as beams appear and disappear.
 The source has a 2,048-line ceiling and sends the latest frame at up to 30 publications per second.
 The host coalesces frames while the client acknowledges its preceding presentation.
 This demonstrates vector transport, rather than game-object identities or cached asteroid meshes.
@@ -89,8 +90,9 @@ The checked Chromium mobile layout uses a 390 × 844 viewport; a physical phone 
 
 The [retained local results](evidence/) record the measured game sessions.
 These are local functional acceptance runs, not a comparison against a video codec or an Internet latency benchmark.
-The current adapter sends per-line scene records, so bandwidth remains substantial and varies with scene complexity.
-No lower-bandwidth-than-video claim is established.
+The [implementation report](../../docs/bandwidth-implementation.md) measures the compact geometry and history-compression path against the retained H.264 baseline.
+The [source-aware replay experiment](../../docs/source-aware-demo.md) separately tests cached object shapes and camera/object transforms on an authored scene.
+It does not extract object identities from MAME.
 
 ## Vector versus raster analysis
 

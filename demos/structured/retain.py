@@ -5,7 +5,7 @@ import gzip
 from pathlib import Path
 import shutil
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('source',type=Path);p.add_argument('destination',type=Path);a=p.parse_args();a.destination.mkdir(parents=True,exist_ok=True)
-for name in ['summary.json','tables.md','mobile-runner.json','mobile-runner.png']:
+for name in ['summary.json','tables.md','mobile-runner.json','mobile-runner.png','live-check.json','objects-live.png','flattened-live.png','live-mobile-layout.png']:
     if (a.source/name).exists():shutil.copyfile(a.source/name,a.destination/name)
 for d in a.source.iterdir():
     if not d.is_dir() or not (d/'capture.json').exists():continue
