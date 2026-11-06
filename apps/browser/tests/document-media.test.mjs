@@ -48,7 +48,8 @@ test("scoped media carries canvas, WebGL, video and audio while text stays DOM",
     await viewer.goto(`http://127.0.0.1:${server.address().port}`);
     let failedReads = 0, failedToken;
     await viewer.exposeFunction('mediaApi', async (_, request) => {
-      if (request.op === 'open') return source.media.open(request.node, request.generation, request.transport, request.types);
+      if (request.op === 'open') return source.media.open(request.node, request.generation, request.transport, request.types, request.quality);
+      if (request.op === 'visibility') return source.media.visibility(request.token, request.visible);
       if (request.op === 'close') return source.media.close(request.token);
       if (request.op === 'read') {
         if (failedReads > 0 && request.token === failedToken) { failedReads--; throw Error('Injected media read failure'); }

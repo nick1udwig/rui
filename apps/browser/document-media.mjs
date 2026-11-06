@@ -24,6 +24,7 @@ export class DocumentMedia {
           if (session.closed) return;
           session.closed = true;
           clearTimeout(session.drawTimer);
+          if (session.capturePlayer) { session.capturePlayer.pause(); session.capturePlayer.srcObject = null; }
           session.scaled?.getTracks().forEach(track => track.stop());
           for (const event of ['emptied', 'loadstart']) element.removeEventListener(event, close);
           stream.removeEventListener('removetrack', close);
@@ -53,14 +54,22 @@ export class DocumentMedia {
               const canvas = document.createElement('canvas');
               canvas.width = Math.max(2, Math.floor(width * scale / 2) * 2); canvas.height = Math.max(2, Math.floor(height * scale / 2) * 2);
               const context = canvas.getContext('2d', { alpha: false });
+              let picture = element;
+              if (element.localName === 'canvas') {
+                picture = session.capturePlayer = document.createElement('video');
+                picture.muted = true; picture.playsInline = true;
+                picture.srcObject = new MediaStream(stream.getVideoTracks());
+                void picture.play().catch(close);
+              }
               const scaled = session.scaled = canvas.captureStream(0), track = scaled.getVideoTracks()[0];
               for (const audioTrack of stream.getAudioTracks()) scaled.addTrack(audioTrack);
               let lastTime;
               const draw = () => {
                 if (session.closed) return;
                 try {
-                  if (session.visible && (element.localName === 'canvas' || (element.readyState >= 2 && element.currentTime !== lastTime))) {
-                    context.drawImage(element, 0, 0, canvas.width, canvas.height); track.requestFrame(); lastTime = element.currentTime;
+                  const stamp = picture.getVideoPlaybackQuality?.().totalVideoFrames ?? picture.currentTime;
+                  if (session.visible && picture.readyState >= 2 && stamp !== lastTime) {
+                    context.drawImage(picture, 0, 0, canvas.width, canvas.height); track.requestFrame(); lastTime = stamp;
                   }
                   session.drawTimer = setTimeout(draw, 1000 / preset.fps);
                 } catch { close(); }
