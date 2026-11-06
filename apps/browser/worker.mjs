@@ -167,6 +167,8 @@ const handler = async (request, response) => {
         const page = workspace.active;
         const source = workspace.pages.get(page)?.document;
         if (!source) throw Error("No document");
+        const previous = documentPublishers.get(auth.client)?.snapshot;
+        if (data.wait && previous?.generation === source.generation && previous.revision === data.revision) await source.waitForChange(previous.sourceVersion);
         const snapshot = await source.capture();
         const current = await admin({ op: "document", ...auth });
         if (current.scope !== grant.scope) throw Error("Document scope changed");
@@ -175,6 +177,7 @@ const handler = async (request, response) => {
         let publisher = documentPublishers.get(auth.client);
         if (!publisher || publisher.snapshot?.revision !== data.revision || publisher.snapshot?.generation !== data.generation) publisher = new DocumentPublisher();
         const packet = publisher.publish(snapshot);
+        packet.refreshAfterMs = Math.max(50, Math.min(300, Math.ceil(source.metrics.captureMs * 2)));
         documentPublishers.set(auth.client, publisher);
         return respond(response, 200, packet);
       }

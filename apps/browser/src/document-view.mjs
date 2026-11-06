@@ -10,7 +10,7 @@ export class DocumentView {
     this.api = api;
     this.report = report;
     this.onRendered = onRendered;
-    this.metrics = { polls: 0, changedNodes: 0, requestMs: 0, renderMs: 0 };
+    this.metrics = { polls: 0, changedNodes: 0, requestMs: 0, renderMs: 0, visitedNodes: 0, reusedSubtrees: 0 };
     this.startedAt = performance.now();
     this.receiver = new DocumentReceiver();
     this.resources = new Map();
@@ -54,8 +54,9 @@ export class DocumentView {
       try {
         if (document.visibilityState === "visible") {
           const requested = performance.now();
-          const packet = await request("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation });
+          const packet = await request("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation, wait: true });
           if (!this.running || serial !== this.serial) return;
+          this.refreshMs = Number.isFinite(packet.refreshAfterMs) ? Math.max(50, Math.min(1000, packet.refreshAfterMs)) : 300;
           this.metrics.polls++;
           this.metrics.requestMs += performance.now() - requested;
           this.metrics.changedNodes += packet.put.length;
@@ -109,6 +110,8 @@ export class DocumentView {
           const renderingAt = performance.now();
           await this.renderer.render(snapshot, controller.signal);
           this.metrics.renderMs += performance.now() - renderingAt;
+          this.metrics.visitedNodes += this.renderer.renderMetrics?.visited || 0;
+          this.metrics.reusedSubtrees += this.renderer.renderMetrics?.reused || 0;
           if (!this.running || serial !== this.serial) return;
           this.displayedGeneration = snapshot.generation;
           this.media.finish();
@@ -146,7 +149,7 @@ export class DocumentView {
         this.failures = (this.failures || 0) + 1;
       }
       if (!this.failures) this.iframe.hidden = false;
-      if (this.running && serial === this.serial) this.timer = setTimeout(poll, this.failures ? Math.min(5000, this.failures * 1000) : 300);
+      if (this.running && serial === this.serial) this.timer = setTimeout(poll, this.failures ? Math.min(5000, this.failures * 1000) : this.refreshMs || 300);
     };
     void poll();
   }

@@ -301,3 +301,11 @@ Counters include document requests, changed nodes, render time, encoded media by
 Run `cd apps/browser && node tests/performance.mjs` for idle, live DOM, canvas, and video fixtures.
 The report includes browser task time, JavaScript heap size, payload throughput before HTTP compression, and action-to-display delay.
 These synthetic measurements do not include GPU process usage or physical phone battery use.
+
+Document capture tracks changed subtrees with mutation and input events.
+Idle document requests wait for a change or a bounded heartbeat.
+Active update intervals follow capture cost, from 50 to 300 ms.
+A full capture every two seconds checks properties that do not emit mutation events.
+The phone preserves unchanged records and skips unchanged DOM subtrees after validating each patch.
+Documents with shadow trees or embedded frames keep the full reconciliation path.
+Media sessions and field values are maintained even when the surrounding DOM is unchanged.

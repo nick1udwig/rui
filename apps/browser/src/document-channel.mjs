@@ -23,7 +23,7 @@ function flatten(root) {
 
 export class DocumentPublisher {
   publish(snapshot) {
-    const records = flatten(catalog(snapshot.root));
+    const records = this.snapshot?.root === snapshot.root ? this.records : flatten(catalog(snapshot.root));
     const previous = this.snapshot?.generation === snapshot.generation ? this.records : undefined;
     const { root, ...metadata } = snapshot;
     const packet = {
@@ -58,12 +58,17 @@ export class DocumentReceiver {
       seen.add(record.id);
       records.set(record.id, record);
     }
-    const visited = new Set();
+    const visited = new Set(), built = new Map();
     const build = (id, depth) => {
       if (depth > 128 || visited.size >= 20000 || visited.has(id) || !records.has(id)) throw Error("Invalid document graph");
       visited.add(id);
       const node = records.get(id);
-      return { ...structuredClone(node), children: node.children?.map(child => build(child, depth + 1)) };
+      const children = node.children?.map(child => build(child, depth + 1));
+      const old = packet.base && this.built?.get(id);
+      const same = old && !node.document && !node.shadow && this.records.get(id) === node && (children || []).every((child, i) => child === old.children?.[i]);
+      const result = same ? old : { ...structuredClone(node), children };
+      built.set(id, result);
+      return result;
     };
     const root = build(packet.root, 0);
     if (visited.size !== records.size) throw Error("Unreachable document records");
@@ -78,6 +83,8 @@ export class DocumentReceiver {
     const { put, remove, ...metadata } = packet;
     const snapshot = { ...metadata, styles, styleResources, resources, root };
     if (JSON.stringify(snapshot).length > LIMIT) throw Error("Retained document limit");
+    Object.defineProperty(snapshot, Symbol.for('rui.document.validated'), { value: { removed: packet.remove, simple: [...records.values()].every(node => !node.shadow && !node.document) } });
+    this.built = built;
     this.records = records;
     this.revision = packet.revision;
     this.generation = packet.generation;

@@ -5,11 +5,24 @@ import { concurrent, taskPool } from "./src/document-work.mjs";
 const MAX_BYTES = 8 * 1024 * 1024;
 
 // Runs in the source document. IDs survive observations but never navigation.
-function observeDocument({ key, knownStyles, generation }) {
+function observeDocument({ key, knownStyles, generation, reuse }) {
   const state = globalThis[key] ||= {};
   if (state.generation !== generation) {
-    Object.assign(state, { generation, nodes: new WeakMap(), reverse: new Map(), next: 1, styles: new WeakMap(), nextStyle: 1, scrollers: new WeakSet() });
+    state.observer?.disconnect();
+    for (const [type, listener] of state.listeners || []) document.removeEventListener(type, listener, true);
+    Object.assign(state, { generation, hasFrames: false, nodes: new WeakMap(), reverse: new Map(), next: 1, styles: new WeakMap(), nextStyle: 1, scrollers: new WeakSet() });
   }
+  if (!state.cache || state.cacheGeneration !== generation) {
+    state.cacheGeneration = generation; state.cache = new WeakMap(); state.origins = new WeakMap(); state.dirty = new WeakSet(); state.fullAt = 0;
+    state.version = 0; state.waiters = new Set();
+    const invalidate = node => { state.version++; for (const wake of state.waiters) wake(); if (node === document) node = document.documentElement; for (let current = node; current; current = current.parentNode || current.host) state.dirty.add(current); };
+    state.observer = new MutationObserver(records => { for (const record of records) invalidate(record.target); });
+    state.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    state.listeners = ['input', 'change', 'scroll', 'play', 'pause', 'loadeddata', 'load', 'emptied', 'focusin', 'focusout'].map(type => {
+      const listener = event => invalidate(event.target); document.addEventListener(type, listener, true); return [type, listener];
+    });
+  }
+  const full = performance.now() - state.fullAt > 2000;
   const id = (node) => {
     if (!state.nodes.has(node)) {
       if (state.next > 100000) throw Error("Source identity limit");
@@ -17,11 +30,18 @@ function observeDocument({ key, knownStyles, generation }) {
     }
     return state.nodes.get(node);
   };
-  const unsupported = [];
-  const originals = new Map(), sizes = new Map();
+  const originals = state.origins, sizes = new Map();
   state.scrollers ||= new WeakSet();
   let count = 0, visited = 0;
   const visit = (node, depth = 0, shadow = false) => {
+    const cached = state.cache.get(node);
+    if (!full && cached && !state.dirty.has(node)) { count += cached.size; sizes.set(cached.record, cached.size); return cached.record; }
+    const before = count;
+    const record = inspect(node, depth, shadow);
+    if (record) state.cache.set(node, { record, size: count - before });
+    return record;
+  };
+  const inspect = (node, depth = 0, shadow = false) => {
     if (++visited > 150000 || depth > 128) throw Error("Document scan limit");
     if (node.nodeType === 3) { count++; return { id: id(node), text: node.data }; }
     if (node.nodeType !== 1) return null;
@@ -41,14 +61,15 @@ function observeDocument({ key, knownStyles, generation }) {
       if (node.type === "password") delete attrs.value;
     }
     if (node.isContentEditable && !node.parentElement?.isContentEditable) result.value = node.textContent;
+    if (tag === "iframe") state.hasFrames = true;
     if (["canvas", "video", "audio", "iframe", "object", "embed"].includes(tag)) {
       if (typeof node.captureStream === "function") { result.media = true; result.mediaReady = tag === "canvas" || node.readyState >= 2; }
-      else unsupported.push({ id: result.id, kind: tag });
       if (tag === 'video' || tag === 'audio') result.mediaPaused = node.paused;
       return result;
     }
     result.children = [...node.childNodes].map(n => visit(n, depth + 1, shadow)).filter(Boolean);
     if (node.shadowRoot) {
+      state.observer.observe(node.shadowRoot, { subtree: true, childList: true, attributes: true, characterData: true });
       result.shadow = [...node.shadowRoot.childNodes].map(n => visit(n, depth + 1, true)).filter(Boolean);
       result.shadowStyles = [...node.shadowRoot.adoptedStyleSheets].map(sheet => [...sheet.cssRules].map(rule => rule.cssText).join("\n"));
     }
@@ -74,6 +95,7 @@ function observeDocument({ key, knownStyles, generation }) {
   const root = visit(document.documentElement);
   let deferredNodes = 0;
   if (count > 20000) {
+    state.cache = new WeakMap();
     const eligible = new Map();
     const top = -innerHeight * 2, bottom = innerHeight * 3, left = -innerWidth, right = innerWidth * 2;
     const measure = (record, inHead = false) => {
@@ -112,16 +134,22 @@ function observeDocument({ key, knownStyles, generation }) {
     }
     if (count > 20000) throw Error('Visible document limit');
   }
-  const reverse = new Map();
+  const styleKey = JSON.stringify(styles.map(style => [style.id, style.version]));
+  const unchanged = reuse && !state.hasFrames && state.lastRoot === root && state.lastStyles === styleKey && state.width === innerWidth && state.height === innerHeight && state.base === document.baseURI;
+  state.lastRoot = root; state.lastStyles = styleKey; state.width = innerWidth; state.height = innerHeight; state.base = document.baseURI;
+  state.dirty = new WeakSet(); if (full) state.fullAt = performance.now();
+  if (unchanged) return JSON.stringify({ unchanged: true, sourceVersion: state.version, inspectedNodes: visited });
+  const reverse = new Map(), regions = [];
   const retain = record => {
     const element = originals.get(record);
     if (element) reverse.set(record.id, element);
+    if (["canvas", "video", "audio", "iframe", "object", "embed"].includes(record.tag) && !record.media) regions.push({ id: record.id, kind: record.tag });
     for (const child of [...(record.children || []), ...(record.shadow || [])]) retain(child);
   };
   retain(root);
   state.reverse = reverse;
   // Avoid Playwright's per-property encoding for this large, JSON-only snapshot.
-  return JSON.stringify({ root, styles, unsupported: unsupported.filter(region => reverse.has(region.id)), deferredNodes, base: document.baseURI, width: innerWidth, height: innerHeight });
+  return JSON.stringify({ sourceVersion: state.version, inspectedNodes: visited, root, styles, unsupported: regions, deferredNodes, base: document.baseURI, width: innerWidth, height: innerHeight });
 }
 
 export class DocumentActionRejected extends Error {}
@@ -311,18 +339,40 @@ export class BrowserDocument {
       return reference;
     } finally { await response.dispose(); }
   }
-  async capture(budget = { frames: 16 }) {
+  async waitForChange(version) {
+    await this.frame.evaluate(({ key, version }) => {
+      const state = globalThis[key];
+      if (!state || state.version !== version) return;
+      const delay = Math.max(0, Math.min(state.hasFrames ? 100 : 800, 2000 - (performance.now() - state.fullAt)));
+      if (!delay) return;
+      return new Promise(resolve => {
+        const done = () => { clearTimeout(timer); state.waiters.delete(done); resolve(); };
+        const timer = setTimeout(done, delay); state.waiters.add(done);
+      });
+    }, { key: this.key, version });
+  }
+  capture(budget = { frames: 16 }) {
+    if (!this.pendingCapture) this.pendingCapture = this.captureCurrent(budget).then(snapshot => {
+      this.captureFailed = false; return snapshot;
+    }, error => { this.captureFailed = true; throw error; }).finally(() => { this.pendingCapture = null; });
+    return this.pendingCapture;
+  }
+  async captureCurrent(budget) {
     const captureStarted = performance.now();
     if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
     let result;
     try {
-      result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, generation, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
+      result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, generation, reuse: !this.captureFailed && this.lastCapture?.generation === generation, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
     } catch (error) {
       if (/^frame\.evaluate: Error: (Source identity limit|Document scan limit|Visible document limit)\b/.test(error.message)) error.code = 'DOCUMENT_LIMIT';
       throw error;
     }
     if (generation !== this.generation) throw Error("Navigation during capture");
+    if (result.unchanged && this.lastCapture?.generation === generation) {
+      this.metrics = { ...this.metrics, captureMs: performance.now() - captureStarted, inspectedNodes: result.inspectedNodes, sourceStyleBytes: 0, cached: true };
+      return this.lastCapture = { ...this.lastCapture, sourceVersion: result.sourceVersion, revision: ++this.revision };
+    }
     const sourceStyleBytes = Buffer.byteLength(JSON.stringify(result.styles));
     const pending = new Map();
     const asset = url => {
@@ -409,8 +459,9 @@ export class BrowserDocument {
     });
     this.styles = new Map(Object.entries(styleResources));
     const snapshot = { ...result, styleResources, resources: Object.fromEntries(this.resources), generation, revision: ++this.revision };
-    this.metrics = { captureMs: performance.now() - captureStarted, sourceStyleBytes, documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
+    this.metrics = { captureMs: performance.now() - captureStarted, inspectedNodes: result.inspectedNodes, sourceStyleBytes, documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
     if (Buffer.byteLength(JSON.stringify({ ...snapshot, resources: {}, styleResources: {} })) > MAX_BYTES || this.metrics.styleBytes > MAX_BYTES) throw Error("Snapshot limit");
+    this.lastCapture = snapshot;
     return snapshot;
   }
 }

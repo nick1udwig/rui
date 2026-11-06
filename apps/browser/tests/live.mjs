@@ -221,8 +221,13 @@ try {
   });
   const retainMediaPeer = async () => {
     if (await page.evaluate(() => ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'audio/webm;codecs=opus'].some(type => globalThis.MediaSource?.isTypeSupported(type)))) {
-      await deadline(() => !!latestMediaRead, 'HTTPS media is active');
-      retainedHttp = latestMediaRead;
+      await deadline(async () => {
+        const candidate = latestMediaRead;
+        if (!candidate) return false;
+        const result = await page.request.post(candidate.url, { headers: candidate.headers, data: { op: 'renew', token: candidate.token } });
+        if (result.status() !== 200) return false;
+        retainedHttp = candidate; return true;
+      }, 'HTTPS media is active');
       assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'read', token: retainedHttp.token, after: 0 } })).status(), 400, 'A second reader cannot disturb the active stream cursor');
       assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'renew', token: retainedHttp.token } })).status(), 200);
       return;

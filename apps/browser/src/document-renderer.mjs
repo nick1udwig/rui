@@ -180,16 +180,28 @@ export class DocumentRenderer {
       nextStyles.set(parent, entries);
     };
     const previous = snapshot.generation === this.generation ? this.nodes : new Map();
+    const validation = snapshot[Symbol.for('rui.document.validated')];
+    const incremental = validation?.simple && this.simple && snapshot.base === this.revision && snapshot.generation === this.generation;
+    this.simple = validation?.simple;
+    if (!incremental) { this.renderedRecords = new Map(); this.mediaRecords = new Map(); this.controlRecords = new Map(); this.scrollUpdates = new Map(); }
+    this.renderMetrics = { visited: 0, reused: 0 };
+    for (const id of incremental ? validation.removed : []) {
+      previous.delete(id); this.values?.delete(id); this.renderedRecords.delete(id); this.mediaRecords.delete(id); this.controlRecords.delete(id); this.scrollUpdates.delete(id);
+    }
     if (snapshot.generation !== this.generation) this.frames = new Map();
     const pendingFrames = [];
-    const pendingMedia = [];
-    const pendingScrolls = [];
-    this.nodes = new Map();
-    this.ids = new WeakMap();
-    this.values = new Map();
+    this.nodes = incremental ? previous : new Map();
+    if (!incremental) { this.ids = new WeakMap(); this.values = new Map(); }
+    const visited = new Set(), reused = new Set();
     let count = 0;
     const build = (node, depth = 0) => {
-      if (++count > 20000 || depth > 128 || this.nodes.has(node.id)) throw Error("Document structure limit");
+      if (++count > 20000 || depth > 128 || visited.has(node.id)) throw Error("Document structure limit");
+      visited.add(node.id);
+      this.renderMetrics.visited++;
+      const retained = previous.get(node.id);
+      if (incremental && retained && this.renderedRecords.get(node.id) === node) { this.renderMetrics.reused++; reused.add(node.id); return retained; }
+      this.mediaRecords.delete(node.id); this.controlRecords.delete(node.id); this.scrollUpdates.delete(node.id);
+      this.renderedRecords.set(node.id, node);
       if (typeof node.text === "string") {
         const old = previous.get(node.id);
         const text = old?.nodeType === 3 ? old : doc.createTextNode(node.text);
@@ -244,7 +256,7 @@ export class DocumentRenderer {
       if (node.scroll) {
         const { x, y } = node.scroll;
         if (![x, y].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000)) throw Error('Invalid document scroll');
-        pendingScrolls.push(() => {
+        this.scrollUpdates.set(node.id, () => {
           const local = this.localScrolls.get(node.id);
           if (local && (Math.abs(local.x - x) >= 1 || Math.abs(local.y - y) >= 1) && Date.now() - local.time < 5000) return;
           this.localScrolls.delete(node.id);
@@ -273,7 +285,7 @@ export class DocumentRenderer {
         }
         pendingFrames.push(() => renderer.render(node.document, signal));
       } else if (node.media && this.media) {
-        pendingMedia.push(() => this.media.attach(node, element, snapshot.generation, this.route));
+        this.mediaRecords.set(node.id, node);
       } else if (blocked || ["canvas", "video", "audio"].includes(node.tag)) {
         element.textContent = `Unsupported region: ${node.tag}`;
         element.setAttribute("data-rui-unsupported", node.tag);
@@ -281,6 +293,7 @@ export class DocumentRenderer {
         const children = (node.children || []).map(child => build(child, depth + 1));
         reconcile(element, children);
       }
+      if (typeof node.value === "string" || typeof node.checked === "boolean") this.controlRecords.set(node.id, node);
       if (typeof node.value === "string" && "value" in element && element !== doc.activeElement && element.value !== node.value) element.value = node.value;
       if (node.tag === 'input' && node.attrs?.type === 'password') {
         element.readOnly = true;
@@ -306,8 +319,18 @@ export class DocumentRenderer {
     this.generation = snapshot.generation;
     this.revision = snapshot.revision;
     for (const render of pendingFrames) { await render(); check(); }
-    for (const attach of pendingMedia) attach();
-    for (const scroll of pendingScrolls) scroll();
+    for (const [id, node] of this.mediaRecords) this.media.attach(node, this.nodes.get(id), snapshot.generation, this.route);
+    for (const [id, node] of this.controlRecords) {
+      const element = this.nodes.get(id);
+      if (typeof node.value === 'string' && 'value' in element && element !== doc.activeElement && element.value !== node.value) element.value = node.value;
+      if (typeof node.checked === 'boolean' && 'checked' in element) element.checked = node.checked;
+      if (element.isContentEditable && (!visited.has(id) || reused.has(id)) && !(element === doc.activeElement && this.drafts.has(id))) {
+        const invalidate = record => { this.renderedRecords.delete(record.id); for (const child of record.children || []) invalidate(child); };
+        for (const child of node.children || []) invalidate(child);
+        reconcile(element, (node.children || []).map(child => build(child)));
+      }
+    }
+    for (const scroll of this.scrollUpdates.values()) scroll();
     for (const id of this.frames.keys()) if (!this.nodes.has(id)) this.frames.delete(id);
   }
 }

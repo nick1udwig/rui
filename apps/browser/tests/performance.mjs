@@ -52,7 +52,7 @@ try {
     let captureMs = 0, payloadBytes = 0;
     apiHandler = async (path, data, response) => {
       let result;
-      if (path === 'document') { result = publisher.publish(await source.capture()); captureMs += source.metrics.captureMs; }
+      if (path === 'document') { if (data.wait && publisher.snapshot) await source.waitForChange(publisher.snapshot.sourceVersion); result = publisher.publish(await source.capture()); captureMs += source.metrics.captureMs; result.refreshAfterMs = Math.max(50, Math.min(300, Math.ceil(source.metrics.captureMs * 2))); }
       else if (path === 'document-resource') result = resourceReply(source, data);
       else if (data.op === 'open') result = { ...await source.media.open(data.node, data.generation, data.transport, data.types, data.quality), delivery: 'binary' };
       else if (data.op === 'stream') {
