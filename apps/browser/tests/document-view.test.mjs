@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 import { DocumentPublisher } from '../src/document-channel.mjs';
 
 test('transient document failure retains a visible, inactive page and recovers', async () => {
-  const modules = new Map(await Promise.all(['document-view', 'document-renderer', 'document-channel', 'document-media', 'document-work', 'document-request'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
+  const modules = new Map(await Promise.all(['document-view', 'document-renderer', 'document-channel', 'document-media', 'document-work', 'document-request', 'document-stream'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
   const server = createServer((req, res) => {
     res.setHeader('Content-Type', modules.has(req.url) ? 'text/javascript' : 'text/html');
     res.end(modules.get(req.url) || '<section id=page></section>');

@@ -53,6 +53,7 @@ const port = socket.address().port;
 await new Promise((r) => socket.close(r));
 let origin = `https://localhost:${port}`;
 const phone = process.env.RUI_TEST_PHONE === "1";
+const blockedIce = process.env.RUI_TEST_BLOCK_ICE === '1';
 const proxied = process.env.RUI_TEST_PROXY === "1";
 const mount = proxied
   ? (process.env.RUI_TEST_PATH || "").replace(/\/$/, "")
@@ -174,7 +175,7 @@ try {
     viewport: { width: 390, height: 844 },
     hasTouch: true,
   });
-  await context.addInitScript(() => {
+  await context.addInitScript(blockedIce => {
     window.ruiUnhandled = [];
     addEventListener('unhandledrejection', event => window.ruiUnhandled.push(String(event.reason)));
     window.ruiSockets = [];
@@ -185,7 +186,7 @@ try {
     window.ruiPeers = [];
     const Peer = window.RTCPeerConnection;
     if (Peer) window.RTCPeerConnection = class extends Peer {
-      constructor(options) { super(options); window.ruiPeers.push(this); }
+      constructor(options) { super(blockedIce ? { ...options, iceTransportPolicy: 'relay', iceServers: [] } : options); window.ruiPeers.push(this); }
     };
     const clone = window.structuredClone;
     const copies = new Map();
@@ -195,8 +196,17 @@ try {
         copies.set(value.revision, (copies.get(value.revision) ?? 0) + 1);
       return clone(value, options);
     };
-  });
+  }, blockedIce);
   page = await context.newPage();
+  let latestMediaRead, retainedHttp;
+  if (blockedIce) {
+    page.on('response', response => {
+      if (!response.url().endsWith('/api/media') || !response.ok()) return;
+      const request = response.request(), data = request.postDataJSON();
+      if (data.op === 'read') latestMediaRead = { time: Date.now(), url: response.url(), headers: request.headers(), token: data.token };
+    });
+    await page.route('**/api/media', route => route.request().postDataJSON().op === 'close' && retainedHttp ? route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }) : route.continue());
+  }
   let corruptedResource = false;
   if (!desktopBrowser) await page.route('**/api/document-resource', async route => {
     if (corruptedResource) return route.continue();
@@ -210,6 +220,13 @@ try {
     await route.fulfill({ response, json: data });
   });
   const retainMediaPeer = async () => {
+    if (blockedIce) {
+      const start = Date.now();
+      await deadline(() => latestMediaRead?.time >= start, 'HTTPS media is active');
+      retainedHttp = latestMediaRead;
+      assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'renew', token: retainedHttp.token } })).status(), 200);
+      return;
+    }
     await page.waitForFunction(() => window.ruiPeers.some(peer => peer.connectionState === 'connected'));
     await page.evaluate(async () => {
       const peer = window.ruiPeers.findLast(peer => peer.connectionState === 'connected');
@@ -221,6 +238,11 @@ try {
     await page.waitForFunction(async () => await window.mediaPacketCount() > window.beforeRevokePackets, null, { timeout: 5000 });
   };
   const assertMediaRetired = async () => {
+    if (blockedIce) {
+      for (const op of ['renew', 'read']) assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op, token: retainedHttp.token, after: 0 } })).status(), 400, 'Retired viewers cannot renew or read HTTPS media even if they omit close');
+      retainedHttp = null;
+      return;
+    }
     await new Promise(resolve => setTimeout(resolve, 500));
     const packets = await page.evaluate(() => window.mediaPacketCount());
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -550,6 +572,7 @@ try {
     engine,
     reverseProxy: proxied,
     tailscalePhone: phone,
+    mediaTransport: blockedIce ? 'https' : 'webrtc',
     mountPath: mount || "/",
     viewport: "390x844",
     pairing: true,

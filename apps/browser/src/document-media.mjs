@@ -1,19 +1,27 @@
 import { documentRequest } from './document-request.mjs';
+import { DocumentStream, streamTypes } from './document-stream.mjs';
 
 export class DocumentMediaView {
   constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); }
   begin() { this.live = new Set(); }
   current(entry) { return !entry.closed && this.streams.get(entry.key) === entry; }
-  fail(entry, error) {
+  ready() { return [...this.streams.values()].every(entry => !entry.blocked && entry.player.readyState >= 2 && !entry.player.paused && (entry.transport === 'https' || entry.peer.connectionState === 'connected')); }
+  fail(entry, error, connection = false) {
     if (!this.current(entry)) return;
     this.close(entry.key, entry);
+    if (connection && !entry.played && entry.transport === 'webrtc' && streamTypes().length) {
+      this.preferHttps = true;
+      this.failures.delete(entry.key);
+      this.report(Error('Connecting video/audio over the page connection…'));
+      return;
+    }
     const attempts = (this.failures.get(entry.key)?.attempts || 0) + 1;
     this.failures.set(entry.key, { attempts, retryAt: Date.now() + Math.min(10000, 500 * 2 ** Math.min(attempts - 1, 5)) });
     this.report(error);
   }
   play(entry) {
     const player = entry.player;
-    if (!this.current(entry) || !player.srcObject || !player.paused || entry.playing || entry.playRetry || entry.blocked) return;
+    if (!this.current(entry) || (!player.srcObject && !entry.stream?.url) || !player.paused || entry.playing || entry.playRetry || entry.blocked) return;
     entry.playing = true;
     const failed = error => {
       if (!this.current(entry)) return;
@@ -33,6 +41,18 @@ export class DocumentMediaView {
       }, failed).finally(() => { entry.playing = false; });
     } catch (error) { entry.playing = false; failed(error); }
   }
+  draw(entry) {
+    if (entry.player === entry.element || entry.drawing) return;
+    entry.drawing = true;
+    const draw = () => {
+      if (!this.current(entry)) return;
+      try {
+        if (entry.player.readyState >= 2) entry.element.getContext('2d').drawImage(entry.player, 0, 0, entry.element.width, entry.element.height);
+        entry.frame = entry.player.requestVideoFrameCallback(draw);
+      } catch (error) { this.fail(entry, error); }
+    };
+    draw();
+  }
   attach(node, element, generation, frames) {
     const key = `${generation}:${node.id}`;
     this.live.add(key);
@@ -43,7 +63,8 @@ export class DocumentMediaView {
     if (this.streams.size >= 8) return;
     let entry;
     try {
-      entry = { key, peer: new RTCPeerConnection({ iceServers: [] }), controller: new AbortController(), closed: false, element };
+      const transport = this.preferHttps ? 'https' : 'webrtc';
+      entry = { key, transport, controller: new AbortController(), closed: false, element };
       this.streams.set(key, entry);
       const player = node.tag === 'canvas' ? document.createElement('video') : element;
       entry.player = player;
@@ -53,10 +74,11 @@ export class DocumentMediaView {
         document.body.append(player);
       }
       entry.deadline = setTimeout(() => {
-        if (!entry.blocked && (player.readyState < 2 || player.paused || entry.peer.connectionState !== 'connected')) this.fail(entry, Error('Media connection timed out'));
-      }, 10000);
+        if (player.readyState < 2 || (!entry.blocked && player.paused) || (entry.peer && entry.peer.connectionState !== 'connected')) this.fail(entry, Error('Media connection timed out'), true);
+      }, transport === 'https' ? 15000 : 6000);
       entry.onPlaying = () => {
         if (!this.current(entry)) return;
+        entry.played = true;
         clearTimeout(entry.deadline);
         entry.playAborts = 0;
         this.failures.delete(key);
@@ -65,12 +87,17 @@ export class DocumentMediaView {
       player.muted = !this.soundEnabled;
       player.autoplay = true;
       player.playsInline = true;
+      if (transport === 'https') {
+        void this.openStream(entry, node, generation, frames).catch(error => this.fail(entry, error));
+        return;
+      }
+      entry.peer = new RTCPeerConnection({ iceServers: [] });
       entry.peer.onconnectionstatechange = () => {
         if (!this.current(entry)) return;
         const state = entry.peer.connectionState;
-        if (state === 'failed' || state === 'closed') this.fail(entry, Error('Media connection lost'));
-        else if (state === 'disconnected' && !entry.disconnected) entry.disconnected = setTimeout(() => this.fail(entry, Error('Media connection lost')), 3000);
-        else if (state === 'connected') { clearTimeout(entry.disconnected); entry.disconnected = null; }
+        if (state === 'failed' || state === 'closed') this.fail(entry, Error('Media connection lost'), true);
+        else if (state === 'disconnected' && !entry.disconnected) entry.disconnected = setTimeout(() => this.fail(entry, Error('Media connection lost'), true), 3000);
+        else if (state === 'connected') { entry.connected = true; clearTimeout(entry.disconnected); entry.disconnected = null; }
       };
       entry.peer.ontrack = event => {
         if (!this.current(entry)) return;
@@ -80,24 +107,36 @@ export class DocumentMediaView {
           if (player.srcObject !== stream) player.srcObject = stream;
           event.track?.addEventListener('ended', () => this.fail(entry, Error('Media track ended')), { once: true });
           this.play(entry);
-          if (node.tag === 'canvas' && !entry.drawing) {
-            entry.drawing = true;
-            const draw = () => {
-              if (!this.current(entry)) return;
-              try {
-                if (player.readyState >= 2) element.getContext('2d').drawImage(player, 0, 0, element.width, element.height);
-                entry.frame = player.requestVideoFrameCallback(draw);
-              } catch (error) { this.fail(entry, error); }
-            };
-            draw();
-          }
+          this.draw(entry);
         } catch (error) { this.fail(entry, error); }
       };
       void this.open(entry, node, generation, frames).catch(error => this.fail(entry, error));
     } catch (error) {
-      if (entry) this.fail(entry, error);
+      if (entry) this.fail(entry, error, true);
       else { this.failures.set(key, { attempts: 1, retryAt: Date.now() + 10000 }); this.report(error); }
     }
+  }
+  async openStream(entry, node, generation, frames) {
+    const request = data => documentRequest(this.api, 'media', data, entry.controller.signal);
+    const result = await request({ op: 'open', transport: 'https', types: streamTypes(), generation, node: node.id, frames });
+    entry.token = result.token;
+    if (!this.current(entry)) { this.release(entry.token); return; }
+    entry.stream = new DocumentStream(entry.player, entry.controller.signal);
+    await entry.stream.open(result.mimeType);
+    if (!this.current(entry)) return;
+    this.draw(entry);
+    const poll = async () => {
+      if (!this.current(entry)) return;
+      try {
+        const { chunks } = await request({ op: 'read', token: entry.token, after: entry.stream.cursor });
+        if (!this.current(entry)) return;
+        await entry.stream.append(chunks);
+        if (!this.current(entry)) return;
+        this.play(entry);
+        entry.timer = setTimeout(poll, 150);
+      } catch (error) { this.fail(entry, error); }
+    };
+    void poll();
   }
   async open(entry, node, generation, frames) {
     const request = data => documentRequest(this.api, 'media', data, entry.controller.signal);
@@ -149,7 +188,8 @@ export class DocumentMediaView {
     entry.controller.abort();
     for (const timer of ['timer', 'deadline', 'playRetry', 'disconnected']) clearTimeout(entry[timer]);
     if (entry.frame !== undefined) entry.player?.cancelVideoFrameCallback(entry.frame);
-    entry.peer.close();
+    entry.peer?.close();
+    entry.stream?.close();
     if (entry.player) {
       entry.player.removeEventListener?.('playing', entry.onPlaying);
       entry.player.srcObject = null;

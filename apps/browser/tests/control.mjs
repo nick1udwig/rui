@@ -45,13 +45,19 @@ try {
   viewer.on('pageerror', error => clientErrors.push(error.message));
   const latency = Number(process.env.RUI_TEST_LATENCY_MS || 0);
   const recovery = process.env.RUI_TEST_RECOVERY === '1';
+  const blockedIce = process.env.RUI_TEST_BLOCK_ICE === '1';
+  if (blockedIce) await viewer.addInitScript(() => {
+    const Peer = RTCPeerConnection;
+    window.RTCPeerConnection = class extends Peer { constructor(config) { super({ ...config, iceTransportPolicy: 'relay', iceServers: [] }); } };
+  });
   const faults = { document: 0, open: 0, renew: 0 }, injected = { document: 0, open: 0, renew: 0 };
-  let mediaOpens = 0;
-  if (latency || recovery) await viewer.route('**/api/**', async route => {
+  let mediaOpens = 0, mediaReads = 0;
+  if (latency || recovery || blockedIce) await viewer.route('**/api/**', async route => {
     if (latency) await new Promise(resolve => setTimeout(resolve, latency));
     const path = new URL(route.request().url()).pathname;
     const kind = path.endsWith('/document') ? 'document' : path.endsWith('/media') ? route.request().postDataJSON().op : '';
     if (kind === 'open') mediaOpens++;
+    if (kind === 'read') mediaReads++;
     if (faults[kind] > 0) {
       faults[kind]--; injected[kind]++;
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Injected temporary failure' }) });
@@ -165,10 +171,13 @@ try {
       };
       callback = video.requestVideoFrameCallback(frame);
     }));
+    await viewer.getByRole('button', { name: 'Enable page sound', exact: true }).click();
+    await until(async () => player.evaluate(video => !video.paused && !video.muted && video.readyState >= 2), 'Sound activation retains playing video');
+    if (blockedIce) assert.ok(mediaReads > 0, 'Video arrives over the page connection when direct WebRTC is blocked');
     await viewer.screenshot({ path: join(output, 'youtube-video.png') });
     await Promise.all(transfers);
     assert.ok(transfer.compressed > 0 && transfer.encoded < transfer.decoded, 'Document and resource traffic is compressed');
-    console.log(JSON.stringify({ youtubeResultsAndVideo: true, contentAfterPreroll: true, latencyMs: latency, searchToRenderedMs, videoToFramesMs, ...transfer }));
+    console.log(JSON.stringify({ youtubeResultsAndVideo: true, contentAfterPreroll: true, soundEnabled: true, blockedIce, mediaReads, latencyMs: latency, searchToRenderedMs, videoToFramesMs, ...transfer }));
     if (recovery) {
       assert.equal(injected.open, 2, 'Media opens fail twice before recovery');
       await player.evaluate(video => {

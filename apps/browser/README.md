@@ -167,9 +167,11 @@ CSS imports, blob-backed images and unusual resource formats can be incomplete.
 Unsupported frame/plugin regions remain marked instead of becoming a full-page screenshot.
 Only open shadow trees and accessible frame documents are replicated.
 
-Media uses direct WebRTC connections without STUN or TURN.
-An HTTPS reverse proxy carries document data and signaling; it does not relay media packets.
-The client and source browser need a working direct media route.
+Media first tries a direct WebRTC connection without STUN or TURN.
+If that connection cannot start playback, the client switches to encoded WebM video/audio over the same authenticated HTTPS connection as the page.
+The fallback requires Media Source Extensions with VP8/Opus support.
+Only the affected media elements use this transport; page text, layout and controls remain DOM and CSS.
+No additional ports or relay service need configuration.
 Use **Enable page sound** for audio playback.
 Media sessions expire without renewal and close when the view is retired or hidden.
 When a media element loads a new source, its old stream closes and the phone connects to the new stream.
@@ -182,9 +184,11 @@ Desktop engine tests use a 390 × 844 viewport and do not prove OS keyboard, IME
 Bounds include 16 tabs, 16 frames, 20,000 transmitted DOM nodes, 8 MiB document packets, an 8 MiB source asset cache and a 16 MiB client resource cache.
 Capture scans at most 150,000 source nodes and assigns at most 100,000 node identities per navigation.
 There are at most eight media regions per source document and 32 worker media sessions.
+Each HTTPS media stream retains at most 4 MiB of unacknowledged data and sends at most 512 KiB per read.
+Stalled or retired streams expire after ten seconds without renewal.
 Other existing bounds include 16 staged passwords, 16 KiB field values, 128 host file entries and 64 download records.
 A site that exceeds these limits can have omitted assets or a rejected document view.
-No internet rendezvous or media relay is provided.
+No internet rendezvous or external TURN relay is provided.
 
 ## Verification
 
@@ -237,6 +241,8 @@ Add `RUI_TEST_RECOVERY=1` to inject document, media-open, media-renewal, and pla
 This mode also stalls the host page for seven seconds and checks that control stays connected.
 Set `RUI_TEST_RESULTS_SCROLLS=4` to load a large YouTube results page before opening a video.
 Set `RUI_TEST_VIDEO_TARGET=thumbnail` to open its thumbnail; the default opens its title.
+Set `RUI_TEST_BLOCK_ICE=1` for the media, paired control, or phone-mode test to disable direct WebRTC and exercise the HTTPS fallback.
+The media test checks decoded audio, sound activation, failed-read recovery and new frame colors after a source change.
 These checks simulate a phone viewport; they do not replace testing on a physical phone.
 
 The phone-mode test starts a temporary real Tailscale Serve route and checks HTTPS without a certificate bypass.

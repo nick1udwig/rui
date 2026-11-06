@@ -118,7 +118,7 @@ const handler = async (request, response) => {
           const page = workspace.active;
           const source = workspace.pages.get(page)?.document.routed(data.frames);
           if (!source || source.generation !== data.generation) throw Error("Media source changed");
-          const result = await source.media.open(data.node, data.generation);
+          const result = await source.media.open(data.node, data.generation, data.transport, data.types);
           try { const current = await admin({ op: "document", ...auth }); if (current.scope !== grant.scope || workspace.active !== page) throw Error("Media source changed"); }
           catch (error) { await source.media.close(result.token); throw error; }
           mediaSessions.set(result.token, { media: source.media, page, client: auth.client, scope: grant.scope, expires: Date.now() + 10000 });
@@ -129,6 +129,12 @@ const handler = async (request, response) => {
         if (data.op === "close" || session.page !== workspace.active) {
           mediaSessions.delete(data.token);
           await session.media.close(data.token);
+        } else if (data.op === 'read') {
+          const result = await session.media.read(data.token, data.after);
+          const current = await admin({ op: 'document', ...auth });
+          if (current.scope !== grant.scope || session.page !== workspace.active || mediaSessions.get(data.token) !== session) throw Error('Media scope changed');
+          session.expires = Date.now() + 10000;
+          return respond(response, 200, result);
         } else if (["answer", "renew"].includes(data.op)) {
           await session.media.update(data.token, data.op === "answer" ? data.answer : undefined);
           session.expires = Date.now() + 10000;

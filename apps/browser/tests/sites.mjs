@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 const urls = process.argv.slice(2);
 if (!urls.length) throw Error('Supply public site URLs to probe');
-const modules = new Map(await Promise.all(['document-renderer', 'document-media', 'document-request'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
+const modules = new Map(await Promise.all(['document-renderer', 'document-media', 'document-request', 'document-stream'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
 const server = createServer((req, res) => {
   if (modules.has(req.url)) { res.setHeader('Content-Type', 'text/javascript'); res.end(modules.get(req.url)); }
   else { res.setHeader('Content-Type', 'text/html'); res.end('<style>html,body{margin:0}iframe{border:0;width:100vw;height:100dvh}</style><iframe></iframe>'); }

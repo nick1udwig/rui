@@ -6,7 +6,7 @@ import { chromium, firefox, webkit } from "playwright";
 import { BrowserDocument } from "../document.mjs";
 
 test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM", { timeout: 45000 }, async () => {
-  const files = new Map(await Promise.all(['document-renderer', 'document-media', 'document-request'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
+  const files = new Map(await Promise.all(['document-renderer', 'document-media', 'document-request', 'document-stream'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
   const server = createServer((req, res) => {
     if (files.has(req.url)) { res.setHeader('Content-Type', 'text/javascript'); res.end(files.get(req.url)); }
     else { res.setHeader('Content-Type', 'text/html'); res.end('<h1>Native text</h1>'); }
@@ -40,10 +40,20 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
     const engine = process.env.RUI_CLIENT_ENGINE;
     receiverBrowser = engine ? await { chromium, firefox, webkit }[engine].launch({ headless: true, ...(process.env.RUI_CLIENT_EXECUTABLE ? { executablePath: process.env.RUI_CLIENT_EXECUTABLE } : {}) }) : browser;
     viewer = await receiverBrowser.newPage();
+    const blocked = process.env.RUI_TEST_BLOCK_ICE === '1';
+    if (blocked) await viewer.addInitScript(() => {
+      const Peer = RTCPeerConnection;
+      window.RTCPeerConnection = class extends Peer { constructor(config) { super({ ...config, iceTransportPolicy: 'relay', iceServers: [] }); } };
+    });
     await viewer.goto(`http://127.0.0.1:${server.address().port}`);
+    let failedReads = 0, failedToken;
     await viewer.exposeFunction('mediaApi', async (_, request) => {
-      if (request.op === 'open') return source.media.open(request.node, request.generation);
+      if (request.op === 'open') return source.media.open(request.node, request.generation, request.transport, request.types);
       if (request.op === 'close') return source.media.close(request.token);
+      if (request.op === 'read') {
+        if (failedReads > 0 && request.token === failedToken) { failedReads--; throw Error('Injected media read failure'); }
+        return source.media.read(request.token, request.after);
+      }
       return source.media.update(request.token, request.answer);
     });
     await viewer.evaluate(async snapshot => {
@@ -56,6 +66,7 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       const renderer = new DocumentRenderer(iframe, () => {}, () => false, media);
       globalThis.render = async snapshot => { media.begin(); await renderer.render(snapshot); media.finish(); };
       await render(snapshot);
+      globalThis.pollMedia = setInterval(() => { media.begin(); for (const node of snapshot.root.children.flatMap(n => n.children || [])) if (node.media) media.attach(node, iframe.contentDocument.getElementById(node.attrs.id), snapshot.generation, []); media.finish(); }, 300);
     }, snapshot);
     await viewer.waitForFunction(() => {
       const doc = document.querySelector('iframe').contentDocument;
@@ -78,11 +89,32 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
     }
     const audio = await viewer.evaluate(async () => {
       const entry = [...media.streams.values()].find(entry => entry.element.id === 'movie');
+      if (entry.transport === 'https') return entry.player.captureStream().getAudioTracks().length > 0;
       const stats = await entry.peer.getStats();
       return [...stats.values()].some(s => s.type === 'inbound-rtp' && s.kind === 'audio' && s.packetsReceived > 0);
     });
     assert.equal(audio, true);
-    assert.deepEqual(await viewer.evaluate(() => mediaErrors), []);
+    if (blocked) assert.equal(await viewer.evaluate(() => [...media.streams.values()].every(entry => entry.transport === 'https')), true, 'Blocked direct connections fall back through HTTPS');
+    else assert.deepEqual(await viewer.evaluate(() => mediaErrors), []);
+    await viewer.evaluate(() => {
+      const button = document.createElement('button'); button.textContent = 'Enable page sound'; button.onclick = () => media.enableSound(); document.body.prepend(button);
+    });
+    await viewer.getByRole('button', { name: 'Enable page sound' }).click();
+    await viewer.waitForFunction(() => { const video = document.querySelector('iframe').contentDocument.querySelector('#movie'); return !video.paused && !video.muted && video.readyState >= 2; });
+    if (blocked) {
+      await viewer.evaluate(async () => {
+        const audio = new AudioContext(); await audio.resume();
+        const source = audio.createMediaElementSource(document.querySelector('iframe').contentDocument.querySelector('#movie'));
+        const analyser = globalThis.soundAnalyser = audio.createAnalyser();
+        const silent = audio.createGain(); silent.gain.value = 0;
+        source.connect(analyser); analyser.connect(silent); silent.connect(audio.destination);
+      });
+      await viewer.waitForFunction(() => { const samples = new Uint8Array(soundAnalyser.fftSize); soundAnalyser.getByteTimeDomainData(samples); return Math.max(...samples) - Math.min(...samples) > 20; });
+      const previous = await viewer.evaluate(() => [...media.streams.values()].find(entry => entry.element.id === 'movie').token);
+      failedReads = 1; failedToken = previous;
+      await viewer.waitForFunction(token => { const entry = [...media.streams.values()].find(entry => entry.element.id === 'movie'); return entry?.token && entry.token !== token && entry.player.readyState >= 2 && !entry.player.paused; }, previous);
+      await assert.rejects(source.media.read(previous, 0), /expired/);
+    }
     assert.equal(await viewer.frames()[1].locator('h1').textContent(), 'Native text');
     await host.evaluate(async () => {
       fixtureColor = 'blue';
@@ -109,10 +141,10 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       if (!replaced) await viewer.waitForTimeout(250);
     }
     assert.equal(replaced, true, 'Replacing the host video source delivers new frames, not a frozen frame from the previous clip');
-    await viewer.evaluate(() => media.dispose());
+    await viewer.evaluate(() => { clearInterval(pollMedia); media.dispose(); });
     await host.waitForFunction(key => globalThis[key].media.size === 0, source.key);
   } catch (error) {
-    if (viewer) console.error(await viewer.evaluate(async () => ({ errors: globalThis.mediaErrors, streams: await Promise.all([...globalThis.media.streams.values()].map(async e => ({ id: e.element.id, ready: e.player.readyState, paused: e.player.paused, state: e.peer.connectionState, stats: [...(await e.peer.getStats()).values()].filter(s => s.type === "inbound-rtp") }))) })));
+    if (viewer) console.error(await viewer.evaluate(async () => ({ errors: globalThis.mediaErrors, streams: await Promise.all([...globalThis.media.streams.values()].map(async e => ({ id: e.element.id, transport: e.transport, ready: e.player.readyState, paused: e.player.paused, state: e.peer?.connectionState, stats: e.peer ? [...(await e.peer.getStats()).values()].filter(s => s.type === "inbound-rtp") : undefined }))) })));
     throw error;
   } finally {
     source?.dispose();

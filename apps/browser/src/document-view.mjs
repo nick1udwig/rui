@@ -109,7 +109,7 @@ export class DocumentView {
           this.iframe.inert = false;
           this.status.hidden = true;
           this.container.removeAttribute("aria-busy");
-          if (!this.media.failures.size && [...this.media.streams.values()].every(entry => entry.peer.connectionState === "connected" && !entry.blocked)) this.mediaStatus.hidden = true;
+          if (!this.media.failures.size && this.media.ready()) this.mediaStatus.hidden = true;
           if (previousGeneration && previousGeneration !== snapshot.generation && this.canControl()) {
             this.container.style.scrollMarginTop = `${(document.querySelector("header")?.offsetHeight || 0) + 8}px`;
             this.container.scrollIntoView({ block: "start" });
