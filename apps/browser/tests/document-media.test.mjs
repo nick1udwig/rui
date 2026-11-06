@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { chromium } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 import { BrowserDocument } from "../document.mjs";
 
 test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM", { timeout: 45000 }, async () => {
@@ -12,9 +12,9 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
     else { res.setHeader('Content-Type', 'text/html'); res.end('<h1>Native text</h1>'); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  let browser, source;
+  let browser, receiverBrowser, viewer, source;
   try {
-    browser = await chromium.launch({ executablePath: process.env.RUI_CHROMIUM || '/usr/bin/chromium', headless: true, chromiumSandbox: true, args: ['--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader'] });
+    browser = await chromium.launch({ executablePath: process.env.RUI_CHROMIUM || '/usr/bin/chromium', headless: true, chromiumSandbox: true, args: ['--autoplay-policy=no-user-gesture-required', '--enable-unsafe-swiftshader', ...(process.env.RUI_TEST_DIRECT_ICE ? ['--disable-features=WebRtcHideLocalIpsWithMdns'] : [])] });
     const host = await browser.newPage();
     await host.goto(`http://127.0.0.1:${server.address().port}`);
     await host.evaluate(async () => {
@@ -36,7 +36,9 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
     });
     source = new BrowserDocument(host);
     const snapshot = await source.capture();
-    const viewer = await browser.newPage();
+    const engine = process.env.RUI_CLIENT_ENGINE;
+    receiverBrowser = engine ? await { chromium, firefox, webkit }[engine].launch({ headless: true, ...(process.env.RUI_CLIENT_EXECUTABLE ? { executablePath: process.env.RUI_CLIENT_EXECUTABLE } : {}) }) : browser;
+    viewer = await receiverBrowser.newPage();
     await viewer.goto(`http://127.0.0.1:${server.address().port}`);
     await viewer.exposeFunction('mediaApi', async (_, request) => {
       if (request.op === 'open') return source.media.open(request.node, request.generation);
@@ -50,7 +52,7 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       globalThis.media = new DocumentMediaView(globalThis.mediaApi, error => mediaErrors.push(String(error)));
       const iframe = document.createElement('iframe'); document.body.replaceChildren(iframe);
       const renderer = new DocumentRenderer(iframe, () => {}, () => false, media);
-      media.begin(); await renderer.render(snapshot); media.finish(); media.enableSound();
+      media.begin(); await renderer.render(snapshot); media.finish();
     }, snapshot);
     await viewer.waitForFunction(() => {
       const doc = document.querySelector('iframe').contentDocument;
@@ -68,8 +70,12 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
     assert.equal(await viewer.frames()[1].locator('h1').textContent(), 'Native text');
     await viewer.evaluate(() => media.dispose());
     await host.waitForFunction(key => globalThis[key].media.size === 0, source.key);
+  } catch (error) {
+    if (viewer) console.error(await viewer.evaluate(async () => ({ errors: globalThis.mediaErrors, streams: await Promise.all([...globalThis.media.streams.values()].map(async e => ({ id: e.element.id, ready: e.player.readyState, paused: e.player.paused, state: e.peer.connectionState, stats: [...(await e.peer.getStats()).values()].filter(s => s.type === "inbound-rtp") }))) })));
+    throw error;
   } finally {
     source?.dispose();
+    if (receiverBrowser !== browser) await receiverBrowser?.close();
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
   }

@@ -10,13 +10,21 @@ export class DocumentMediaView {
     this.streams.set(key, entry);
     const player = node.tag === "canvas" ? document.createElement("video") : element;
     entry.player = player;
+    if (node.tag === "canvas") {
+      player.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
+      player.setAttribute("aria-hidden", "true");
+      document.body.append(player);
+    }
+    entry.deadline = setTimeout(() => {
+      if (!entry.closed && player.readyState < 2) { this.close(key); this.report(Error("Media connection timed out")); }
+    }, 10000);
     player.muted = !this.soundEnabled;
     player.autoplay = true;
     player.playsInline = true;
     entry.peer.ontrack = event => {
       if (entry.closed) return;
       if (player.srcObject !== event.streams[0]) player.srcObject = event.streams[0];
-      void player.play().catch(this.report);
+      void player.play().catch(error => { if (!entry.closed && error.name !== "AbortError") this.report(error); });
       if (node.tag === "canvas" && !entry.drawing) {
         entry.drawing = true;
         const draw = () => {
@@ -56,9 +64,11 @@ export class DocumentMediaView {
     if (!entry) return;
     entry.closed = true;
     clearTimeout(entry.timer);
+    clearTimeout(entry.deadline);
     if (entry.frame) entry.player.cancelVideoFrameCallback(entry.frame);
     entry.peer.close();
     entry.player.srcObject = null;
+    if (entry.player !== entry.element) entry.player.remove();
     this.streams.delete(key);
     if (entry.token) void this.api("media", { op: "close", token: entry.token }, true).catch(() => {});
   }
