@@ -32,10 +32,19 @@ try {
   const page = source.pages()[0];
   host = spawn('python3', ['apps/browser/run.py', '--skip-build', '--cdp-url', `http://127.0.0.1:${cdpPort}`, '--port', String(port), '--host', 'localhost', '--cert', cert, '--key', key, '--files-dir', directory, '--state-dir', join(directory, 'state')], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'] });
   host.stdout.on('data', d => logs += d);
-  host.stderr.on('data', d => logs += d);
+  host.stderr.on('data', d => { logs += d; if (String(d).includes('Document request failed:')) console.error(String(d).trim()); });
   await until(() => /Open on your phone: (https:\/\/[^\s]+)/.test(logs), 'Host starts');
   browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, chromiumSandbox: true });
   viewer = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  if (process.env.RUI_DEBUG_DOCUMENT === '1') {
+    const started = new WeakMap();
+    viewer.on('request', request => started.set(request, performance.now()));
+    viewer.on('response', async response => {
+      if (!response.url().endsWith('/api/document')) return;
+      const packet = await response.json().catch(() => ({}));
+      console.log('Document response', { ms: Math.round(performance.now() - started.get(response.request())), nodes: packet.put?.length, bytes: JSON.stringify(packet).length, error: packet.error });
+    });
+  }
   await viewer.routeWebSocket('**/rui', socket => {
     const server = socket.connectToServer();
     let closed = false;
@@ -52,18 +61,37 @@ try {
   const go = viewer.getByRole('button', { name: 'Go', exact: true });
   const navigate = async url => { await address.fill(url); await go.click(); };
   const replica = viewer.frameLocator('iframe[title="Host web page"]');
+  await until(async () => (await page.evaluate(() => innerWidth)) === await viewer.locator('iframe[title="Host web page"]').evaluate(frame => Math.round(frame.clientWidth)), 'Initial viewport synchronized');
   if (process.env.RUI_TEST_PUBLIC === '1') {
     await navigate('youtube.com');
     const search = replica.getByRole('button', { name: 'Search', exact: true }).first();
     await search.waitFor({ state: 'visible', timeout: 30000 });
+    await viewer.evaluate(() => scrollTo(0, 0));
     await search.tap();
     await until(async () => await page.locator('input[name="search_query"]').isVisible(), 'YouTube search opens on host');
     const query = replica.locator('input[name="search_query"]');
-    await query.fill('browser remote control');
+    const queryText = 'Big Buck Bunny Blender official';
+    await query.fill(queryText);
     await query.press('Enter');
-    await until(() => page.url().includes('/results?search_query=browser+remote+control'), 'YouTube query submitted on host');
+    await until(() => new URL(page.url()).pathname === '/results' && new URL(page.url()).searchParams.get('search_query') === queryText, 'YouTube query submitted on host');
     await until(async () => (await address.inputValue()).includes('/results?search_query='), 'YouTube navigation published');
-    console.log('YouTube search opened and query submitted');
+    const result = replica.locator('ytd-video-renderer').first();
+    await result.locator('#video-title').waitFor({ state: 'visible', timeout: 30000 });
+    await until(async () => result.locator('img').evaluateAll(images => images.some(image => image.complete && image.naturalWidth > 0)), 'Search result thumbnail is rendered');
+    await viewer.screenshot({ path: join(output, 'youtube-results.png') });
+    await result.locator('#video-title').tap();
+    await until(() => new URL(page.url()).pathname === '/watch', 'Result opens video on host');
+    const player = replica.locator('video').first();
+    await player.waitFor({ state: 'visible', timeout: 30000 });
+    if (await page.locator('video').first().evaluate(video => video.paused)) {
+      const play = replica.locator('.ytp-large-play-button');
+      if (await play.isVisible()) await play.tap(); else await player.tap();
+    }
+    await until(async () => player.evaluate(video => video.readyState >= 2 && video.videoWidth > 0), 'Video frames reach mobile replica');
+    const before = await player.evaluate(video => video.currentTime);
+    await until(async () => (await player.evaluate(video => video.currentTime)) > before + .5, 'Mobile video advances');
+    await viewer.screenshot({ path: join(output, 'youtube-video.png') });
+    console.log('YouTube search results, thumbnails and playing video rendered');
   }
   await navigate(`http://127.0.0.1:${fixture.address().port}/slow`);
   await replica.locator('#search').waitFor();
@@ -97,7 +125,7 @@ try {
   assert.equal(dialogs, 1, 'Recovery never replays the uncertain action');
   console.log('Paired control passed: slow navigation, touch search, keyboard resize and uncertain-action recovery');
 } catch (error) {
-  if (viewer) { console.error('Client status:', await viewer.locator('#status').textContent(), await viewer.locator('#view').innerText()); console.error('Source:', source.pages()[0].url(), await source.pages()[0].locator('button').evaluateAll(nodes => nodes.map(n => ({label:n.getAttribute('aria-label'),text:n.textContent,id:n.id,visible:!!n.getClientRects().length}))).catch(()=>[])); await viewer.screenshot({path:join(output, 'control-failure.png')}); }
+  if (viewer) { console.error('Geometry:', await viewer.evaluate(() => {const frame=document.querySelector('iframe');const doc=frame?.contentDocument; const target=doc?.querySelector('button[aria-label=Search]');return {scroll:scrollY,frame:frame?.getBoundingClientRect().toJSON(),target:target?.getBoundingClientRect().toJSON(),width:doc?.defaultView.innerWidth,height:doc?.defaultView.innerHeight,hidden:frame?.hidden}})); console.error('Client status:', await viewer.locator('#status').textContent(), await viewer.locator('#view').innerText()); console.error('Source:', source.pages()[0].url(), await source.pages()[0].locator('button').evaluateAll(nodes => nodes.map(n => ({label:n.getAttribute('aria-label'),text:n.textContent,id:n.id,visible:!!n.getClientRects().length}))).catch(()=>[])); await viewer.screenshot({path:join(output, 'control-failure.png')}); }
   throw error;
 } finally {
   await browser?.close();

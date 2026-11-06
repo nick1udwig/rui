@@ -130,7 +130,10 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
   Native browser credential prompts, passkeys and browser extension UI require host interaction.
 - Uploads choose a host file inside `--files-dir`. Folder traversal and symlinks outside that root are rejected. Uploading from the phone, directory uploads, and selecting multiple files are not implemented.
 - Downloads remain in `STATE/downloads`; the client shows their completion and host path. It can cancel an active download, but cannot download that file to the phone.
-- The page view uses the site's DOM and CSS with the source viewport matched to the controlling client.
+- The address bar stays above the page view.
+  The page view uses the site's DOM and CSS with the source viewport matched to the controlling client.
+  During a failed update, the previous page stays visible with an updating message and input is paused.
+  Video and audio connection errors appear beside the page view.
   The structured reading controls remain below the page.
   Links and controls target stable source nodes.
   Text fields commit on change or Enter; simple rich-text edits commit on blur and preserve unaffected markup.
@@ -215,7 +218,7 @@ The document acceptance checks cover the following cases.
 
 The paired control regression runs with `npm --prefix apps/browser run test:control`.
 It checks slow navigation, touch input, keyboard viewport changes, delayed command receipts, and uncertain-action recovery.
-Use `RUI_TEST_HEADED=1 RUI_TEST_PUBLIC=1 npm --prefix apps/browser run test:control` to include a visible host browser and live YouTube search.
+Use `RUI_TEST_HEADED=1 RUI_TEST_PUBLIC=1 npm --prefix apps/browser run test:control` to include a visible host browser and live YouTube search results, thumbnails, and video playback.
 These checks simulate a phone viewport; they do not replace testing on a physical phone.
 
 The phone-mode test starts a temporary real Tailscale Serve route and checks HTTPS without a certificate bypass.

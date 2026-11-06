@@ -232,7 +232,8 @@ const handler = async (request, response) => {
             )
         : content,
     );
-  } catch {
+  } catch (error) {
+    if (process.env.RUI_DEBUG_DOCUMENT === "1") console.error("Document request failed:", error.message);
     respond(response, 400, {
       error: "Request rejected. Check pairing, control, and the current page.",
     });

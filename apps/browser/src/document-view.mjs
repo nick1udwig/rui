@@ -14,12 +14,21 @@ export class DocumentView {
     this.iframe = document.createElement("iframe");
     this.iframe.title = "Host web page";
     this.iframe.style.cssText = "width:100%;height:75dvh;border:0;background:white";
-    this.media = new DocumentMediaView(api, report);
+    this.status = document.createElement("p");
+    this.status.setAttribute("role", "status");
+    this.status.hidden = true;
+    this.mediaStatus = document.createElement("p");
+    this.mediaStatus.setAttribute("role", "status");
+    this.mediaStatus.hidden = true;
+    this.media = new DocumentMediaView(api, error => {
+      this.mediaStatus.textContent = `Video/audio connection: ${String(error)}`;
+      this.mediaStatus.hidden = false;
+    });
     this.renderer = new DocumentRenderer(this.iframe, dispatch, canControl, this.media);
     const sound = document.createElement("button");
     sound.textContent = "Enable page sound";
     sound.onclick = () => this.media.enableSound();
-    this.container.append(sound);
+    this.container.append(sound, this.status, this.mediaStatus);
     this.container.append(this.iframe);
     this.dispatch = dispatch;
     this.canControl = canControl;
@@ -72,11 +81,21 @@ export class DocumentView {
           };
           await hydrate(snapshot);
           if (!this.running || serial !== this.serial) return;
+          const previousGeneration = this.displayedGeneration;
           this.media.begin();
           await this.renderer.render(snapshot);
+          this.displayedGeneration = snapshot.generation;
           this.media.finish();
           this.failures = 0;
           this.iframe.hidden = false;
+          this.iframe.inert = false;
+          this.status.hidden = true;
+          this.container.removeAttribute("aria-busy");
+          if ([...this.media.streams.values()].some(entry => entry.peer.connectionState === "connected")) this.mediaStatus.hidden = true;
+          if (previousGeneration && previousGeneration !== snapshot.generation && this.canControl()) {
+            this.container.style.scrollMarginTop = `${(document.querySelector("header")?.offsetHeight || 0) + 8}px`;
+            this.container.scrollIntoView({ block: "start" });
+          }
           const width = Math.max(240, Math.min(2560, Math.round(this.iframe.clientWidth)));
           const height = Math.max(240, Math.min(2560, Math.round(this.iframe.clientHeight)));
           const viewport = `${snapshot.generation}:${width}:${height}`;
@@ -89,7 +108,11 @@ export class DocumentView {
         }
       } catch (error) {
         this.media.dispose();
-        this.iframe.hidden = true;
+        this.iframe.hidden = !this.displayedGeneration;
+        this.iframe.inert = true;
+        this.container.setAttribute("aria-busy", "true");
+        this.status.textContent = "Updating the host page… The previous view stays visible until the update is ready.";
+        this.status.hidden = false;
         this.report(error);
         this.receiver = new DocumentReceiver();
         this.renderer.generation = null;
@@ -102,6 +125,10 @@ export class DocumentView {
   }
   stop() {
     this.running = false;
+    this.displayedGeneration = null;
+    this.status.hidden = true;
+    this.mediaStatus.hidden = true;
+    this.container.removeAttribute("aria-busy");
     this.requestedViewport = null;
     this.media.dispose();
     this.serial++;

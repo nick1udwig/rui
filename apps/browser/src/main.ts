@@ -106,8 +106,9 @@ function drainDocumentCommands() {
   try { client.setBrowserValue(documentTarget.id, JSON.stringify(command)); refreshControls(); buttons(); }
   catch (error) { documentCommands = []; say(error); }
 }
+const toolbarContainer = document.createElement("div");
 const documentContainer = document.createElement("section");
-view.before(documentContainer);
+view.before(toolbarContainer, documentContainer);
 const documentView = workspace === "browser" ? new DocumentView(documentContainer, api, command => {
   if (!client?.hasControl) return;
   if (documentCommands.length >= 16) { say("Page input queue full. Wait for the host."); return; }
@@ -341,6 +342,7 @@ function reset() {
   for (const row of rows.values()) if (row.input) row.input.value = "";
   rows.clear();
   view.replaceChildren();
+  toolbarContainer.replaceChildren();
 }
 function refreshControls() {
   for (const row of rows.values()) {
@@ -464,8 +466,12 @@ function render(state: State) {
     for (const id of ids) {
       const row = rows.get(id);
       if (!row) continue;
-      if (row.element !== cursor) container.insertBefore(row.element, cursor);
-      cursor = row.element.nextElementSibling;
+      if (workspace === "browser" && row.kind === "view:toolbar") {
+        if (row.element.parentElement !== toolbarContainer) toolbarContainer.append(row.element);
+      } else {
+        if (row.element !== cursor) container.insertBefore(row.element, cursor);
+        cursor = row.element.nextElementSibling;
+      }
       if (row.children)
         place(
           row.children,
