@@ -43,7 +43,7 @@ const fixture = createServer((req, res) => {
   if (req.url === "/image.svg") { res.setHeader("Content-Type", "image/svg+xml"); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="blue"/></svg>'); return; }
   res.setHeader("Content-Type", "text/html");
   res.end(
-    `<!doctype html><title>Live browser fixture</title><style>h1{color:rgb(12,34,56)}</style><img id=live-image src=/image.svg alt="Fixture image"><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed';document.querySelector('style').textContent='h1{color:rgb(65,43,21)}'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a><canvas id=live-canvas width=40 height=40></canvas><script>const ctx=document.querySelector("canvas").getContext("2d");function paint(){ctx.fillStyle="red";ctx.fillRect(0,0,40,40);requestAnimationFrame(paint)}paint();</script>`,
+    `<!doctype html><title>Live browser fixture</title><style>h1{color:rgb(12,34,56)}</style><img id=live-image src=/image.svg alt="Fixture image"><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed';document.querySelector('style').textContent='h1{color:rgb(65,43,21)}'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a><canvas id=live-canvas width=40 height=40></canvas><script>const ctx=document.querySelector("canvas").getContext("2d");function paint(){ctx.fillStyle="rgb(255,"+(Math.floor(performance.now()/30)%255)+",0)";ctx.fillRect(0,0,40,40);requestAnimationFrame(paint)}paint();</script>`,
   );
 });
 await new Promise((r) => fixture.listen(0, "127.0.0.1", r));
@@ -175,6 +175,11 @@ try {
   await context.addInitScript(() => {
     window.ruiUnhandled = [];
     addEventListener('unhandledrejection', event => window.ruiUnhandled.push(String(event.reason)));
+    window.ruiSockets = [];
+    const Socket = window.WebSocket;
+    window.WebSocket = class extends Socket {
+      constructor(...args) { super(...args); window.ruiSockets.push(this); }
+    };
     window.ruiPeers = [];
     const Peer = window.RTCPeerConnection;
     if (Peer) window.RTCPeerConnection = class extends Peer {
@@ -200,6 +205,23 @@ try {
     data.body = (data.body[0] === 'x' ? 'y' : 'x') + data.body.slice(1);
     await route.fulfill({ response, json: data });
   });
+  const retainMediaPeer = async () => {
+    await page.waitForFunction(() => window.ruiPeers.some(peer => peer.connectionState === 'connected'));
+    await page.evaluate(async () => {
+      const peer = window.ruiPeers.findLast(peer => peer.connectionState === 'connected');
+      window.retainedMediaPeer = peer;
+      peer.close = () => {};
+      window.mediaPacketCount = async () => [...(await peer.getStats()).values()].filter(s => s.type === 'inbound-rtp').reduce((n, s) => n + (s.packetsReceived || 0), 0);
+      window.beforeRevokePackets = await window.mediaPacketCount();
+    });
+    await page.waitForFunction(async () => await window.mediaPacketCount() > window.beforeRevokePackets, null, { timeout: 5000 });
+  };
+  const assertMediaRetired = async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const packets = await page.evaluate(() => window.mediaPacketCount());
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    assert.equal(await page.evaluate(() => window.mediaPacketCount()), packets, 'host retires media even when the client keeps its peer open');
+  };
   const errors = [];
   let retiringView = false;
   page.on("pageerror", e => {
@@ -380,6 +402,12 @@ try {
     { sameText: true, selected: "Host fixture", focused: true, cursor: [2, 5] },
   );
   retiringView = true;
+  if (!desktopBrowser) {
+    await retainMediaPeer();
+    await page.evaluate(() => window.ruiSockets.filter(socket => socket.readyState === WebSocket.OPEN).forEach(socket => socket.close()));
+    await deadline(async () => (await page.locator('#connection').textContent()) === 'Disconnected', 'view transport retirement');
+    await assertMediaRetired();
+  }
   await page.reload();
   await deadline(
     async () =>
@@ -464,6 +492,7 @@ try {
         };
       }),
   );
+  if (!desktopBrowser) await retainMediaPeer();
   retiringView = true;
   host.stdin.write(`revoke ${deviceId}\n`);
   await deadline(
@@ -471,6 +500,7 @@ try {
       (await page.locator("#connection").textContent()) === "Disconnected",
     "local revocation disconnect",
   );
+  if (!desktopBrowser) await assertMediaRetired();
   assert.ok(
     await page
       .getByRole("button", { name: "Take control", exact: true })
@@ -527,6 +557,10 @@ try {
     hostRestart: true,
     persistentLogin: true,
     revoke: true,
+    documentReplica: !desktopBrowser,
+    hashedResources: !desktopBrowser,
+    scopedCanvas: !desktopBrowser,
+    mediaRetirement: !desktopBrowser,
     physicalDevice: false,
   };
   await writeFile(

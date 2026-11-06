@@ -79,6 +79,7 @@ struct View {
     capture: Arc<Capture>,
     pending: Option<SharedPayload>,
     ready: bool,
+    document_retired: bool,
     revoked: Option<Revoked>,
 }
 pub struct State {
@@ -285,9 +286,9 @@ impl State {
                 || !v.lifetime.is_authorized()
                 || self.stopped.load(Ordering::Acquire)
             {
-                let was_alive = v.scope.alive.swap(false, Ordering::AcqRel);
-                if was_alive && self.selection == "browser" {
-                    let _ = self.worker.call(json!({"op":"retireDocumentViewer", "client":hex(&v.session.client.client_instance_id)}));
+                v.scope.alive.store(false, Ordering::Release);
+                if !v.document_retired && self.selection == "browser" {
+                    v.document_retired = self.worker.call(json!({"op":"retireDocumentViewer", "client":hex(&v.session.client.client_instance_id)})).is_ok();
                 }
                 let _ = self.sessions.disconnect(&v.session.client, now);
                 if !v.lifetime.is_authorized() {
@@ -469,6 +470,7 @@ impl State {
                         capture: self.capture.clone(),
                         pending: Some(pending),
                         ready: false,
+                        document_retired: false,
                         revoked: None,
                     },
                 );
