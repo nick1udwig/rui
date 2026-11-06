@@ -974,6 +974,7 @@ dependencies = [
  "rui-producer-sdk",
  "rui-protocol-core",
  "rui-transport",
+ "rui-wire",
  "serde_json",
  "sha2",
  "thiserror",

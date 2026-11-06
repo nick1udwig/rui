@@ -11,13 +11,14 @@ import json
 from pathlib import Path
 
 from .full_interop import compare, verify_resource
+from .compressed_chunks import ChunkHistory
 from .reference import fields, one, many, number, string
 
 MAX_FILE = 128 << 20
 MAX_PACKET = 1 << 20
 MAX_PUBLICATION = 4 << 20
 MAX_RESOURCES = 512
-HOST_KINDS = {2, 4, 6, 7, 8, 10, 11, 12, 13, 14, 20, 22, 23, 33, 34, 41, 44, 54}
+HOST_KINDS = {2, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 20, 22, 23, 33, 34, 41, 44, 54}
 CLIENT_KINDS = {3, 5, 6, 7, 21, 24, 25, 30, 31, 32, 35, 40, 42, 43, 50, 51, 52, 53, 55}
 
 
@@ -67,6 +68,7 @@ def audit(path, replay):
     file_hash = hashlib.sha256()
     expected_binding = None
     segment_ended = False
+    history = ChunkHistory()
 
     def drain():
         while waiting:
@@ -103,6 +105,7 @@ def audit(path, replay):
                 segment, sequence = entry['segment'], 0
                 segment_ended = False
                 pending, waiting, offers = None, [], {}
+                history.clear()
                 acknowledged = applied_revisions[scope]
                 continue
             if entry['record'] == 'segment-end':
@@ -138,6 +141,8 @@ def audit(path, replay):
             counts['packets'] += 1
             counts['exact_packet_bytes'] += len(raw)
             if host and kind in (10, 11):
+                if kind == 10:
+                    history.clear()
                 total, count = number(body, 4), number(body, 5)
                 if pending is not None or not 0 < total <= MAX_PUBLICATION or not 0 < count <= 4096:
                     raise ValueError('publication begin bounds')
@@ -148,10 +153,10 @@ def audit(path, replay):
                            'base': number(body, 2), 'revision': number(body, 3), 'total': total,
                            'count': count, 'items': number(body, 6), 'digest': digest,
                            'chunks': [], 'received': 0}
-            elif host and kind == 12:
+            elif host and kind in (12, 15, 16):
                 if pending is None:
                     raise ValueError('publication chunk without begin')
-                assemble(pending, identity(body, 1), number(body, 2), one(body, 3, 2))
+                assemble(pending, identity(body, 1), number(body, 2), history.decode(kind, one(body, 3, 2)))
             elif host and kind == 13:
                 if pending is None or (identity(body, 1), number(body, 2), number(body, 3), number(body, 4), one(body, 5, 2)) != (
                         pending['id'], pending['total'], pending['count'], pending['items'], pending['digest']):
@@ -177,6 +182,7 @@ def audit(path, replay):
                     raise ValueError('unmatched publication abort')
                 pending = None
                 counts['aborted_publications'] += 1
+                history.clear()
             elif host and kind == 20:
                 digest = one(body, 1, 2)
                 if digest is None or len(digest) != 32 or digest not in offers and len(offers) >= MAX_RESOURCES:
