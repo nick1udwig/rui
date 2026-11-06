@@ -5,6 +5,10 @@ checkout with Rust 1.98.1, the WASM target, Node 26.8.1 and locked npm installs.
 It reads the exact wasm-bindgen version from the binding crate, installs the
 matching CLI, and never depends on generated files or `/tmp` executables.
 
+The portable job uses the digest-pinned Playwright 1.63.0 Noble container with Chromium, Firefox, WebKit, and their OS dependencies already installed.
+It checks that the locked Playwright package matches the image version.
+This avoids downloading the full browser OS dependency set from the hosted runner's apt mirror during each job.
+
 The portable job runs the same native-oracle WASM trace in Node and Chromium,
 Firefox and Playwright WebKit, plus browser pixel/resource/lifecycle checks.
 Each runner prints the actual engine version. Production checks serve the built

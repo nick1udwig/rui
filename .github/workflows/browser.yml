@@ -11,8 +11,11 @@ env:
 jobs:
   portable:
     runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
     timeout-minutes: 30
     steps:
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends build-essential protobuf-compiler python3 ca-certificates curl git
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -21,14 +24,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26.8.1
-      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Install the exact binding generator
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
           cargo install wasm-bindgen-cli --version "$version" --locked
       - run: python3 client-wasm/build.py
       - run: npm --prefix client-wasm ci && npm --prefix client-browser ci && npm --prefix demos/web ci && npm --prefix demos/semantic ci
-      - run: npm --prefix client-wasm exec -- playwright install --with-deps chromium firefox webkit
+      - name: Verify the preinstalled browser version
+        run: test "$(node -p 'require("./client-wasm/node_modules/playwright/package.json").version')" = 1.63.0
       - run: npm --prefix client-wasm test
       - run: npm --prefix client-browser test
       - name: Build a reviewable runtime artifact
