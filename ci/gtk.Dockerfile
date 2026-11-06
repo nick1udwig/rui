@@ -28,4 +28,5 @@ RUN python3 -c 'import gi; assert gi.__version__ == "3.58.1"; gi.require_foreign
 RUN apt-get update && apt-get install -y --no-install-recommends fonts-noto-core libzstd1 && rm -rf /var/lib/apt/lists/*
 COPY --chmod=755 chromium.sh /usr/local/bin/rui-ci-chromium
 ENV RUI_WASM_CHROMIUM=/usr/local/bin/rui-ci-chromium
+RUN git config --system --add safe.directory /workspace
 WORKDIR /workspace
