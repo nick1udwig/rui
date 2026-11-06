@@ -178,6 +178,12 @@ Browsers without a supported format use direct WebRTC as a compatibility path.
 Media elements use this transport; page text, layout and controls remain DOM and CSS.
 No additional ports or relay service need configuration.
 Use **Enable page sound** for audio playback.
+Media encoding follows the displayed width, with device pixel ratio capped at 1.5 and source resolution preserved as an upper bound.
+The default profile caps width at 960 pixels and frame rate at 30 fps.
+Sustained decoder pressure reduces the profile to 480 pixels and 15 fps.
+Offscreen media stops drawing picture frames while its audio remains connected.
+Canvas uses a 100 ms recording interval; video uses 250 ms.
+Quality changes restart only the affected media stream, with a 15-second minimum interval.
 Media sessions expire without renewal and close when the view is retired or hidden.
 When a media element loads a new source, its old stream closes and the phone connects to the new stream.
 Desktop WebKit in the test container requires direct ICE addresses because container mDNS discovery did not work.

@@ -2,26 +2,29 @@ import { randomBytes } from "node:crypto";
 
 export class DocumentMedia {
   constructor(source) { this.source = source; this.sessions = new Map(); }
-  async open(node, generation, transport = 'webrtc', types = []) {
+  async open(node, generation, transport = 'webrtc', types = [], quality) {
     const source = this.source;
+    if (quality !== undefined && (!quality || !Number.isInteger(quality.level) || quality.level < 0 || quality.level > 2 || !Number.isInteger(quality.width) || quality.width < 2 || quality.width > 1920)) throw Error('Media quality rejected');
     if (!['webrtc', 'https'].includes(transport) || !Array.isArray(types) || types.length > 8 || types.some(type => typeof type !== 'string' || type.length > 128)) throw Error('Media transport rejected');
     if (generation !== source.generation || this.sessions.size >= 8) throw Error("Media scope rejected");
     const token = randomBytes(24).toString("hex");
     const session = { generation, expires: Date.now() + 10000 };
     this.sessions.set(token, session);
     try {
-      const result = await source.frame.evaluate(async ({ key, node, token, transport, types }) => {
+      const result = await source.frame.evaluate(async ({ key, node, token, transport, types, quality }) => {
         const state = globalThis[key];
         const element = state?.reverse.get(node);
         if (!element?.isConnected || !['canvas', 'video', 'audio'].includes(element.localName) || typeof element.captureStream !== 'function') throw Error('Media unavailable');
         const stream = element.localName === 'canvas' ? element.captureStream(30) : element.captureStream();
         if (!stream.getTracks().length) throw Error('Media has no tracks');
         state.media ||= new Map();
-        const session = { stream, timer: null };
+        const session = { stream, timer: null, visible: true };
         const tracks = stream.getTracks();
         const close = () => {
           if (session.closed) return;
           session.closed = true;
+          clearTimeout(session.drawTimer);
+          session.scaled?.getTracks().forEach(track => track.stop());
           for (const event of ['emptied', 'loadstart']) element.removeEventListener(event, close);
           stream.removeEventListener('removetrack', close);
           for (const track of new Set([...tracks, ...stream.getTracks()])) { track.removeEventListener('ended', close); track.stop(); }
@@ -42,7 +45,30 @@ export class DocumentMedia {
             const allowed = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'audio/webm;codecs=opus'];
             const mimeType = allowed.find(type => types.includes(type) && type.startsWith(video ? 'video/' : 'audio/') && type.includes('opus') === audio && MediaRecorder.isTypeSupported(type));
             if (!mimeType) throw Error('No supported HTTPS media codec');
-            const recorder = session.recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2000000, audioBitsPerSecond: 128000 });
+            const preset = [{ width: 480, fps: 15, bitrate: 500000 }, { width: 960, fps: 30, bitrate: 1200000 }, { width: 1280, fps: 30, bitrate: 2000000 }][quality?.level ?? 2];
+            let encoding = stream;
+            if (video && quality) {
+              const width = element.videoWidth || element.width, height = element.videoHeight || element.height;
+              const scale = Math.min(1, Math.min(quality.width, preset.width) / width, 720 / height);
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(2, Math.floor(width * scale / 2) * 2); canvas.height = Math.max(2, Math.floor(height * scale / 2) * 2);
+              const context = canvas.getContext('2d', { alpha: false });
+              const scaled = session.scaled = canvas.captureStream(0), track = scaled.getVideoTracks()[0];
+              for (const audioTrack of stream.getAudioTracks()) scaled.addTrack(audioTrack);
+              let lastTime;
+              const draw = () => {
+                if (session.closed) return;
+                try {
+                  if (session.visible && (element.localName === 'canvas' || (element.readyState >= 2 && element.currentTime !== lastTime))) {
+                    context.drawImage(element, 0, 0, canvas.width, canvas.height); track.requestFrame(); lastTime = element.currentTime;
+                  }
+                  session.drawTimer = setTimeout(draw, 1000 / preset.fps);
+                } catch { close(); }
+              };
+              session.startDrawing = draw; encoding = scaled;
+              session.encoding = { width: canvas.width, height: canvas.height, fps: preset.fps, bitrate: preset.bitrate };
+            }
+            const recorder = session.recorder = new MediaRecorder(encoding, { mimeType, videoBitsPerSecond: preset.bitrate, audioBitsPerSecond: 96000 });
             session.chunks = []; session.bytes = 0; session.sequence = 0; session.ack = 0;
             let pending = Promise.resolve();
             recorder.ondataavailable = event => {
@@ -80,8 +106,9 @@ export class DocumentMedia {
               session.renew();
               return { chunks, ...(element.localName !== 'canvas' ? { playback: { paused: element.paused, time: element.currentTime, frames: element.getVideoPlaybackQuality?.().totalVideoFrames } } : {}) };
             };
-            recorder.start(250);
-            return { transport, mimeType };
+            recorder.start(element.localName === "canvas" ? 100 : 250);
+            session.startDrawing?.();
+            return { transport, mimeType, encoding: session.encoding };
           }
           const peer = session.peer = new RTCPeerConnection({ iceServers: [] });
           for (const track of stream.getTracks()) peer.addTrack(track, stream);
@@ -94,7 +121,7 @@ export class DocumentMedia {
           if (state.media.get(token) !== session) throw Error('Media source changed');
           return { transport, offer: { type: peer.localDescription.type, sdp: peer.localDescription.sdp } };
         } catch (error) { close(); throw error; }
-      }, { key: source.key, node, token, transport, types });
+      }, { key: source.key, node, token, transport, types, quality });
       if (source.generation !== generation || this.sessions.get(token) !== session) throw Error("Media document changed");
       session.expires = Date.now() + 10000;
       return { token, ...result };
@@ -114,6 +141,16 @@ export class DocumentMedia {
     if (this.sessions.get(token) !== session || session.generation !== this.source.generation) throw Error('Media source changed');
     session.expires = Date.now() + 10000;
     return result;
+  }
+  async visibility(token, visible) {
+    if (typeof visible !== 'boolean') throw Error('Media visibility rejected');
+    const session = this.sessions.get(token);
+    if (!session || session.generation !== this.source.generation) throw Error('Media scope expired');
+    await this.source.frame.evaluate(({ key, token, visible }) => {
+      const current = globalThis[key]?.media?.get(token);
+      if (!current) throw Error('Media expired');
+      current.visible = visible;
+    }, { key: this.source.key, token, visible });
   }
   async update(token, answer) {
     const session = this.sessions.get(token);

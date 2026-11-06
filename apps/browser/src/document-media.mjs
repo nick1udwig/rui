@@ -2,18 +2,53 @@ import { documentRequest } from './document-request.mjs';
 import { DocumentStream, streamTypes, mediaPackets } from './document-stream.mjs';
 
 export class DocumentMediaView {
-  constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; this.metrics = { bytes: 0, batches: 0, frames: 0, failures: 0, opens: 0, appendMs: 0 }; }
+  constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; this.qualities = new Map(); this.metrics = { bytes: 0, batches: 0, frames: 0, failures: 0, opens: 0, appendMs: 0 }; }
   diagnostics() {
     return { ...this.metrics, streams: [...this.streams.values()].map(entry => {
       const player = entry.player, buffered = player.buffered;
-      return { transport: entry.transport, ready: player.readyState, paused: player.paused, bufferSeconds: buffered.length ? buffered.end(buffered.length - 1) - player.currentTime : 0, frames: player.getVideoPlaybackQuality?.().totalVideoFrames, droppedFrames: player.getVideoPlaybackQuality?.().droppedVideoFrames, frameAgeMs: entry.frameAt ? Date.now() - entry.frameAt : null };
+      return { transport: entry.transport, encoding: entry.encoding, ready: player.readyState, paused: player.paused, bufferSeconds: buffered.length ? buffered.end(buffered.length - 1) - player.currentTime : 0, frames: player.getVideoPlaybackQuality?.().totalVideoFrames, droppedFrames: player.getVideoPlaybackQuality?.().droppedVideoFrames, frameAgeMs: entry.frameAt ? Date.now() - entry.frameAt : null };
     }) };
+  }
+  visible(element) {
+    if (document.visibilityState !== 'visible' || element.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) === false) return false;
+    for (let current = element; current; current = current.ownerDocument.defaultView.frameElement) {
+      const box = current.getBoundingClientRect(), view = current.ownerDocument.defaultView;
+      if (box.width <= 0 || box.height <= 0 || box.bottom <= 0 || box.right <= 0 || box.top >= view.innerHeight || box.left >= view.innerWidth) return false;
+    }
+    return true;
+  }
+  quality(element) {
+    return { width: Math.max(2, Math.min(1920, Math.ceil(element.getBoundingClientRect().width * Math.min(devicePixelRatio || 1, 1.5)))), level: 1 };
+  }
+  async adapt(entry) {
+    if (!this.current(entry)) return;
+    try {
+      const visible = entry.element.localName === 'audio' || this.visible(entry.element);
+      if (entry.visible !== visible) {
+        await documentRequest(this.api, 'media', { op: 'visibility', token: entry.token, visible }, entry.controller.signal);
+        entry.visible = visible;
+      }
+      const stats = entry.player.getVideoPlaybackQuality?.(), buffered = entry.player.buffered;
+      const frames = (stats?.totalVideoFrames || 0) - (entry.qualityFrames || 0), dropped = (stats?.droppedVideoFrames || 0) - (entry.qualityDropped || 0);
+      entry.qualityFrames = stats?.totalVideoFrames || 0; entry.qualityDropped = stats?.droppedVideoFrames || 0;
+      const lag = buffered.length ? buffered.end(buffered.length - 1) - entry.player.currentTime : 0;
+      const overloaded = visible && !entry.sourcePaused && !entry.blocked && ((frames > 10 && dropped / frames > .15) || lag > 1.5);
+      entry.overload = overloaded ? (entry.overload || 0) + 1 : 0;
+      const desired = this.quality(entry.element);
+      if (Date.now() - entry.startedAt > 15000 && (entry.overload >= 3 && entry.quality.level > 0 || visible && Math.abs(desired.width - entry.quality.width) > Math.max(100, entry.quality.width * .4))) {
+        this.qualities.set(entry.key, { ...desired, level: entry.overload >= 3 ? entry.quality.level - 1 : entry.quality.level });
+        this.close(entry.key, entry);
+        return;
+      }
+    } catch (error) { if (this.current(entry)) this.fail(entry, error); }
+    if (this.current(entry)) entry.adaptation = setTimeout(() => { void this.adapt(entry); }, 2000);
   }
   begin() { this.live = new Set(); }
   current(entry) { return !entry.closed && this.streams.get(entry.key) === entry; }
   ready() { return [...this.streams.values()].every(entry => !entry.blocked && entry.player.readyState >= 2 && !entry.player.paused && (entry.transport === 'https' || entry.peer.connectionState === 'connected')); }
   fail(entry, error, connection = false) {
     if (!this.current(entry)) return;
+    if (entry.played && entry.quality?.level > 0 && /timed out|too slow|frames stopped/i.test(error.message)) this.qualities.set(entry.key, { ...entry.quality, level: entry.quality.level - 1 });
     this.metrics.failures++;
     this.close(entry.key, entry);
     if (connection && !entry.played && entry.transport === 'webrtc' && streamTypes().length) {
@@ -158,7 +193,9 @@ export class DocumentMediaView {
   }
   async openStream(entry, node, generation, frames) {
     const request = data => documentRequest(this.api, 'media', data, entry.controller.signal);
-    const result = await request({ op: 'open', transport: 'https', types: streamTypes(), generation, node: node.id, frames });
+    entry.quality = this.qualities.get(entry.key) || this.quality(entry.element);
+    const result = await request({ op: 'open', transport: 'https', types: streamTypes(), generation, node: node.id, frames, quality: entry.quality });
+    entry.encoding = result.encoding;
     entry.token = result.token;
     if (!this.current(entry)) { this.release(entry.token); return; }
     entry.stream = new DocumentStream(entry.player, entry.controller.signal);
@@ -178,6 +215,7 @@ export class DocumentMediaView {
       this.metrics.bytes += chunks.reduce((total, chunk) => total + (chunk.data instanceof Uint8Array ? chunk.data.length : Math.floor(chunk.data.length * 3 / 4) - (chunk.data.endsWith('==') ? 2 : chunk.data.endsWith('=') ? 1 : 0)), 0);
       if (this.current(entry)) this.play(entry);
     };
+    if (result.encoding) { entry.visible = true; entry.adaptation = setTimeout(() => { void this.adapt(entry); }, 2000); }
     if (result.delivery === 'binary') {
       const response = await request({ op: 'stream', token: entry.token });
       for await (const packet of mediaPackets(response, generation, entry.controller.signal)) {
@@ -232,6 +270,7 @@ export class DocumentMediaView {
   }
   finish() {
     for (const key of this.streams.keys()) if (!this.live.has(key)) this.close(key);
+    for (const key of this.qualities.keys()) if (!this.live.has(key)) this.qualities.delete(key);
     for (const key of this.failures.keys()) if (!this.live.has(key)) this.failures.delete(key);
   }
   enableSound() {
@@ -244,7 +283,7 @@ export class DocumentMediaView {
     entry.closed = true;
     this.streams.delete(key);
     entry.controller.abort();
-    for (const timer of ['timer', 'deadline', 'playRetry', 'disconnected']) clearTimeout(entry[timer]);
+    for (const timer of ['timer', 'deadline', 'playRetry', 'disconnected', 'adaptation']) clearTimeout(entry[timer]);
     if (entry.frame !== undefined) entry.player?.cancelVideoFrameCallback(entry.frame);
     entry.peer?.close();
     entry.stream?.close();
@@ -255,5 +294,5 @@ export class DocumentMediaView {
     }
     if (entry.token) this.release(entry.token);
   }
-  dispose() { for (const key of this.streams.keys()) this.close(key); this.failures.clear(); }
+  dispose() { for (const key of this.streams.keys()) this.close(key); this.failures.clear(); this.qualities.clear(); }
 }

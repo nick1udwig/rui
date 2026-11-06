@@ -54,11 +54,12 @@ try {
       let result;
       if (path === 'document') { result = publisher.publish(await source.capture()); captureMs += source.metrics.captureMs; }
       else if (path === 'document-resource') result = resourceReply(source, data);
-      else if (data.op === 'open') result = { ...await source.media.open(data.node, data.generation, data.transport, data.types), delivery: 'binary' };
+      else if (data.op === 'open') result = { ...await source.media.open(data.node, data.generation, data.transport, data.types, data.quality), delivery: 'binary' };
       else if (data.op === 'stream') {
         const write = response.write.bind(response); response.write = bytes => { payloadBytes += bytes.length; return write(bytes); };
         await streamMedia(response, { generation: source.generation, read: after => source.media.read(data.token, after, true), validate: async () => {} }); return;
       }
+      else if (data.op === 'visibility') { await source.media.visibility(data.token, data.visible); result = {}; }
       else if (data.op === 'read') result = await source.media.read(data.token, data.after);
       else if (data.op === 'close') { await source.media.close(data.token); result = {}; }
       else { await source.media.update(data.token, data.answer); result = {}; }
