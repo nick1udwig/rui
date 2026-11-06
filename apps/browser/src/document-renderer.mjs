@@ -6,7 +6,8 @@ const BLOCKED_ATTR = /^(on.*|src|srcset|srcdoc|href|xlink:href|action|formaction
 export class DocumentRenderer {
   constructor(iframe, dispatch = () => {}, canControl = () => false, media, frames = []) {
     this.iframe = iframe;
-    iframe.setAttribute("sandbox", "allow-same-origin");
+    // Native canvas and media need scripting enabled; CSP forbids all page scripts.
+    iframe.setAttribute("sandbox", "allow-same-origin allow-scripts");
     this.generation = null;
     this.dispatch = dispatch;
     this.canControl = canControl;
@@ -19,7 +20,7 @@ export class DocumentRenderer {
     const iframe = this.iframe;
     if (snapshot.generation !== this.generation) await new Promise(resolve => {
       iframe.onload = resolve;
-      iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
+      iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
     const doc = iframe.contentDocument;
     const resource = reference => snapshot.resources?.[reference?.replace(/^rui-resource:/, "")] || "";
@@ -29,8 +30,44 @@ export class DocumentRenderer {
         if (!this.canControl() || this.generation !== snapshot.generation || iframe.contentDocument !== doc) return;
         this.dispatch({ generation: this.generation, revision: this.revision, node, ...action });
       };
+      let gesture, suppressClick = 0;
+      const point = (target, event) => {
+        const rect = target.getBoundingClientRect();
+        return { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) };
+      };
+      doc.addEventListener("pointerdown", event => {
+        const target = event.composedPath().find(node => this.ids?.has(node) && node.matches?.('canvas,[draggable=true],[role=slider]'));
+        if (target && this.canControl() && event.isPrimary) {
+          event.preventDefault(); target.setPointerCapture(event.pointerId);
+          gesture = { target, pointer: event.pointerId, x: event.clientX, y: event.clientY, points: [point(target, event)] };
+        }
+      }, true);
+      doc.addEventListener("pointermove", event => {
+        if (!gesture || event.pointerId !== gesture.pointer) return;
+        if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 4) return;
+        gesture.moved = true;
+        if (gesture.points.length < 63) gesture.points.push(point(gesture.target, event));
+      }, true);
+      doc.addEventListener("pointerup", event => {
+        if (!gesture || event.pointerId !== gesture.pointer) return;
+        const current = gesture; gesture = null;
+        if (!current.moved) return;
+        suppressClick = Date.now() + 500;
+        send(this.ids.get(current.target), { action: "drag", points: [...current.points, point(current.target, event)] });
+      }, true);
+      doc.addEventListener("pointercancel", () => { gesture = null; }, true);
+      doc.addEventListener("keydown", event => {
+        const target = event.composedPath().find(node => this.ids?.has(node));
+        if (event.key !== 'Enter' || event.isComposing || target?.localName !== 'input' || ['password', 'checkbox', 'radio', 'button', 'submit', 'file'].includes(target.type)) return;
+        event.preventDefault();
+        const node = this.ids.get(target);
+        send(node, { action: 'value', value: target.value, expected: this.drafts.has(node) ? this.drafts.get(node) : this.values.get(node), key: 'Enter' });
+        this.drafts.delete(node);
+        this.values.set(node, target.value);
+      }, true);
       doc.addEventListener("click", event => {
         event.preventDefault();
+        if (Date.now() < suppressClick) return;
         const path = event.composedPath().filter(node => this.ids?.has(node));
         const target = path.find(node => node.matches?.("button,a[href],input,select,textarea,[role=button],[role=slider],[role=checkbox],[role=link]")) || path[0];
         if (target) {
@@ -46,7 +83,7 @@ export class DocumentRenderer {
       }, true);
       doc.addEventListener("change", event => {
         const node = this.ids?.get(event.target);
-        if (node && typeof event.target.value === "string") { send(node, { action: "value", value: event.target.value, expected: this.drafts.has(node) ? this.drafts.get(node) : this.values.get(node) }); this.drafts.delete(node); }
+        if (node && typeof event.target.value === "string" && (this.drafts.has(node) || event.target.value !== this.values.get(node))) { send(node, { action: "value", value: event.target.value, expected: this.drafts.has(node) ? this.drafts.get(node) : this.values.get(node) }); this.drafts.delete(node); }
       }, true);
       doc.addEventListener("focusout", event => {
         const node = this.ids?.get(event.target);
@@ -106,13 +143,14 @@ export class DocumentRenderer {
         }
       }
       for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);
+      if (node.tag === 'canvas' || node.attrs?.draggable === 'true' || node.attrs?.role === 'slider') element.style.touchAction = 'none';
       const image = resource(node.attrs?.src);
       if (node.tag === "img") {
         if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(image)) element.setAttribute("src", image);
         else element.removeAttribute('src');
       }
       if (embedded) {
-        element.setAttribute("sandbox", "allow-same-origin");
+        element.setAttribute("sandbox", "allow-same-origin allow-scripts");
         let renderer = this.frames.get(node.id);
         if (!renderer || renderer.iframe !== element) {
           renderer = new DocumentRenderer(element, command => this.dispatch({ ...command, frames: [{ node: node.id, generation: this.generation }, ...(command.frames || [])] }), this.canControl, this.media, [...this.route, { node: node.id, generation: snapshot.generation }]);

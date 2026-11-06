@@ -133,12 +133,32 @@ export class BrowserDocument {
         }
         await element.click({ timeout: 1000, position });
       }
+      else if (command.action === "drag") {
+        const points = command.points;
+        if (!Array.isArray(points) || points.length < 2 || points.length > 64 || !points.every(p => [p.x, p.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1))) throw Error("Drag path rejected");
+        await element.scrollIntoViewIfNeeded({ timeout: 1000 });
+        if (!await element.evaluate((n, point) => {
+          const box = n.getBoundingClientRect();
+          const root = n.getRootNode();
+          const hit = root.elementFromPoint(box.left + box.width * point.x, box.top + box.height * point.y);
+          return hit === n || n.contains(hit);
+        }, points[0])) throw Error("Drag target obscured");
+        const box = await element.boundingBox();
+        if (!box) throw Error("Invisible drag target");
+        const position = point => [box.x + box.width * point.x, box.y + box.height * point.y];
+        await this.page.mouse.move(...position(points[0]));
+        await this.page.mouse.down();
+        try { for (const point of points.slice(1)) await this.page.mouse.move(...position(point)); }
+        finally { await this.page.mouse.up(); }
+      }
       else if (command.action === "value") {
         if (typeof command.value !== "string" || command.value.length > 16384) throw Error("Text limit");
+        if (command.key !== undefined && command.key !== "Enter") throw Error("Unsupported submit key");
         const valid = await element.evaluate((n, expected) => n.type !== 'password' && String(n.value ?? '') === expected, command.expected);
         if (!valid) throw Error("Source text changed");
         if (await element.evaluate(n => n.localName === 'select')) await element.selectOption(command.value, { timeout: 1000 });
         else await element.fill(command.value, { timeout: 1000 });
+        if (command.key) await element.press(command.key, { timeout: 1000 });
       } else if (command.action === "rich-value") {
         if (typeof command.value !== 'string' || command.value.length > 16384 || typeof command.expected !== 'string') throw Error("Text limit");
         const edit = await element.evaluate((n, command) => {

@@ -60,6 +60,19 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       const green = doc.querySelector('#gl')?.getContext('2d').getImageData(10,10,1,1).data;
       return red?.[0] > 200 && green?.[1] > 200 && doc.querySelector('#movie')?.readyState >= 2;
     }, null, { timeout: 15000 });
+    for (const [id, channel] of [['drawing', 0], ['gl', 1]]) {
+      const box = await viewer.frames()[1].locator(`#${id}`).boundingBox();
+      assert.ok(box.width >= 32 && box.height >= 32);
+      await viewer.screenshot({ path: new URL('../test-output/media-visible.png', import.meta.url).pathname });
+      const png = (await viewer.screenshot({ clip: box })).toString('base64');
+      const pixel = await viewer.evaluate(async png => {
+        const image = new Image(); image.src = 'data:image/png;base64,' + png; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+        const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+        return [...context.getImageData(10, 10, 1, 1).data];
+      }, png);
+      assert.ok(pixel[channel] > 200 && pixel[(channel + 1) % 3] < 60, `${id} must be visible on screen: ${pixel}`);
+    }
     const audio = await viewer.evaluate(async () => {
       const entry = [...media.streams.values()].find(entry => entry.element.id === 'movie');
       const stats = await entry.peer.getStats();

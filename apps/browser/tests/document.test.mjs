@@ -62,6 +62,11 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     await frame.locator('button').click();
     assert.equal(unexpected, 0);
     assert.equal(await frame.locator('script').count(), 0);
+    assert.equal(await viewer.evaluate(() => {
+      const doc = document.querySelector('iframe').contentDocument;
+      const script = doc.createElement('script'); script.textContent = 'window.injectedScriptRan = true'; doc.body.append(script); script.remove();
+      return !!doc.defaultView.injectedScriptRan;
+    }), false, 'CSP blocks injected inline scripts');
     assert.equal(await frame.locator('[data-rui-unsupported=canvas]').count(), 1);
     const mobile = await frame.locator('main').evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length);
     assert.equal(mobile, 1);
