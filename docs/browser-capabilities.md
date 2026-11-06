@@ -48,3 +48,12 @@ one Boolean effect and rejects another after release. Its bounded authorized pac
 report in `fixtures/gtk/semantic-values.json` is independently replayed by Python;
 credentials are redacted. Existing native editor stale text/focus/modal/removal
 checks and SDK authority/publication tests remain enabled.
+
+
+## Browser document extension
+
+The standalone browser workspace also provides the optional `browser.document.v1` HTTP document extension.
+It carries DOM/CSS updates, hashed image/font resources and element-scoped WebRTC media under the existing active-view grant.
+Document input uses the existing SetValue command ledger and a browser adapter with generation, node, field-value and action-bound checks.
+This does not enable generic raw pointer, keyboard, composition or resize families in the core browser wire profile.
+See the [browser workspace](../apps/browser/README.md#document-transport) for its contract, acceptance cases and limits.

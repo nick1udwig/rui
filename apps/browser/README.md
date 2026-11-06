@@ -3,8 +3,14 @@
 To attach to existing native applications instead, use the
 [desktop workspace](../desktop/README.md).
 
-
-A visible Chromium browser runs on the Linux host. A responsive web client controls its tabs and standard page controls from a phone or another computer. Chromium's profile, cookies, uploads and downloads stay on the host. This app uses RUI's semantic transport: the client receives text and controls, not a screenshot or a copy of the page's JavaScript.
+A mobile web client displays and controls Chromium on the host.
+It can launch its own browser or attach to a browser with a local debugging endpoint.
+The client renders page DOM, CSS, text, controls, SVG, images and fonts in an isolated iframe.
+Website JavaScript runs only on the host.
+Authenticated browser sessions remain on the host.
+Canvas, WebGL, video and audio use separate element-scoped media streams.
+Unloaded videos retain their poster images.
+The app never sends a full-page raster as its page representation.
 
 ## Start locally
 
@@ -21,6 +27,24 @@ python3 apps/browser/run.py --http-local --files-dir "$HOME/Downloads"
 The launcher builds Rust, WASM and web assets and starts a dedicated visible Chromium with a persistent profile. Open the printed invitation URL in a **separate client browser**, compare its pairing code with the terminal, and type `approve CODE` on the host. Choose **Take control**, enter an address, and choose **Go**. Subsequent launches can use `--skip-build` until the code changes. `--chromium /path/to/chromium` overrides the executable.
 
 The default state directory is `~/.local/state/rui/browser` (mode 0700). It contains the Chromium profile, device approval digests, internal TLS identity, and downloads. `--state-dir /path` selects another workspace; only one host can use a workspace at a time. Stop with `quit` or Ctrl+C. Persistent login cookies survive restarts; session-only cookies follow Chromium’s normal session behavior.
+
+## Attach to a running browser
+
+The browser must already expose a local Chromium debugging endpoint.
+A normal browser without that endpoint cannot be attached by this adapter.
+The endpoint is never exposed to the mobile client.
+
+```sh
+python3 apps/browser/run.py --http-local --cdp-url http://127.0.0.1:9222 --files-dir "$HOME/Downloads"
+```
+
+Use the HTTPS options below for a physical phone.
+Only loopback HTTP or WebSocket CDP endpoints are accepted.
+RUI shares up to 16 existing tabs and leaves excess tabs open.
+Commands activate the selected source tab.
+Taking control lets the client set that tab's emulated viewport to the mobile document size.
+RUI preserves the external browser window bounds and clears its viewport override on detach.
+Quitting disconnects RUI without closing the external browser or its tabs.
 
 ## Connect through Tailscale Serve
 
@@ -74,20 +98,49 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
 
 - Tabs, address navigation, back/forward/reload, and links operate on the real host browser. Popups become tabs. Local host changes are observed too.
 - Text, Unicode/IME composition, plain contenteditable, checkboxes, radio buttons, native selects, date/number fields, and JavaScript dialogs use semantic controls. Typing remains a local draft until **Apply**. Changed source fields invalidate old drafts; **Discard** loads the latest value.
-- Passwords are blank in publications. Applying a password stages it through an authenticated HTTPS endpoint, then sends a single-use token bound to the device, control lease, epoch and source target. The token expires after 60 seconds. The source website receives the password normally. The input clears on submit, loss of control, and backgrounding. Native browser credential prompts, passkeys and browser extension UI require host interaction.
+- Passwords are blank in publications.
+  Use the password control below the page; password inputs in the page replica are read-only.
+  Applying a password stages it through an authenticated HTTPS endpoint, then sends a single-use token bound to the device, control lease, epoch and source target.
+  The token expires after 60 seconds.
+  The source website receives the password normally.
+  The input clears on submit, loss of control, and backgrounding.
+  Native browser credential prompts, passkeys and browser extension UI require host interaction.
 - Uploads choose a host file inside `--files-dir`. Folder traversal and symlinks outside that root are rejected. Uploading from the phone, directory uploads, and selecting multiple files are not implemented.
 - Downloads remain in `STATE/downloads`; the client shows their completion and host path. It can cancel an active download, but cannot download that file to the phone.
-- Headings, paragraphs, lists, tables and document regions reflow through mobile HTML templates. This is a structured reading view, not a copy of site CSS or JavaScript; authenticated actions still execute in the host browser.
-- Long documents are presented in sections of 400 semantic entries. **Scroll host page down** can trigger lazy-loaded content. The source browser retains its desktop viewport while the phone layout reflows.
+- The page view uses the site's DOM and CSS with the source viewport matched to the controlling client.
+  The structured reading controls remain below the page.
+  Links and controls target stable source nodes.
+  Text fields commit on change or Enter; simple rich-text edits commit on blur and preserve unaffected markup.
+  Canvas and slider drags send bounded paths to the host.
+- Scrolling the page or a nested scroll region also scrolls its source region to trigger lazy loading.
+  The separate reading view uses sections of 400 semantic entries.
 - An action receipt means **dispatched**, not that a website has completed its work. Page state arrives separately. Pending commands can be explicitly retried with their original identity; gestures are never automatically replayed. A full page reload abandons pending client results, but continues above the host's command high-water mark so it cannot reuse an old command identity.
 
 ## Current limits
 
-This is a first functional workspace, not general browser parity. Images are represented by descriptions when available; canvas, video, WebGL, visual CAPTCHA, maps, rich editors, drag/drop, custom controls without accessible actions, browser chrome/settings and extension UI are unavailable. Some sites reject synthetic semantic clicks or require native trusted input. Unsupported or inaccessible frame content is marked partial. Browser sandboxing stays enabled.
+The host adapter targets Linux Chromium.
+It is not complete browser parity.
+Closed shadow trees, complex editors, multi-touch/pinch, native browser chrome, extension UI, passkeys and protected media are not supported.
+CSS imports, blob-backed images and unusual resource formats can be incomplete.
+Unsupported frame/plugin regions remain marked instead of becoming a full-page screenshot.
+Only open shadow trees and accessible frame documents are replicated.
 
-The initial host target is Linux Chromium. The client has been exercised at 390 × 844 with touch enabled in Chromium, Firefox and WebKit on Linux. **Physical iOS Safari and Android Chrome acceptance is still pending.** Desktop WebKit is not proof of iOS behavior. Background suspension, real mobile keyboards/IME, certificate trust and camera QR scanning must be checked on devices.
+Media uses direct WebRTC connections without STUN or TURN.
+An HTTPS reverse proxy carries document data and signaling; it does not relay media packets.
+The client and source browser need a working direct media route.
+Use **Enable page sound** for audio playback.
+Media sessions expire without renewal and close when the view is retired or hidden.
+Desktop WebKit in the test container requires direct ICE addresses because container mDNS discovery did not work.
+This test configuration does not validate Safari networking on a phone.
 
-Bounds include 16 tabs, 16 frames per capture, 16 staged passwords, 16 KiB field values, 128 file entries per directory, 64 download records, and a bounded semantic publication. Limits reject or omit unsupported work instead of falling back to pixels. This is intended for a reachable LAN/tailnet host; there is no internet rendezvous service.
+**Physical iOS Safari and Android Chrome acceptance is pending.**
+Desktop engine tests use a 390 × 844 viewport and do not prove OS keyboard, IME, touch, background suspension, certificate or QR behavior on a device.
+
+Bounds include 16 tabs, 16 frames, 20,000 DOM nodes, 8 MiB document packets, an 8 MiB source asset cache and a 16 MiB client resource cache.
+There are at most eight media regions per source document and 32 worker media sessions.
+Other existing bounds include 16 staged passwords, 16 KiB field values, 128 host file entries and 64 download records.
+A site that exceeds these limits can have omitted assets or a rejected document view.
+No internet rendezvous or media relay is provided.
 
 ## Verification
 
@@ -101,16 +154,37 @@ npm --prefix apps/browser run test:proxy:path
 npm --prefix apps/browser exec -- playwright install firefox webkit
 RUI_CLIENT_ENGINE=firefox npm --prefix apps/browser run test:live
 RUI_CLIENT_ENGINE=webkit npm --prefix apps/browser run test:live
+node apps/browser/tests/sites.mjs https://en.wikipedia.org/wiki/Web_browser https://www.youtube.com/watch?v=aqz-KE-bpKQ
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 python3 conformance/check.py
 ```
 
-Playwright's WebKit requires its platform system libraries. `RUI_CLIENT_EXECUTABLE` can point to a compatible client-browser executable/wrapper. The host Chromium executable remains separately selected by `RUI_CHROMIUM`. Tests use temporary profiles and self-signed local HTTPS; their client certificate bypass is confined to tests. JSON reports and screenshots are written to ignored `test-output/` and explicitly state `physicalDevice: false`.
+Playwright's WebKit requires its platform system libraries. `RUI_CLIENT_EXECUTABLE` can point to a compatible client-browser executable/wrapper. The live test source executable can be selected with `RUI_TEST_SOURCE_EXECUTABLE`.
+Direct adapter tests use `RUI_CHROMIUM`.
+`RUI_TEST_DIRECT_ICE=1` selects direct source ICE addresses in the scoped-media test. Tests use temporary profiles and self-signed local HTTPS; their client certificate bypass is confined to tests. JSON reports and screenshots are written to ignored `test-output/` and explicitly state `physicalDevice: false`.
 
 The proxy test runs the live flow through a local TLS-terminating reverse proxy with a different backend port, preserving Host and Origin as Tailscale Serve does. It also checks rejection of an incorrect Host or Origin and spoofed forwarding headers. The path variant strips `/bart` as Tailscale Serve does and verifies that JS/CSS/WASM, API requests, and WebSockets remain under the mount, including a bare `/bart` entry and remembered-device reload. It also checks that an existing root-path credential is untouched. This tests proxy compatibility; it does not change the machine’s Tailscale configuration.
 
 The worker fixture checks Unicode edits, stale source and navigation rejection, password redaction/single-use/expiry/lease binding, upload path confinement, native form controls, embedded frames, dialogs, downloads and tabs. The live test exercises production assets through the Rust host, HTTPS/WSS, local approval, control, navigation, edits, password entry, release, remembered-device reconnect, host restart with a persistent login cookie, and host revocation.
+
+The document acceptance checks cover the following cases.
+
+| Case | Verified behavior |
+| --- | --- |
+| Responsive page | Native text, CSS grid, pseudo-elements, SVG, decoded images and fonts |
+| Forms and editing | Unicode values, Enter submission, select controls, simple rich-text structure, stale edit rejection |
+| Dynamic page | DOM patches, stylesheet replacement, virtualized scrolling, navigation generation fences |
+| Embedded content | Open shadow trees and cross-origin frame rendering and actions |
+| Canvas and WebGL | Element streams, visible screenshot pixels, bounded canvas drag input |
+| Video and audio | Decoded video and inbound audio packets in Chromium, Firefox and WebKit |
+| Public sites | Wikipedia text/images and YouTube play, audio, pause and seek through the replica |
+| Attachment | Existing-browser actions, excess-tab preservation, viewport restoration and non-destructive detach |
+| Paired application | Resource integrity rejection/recovery, control, reconnect, restart, revocation and proxy path mounting |
+
+The public-site probe requires network access and current site availability.
+It saves screenshots and reports actual results; it does not replace deterministic fixtures.
+No protected-media or physical-device pass is claimed.
 
 Physical phone acceptance: pair through a trusted HTTPS QR invitation; navigate and switch tabs; complete a standard login form; edit with the OS keyboard and IME; upload a host file and download to the host; background/foreground and disconnect/reconnect; change the same field locally on the host while drafting; revoke the phone on the host and confirm it can no longer act. Repeat on iOS Safari and Android Chrome before calling mobile support validated.
 
@@ -123,3 +197,15 @@ The negotiated `browser.semantic.v1` profile adds optional input-type metadata a
 Clean browser observations are reused for up to one second.
 Accessibility and page lifecycle events invalidate this cache.
 Every command still captures and validates current source state before dispatch.
+
+
+## Document transport
+
+The optional `browser.document.v1` extension uses authenticated HTTP document checkpoints, node deltas and content-addressed resources.
+It reuses Rust's active-view authorization before and after capture or resource delivery.
+It does not add a DOM profile to the core RUI binary wire format.
+Input passes through the existing Rust lease and command ledger before the browser adapter resolves document generation and node identity.
+Media signaling uses the same view grant and binds each stream to its source document and approved client.
+The iframe blocks page scripts with CSP, strips executable attributes and blocks remote resource loads.
+Its sandbox permits native canvas/media rendering; the strict script CSP remains active.
+Website scripts are not copied to the client.
