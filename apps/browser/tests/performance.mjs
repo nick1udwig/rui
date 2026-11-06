@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { streamMedia } from '../media-response.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
@@ -6,7 +7,16 @@ import { BrowserDocument } from '../document.mjs';
 import { DocumentPublisher } from '../src/document-channel.mjs';
 import { resourceReply } from '../document-resources.mjs';
 
+let apiHandler;
 const server = createServer(async (req, res) => {
+  if (req.url.startsWith('/api/')) {
+    try {
+      let body = ''; for await (const chunk of req) body += chunk;
+      const result = await apiHandler(req.url.slice(5), JSON.parse(body), res);
+      if (result !== undefined) { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(result)); }
+    } catch (error) { if (res.headersSent) res.destroy(); else { res.writeHead(500); res.end(JSON.stringify({ error: error.message })); } }
+    return;
+  }
   if (/^\/[a-z-]+\.mjs$/.test(req.url)) {
     try { res.setHeader('Content-Type', 'text/javascript'); res.end(await readFile(new URL(`../src${req.url}`, import.meta.url))); }
     catch { res.writeHead(404); res.end(); }
@@ -40,21 +50,26 @@ try {
     }, kind);
     const source = new BrowserDocument(host), publisher = new DocumentPublisher();
     let captureMs = 0, payloadBytes = 0;
-    await viewer.exposeFunction('api', async (path, data) => {
+    apiHandler = async (path, data, response) => {
       let result;
       if (path === 'document') { result = publisher.publish(await source.capture()); captureMs += source.metrics.captureMs; }
       else if (path === 'document-resource') result = resourceReply(source, data);
-      else if (data.op === 'open') result = await source.media.open(data.node, data.generation, data.transport, data.types);
+      else if (data.op === 'open') result = { ...await source.media.open(data.node, data.generation, data.transport, data.types), delivery: 'binary' };
+      else if (data.op === 'stream') {
+        const write = response.write.bind(response); response.write = bytes => { payloadBytes += bytes.length; return write(bytes); };
+        await streamMedia(response, { generation: source.generation, read: after => source.media.read(data.token, after, true), validate: async () => {} }); return;
+      }
       else if (data.op === 'read') result = await source.media.read(data.token, data.after);
       else if (data.op === 'close') { await source.media.close(data.token); result = {}; }
       else { await source.media.update(data.token, data.answer); result = {}; }
       payloadBytes += Buffer.byteLength(JSON.stringify(result)); return result;
-    });
+    };
     await viewer.exposeFunction('dispatch', command => source.dispatch(command));
     const sessions = await Promise.all([host, viewer].map(async page => { const cdp = await page.context().newCDPSession(page); await cdp.send('Performance.enable'); return cdp; }));
     const sample = async () => Promise.all(sessions.map(async cdp => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(m => [m.name, m.value]))));
     await viewer.evaluate(async () => {
       const { DocumentView } = await import('/document-view.mjs');
+      const api = async (path, data, auth, signal) => { const response = await fetch(`/api/${path}`, { method: 'POST', body: JSON.stringify(data), signal }); return response.headers.get('content-type') === 'application/vnd.rui.media' ? response : response.json(); };
       window.view = new DocumentView(document.body, api, dispatch, () => true, error => console.error(error)); view.start();
     });
     await viewer.frameLocator('iframe').locator('#action').waitFor();

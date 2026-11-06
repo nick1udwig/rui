@@ -1,3 +1,4 @@
+import { streamMedia } from "./media-response.mjs";
 import { CaptureCache } from "./capture-cache.mjs";
 import { DocumentPublisher } from "./src/document-channel.mjs";
 import { Workspace } from "./workspace.mjs";
@@ -122,14 +123,30 @@ const handler = async (request, response) => {
           try { const current = await admin({ op: "document", ...auth }); if (current.scope !== grant.scope || workspace.active !== page) throw Error("Media source changed"); }
           catch (error) { await source.media.close(result.token); throw error; }
           mediaSessions.set(result.token, { media: source.media, page, client: auth.client, scope: grant.scope, expires: Date.now() + 10000 });
-          return respond(response, 200, result);
+          return respond(response, 200, { ...result, delivery: result.transport === "https" ? "binary" : undefined });
         }
         const session = mediaSessions.get(data.token);
         if (!session || session.client !== auth.client || session.scope !== grant.scope) throw Error("Media session rejected");
         if (data.op === "close" || session.page !== workspace.active) {
           mediaSessions.delete(data.token);
           await session.media.close(data.token);
+        } else if (data.op === 'stream') {
+          if (session.streaming) throw Error('Media stream already connected');
+          session.streaming = true;
+          try {
+            await streamMedia(response, {
+              generation: session.media.source.generation,
+              read: after => session.media.read(data.token, after, true),
+              validate: async () => {
+                const current = await admin({ op: 'document', ...auth });
+                if (current.scope !== grant.scope || session.page !== workspace.active || mediaSessions.get(data.token) !== session) throw Error('Media scope changed');
+                session.expires = Date.now() + 10000;
+              },
+            });
+          } finally { mediaSessions.delete(data.token); await session.media.close(data.token); }
+          return;
         } else if (data.op === 'read') {
+          if (session.streaming) throw Error('Media stream already connected');
           const result = await session.media.read(data.token, data.after);
           const current = await admin({ op: 'document', ...auth });
           if (current.scope !== grant.scope || session.page !== workspace.active || mediaSessions.get(data.token) !== session) throw Error('Media scope changed');
@@ -250,6 +267,7 @@ const handler = async (request, response) => {
         : content,
     );
   } catch (error) {
+    if (response.headersSent) { response.destroy(); return; }
     if (process.env.RUI_DEBUG_DOCUMENT === "1") console.error("Document request failed:", error.message);
     if (error.code === 'DOCUMENT_LIMIT') return respond(response, 413, {
       code: 'DOCUMENT_LIMIT',

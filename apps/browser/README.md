@@ -170,7 +170,9 @@ Unsupported frame/plugin regions remain marked instead of becoming a full-page s
 Only open shadow trees and accessible frame documents are replicated.
 
 Media uses encoded WebM video/audio over the same authenticated HTTPS path as the DOM and CSS snapshots.
-Media reads are separate from document updates and control requests.
+A persistent binary HTTPS response carries media separately from document updates and control requests.
+The phone does not poll or decode base64 media.
+The host capture bridge still uses base64 internally.
 This transport requires Media Source Extensions with VP8/Opus support.
 Browsers without a supported format use direct WebRTC as a compatibility path.
 Media elements use this transport; page text, layout and controls remain DOM and CSS.
@@ -187,7 +189,9 @@ Desktop engine tests use a 390 × 844 viewport and do not prove OS keyboard, IME
 Bounds include 16 tabs, 16 frames, 20,000 transmitted DOM nodes, 8 MiB document packets, an 8 MiB source asset cache and a 16 MiB client resource cache.
 Capture scans at most 150,000 source nodes and assigns at most 100,000 node identities per navigation.
 There are at most eight media regions per source document and 32 worker media sessions.
-Each HTTPS media stream retains at most 4 MiB of unacknowledged data and sends at most 512 KiB per read.
+Each HTTPS media stream retains at most 4 MiB of unacknowledged data and sends at most 512 KiB per batch.
+The server stops a stream if its response remains blocked for five seconds.
+Each batch rechecks authorization before delivery.
 Large encoder bursts are split across reads without restarting playback.
 Stalled or retired streams expire after ten seconds without renewal.
 Other existing bounds include 16 staged passwords, 16 KiB field values, 128 host file entries and 64 download records.

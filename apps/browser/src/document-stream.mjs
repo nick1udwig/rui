@@ -36,8 +36,9 @@ export class DocumentStream {
     if (!Array.isArray(chunks) || chunks.length > 32) throw Error('Media batch rejected');
     let bytes = 0;
     for (const chunk of chunks) {
-      if (chunk.sequence !== this.cursor + 1 || typeof chunk.data !== 'string' || chunk.data.length > 700000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(chunk.data)) throw Error('Media chunk rejected');
-      const body = Uint8Array.from(atob(chunk.data), char => char.charCodeAt(0));
+      const binary = chunk.data instanceof Uint8Array;
+      if (chunk.sequence !== this.cursor + 1 || (!binary && (typeof chunk.data !== 'string' || chunk.data.length > 700000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(chunk.data)))) throw Error('Media chunk rejected');
+      const body = binary ? chunk.data : Uint8Array.from(atob(chunk.data), char => char.charCodeAt(0));
       bytes += body.length;
       if (bytes > 512 * 1024) throw Error('Media batch limit');
       if (this.player.currentTime > 15 && this.buffer.buffered.length && this.buffer.buffered.start(0) < this.player.currentTime - 15) {
@@ -61,5 +62,47 @@ export class DocumentStream {
   close() {
     if (this.player.getAttribute('src') === this.url) { this.player.removeAttribute('src'); this.player.load(); }
     if (this.url) URL.revokeObjectURL(this.url);
+  }
+}
+
+export async function* mediaPackets(response, generation, signal) {
+  const reader = response.body.getReader();
+  let pending = new Uint8Array(), offset = 0;
+  const cancelled = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener('abort', cancelled, { once: true });
+  const exact = async size => {
+    const result = new Uint8Array(size);
+    for (let written = 0; written < size;) {
+      signal.throwIfAborted();
+      if (offset === pending.length) {
+        let timer;
+        try {
+          const value = await Promise.race([reader.read(), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('Media stream timed out')), 8000); })]);
+          if (value.done) throw Error('Media stream ended');
+          pending = value.value; offset = 0;
+        } finally { clearTimeout(timer); }
+      }
+      const count = Math.min(size - written, pending.length - offset);
+      result.set(pending.subarray(offset, offset + count), written); offset += count; written += count;
+    }
+    return result;
+  };
+  try {
+    while (true) {
+      const length = new DataView((await exact(4)).buffer).getUint32(0);
+      if (length > 16384 || !length) throw Error('Media header rejected');
+      const packet = JSON.parse(new TextDecoder().decode(await exact(length)));
+      if (packet.generation !== generation || !Array.isArray(packet.chunks) || packet.chunks.length > 32) throw Error('Media scope rejected');
+      let total = 0;
+      for (const chunk of packet.chunks) {
+        if (!Number.isSafeInteger(chunk.bytes) || chunk.bytes < 1 || (total += chunk.bytes) > 512 * 1024) throw Error('Media batch limit');
+      }
+      for (const chunk of packet.chunks) chunk.data = await exact(chunk.bytes);
+      yield packet;
+    }
+  } finally {
+    signal.removeEventListener('abort', cancelled);
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }

@@ -1,5 +1,5 @@
 import { documentRequest } from './document-request.mjs';
-import { DocumentStream, streamTypes } from './document-stream.mjs';
+import { DocumentStream, streamTypes, mediaPackets } from './document-stream.mjs';
 
 export class DocumentMediaView {
   constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; this.metrics = { bytes: 0, batches: 0, frames: 0, failures: 0, opens: 0, appendMs: 0 }; }
@@ -167,25 +167,35 @@ export class DocumentMediaView {
     await opening;
     if (!this.current(entry)) return;
     this.draw(entry);
+    const receive = async ({ chunks, playback }) => {
+      if (!this.current(entry)) return;
+      this.progress(entry, playback);
+      if (!this.current(entry)) return;
+      const started = performance.now();
+      await entry.stream.append(chunks);
+      this.metrics.appendMs += performance.now() - started;
+      this.metrics.batches++;
+      this.metrics.bytes += chunks.reduce((total, chunk) => total + (chunk.data instanceof Uint8Array ? chunk.data.length : Math.floor(chunk.data.length * 3 / 4) - (chunk.data.endsWith('==') ? 2 : chunk.data.endsWith('=') ? 1 : 0)), 0);
+      if (this.current(entry)) this.play(entry);
+    };
+    if (result.delivery === 'binary') {
+      const response = await request({ op: 'stream', token: entry.token });
+      for await (const packet of mediaPackets(response, generation, entry.controller.signal)) {
+        if (!this.current(entry)) break;
+        await receive(packet);
+      }
+      return;
+    }
     const poll = async () => {
       if (!this.current(entry)) return;
       try {
-        const { chunks, playback } = await request({ op: 'read', token: entry.token, after: entry.stream.cursor });
-        if (!this.current(entry)) return;
-        this.progress(entry, playback);
-        if (!this.current(entry)) return;
-        const started = performance.now();
-        await entry.stream.append(chunks);
-        this.metrics.appendMs += performance.now() - started;
-        this.metrics.batches++;
-        this.metrics.bytes += chunks.reduce((total, chunk) => total + Math.floor(chunk.data.length * 3 / 4) - (chunk.data.endsWith("==") ? 2 : chunk.data.endsWith("=") ? 1 : 0), 0);
-        if (!this.current(entry)) return;
-        this.play(entry);
-        entry.timer = setTimeout(poll, 150);
+        await receive(await request({ op: 'read', token: entry.token, after: entry.stream.cursor }));
+        if (this.current(entry)) entry.timer = setTimeout(poll, 150);
       } catch (error) { this.fail(entry, error); }
     };
     void poll();
   }
+
   async open(entry, node, generation, frames) {
     const request = data => documentRequest(this.api, 'media', data, entry.controller.signal);
     const result = await request({ op: 'open', generation, node: node.id, frames });

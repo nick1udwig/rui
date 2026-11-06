@@ -71,6 +71,7 @@ async function api(path: string, data: unknown, authenticated = false, signal?: 
     cache: "no-store",
     signal,
   });
+  if (response.ok && response.headers.get("content-type") === "application/vnd.rui.media") return response;
   const result = await response.json();
   if (!response.ok) throw Object.assign(Error(result.error), { code: result.code });
   return result;

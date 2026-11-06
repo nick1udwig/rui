@@ -45,6 +45,25 @@ try {
   viewer.on('pageerror', error => clientErrors.push(error.message));
   const latency = Number(process.env.RUI_TEST_LATENCY_MS || 0);
   const recovery = process.env.RUI_TEST_RECOVERY === '1';
+  if (recovery) await viewer.addInitScript(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      if (response.headers.get('content-type') === 'application/vnd.rui.media') {
+        const getReader = response.body.getReader.bind(response.body);
+        response.body.getReader = () => {
+          const reader = getReader(), read = reader.read.bind(reader);
+          reader.read = async () => {
+            const chunk = await read();
+            if (window.ruiBreakMedia) { window.ruiBreakMedia = false; window.ruiMediaBreaks = (window.ruiMediaBreaks || 0) + 1; throw Error('Injected media stream failure'); }
+            return chunk;
+          };
+          return reader;
+        };
+      }
+      return response;
+    };
+  });
   const blockedIce = process.env.RUI_TEST_BLOCK_ICE === '1';
   if (blockedIce) await viewer.addInitScript(() => {
     const Peer = RTCPeerConnection;
@@ -55,7 +74,7 @@ try {
   viewer.on('request', request => {
     if (!request.url().endsWith('/api/media')) return;
     const data = request.postDataJSON();
-    if (data.op === 'read') mediaReads++;
+    if (['read', 'stream'].includes(data.op)) mediaReads++;
     if (data.op === 'open' && data.transport !== 'https') peerMediaOpens++;
   });
   if (latency || recovery || blockedIce) await viewer.route('**/api/**', async route => {
@@ -226,9 +245,8 @@ try {
       await until(async () => viewer.locator('iframe[title="Host web page"]').evaluate(frame => !frame.inert), 'Document polling recovers');
       assert.equal(await player.evaluate(video => video === window.parent.ruiSavedVideo), true, 'Document recovery retains the playing element');
       assert.equal(mediaOpens, opensBeforeDocumentErrors, 'Document errors do not reconnect healthy media');
-      const operation = mediaReads ? 'read' : 'renew';
-      faults[operation] = 1;
-      await until(() => injected[operation] === 1 && mediaOpens > opensBeforeDocumentErrors, 'Failed media request reconnects');
+      await viewer.evaluate(() => { window.ruiBreakMedia = true; });
+      await until(async () => await viewer.evaluate(() => window.ruiMediaBreaks === 1) && mediaOpens > opensBeforeDocumentErrors, 'Failed media stream reconnects');
       await until(async () => player.evaluate(video => !video.paused && video.readyState >= 2), 'Replacement stream starts');
       const recoveredTime = await player.evaluate(video => video.currentTime);
       await until(async () => (await player.evaluate(video => video.currentTime)) > recoveredTime + .5, 'Replacement stream advances');

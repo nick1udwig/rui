@@ -203,7 +203,7 @@ try {
     page.on('response', response => {
       if (!response.url().endsWith('/api/media') || !response.ok()) return;
       const request = response.request(), data = request.postDataJSON();
-      if (data.op === 'read') latestMediaRead = { time: Date.now(), url: response.url(), headers: request.headers(), token: data.token };
+      if (['read', 'stream'].includes(data.op)) latestMediaRead = { time: Date.now(), url: response.url(), headers: request.headers(), token: data.token };
     });
     await page.route('**/api/media', route => route.request().postDataJSON().op === 'close' && retainedHttp ? route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }) : route.continue());
   }
@@ -221,9 +221,9 @@ try {
   });
   const retainMediaPeer = async () => {
     if (await page.evaluate(() => ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'audio/webm;codecs=opus'].some(type => globalThis.MediaSource?.isTypeSupported(type)))) {
-      const start = Date.now();
-      await deadline(() => latestMediaRead?.time >= start, 'HTTPS media is active');
+      await deadline(() => !!latestMediaRead, 'HTTPS media is active');
       retainedHttp = latestMediaRead;
+      assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'read', token: retainedHttp.token, after: 0 } })).status(), 400, 'A second reader cannot disturb the active stream cursor');
       assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'renew', token: retainedHttp.token } })).status(), 200);
       return;
     }

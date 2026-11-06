@@ -26,6 +26,7 @@ export class DocumentMedia {
           stream.removeEventListener('removetrack', close);
           for (const track of new Set([...tracks, ...stream.getTracks()])) { track.removeEventListener('ended', close); track.stop(); }
           if (session.recorder?.state !== 'inactive') session.recorder?.stop();
+          session.wake?.();
           session.peer?.close(); clearTimeout(session.timer); state.media.delete(token);
         };
         session.close = close;
@@ -57,13 +58,20 @@ export class DocumentMedia {
                   for (let offset = 0; offset < part.length; offset += 16384) binary += String.fromCharCode(...part.subarray(offset, offset + 16384));
                   session.chunks.push({ sequence: ++session.sequence, data: btoa(binary), bytes: part.length });
                 }
+                session.wake?.();
               }).catch(close);
             };
             recorder.onerror = close;
-            session.read = after => {
+            session.read = async (after, wait) => {
               if (!Number.isSafeInteger(after) || after < session.ack || after > session.sequence) throw Error('Media cursor rejected');
               while (session.chunks[0]?.sequence <= after) session.bytes -= session.chunks.shift().bytes;
               session.ack = after;
+              if (wait && !session.chunks.length && !session.closed) await new Promise(resolve => {
+                const timer = setTimeout(done, 500);
+                function done() { clearTimeout(timer); session.wake = null; resolve(); }
+                session.wake = done;
+              });
+              if (session.closed) throw Error("Media stream expired");
               const chunks = []; let bytes = 0;
               for (const chunk of session.chunks) {
                 if (bytes + chunk.bytes > 512 * 1024 || chunks.length >= 32) break;
@@ -95,14 +103,14 @@ export class DocumentMedia {
       throw error;
     }
   }
-  async read(token, after) {
+  async read(token, after, wait = false) {
     const session = this.sessions.get(token);
     if (!session || session.generation !== this.source.generation || session.expires < Date.now()) throw Error('Media scope expired');
-    const result = await this.source.frame.evaluate(({ key, token, after }) => {
+    const result = await this.source.frame.evaluate(({ key, token, after, wait }) => {
       const session = globalThis[key]?.media?.get(token);
       if (!session?.read) throw Error('Media stream expired');
-      return session.read(after);
-    }, { key: this.source.key, token, after });
+      return session.read(after, wait);
+    }, { key: this.source.key, token, after, wait });
     if (this.sessions.get(token) !== session || session.generation !== this.source.generation) throw Error('Media source changed');
     session.expires = Date.now() + 10000;
     return result;
