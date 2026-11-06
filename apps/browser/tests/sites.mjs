@@ -14,10 +14,13 @@ try {
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
       const start = performance.now();
       const snapshot = await source.capture();
+      const captureMs = Math.round(performance.now() - start);
       const publisher = new DocumentPublisher();
       const packet = publisher.publish(snapshot);
+      const nextStart = performance.now();
       const followup = publisher.publish(await source.capture());
-      console.log(JSON.stringify({ url, title: await page.title(), profile: packet.profile, nodes: packet.put.length, snapshotBytes: Buffer.byteLength(JSON.stringify(packet)), updateBytes: Buffer.byteLength(JSON.stringify(followup)), captureMs: Math.round(performance.now() - start), unsupported: snapshot.unsupported, video: await page.locator('video').count(), physicalDevice: false }));
+      const updateMs = Math.round(performance.now() - nextStart);
+      console.log(JSON.stringify({ url, title: await page.title(), profile: packet.profile, nodes: packet.put.length, snapshotBytes: Buffer.byteLength(JSON.stringify(packet)), updateBytes: Buffer.byteLength(JSON.stringify(followup)), captureMs, updateMs, unsupported: snapshot.unsupported, video: await page.locator('video').count(), physicalDevice: false }));
     } catch (error) {
       console.log(JSON.stringify({ url, error: String(error), sizes: source.metrics }));
       process.exitCode = 1;

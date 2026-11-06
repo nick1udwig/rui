@@ -64,6 +64,8 @@ export class BrowserDocument {
     this.assets = new Map();
     this.resources = new Map();
     this.styles = new Map();
+    this.rewrites = new Map();
+    this.failedAssets = new Map();
     this.navigation = (frame) => {
       if (frame === this.frame) {
         void this.media.dispose();
@@ -71,6 +73,8 @@ export class BrowserDocument {
         this.assets.clear();
         this.resources.clear();
         this.styles.clear();
+        this.rewrites.clear();
+        this.failedAssets.clear();
       }
     };
     this.page.on("framenavigated", this.navigation);
@@ -81,6 +85,8 @@ export class BrowserDocument {
     this.assets.clear();
     this.resources.clear();
     this.styles.clear();
+    this.rewrites.clear();
+    this.failedAssets.clear();
     for (const child of this.frames.values()) child.dispose();
     this.frames.clear();
   }
@@ -193,13 +199,28 @@ export class BrowserDocument {
     if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
     const result = await this.frame.evaluate(observeDocument, this.key);
-    const rewrite = async (text, base) => {
-      const matches = [...text.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)];
-      for (const match of matches) {
-        if (match[2].startsWith("#")) continue;
-        const resource = await this.asset(new URL(match[2], base).href).catch(() => "");
-        text = text.replace(match[0], `url("${resource}")`);
+    const asset = async url => {
+      if ((this.failedAssets.get(url) || 0) > Date.now()) return "";
+      try { return await this.asset(url); }
+      catch {
+        if (this.failedAssets.size >= 128) this.failedAssets.delete(this.failedAssets.keys().next().value);
+        this.failedAssets.set(url, Date.now() + 30000);
+        return "";
       }
+    };
+    const rewrite = async (text, base) => {
+      const key = createHash('sha256').update(base + text).digest('hex');
+      const cached = this.rewrites.get(key);
+      if (cached && cached.expires > Date.now()) return cached.text;
+      const matches = [...text.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)];
+      const replacements = new Map();
+      const queue = [...new Set(matches.map(match => match[2]).filter(url => !url.startsWith('#')))];
+      await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
+        while (queue.length) { const url = queue.shift(); replacements.set(url, await asset(new URL(url, base).href)); }
+      }));
+      text = text.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (match, quote, url) => replacements.has(url) ? `url("${replacements.get(url)}")` : match);
+      if ([...this.rewrites.values()].reduce((n, v) => n + v.text.length, text.length) > MAX_BYTES) this.rewrites.clear();
+      this.rewrites.set(key, { text, expires: Date.now() + 30000 });
       return text;
     };
     for (const style of result.styles) {
@@ -227,7 +248,7 @@ export class BrowserDocument {
         } catch { /* An inaccessible frame keeps its explicit unsupported region. */ }
         finally { await handle.dispose(); }
       }
-      if (node.tag === "img") node.attrs.src = await this.asset(new URL(node.attrs.src, result.base).href).catch(() => "");
+      if (node.tag === "img") node.attrs.src = await asset(new URL(node.attrs.src, result.base).href);
       if (node.attrs?.style) node.attrs.style = await rewrite(node.attrs.style, result.base);
       for (const child of node.children || []) await visit(child);
       for (const child of node.shadow || []) await visit(child);
