@@ -6,6 +6,7 @@ It reads the exact wasm-bindgen version from the binding crate, installs the mat
 The portable job uses the digest-pinned Playwright 1.63.0 Noble container with Chromium, Firefox, WebKit, and their OS dependencies already installed.
 It checks that the locked Playwright package matches the image version.
 This avoids downloading the full browser OS dependency set from the hosted runner's apt mirror during each job.
+Build tools use Ubuntu's main HTTPS archive because the image's Azure mirror can exhaust the job deadline with slow package downloads.
 
 The portable job runs the same native-oracle WASM trace in Node and Chromium, Firefox and Playwright WebKit, plus browser pixel/resource/lifecycle checks.
 Each runner prints the actual engine version.

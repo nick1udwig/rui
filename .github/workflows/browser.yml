@@ -15,7 +15,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Install build tools
-        run: apt-get update && apt-get install -y --no-install-recommends build-essential protobuf-compiler python3 ca-certificates curl git
+        run: |
+          sed -i 's|http://azure.archive.ubuntu.com/ubuntu/|https://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources
+          apt-get update && apt-get install -y --no-install-recommends build-essential protobuf-compiler python3 ca-certificates curl git
       - name: Match browser home ownership to the container user
         run: chown "$(id -u):$(id -g)" "$HOME"
       - uses: actions/checkout@v4
