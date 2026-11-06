@@ -3,6 +3,10 @@ const SVG = "http://www.w3.org/2000/svg";
 const BLOCKED = new Set(["script", "noscript", "iframe", "object", "embed", "base", "meta", "link", "style", "foreignObject", "animate", "set"]);
 const BLOCKED_ATTR = /^(on.*|src|srcset|srcdoc|poster|href|xlink:href|action|formaction|ping|target|formtarget|nonce|integrity|autofocus|autoplay)$/i;
 
+function attribute(element, name, value) {
+  if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+}
+
 export class DocumentRenderer {
   constructor(iframe, dispatch = () => {}, canControl = () => false, media, frames = []) {
     this.iframe = iframe;
@@ -159,10 +163,13 @@ export class DocumentRenderer {
       const old = previous.get(node.id);
       const element = old?.localName === tag && old?.namespaceURI === ns ? old : doc.createElementNS(ns, tag);
       const keep = new Set();
+      if (embedded) keep.add('sandbox');
+      if (node.tag === 'video') keep.add('poster');
       this.nodes.set(node.id, element);
       this.ids.set(element, node.id);
       if (typeof node.value === "string") this.values.set(node.id, node.value);
       for (const [name, value] of Object.entries(node.attrs || {})) {
+        if (embedded && name === 'sandbox') continue;
         if (!BLOCKED_ATTR.test(name) && typeof value === "string") {
           keep.add(name);
           const actual = name === 'style' ? css(value) : value;
@@ -173,23 +180,23 @@ export class DocumentRenderer {
         const value = node.attrs?.[name];
         if (typeof value === 'string' && (node.tag === 'a' || value.startsWith('#'))) {
           keep.add(name);
-          element.setAttribute(name, value.startsWith('#') ? value : '#');
+          attribute(element, name, value.startsWith('#') ? value : '#');
         }
       }
       for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);
       if (node.tag === 'canvas' || node.attrs?.draggable === 'true' || node.attrs?.role === 'slider') element.style.touchAction = 'none';
       const image = resource(node.attrs?.src);
       if (node.tag === "img") {
-        if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(image)) element.setAttribute("src", image);
+        if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(image)) attribute(element, "src", image);
         else element.removeAttribute('src');
       }
       if (node.tag === 'video') {
         const poster = resource(node.attrs?.poster);
-        if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(poster)) element.setAttribute('poster', poster);
+        if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(poster)) attribute(element, 'poster', poster);
         else element.removeAttribute('poster');
       }
       if (embedded) {
-        element.setAttribute("sandbox", "allow-same-origin allow-scripts");
+        attribute(element, "sandbox", "allow-same-origin allow-scripts");
         let renderer = this.frames.get(node.id);
         if (!renderer || renderer.iframe !== element) {
           renderer = new DocumentRenderer(element, command => this.dispatch({ ...command, frames: [{ node: node.id, generation: this.generation }, ...(command.frames || [])] }), this.canControl, this.media, [...this.route, { node: node.id, generation: snapshot.generation }]);
