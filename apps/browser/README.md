@@ -218,6 +218,8 @@ The document acceptance checks cover the following cases.
 
 The paired control regression runs with `npm --prefix apps/browser run test:control`.
 It checks slow navigation, touch input, keyboard viewport changes, delayed command receipts, and uncertain-action recovery.
+Set `RUI_TEST_LATENCY_MS=150` to add delay to each HTTP request.
+The public-site test reports search-to-render and video-to-frame times, plus decoded and transferred document bytes.
 Use `RUI_TEST_HEADED=1 RUI_TEST_PUBLIC=1 npm --prefix apps/browser run test:control` to include a visible host browser and live YouTube search results, thumbnails, and video playback.
 These checks simulate a phone viewport; they do not replace testing on a physical phone.
 
@@ -249,5 +251,8 @@ It does not add a DOM profile to the core RUI binary wire format.
 Input passes through the existing Rust lease and command ledger before the browser adapter resolves document generation and node identity.
 Media signaling uses the same view grant and binds each stream to its source document and approved client.
 The iframe blocks page scripts with CSP, strips executable attributes and blocks remote resource loads.
+Resource downloads use at most eight concurrent requests per document loader.
+Unchanged source styles use version references, and the receiver retains parsed styles and verified resources.
+Large JSON responses use gzip when the client supports it.
 Its sandbox permits native canvas/media rendering; the strict script CSP remains active.
 Website scripts are not copied to the client.

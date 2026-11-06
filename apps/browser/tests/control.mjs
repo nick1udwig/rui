@@ -36,6 +36,23 @@ try {
   await until(() => /Open on your phone: (https:\/\/[^\s]+)/.test(logs), 'Host starts');
   browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, chromiumSandbox: true });
   viewer = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const latency = Number(process.env.RUI_TEST_LATENCY_MS || 0);
+  if (latency) await viewer.route('**/api/**', async route => {
+    await new Promise(resolve => setTimeout(resolve, latency));
+    if (!viewer.isClosed()) await route.continue();
+  });
+  const transfer = { decoded: 0, encoded: 0, compressed: 0 };
+  const transfers = [];
+  viewer.on('response', response => {
+    if (!/\/api\/document(?:-resource)?$/.test(response.url())) return;
+    transfers.push((async () => {
+      const body = await response.body();
+      const sizes = await response.request().sizes();
+      transfer.decoded += body.length;
+      transfer.encoded += sizes.responseBodySize;
+      if (response.headers()['content-encoding'] === 'gzip') transfer.compressed++;
+    })().catch(() => {}));
+  });
   if (process.env.RUI_DEBUG_DOCUMENT === '1') {
     const started = new WeakMap();
     viewer.on('request', request => started.set(request, performance.now()));
@@ -72,13 +89,16 @@ try {
     const query = replica.locator('input[name="search_query"]');
     const queryText = 'Big Buck Bunny Blender official';
     await query.fill(queryText);
+    const searchStarted = performance.now();
     await query.press('Enter');
     await until(() => new URL(page.url()).pathname === '/results' && new URL(page.url()).searchParams.get('search_query') === queryText, 'YouTube query submitted on host');
     await until(async () => (await address.inputValue()).includes('/results?search_query='), 'YouTube navigation published');
     const result = replica.locator('ytd-video-renderer').first();
     await result.locator('#video-title').waitFor({ state: 'visible', timeout: 30000 });
     await until(async () => result.locator('img').evaluateAll(images => images.some(image => image.complete && image.naturalWidth > 0)), 'Search result thumbnail is rendered');
+    const searchToRenderedMs = Math.round(performance.now() - searchStarted);
     await viewer.screenshot({ path: join(output, 'youtube-results.png') });
+    const videoStarted = performance.now();
     await result.locator('#video-title').tap();
     await until(() => new URL(page.url()).pathname === '/watch', 'Result opens video on host');
     const player = replica.locator('video').first();
@@ -91,7 +111,9 @@ try {
     const before = await player.evaluate(video => video.currentTime);
     await until(async () => (await player.evaluate(video => video.currentTime)) > before + .5, 'Mobile video advances');
     await viewer.screenshot({ path: join(output, 'youtube-video.png') });
-    console.log('YouTube search results, thumbnails and playing video rendered');
+    await Promise.all(transfers);
+    assert.ok(transfer.compressed > 0 && transfer.encoded < transfer.decoded, 'Document and resource traffic is compressed');
+    console.log(JSON.stringify({ youtubeResultsAndVideo: true, latencyMs: latency, searchToRenderedMs, videoToFramesMs: Math.round(performance.now() - videoStarted), ...transfer }));
   }
   await navigate(`http://127.0.0.1:${fixture.address().port}/slow`);
   await replica.locator('#search').waitFor();

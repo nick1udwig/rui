@@ -1,10 +1,11 @@
 import { randomBytes, createHash } from "node:crypto";
 import { DocumentMedia } from "./document-media.mjs";
+import { concurrent, taskPool } from "./src/document-work.mjs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
 // Runs in the source document. IDs survive observations but never navigation.
-function observeDocument(key) {
+function observeDocument({ key, knownStyles }) {
   const state = globalThis[key] ||= { nodes: new WeakMap(), reverse: new Map(), next: 1 };
   const id = (node) => {
     if (!state.nodes.has(node)) {
@@ -46,9 +47,20 @@ function observeDocument(key) {
     return result;
   };
   const styles = [];
+  state.styles ||= new WeakMap();
+  state.nextStyle ||= 1;
+  const known = new Map(knownStyles);
   for (const sheet of document.styleSheets) {
-    try { styles.push({ text: [...sheet.cssRules].map(r => r.cssText).join("\n"), base: sheet.href || document.baseURI }); }
-    catch { styles.push({ url: sheet.href }); }
+    let text, url;
+    const base = sheet.href || document.baseURI;
+    try { text = [...sheet.cssRules].map(rule => rule.cssText).join("\n"); }
+    catch { url = sheet.href; }
+    let entry = state.styles.get(sheet);
+    if (!entry) { entry = { id: state.nextStyle++, version: 0 }; state.styles.set(sheet, entry); }
+    if (entry.version === 0 || text !== entry.text || url !== entry.url || base !== entry.base) {
+      Object.assign(entry, { text, url, base, version: entry.version + 1 });
+    }
+    styles.push(known.get(entry.id) === entry.version ? { id: entry.id, version: entry.version } : { ...entry });
   }
   return { root: visit(document.documentElement), styles, unsupported, base: document.baseURI, width: innerWidth, height: innerHeight };
 }
@@ -69,6 +81,8 @@ export class BrowserDocument {
     this.resources = new Map();
     this.styles = new Map();
     this.rewrites = new Map();
+    this.sourceStyles = new Map();
+    this.fetchAsset = taskPool(8);
     this.failedAssets = new Map();
     this.navigation = (frame) => {
       if (frame === this.frame) {
@@ -78,6 +92,7 @@ export class BrowserDocument {
         this.resources.clear();
         this.styles.clear();
         this.rewrites.clear();
+        this.sourceStyles.clear();
         this.failedAssets.clear();
       }
     };
@@ -91,6 +106,7 @@ export class BrowserDocument {
     this.resources.clear();
     this.styles.clear();
     this.rewrites.clear();
+    this.sourceStyles.clear();
     this.failedAssets.clear();
     for (const child of this.frames.values()) child.dispose();
     this.frames.clear();
@@ -210,8 +226,10 @@ export class BrowserDocument {
       } else throw new DocumentActionRejected("Unsupported document action");
     } finally { await handle.dispose(); }
   }
-  async asset(url) {
+  async asset(url, generation = this.generation) {
+    if (generation !== this.generation) throw Error("Navigation during resource capture");
     const intern = data => {
+      if (generation !== this.generation) throw Error("Navigation during resource capture");
       if (data.length > MAX_BYTES) throw Error("Resource limit");
       const key = createHash('sha256').update(data).digest('hex');
       if (!this.resources.has(key)) {
@@ -237,15 +255,22 @@ export class BrowserDocument {
   async capture(budget = { frames: 16 }) {
     if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
-    const result = await this.frame.evaluate(observeDocument, this.key);
-    const asset = async url => {
-      if ((this.failedAssets.get(url) || 0) > Date.now()) return "";
-      try { return await this.asset(url); }
-      catch {
-        if (this.failedAssets.size >= 128) this.failedAssets.delete(this.failedAssets.keys().next().value);
-        this.failedAssets.set(url, Date.now() + 30000);
-        return "";
-      }
+    const result = await this.frame.evaluate(observeDocument, { key: this.key, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) });
+    if (generation !== this.generation) throw Error("Navigation during capture");
+    const sourceStyleBytes = Buffer.byteLength(JSON.stringify(result.styles));
+    const pending = new Map();
+    const asset = url => {
+      if ((this.failedAssets.get(url) || 0) > Date.now()) return Promise.resolve("");
+      if (!pending.has(url)) pending.set(url, this.fetchAsset(async () => {
+        try { return await this.asset(url, generation); }
+        catch {
+          if (generation !== this.generation) return "";
+          if (this.failedAssets.size >= 128) this.failedAssets.delete(this.failedAssets.keys().next().value);
+          this.failedAssets.set(url, Date.now() + 30000);
+          return "";
+        }
+      }));
+      return pending.get(url);
     };
     const rewrite = async (text, base) => {
       const key = createHash('sha256').update(base + text).digest('hex');
@@ -259,9 +284,11 @@ export class BrowserDocument {
       }));
       text = text.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (match, quote, url) => replacements.has(url) ? `url("${replacements.get(url)}")` : match);
       if ([...this.rewrites.values()].reduce((n, v) => n + v.text.length, text.length) > MAX_BYTES) this.rewrites.clear();
+      if (generation !== this.generation) throw Error("Navigation during capture");
       this.rewrites.set(key, { text, expires: Date.now() + 30000 });
       return text;
     };
+    const jobs = [];
     const liveFrames = new Set();
     const visit = async (node) => {
       if (node.tag === "iframe" && budget.frames > 0) {
@@ -278,26 +305,36 @@ export class BrowserDocument {
         } catch { /* An inaccessible frame keeps its explicit unsupported region. */ }
         finally { await handle.dispose(); }
       }
-      if (node.tag === "img") node.attrs.src = node.attrs.src ? await asset(new URL(node.attrs.src, result.base).href) : "";
-      if (node.tag === "video" && node.attrs.poster) node.attrs.poster = await asset(new URL(node.attrs.poster, result.base).href);
-      if (node.attrs?.style) node.attrs.style = await rewrite(node.attrs.style, result.base);
+      if (node.tag === "img") jobs.push(async () => { node.attrs.src = node.attrs.src ? await asset(new URL(node.attrs.src, result.base).href) : ""; });
+      if (node.tag === "video" && node.attrs.poster) jobs.push(async () => { node.attrs.poster = await asset(new URL(node.attrs.poster, result.base).href); });
+      if (node.attrs?.style) jobs.push(async () => { node.attrs.style = await rewrite(node.attrs.style, result.base); });
       for (const child of node.children || []) await visit(child);
       for (const child of node.shadow || []) await visit(child);
-      if (node.tag === "style") for (const child of node.children || []) if (child.text) child.text = await rewrite(child.text, result.base);
-      if (node.shadowStyles) node.shadowStyles = await Promise.all(node.shadowStyles.map(text => rewrite(text, result.base)));
+      if (node.tag === "style") for (const child of node.children || []) if (child.text) jobs.push(async () => { child.text = await rewrite(child.text, result.base); });
+      if (node.shadowStyles) jobs.push(async () => { node.shadowStyles = await Promise.all(node.shadowStyles.map(text => rewrite(text, result.base))); });
     };
     await visit(result.root);
-    for (const style of result.styles) {
+    const sourceStyles = new Map();
+    await concurrent(result.styles, 8, async (style, index) => {
+      if (style.text === undefined && !style.url) {
+        const cached = this.sourceStyles.get(style.id);
+        if (!cached || cached.version !== style.version) throw Error("Stylesheet checkpoint required");
+        style = { ...cached };
+      }
       if (style.url) {
         const response = await this.page.context().request.get(style.url, { timeout: 3000 });
         try { style.text = await response.text(); } finally { await response.dispose(); }
         style.base = style.url;
+        delete style.url;
       }
       if (style.text.length > MAX_BYTES) throw Error("Stylesheet limit");
-      style.text = await rewrite(style.text, style.base);
-    }
+      sourceStyles.set(style.id, { ...style });
+      jobs.push(async () => { result.styles[index] = { text: await rewrite(style.text, style.base) }; });
+    });
+    await concurrent(jobs, 8, job => job());
     for (const [id, child] of this.frames) if (!liveFrames.has(id)) { child.dispose(); this.frames.delete(id); }
     if (generation !== this.generation) throw Error("Navigation during capture");
+    this.sourceStyles = sourceStyles;
     const styleResources = {};
     result.styles = result.styles.map(style => {
       const key = createHash('sha256').update(style.text).digest('hex');
@@ -306,7 +343,7 @@ export class BrowserDocument {
     });
     this.styles = new Map(Object.entries(styleResources));
     const snapshot = { ...result, styleResources, resources: Object.fromEntries(this.resources), generation, revision: ++this.revision };
-    this.metrics = { documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
+    this.metrics = { sourceStyleBytes, documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
     if (Buffer.byteLength(JSON.stringify({ ...snapshot, resources: {}, styleResources: {} })) > MAX_BYTES || this.metrics.styleBytes > MAX_BYTES) throw Error("Snapshot limit");
     return snapshot;
   }

@@ -23,6 +23,11 @@ export class DocumentRenderer {
       iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src blob: mediastream:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
     const doc = iframe.contentDocument;
+    if (snapshot.generation !== this.generation) {
+      this.managed = new WeakSet();
+      this.styleElements = new Map();
+    }
+    const nextStyles = new Map();
     const resource = reference => snapshot.resources?.[reference?.replace(/^rui-resource:/, "")] || "";
     const css = text => text.replace(/rui-resource:([a-f0-9]{64})/g, (_, key) => snapshot.resources?.[key] || "");
     if (snapshot.generation !== this.generation) {
@@ -100,6 +105,35 @@ export class DocumentRenderer {
         scrollTimer = setTimeout(() => { if (node && target.isConnected) send(node, { action: "scroll", x: target.scrollLeft, y: target.scrollTop }); }, 100);
       }, true);
     }
+    const reconcile = (parent, children) => {
+      let cursor = parent.firstChild;
+      for (const child of children) {
+        while (cursor && this.managed.has(cursor)) cursor = cursor.nextSibling;
+        if (cursor !== child) parent.insertBefore(child, cursor);
+        cursor = child.nextSibling;
+      }
+      while (cursor) {
+        const next = cursor.nextSibling;
+        if (!this.managed.has(cursor)) cursor.remove();
+        cursor = next;
+      }
+    };
+    const styles = (parent, texts) => {
+      const previous = this.styleElements.get(parent) || [];
+      const entries = texts.map((text, index) => {
+        const entry = previous[index] || { element: doc.createElement("style") };
+        this.managed.add(entry.element);
+        if (entry.text !== text) { entry.element.textContent = css(text); entry.text = text; }
+        return entry;
+      });
+      for (const entry of previous.slice(entries.length)) entry.element.remove();
+      let cursor = null;
+      for (const entry of entries.toReversed()) {
+        if (entry.element.parentNode !== parent || entry.element.nextSibling !== cursor) parent.insertBefore(entry.element, cursor);
+        cursor = entry.element;
+      }
+      nextStyles.set(parent, entries);
+    };
     const previous = snapshot.generation === this.generation ? this.nodes : new Map();
     if (snapshot.generation !== this.generation) this.frames = new Map();
     const pendingFrames = [];
@@ -169,12 +203,7 @@ export class DocumentRenderer {
         element.setAttribute("data-rui-unsupported", node.tag);
       } else if (!(element === doc.activeElement && element.isContentEditable && this.drafts.has(node.id))) {
         const children = (node.children || []).map(child => build(child, depth + 1));
-        let cursor = element.firstChild;
-        for (const child of children) {
-          if (cursor !== child) element.insertBefore(child, cursor);
-          cursor = child.nextSibling;
-        }
-        while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
+        reconcile(element, children);
       }
       if (typeof node.value === "string" && "value" in element && element !== doc.activeElement && element.value !== node.value) element.value = node.value;
       if (node.tag === 'input' && node.attrs?.type === 'password') {
@@ -185,25 +214,18 @@ export class DocumentRenderer {
       if (node.shadow) {
         const shadow = element.shadowRoot || element.attachShadow({ mode: "open" });
         const children = node.shadow.map(child => build(child, depth + 1));
-        let cursor = shadow.firstChild;
-        for (const child of children) {
-          if (child !== cursor) shadow.insertBefore(child, cursor);
-          cursor = child.nextSibling;
-        }
-        while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
-        for (const text of node.shadowStyles || []) { const style = doc.createElement("style"); style.textContent = css(text); shadow.append(style); }
+        reconcile(shadow, children);
+        styles(shadow, node.shadowStyles || []);
       }
       return element;
     };
-    const csp = doc.head.querySelector("meta[http-equiv]")?.cloneNode(true);
+    const csp = doc.head.querySelector("meta[http-equiv]");
+    if (csp) this.managed.add(csp);
     const root = build(snapshot.root);
     const head = root.querySelector("head") || root.insertBefore(doc.createElement("head"), root.firstChild);
-    if (csp) head.prepend(csp);
-    for (const sheet of snapshot.styles) {
-      const style = doc.createElement("style");
-      style.textContent = css(sheet.text ?? snapshot.styleResources?.[sheet.resource] ?? "");
-      head.append(style);
-    }
+    if (csp && head.firstChild !== csp) head.prepend(csp);
+    styles(head, snapshot.styles.map(sheet => sheet.text ?? snapshot.styleResources?.[sheet.resource] ?? ""));
+    this.styleElements = nextStyles;
     if (root !== doc.documentElement) doc.replaceChild(root, doc.documentElement);
     this.generation = snapshot.generation;
     this.revision = snapshot.revision;

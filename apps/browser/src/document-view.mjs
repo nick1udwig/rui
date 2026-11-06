@@ -1,5 +1,6 @@
 import { DocumentRenderer } from "./document-renderer.mjs";
 import { DocumentReceiver, DOCUMENT_PROFILE } from "./document-channel.mjs";
+import { concurrent } from "./document-work.mjs";
 import { DocumentMediaView } from "./document-media.mjs";
 
 export class DocumentView {
@@ -10,6 +11,7 @@ export class DocumentView {
     this.onRendered = onRendered;
     this.receiver = new DocumentReceiver();
     this.resources = new Map();
+    this.resourceSizes = new Map();
     this.resourceBytes = 0;
     this.iframe = document.createElement("iframe");
     this.iframe.title = "Host web page";
@@ -46,40 +48,43 @@ export class DocumentView {
           const packet = await this.api("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation }, true);
           if (!this.running || serial !== this.serial) return;
           const snapshot = this.receiver.apply(packet);
-          if (this.resourceGeneration !== snapshot.generation) { this.resources.clear(); this.resourceBytes = 0; this.resourceGeneration = snapshot.generation; }
-          const retained = new Set();
+          const required = new Map();
+          const documents = [];
           const collect = snapshot => {
-            for (const kind of ['resources', 'styleResources']) for (const key of Object.keys(snapshot[kind] || {})) retained.add(key);
+            documents.push(snapshot);
+            for (const kind of ['resources', 'styleResources']) for (const [key, offer] of Object.entries(snapshot[kind] || {})) {
+              if (typeof offer === 'string') continue;
+              if (!/^[a-f0-9]{64}$/.test(key) || !Number.isSafeInteger(offer.bytes) || offer.bytes < 0 || offer.bytes > 8 * 1024 * 1024) throw Error('Resource offer rejected');
+              if (required.has(key) && required.get(key).bytes !== offer.bytes) throw Error('Resource offer conflict');
+              required.set(key, offer);
+            }
             const visit = node => { if (node.document) collect(node.document); for (const child of [...(node.children || []), ...(node.shadow || [])]) visit(child); };
             visit(snapshot.root);
           };
           collect(snapshot);
-          for (const [key, body] of this.resources) if (!retained.has(key)) { this.resources.delete(key); this.resourceBytes -= new TextEncoder().encode(body).length; }
-          const hydrate = async snapshot => {
-            for (const kind of ['resources', 'styleResources']) {
-              const result = {};
-              for (const [key, offer] of Object.entries(snapshot[kind] || {})) {
-                if (typeof offer === 'string') { result[key] = offer; continue; }
-                if (!/^[a-f0-9]{64}$/.test(key) || !Number.isSafeInteger(offer.bytes) || offer.bytes < 0 || offer.bytes > 8 * 1024 * 1024) throw Error('Resource offer rejected');
-                if (!this.resources.has(key)) {
-                  const { body } = await this.api('document-resource', { generation: packet.generation, key }, true);
-                  if (typeof body !== 'string') throw Error('Invalid resource body');
-                  const bytes = new TextEncoder().encode(body);
-                  if (bytes.length !== offer.bytes) throw Error('Resource length mismatch');
-                  const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2,'0')).join('');
-                  if (digest !== key) throw Error('Resource integrity mismatch');
-                  if (this.resourceBytes + bytes.length > 16 * 1024 * 1024) throw Error('Resource cache limit');
-                  this.resources.set(key, body);
-                  this.resourceBytes += bytes.length;
-                }
-                result[key] = this.resources.get(key);
-              }
-              snapshot[kind] = result;
+          for (const [key, body] of this.resources) if (!required.has(key)) { this.resources.delete(key); this.resourceBytes -= this.resourceSizes.get(key); this.resourceSizes.delete(key); }
+          if ([...required.values()].reduce((bytes, offer) => bytes + offer.bytes, 0) > 16 * 1024 * 1024) throw Error('Resource cache limit');
+          await concurrent([...required], 8, async ([key, offer]) => {
+            if (this.resources.has(key)) {
+              if (this.resourceSizes.get(key) !== offer.bytes) throw Error('Resource length mismatch');
+              return;
             }
-            const visit = async node => { if (node.document) await hydrate(node.document); for (const child of [...(node.children || []), ...(node.shadow || [])]) await visit(child); };
-            await visit(snapshot.root);
-          };
-          await hydrate(snapshot);
+            const { body } = await this.api('document-resource', { generation: packet.generation, key }, true);
+            if (!this.running || serial !== this.serial) return;
+            if (typeof body !== 'string') throw Error('Invalid resource body');
+            const bytes = new TextEncoder().encode(body);
+            if (bytes.length !== offer.bytes) throw Error('Resource length mismatch');
+            const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2,'0')).join('');
+            if (!this.running || serial !== this.serial) return;
+            if (digest !== key) throw Error('Resource integrity mismatch');
+            if (this.resourceBytes + bytes.length > 16 * 1024 * 1024) throw Error('Resource cache limit');
+            this.resources.set(key, body);
+            this.resourceSizes.set(key, bytes.length);
+            this.resourceBytes += bytes.length;
+          });
+          for (const document of documents) for (const kind of ['resources', 'styleResources']) {
+            document[kind] = Object.fromEntries(Object.entries(document[kind] || {}).map(([key, offer]) => [key, typeof offer === 'string' ? offer : this.resources.get(key)]));
+          }
           if (!this.running || serial !== this.serial) return;
           const previousGeneration = this.displayedGeneration;
           this.media.begin();
@@ -136,6 +141,7 @@ export class DocumentView {
     this.iframe.srcdoc = "";
     this.receiver = new DocumentReceiver();
     this.resources.clear();
+    this.resourceSizes.clear();
     this.resourceBytes = 0;
     this.renderer.generation = null;
   }

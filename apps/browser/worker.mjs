@@ -11,6 +11,7 @@ import { resolve, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import QRCode from "qrcode";
+import { gzip } from "node:zlib";
 
 const directory = process.env.RUI_STATE,
   origin = process.env.RUI_ORIGIN;
@@ -53,11 +54,21 @@ function resolvePath(name) {
   return resolve(directory, name);
 }
 function respond(response, status, data) {
+  const body = JSON.stringify(data);
+  const compress = body.length >= 1024 && (response.req.headers["accept-encoding"] || "").split(",").some(encoding => {
+    const [name, ...parameters] = encoding.trim().toLowerCase().split(";");
+    return name === "gzip" && !parameters.some(value => /^\s*q\s*=/.test(value) && Number(value.split("=")[1]) <= 0);
+  });
   response.writeHead(status, {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
+    "Vary": "Accept-Encoding",
+    ...(compress ? { "Content-Encoding": "gzip" } : {}),
   });
-  response.end(JSON.stringify(data));
+  if (compress) gzip(body, { level: 3 }, (error, compressed) => {
+    if (error) response.destroy(error); else response.end(compressed);
+  });
+  else response.end(body);
 }
 function credentials(request) {
   const credential = request.headers.authorization?.replace(/^Bearer /, ""),

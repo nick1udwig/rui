@@ -43,6 +43,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(JSON.stringify(snapshot).includes('"mediaReady":false'), true);
     const second = await source.capture();
     assert.equal(second.root.id, snapshot.root.id);
+    assert.ok(source.metrics.sourceStyleBytes < 100, 'Unchanged source CSS is sent as a version reference');
     const viewer = await browser.newPage();
     await viewer.goto(`${origin}/viewer`);
     await viewer.evaluate(async snapshot => {
@@ -105,6 +106,11 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     await host.frameLocator('iframe').getByText('Frame clicked').waitFor();
     await viewer.locator('iframe').evaluate(n => n.style.width = '900px');
     assert.equal(await frame.locator('main').evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length), 2);
+    await host.evaluate(() => document.styleSheets[0].insertRule('h1 { color: rgb(7, 8, 9) !important; }', document.styleSheets[0].cssRules.length));
+    const restyled = await source.capture();
+    assert.ok(source.metrics.sourceStyleBytes > 100, 'CSSOM edits invalidate source stylesheet references');
+    await viewer.evaluate(snapshot => renderer.render(snapshot), restyled);
+    assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n).color), 'rgb(7, 8, 9)');
     await host.reload();
     assert.notEqual((await source.capture()).generation, snapshot.generation);
     await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: button.id, action: 'click' }), /Stale/);
