@@ -37,7 +37,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     source = new BrowserDocument(host);
     const snapshot = await source.capture();
     assert.equal(JSON.stringify(snapshot).includes("private"), false);
-    assert.equal(snapshot.unsupported[0].kind, "canvas");
+    assert.equal(JSON.stringify(snapshot).includes('"media":true'), true);
     const second = await source.capture();
     assert.equal(second.root.id, snapshot.root.id);
     const viewer = await browser.newPage();

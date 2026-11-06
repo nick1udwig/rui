@@ -36,6 +36,14 @@ async function printInvitation() {
 }
 const pairings = new Map();
 const documentPublishers = new Map();
+const mediaSessions = new Map();
+const mediaExpiry = setInterval(() => {
+  for (const [token, session] of mediaSessions) if (session.expires < Date.now()) {
+    mediaSessions.delete(token);
+    void session.media.close(token);
+  }
+}, 1000);
+mediaExpiry.unref();
 const equal = (a, b) =>
   typeof a === "string" &&
   a.length === b.length &&
@@ -80,15 +88,41 @@ const handler = async (request, response) => {
       )
         return respond(response, 403, { error: "Origin rejected" });
       const data = await readJson(request);
+      if (url.pathname === "/api/media" && !desktop) {
+        const auth = credentials(request);
+        const grant = await admin({ op: "document", ...auth });
+        if (data.op === "open") {
+          if (mediaSessions.size >= 32) throw Error("Media session limit");
+          const page = workspace.active;
+          const source = workspace.pages.get(page)?.document.routed(data.frames);
+          if (!source || source.generation !== data.generation) throw Error("Media source changed");
+          const result = await source.media.open(data.node, data.generation);
+          try { const current = await admin({ op: "document", ...auth }); if (current.scope !== grant.scope || workspace.active !== page) throw Error("Media source changed"); }
+          catch (error) { await source.media.close(result.token); throw error; }
+          mediaSessions.set(result.token, { media: source.media, page, client: auth.client, scope: grant.scope, expires: Date.now() + 10000 });
+          return respond(response, 200, result);
+        }
+        const session = mediaSessions.get(data.token);
+        if (!session || session.client !== auth.client || session.scope !== grant.scope) throw Error("Media session rejected");
+        if (data.op === "close" || session.page !== workspace.active) {
+          mediaSessions.delete(data.token);
+          await session.media.close(data.token);
+        } else if (["answer", "renew"].includes(data.op)) {
+          await session.media.update(data.token, data.op === "answer" ? data.answer : undefined);
+          session.expires = Date.now() + 10000;
+        } else throw Error("Media operation rejected");
+        return respond(response, 200, { ok: true });
+      }
       if (url.pathname === "/api/document" && !desktop) {
         if (data.profile !== "browser.document.v1") throw Error("Document profile required");
         const auth = credentials(request);
-        await admin({ op: "auth", ...auth });
+        const grant = await admin({ op: "document", ...auth });
         const page = workspace.active;
         const source = workspace.pages.get(page)?.document;
         if (!source) throw Error("No document");
         const snapshot = await source.capture();
-        await admin({ op: "auth", ...auth });
+        const current = await admin({ op: "document", ...auth });
+        if (current.scope !== grant.scope) throw Error("Document scope changed");
         if (workspace.active !== page) throw Error("Selected tab changed");
         if (!documentPublishers.has(auth.client) && documentPublishers.size >= 32) throw Error("Document viewer limit");
         let publisher = documentPublishers.get(auth.client);
@@ -277,7 +311,14 @@ const rpc = socketServer((socket) => {
   owner = socket;
   void serveFrames(socket, async (request) => {
     let result;
-    if (request.op === "invite") {
+    if (request.op === "retireDocumentViewer") {
+      documentPublishers.delete(request.client);
+      for (const [token, session] of mediaSessions) if (session.client === request.client) {
+        mediaSessions.delete(token);
+        await session.media.close(token);
+      }
+      result = { ok: true };
+    } else if (request.op === "invite") {
       invitation = randomBytes(32).toString("hex");
       invitationDeadline = Date.now() + 300_000;
       await printInvitation();

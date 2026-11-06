@@ -42,7 +42,7 @@ let host,
 const fixture = createServer((req, res) => {
   res.setHeader("Content-Type", "text/html");
   res.end(
-    `<!doctype html><title>Live browser fixture</title><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a>`,
+    `<!doctype html><title>Live browser fixture</title><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a><canvas id=live-canvas width=40 height=40></canvas><script>const ctx=document.querySelector("canvas").getContext("2d");function paint(){ctx.fillStyle="red";ctx.fillRect(0,0,40,40);requestAnimationFrame(paint)}paint();</script>`,
   );
 });
 await new Promise((r) => fixture.listen(0, "127.0.0.1", r));
@@ -257,6 +257,7 @@ try {
     const replica = page.frameLocator('iframe[title="Host web page"]');
     await replica.getByRole("heading", { name: "Host fixture" }).waitFor();
     assert.equal(await replica.locator("script").count(), 0);
+    await deadline(async () => replica.locator("#live-canvas").evaluate(n => n.getContext("2d").getImageData(10,10,1,1).data[0] > 200), "scoped canvas media");
     await replica.getByRole("button", { name: "Run action", exact: true }).click();
     await replica.locator("#result").filter({ hasText: "Action confirmed" }).waitFor();
   }

@@ -4,12 +4,14 @@ const BLOCKED = new Set(["script", "noscript", "iframe", "object", "embed", "bas
 const SAFE_ATTR = /^(id|class|title|lang|dir|role|aria-[\w-]+|data-[\w-]+|style|width|height|viewBox|d|fill|stroke|stroke-width|transform|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|points|xmlns|type|name|placeholder|disabled|readonly|required|min|max|step|multiple|rows|cols|colspan|rowspan|alt)$/;
 
 export class DocumentRenderer {
-  constructor(iframe, dispatch = () => {}, canControl = () => false) {
+  constructor(iframe, dispatch = () => {}, canControl = () => false, media, frames = []) {
     this.iframe = iframe;
     iframe.setAttribute("sandbox", "allow-same-origin");
     this.generation = null;
     this.dispatch = dispatch;
     this.canControl = canControl;
+    this.media = media;
+    this.route = frames;
   }
   async render(snapshot) {
     if (!snapshot.root || JSON.stringify(snapshot).length > 8 * 1024 * 1024) throw Error("Document limit");
@@ -74,11 +76,13 @@ export class DocumentRenderer {
         element.setAttribute("sandbox", "allow-same-origin");
         let renderer = this.frames.get(node.id);
         if (!renderer || renderer.iframe !== element) {
-          renderer = new DocumentRenderer(element, command => this.dispatch({ ...command, frames: [{ node: node.id, generation: this.generation }, ...(command.frames || [])] }), this.canControl);
+          renderer = new DocumentRenderer(element, command => this.dispatch({ ...command, frames: [{ node: node.id, generation: this.generation }, ...(command.frames || [])] }), this.canControl, this.media, [...this.route, { node: node.id, generation: snapshot.generation }]);
           this.frames.set(node.id, renderer);
         }
         pendingFrames.push(() => renderer.render(node.document));
-      } else if (blocked || ["canvas", "video"].includes(node.tag)) {
+      } else if (node.media && this.media) {
+        this.media.attach(node, element, snapshot.generation, this.route);
+      } else if (blocked || ["canvas", "video", "audio"].includes(node.tag)) {
         element.textContent = `Unsupported region: ${node.tag}`;
         element.setAttribute("data-rui-unsupported", node.tag);
       } else {

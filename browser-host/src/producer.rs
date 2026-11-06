@@ -105,6 +105,19 @@ pub struct BrowserPort {
     identity: Arc<()>,
 }
 impl BrowserPort {
+    pub fn document_scope(&self, client: Id) -> Result<Value, TransportError> {
+        let state = self.state.lock().map_err(|_| TransportError::Authority)?;
+        let view = state.views.get(&client).ok_or(TransportError::Authority)?;
+        if state.selection != "browser"
+            || state.stopped.load(Ordering::Acquire)
+            || !view.scope.alive.load(Ordering::Acquire)
+            || !view.scope.opened.load(Ordering::Acquire)
+            || !view.lifetime.is_authorized()
+        {
+            return Err(TransportError::Authority);
+        }
+        Ok(json!({"scope":format!("{}:{}", hex(&state.epoch), hex(&view.session.view_id))}))
+    }
     pub fn invite(&self) -> Result<(), TransportError> {
         self.state
             .lock()
@@ -272,7 +285,10 @@ impl State {
                 || !v.lifetime.is_authorized()
                 || self.stopped.load(Ordering::Acquire)
             {
-                v.scope.alive.store(false, Ordering::Release);
+                let was_alive = v.scope.alive.swap(false, Ordering::AcqRel);
+                if was_alive && self.selection == "browser" {
+                    let _ = self.worker.call(json!({"op":"retireDocumentViewer", "client":hex(&v.session.client.client_instance_id)}));
+                }
                 let _ = self.sessions.disconnect(&v.session.client, now);
                 if !v.lifetime.is_authorized() {
                     let _ = self

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { DocumentMedia } from "./document-media.mjs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -30,8 +31,9 @@ function observeDocument(key) {
       result.checked = !!node.checked;
       if (node.type === "password") delete attrs.value;
     }
-    if (["canvas", "video", "iframe", "object", "embed"].includes(tag)) {
-      unsupported.push({ id: result.id, kind: tag });
+    if (["canvas", "video", "audio", "iframe", "object", "embed"].includes(tag)) {
+      if (typeof node.captureStream === "function") result.media = true;
+      else unsupported.push({ id: result.id, kind: tag });
       return result;
     }
     result.children = [...node.childNodes].map(n => visit(n, depth + 1, shadow)).filter(Boolean);
@@ -54,12 +56,14 @@ export class BrowserDocument {
     this.frame = typeof page.mainFrame === "function" ? page.mainFrame() : page;
     this.page = this.frame.page();
     this.frames = new Map();
+    this.media = new DocumentMedia(this);
     this.key = `__rui_document_${randomBytes(16).toString("hex")}`;
     this.generation = randomBytes(16).toString("hex");
     this.revision = 0;
     this.assets = new Map();
     this.navigation = (frame) => {
       if (frame === this.frame) {
+        void this.media.dispose();
         this.generation = randomBytes(16).toString("hex");
         this.assets.clear();
       }
@@ -67,10 +71,20 @@ export class BrowserDocument {
     this.page.on("framenavigated", this.navigation);
   }
   dispose() {
+    void this.media.dispose();
     this.page.off("framenavigated", this.navigation);
     this.assets.clear();
     for (const child of this.frames.values()) child.dispose();
     this.frames.clear();
+  }
+  routed(frames = []) {
+    if (frames.length > 16) throw Error("Frame limit");
+    let source = this;
+    for (const route of frames) {
+      if (route.generation !== source.generation || !source.frames.has(route.node)) throw Error("Stale frame route");
+      source = source.frames.get(route.node);
+    }
+    return source;
   }
   async dispatch(command) {
     if (command.frames?.length) {
