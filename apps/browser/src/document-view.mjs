@@ -1,6 +1,6 @@
 import { DocumentRenderer } from "./document-renderer.mjs";
 import { DocumentReceiver, DOCUMENT_PROFILE } from "./document-channel.mjs";
-import { concurrent } from "./document-work.mjs";
+import { concurrent, resourceBatches } from "./document-work.mjs";
 import { DocumentMediaView } from "./document-media.mjs";
 
 export class DocumentView {
@@ -64,23 +64,28 @@ export class DocumentView {
           collect(snapshot);
           for (const [key, body] of this.resources) if (!required.has(key)) { this.resources.delete(key); this.resourceBytes -= this.resourceSizes.get(key); this.resourceSizes.delete(key); }
           if ([...required.values()].reduce((bytes, offer) => bytes + offer.bytes, 0) > 16 * 1024 * 1024) throw Error('Resource cache limit');
-          await concurrent([...required], 8, async ([key, offer]) => {
-            if (this.resources.has(key)) {
-              if (this.resourceSizes.get(key) !== offer.bytes) throw Error('Resource length mismatch');
-              return;
+          const missing = [...required].filter(([key, offer]) => {
+            if (!this.resources.has(key)) return true;
+            if (this.resourceSizes.get(key) !== offer.bytes) throw Error('Resource length mismatch');
+            return false;
+          });
+          await concurrent(resourceBatches(missing), 4, async batch => {
+            const { bodies } = await this.api('document-resource', { generation: packet.generation, keys: batch.map(([key]) => key) }, true);
+            if (!this.running || serial !== this.serial) return;
+            if (!bodies || typeof bodies !== 'object' || Object.keys(bodies).length !== batch.length) throw Error('Invalid resource batch');
+            for (const [key, offer] of batch) {
+              const body = bodies[key];
+              if (typeof body !== 'string') throw Error('Invalid resource body');
+              const bytes = new TextEncoder().encode(body);
+              if (bytes.length !== offer.bytes) throw Error('Resource length mismatch');
+              const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2,'0')).join('');
+              if (!this.running || serial !== this.serial) return;
+              if (digest !== key) throw Error('Resource integrity mismatch');
+              if (this.resourceBytes + bytes.length > 16 * 1024 * 1024) throw Error('Resource cache limit');
+              this.resources.set(key, body);
+              this.resourceSizes.set(key, bytes.length);
+              this.resourceBytes += bytes.length;
             }
-            const { body } = await this.api('document-resource', { generation: packet.generation, key }, true);
-            if (!this.running || serial !== this.serial) return;
-            if (typeof body !== 'string') throw Error('Invalid resource body');
-            const bytes = new TextEncoder().encode(body);
-            if (bytes.length !== offer.bytes) throw Error('Resource length mismatch');
-            const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2,'0')).join('');
-            if (!this.running || serial !== this.serial) return;
-            if (digest !== key) throw Error('Resource integrity mismatch');
-            if (this.resourceBytes + bytes.length > 16 * 1024 * 1024) throw Error('Resource cache limit');
-            this.resources.set(key, body);
-            this.resourceSizes.set(key, bytes.length);
-            this.resourceBytes += bytes.length;
           });
           for (const document of documents) for (const kind of ['resources', 'styleResources']) {
             document[kind] = Object.fromEntries(Object.entries(document[kind] || {}).map(([key, offer]) => [key, typeof offer === 'string' ? offer : this.resources.get(key)]));

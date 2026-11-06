@@ -202,9 +202,11 @@ try {
     if (corruptedResource) return route.continue();
     const response = await route.fetch();
     const data = await response.json();
-    if (typeof data.body !== 'string' || !data.body.length) return route.fulfill({ response });
+    const bodies = data.bodies || data;
+    const key = Object.keys(bodies).find(key => typeof bodies[key] === 'string' && bodies[key].length);
+    if (!key) return route.fulfill({ response });
     corruptedResource = true;
-    data.body = (data.body[0] === 'x' ? 'y' : 'x') + data.body.slice(1);
+    bodies[key] = (bodies[key][0] === 'x' ? 'y' : 'x') + bodies[key].slice(1);
     await route.fulfill({ response, json: data });
   });
   const retainMediaPeer = async () => {

@@ -41,11 +41,12 @@ try {
     await new Promise(resolve => setTimeout(resolve, latency));
     if (!viewer.isClosed()) await route.continue();
   });
-  const transfer = { decoded: 0, encoded: 0, compressed: 0 };
+  const transfer = { decoded: 0, encoded: 0, compressed: 0, resourceRequests: 0 };
   const transfers = [];
   viewer.on('response', response => {
     if (!/\/api\/document(?:-resource)?$/.test(response.url())) return;
     transfers.push((async () => {
+      if (response.url().endsWith('/api/document-resource')) transfer.resourceRequests++;
       const body = await response.body();
       const sizes = await response.request().sizes();
       transfer.decoded += body.length;

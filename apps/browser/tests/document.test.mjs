@@ -112,8 +112,9 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(await host.locator('#field').inputValue(), 'Remote 🙂');
     await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: field.id, action: 'value', expected: 'live', value: 'stale' }), /changed/);
     const button = find(update.root, n => n.tag === 'button');
+    const actionResponse = host.waitForResponse(response => response.url() === `${origin}/leak`);
     await source.dispatch({ generation: update.generation, revision: update.revision, node: button.id, action: 'click' });
-    await host.waitForLoadState('networkidle');
+    await actionResponse;
     assert.equal(unexpected, 1);
     const embedded = find(update.root, n => n.document);
     const frameButton = find(embedded.document.root, n => n.tag === 'button');

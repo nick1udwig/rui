@@ -22,3 +22,17 @@ export async function concurrent(items, limit, visit) {
   }));
   if (failed) throw failure;
 }
+
+export function resourceBatches(entries) {
+  const batches = [];
+  let batch = [], bytes = 0;
+  for (const entry of entries) {
+    if (batch.length && (batch.length === 32 || bytes + entry[1].bytes > 2 * 1024 * 1024)) {
+      batches.push(batch); batch = []; bytes = 0;
+    }
+    batch.push(entry);
+    bytes += entry[1].bytes;
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}

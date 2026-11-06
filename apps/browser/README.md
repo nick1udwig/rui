@@ -251,7 +251,9 @@ It does not add a DOM profile to the core RUI binary wire format.
 Input passes through the existing Rust lease and command ledger before the browser adapter resolves document generation and node identity.
 Media signaling uses the same view grant and binds each stream to its source document and approved client.
 The iframe blocks page scripts with CSP, strips executable attributes and blocks remote resource loads.
-Resource downloads use at most eight concurrent requests per document loader.
+The host fetches source assets with at most eight concurrent requests.
+The client downloads up to four resource batches at once, with up to 32 small resources per batch.
+Each resource keeps its content hash and size checks.
 Unchanged source styles use version references, and the receiver retains parsed styles and verified resources.
 Large JSON responses use gzip when the client supports it.
 Its sandbox permits native canvas/media rendering; the strict script CSP remains active.

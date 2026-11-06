@@ -1,6 +1,7 @@
 import { CaptureCache } from "./capture-cache.mjs";
 import { DocumentPublisher } from "./src/document-channel.mjs";
 import { Workspace } from "./workspace.mjs";
+import { resourceReply } from "./document-resources.mjs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
 import { createServer as socketServer } from "node:net";
@@ -103,12 +104,11 @@ const handler = async (request, response) => {
         const auth = credentials(request);
         const grant = await admin({ op: "document", ...auth });
         const source = workspace.pages.get(workspace.active)?.document;
-        if (!source || source.generation !== data.generation || !/^[a-f0-9]{64}$/.test(data.key || "")) throw Error("Resource scope rejected");
-        const body = source.resource(data.key);
-        if (body === undefined) throw Error("Resource unavailable");
+        if (!source || source.generation !== data.generation) throw Error("Resource scope rejected");
+        const reply = resourceReply(source, data);
         const current = await admin({ op: "document", ...auth });
         if (current.scope !== grant.scope || workspace.pages.get(workspace.active)?.document !== source || source.generation !== data.generation) throw Error("Resource scope changed");
-        return respond(response, 200, { body });
+        return respond(response, 200, reply);
       }
       if (url.pathname === "/api/media" && !desktop) {
         const auth = credentials(request);
