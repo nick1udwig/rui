@@ -23,9 +23,9 @@ const origin = `${secure ? "https" : "http"}://127.0.0.1:5173`;
 const processes = [];
 let logs = "",
   browser;
-function start(command, args, env = {}) {
+function start(command, args, env = {}, cwd = root) {
   const p = spawn(command, args, {
-    cwd: root,
+    cwd,
     env: { ...process.env, ...env },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -146,11 +146,21 @@ try {
     );
     Object.assign(tlsEnv, { RUI_WEB_CERT: cert, RUI_WEB_KEY: key });
   }
-  start("npm", ["--prefix", "demos/web", "run", built ? "preview" : "dev"], {
-    RUI_DEMO_IDENTITY: identity,
-    RUI_HOST_URL: `wss://127.0.0.1:${port}`,
-    ...tlsEnv,
-  });
+  start(
+    process.execPath,
+    [
+      resolve(root, "demos/web/node_modules/vite/bin/vite.js"),
+      ...(built ? ["preview"] : []),
+      "--host",
+      "0.0.0.0",
+    ],
+    {
+      RUI_DEMO_IDENTITY: identity,
+      RUI_HOST_URL: `wss://127.0.0.1:${port}`,
+      ...tlsEnv,
+    },
+    resolve(root, "demos/web"),
+  );
   await wait(
     () => logs,
     (s) => s.includes("Local:") || s.includes("127.0.0.1:5173"),
