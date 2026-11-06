@@ -1,7 +1,7 @@
 const HTML = "http://www.w3.org/1999/xhtml";
 const SVG = "http://www.w3.org/2000/svg";
 const BLOCKED = new Set(["script", "noscript", "iframe", "object", "embed", "base", "meta", "link", "style", "foreignObject", "animate", "set"]);
-const SAFE_ATTR = /^(id|class|title|lang|dir|role|aria-[\w-]+|data-[\w-]+|style|width|height|viewBox|d|fill|stroke|stroke-width|transform|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|points|xmlns|type|name|placeholder|disabled|readonly|required|min|max|step|multiple|rows|cols|colspan|rowspan|alt|for|value|selected|checked|open|tabindex|contenteditable|spellcheck|autocomplete|inputmode|pattern|accept|size|wrap|controls|loop|muted|playsinline|preload)$/;
+const BLOCKED_ATTR = /^(on.*|src|srcset|srcdoc|href|xlink:href|action|formaction|ping|target|formtarget|nonce|integrity|autofocus|autoplay)$/i;
 
 export class DocumentRenderer {
   constructor(iframe, dispatch = () => {}, canControl = () => false, media, frames = []) {
@@ -31,7 +31,8 @@ export class DocumentRenderer {
       };
       doc.addEventListener("click", event => {
         event.preventDefault();
-        const target = event.composedPath().find(node => this.ids?.has(node));
+        const path = event.composedPath().filter(node => this.ids?.has(node));
+        const target = path.find(node => node.matches?.("button,a[href],input,select,textarea,[role=button],[role=slider],[role=checkbox],[role=link]")) || path[0];
         if (target) {
           const rect = target.getBoundingClientRect();
           const position = event.detail && rect.width && rect.height ? { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) } : undefined;
@@ -91,10 +92,17 @@ export class DocumentRenderer {
       this.ids.set(element, node.id);
       if (typeof node.value === "string") this.values.set(node.id, node.value);
       for (const [name, value] of Object.entries(node.attrs || {})) {
-        if (SAFE_ATTR.test(name) && typeof value === "string") {
+        if (!BLOCKED_ATTR.test(name) && typeof value === "string") {
           keep.add(name);
           const actual = name === 'style' ? css(value) : value;
           if (element.getAttribute(name) !== actual) element.setAttribute(name, actual);
+        }
+      }
+      for (const name of ['href', 'xlink:href']) {
+        const value = node.attrs?.[name];
+        if (typeof value === 'string' && (node.tag === 'a' || value.startsWith('#'))) {
+          keep.add(name);
+          element.setAttribute(name, value.startsWith('#') ? value : '#');
         }
       }
       for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);

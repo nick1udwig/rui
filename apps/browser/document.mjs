@@ -188,7 +188,7 @@ export class BrowserDocument {
       const type = (response.headers()["content-type"] || "").split(";")[0];
       if (!/^(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)$/.test(type)) return "";
       const body = await response.body();
-      if (body.length > MAX_BYTES || this.assets.size >= 128) throw Error("Asset limit");
+      if (body.length > MAX_BYTES || this.assets.size >= 1024) throw Error("Asset limit");
       const data = `data:${type};base64,${body.toString("base64")}`;
       const reference = intern(data);
       this.assets.set(url, reference);
@@ -223,15 +223,6 @@ export class BrowserDocument {
       this.rewrites.set(key, { text, expires: Date.now() + 30000 });
       return text;
     };
-    for (const style of result.styles) {
-      if (style.url) {
-        const response = await this.page.context().request.get(style.url, { timeout: 3000 });
-        try { style.text = await response.text(); } finally { await response.dispose(); }
-        style.base = style.url;
-      }
-      if (style.text.length > MAX_BYTES) throw Error("Stylesheet limit");
-      style.text = await rewrite(style.text, style.base);
-    }
     const liveFrames = new Set();
     const visit = async (node) => {
       if (node.tag === "iframe" && budget.frames > 0) {
@@ -256,6 +247,15 @@ export class BrowserDocument {
       if (node.shadowStyles) node.shadowStyles = await Promise.all(node.shadowStyles.map(text => rewrite(text, result.base)));
     };
     await visit(result.root);
+    for (const style of result.styles) {
+      if (style.url) {
+        const response = await this.page.context().request.get(style.url, { timeout: 3000 });
+        try { style.text = await response.text(); } finally { await response.dispose(); }
+        style.base = style.url;
+      }
+      if (style.text.length > MAX_BYTES) throw Error("Stylesheet limit");
+      style.text = await rewrite(style.text, style.base);
+    }
     for (const [id, child] of this.frames) if (!liveFrames.has(id)) { child.dispose(); this.frames.delete(id); }
     if (generation !== this.generation) throw Error("Navigation during capture");
     const styleResources = {};
