@@ -112,10 +112,7 @@ export class Workspace {
   }
   async close() {
     for (const [page, entry] of this.pages) {
-      if (this.attachedBrowser && entry.document.viewportChanged && !page.isClosed()) {
-        const session = await this.context.newCDPSession(page).catch(() => null);
-        if (session) { await session.send('Emulation.clearDeviceMetricsOverride').catch(() => {}); await session.detach().catch(() => {}); }
-      }
+      await entry.document.restoreViewport();
       entry.document.dispose();
     }
     if (this.attachedBrowser) await this.attachedBrowser.close();
@@ -146,7 +143,7 @@ export class Workspace {
       id: randomBytes(12).toString("hex"),
       generation: 1,
       sessions: new Map(),
-      document: new BrowserDocument(page),
+      document: new BrowserDocument(page, !!this.attachedBrowser),
     };
     for (const event of [
       "framenavigated",

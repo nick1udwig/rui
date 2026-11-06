@@ -53,7 +53,8 @@ function observeDocument(key) {
 }
 
 export class BrowserDocument {
-  constructor(page) {
+  constructor(page, preserveWindow = false) {
+    this.preserveWindow = preserveWindow;
     this.frame = typeof page.mainFrame === "function" ? page.mainFrame() : page;
     this.page = this.frame.page();
     this.frames = new Map();
@@ -80,6 +81,7 @@ export class BrowserDocument {
     this.page.on("framenavigated", this.navigation);
   }
   dispose() {
+    void this.restoreViewport();
     void this.media.dispose();
     this.page.off("framenavigated", this.navigation);
     this.assets.clear();
@@ -89,6 +91,14 @@ export class BrowserDocument {
     this.failedAssets.clear();
     for (const child of this.frames.values()) child.dispose();
     this.frames.clear();
+  }
+  async restoreViewport() {
+    const session = this.viewportSession;
+    this.viewportSession = null;
+    if (session) {
+      await session.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await session.detach().catch(() => {});
+    }
   }
   routed(frames = []) {
     if (frames.length > 16) throw Error("Frame limit");
@@ -114,7 +124,10 @@ export class BrowserDocument {
     if (command.action === "resize") {
       const { width, height } = command;
       if (![width, height].every(n => Number.isInteger(n) && n >= 240 && n <= 2560)) throw Error("Viewport limit");
-      await this.page.setViewportSize({ width, height });
+      if (this.preserveWindow) {
+        this.viewportSession ||= await this.page.context().newCDPSession(this.page);
+        await this.viewportSession.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 0, mobile: false, dontSetVisibleSize: true });
+      } else await this.page.setViewportSize({ width, height });
       this.viewportChanged = true;
       return;
     }
@@ -123,6 +136,7 @@ export class BrowserDocument {
     try {
       const element = handle.asElement();
       if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw Error("Unavailable document target");
+      await this.page.bringToFront();
       if (command.action === "click") {
         let position;
         if (command.position) {
@@ -251,7 +265,7 @@ export class BrowserDocument {
           const frame = await handle.asElement()?.contentFrame();
           if (frame && !frame.isDetached()) {
             let child = this.frames.get(node.id);
-            if (child?.frame !== frame) { child?.dispose(); child = new BrowserDocument(frame); this.frames.set(node.id, child); }
+            if (child?.frame !== frame) { child?.dispose(); child = new BrowserDocument(frame, this.preserveWindow); this.frames.set(node.id, child); }
             liveFrames.add(node.id);
             node.document = await child.capture(budget);
             result.unsupported = result.unsupported.filter(region => region.id !== node.id);

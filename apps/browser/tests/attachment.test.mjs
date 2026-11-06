@@ -27,10 +27,17 @@ test('attachment leaves external browser and excess tabs alive on detach', { tim
     assert.equal(workspace.pages.size, 16);
     assert.equal(context.pages().length, 17);
     const doc = workspace.pages.get(workspace.active).document;
+    await doc.page.setContent(`<title>Attachment test</title><button onclick="this.textContent='Attached action confirmed'">Host button</button>`);
+    const externalPage = context.pages()[(await Promise.all(context.pages().map(page => page.title()))).indexOf('Attachment test')];
+    const originalWidth = await doc.page.evaluate(() => innerWidth);
     const snapshot = await doc.capture();
+    const find = node => node.tag === 'button' ? node : (node.children || []).map(find).find(Boolean);
+    await doc.dispatch({ generation: snapshot.generation, revision: snapshot.revision, node: find(snapshot.root).id, action: 'click' });
+    assert.equal(await doc.page.locator('button').textContent(), 'Attached action confirmed');
     await doc.dispatch({ generation: snapshot.generation, revision: snapshot.revision, action: 'resize', width: 390, height: 600 });
     await workspace.close(); workspace = null;
     assert.equal(child.exitCode, null);
+    assert.equal(await externalPage.evaluate(() => innerWidth), originalWidth);
     assert.equal(context.pages().length, 17);
     assert.equal(await context.pages()[0].evaluate(() => 2 + 2), 4);
   } finally {
