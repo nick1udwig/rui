@@ -18,14 +18,38 @@ export class DocumentRenderer {
     this.media = media;
     this.route = frames;
     this.drafts = new Map();
+    this.serial = 0;
   }
-  async render(snapshot) {
+  cancel() { this.serial++; this.cancelLoad?.(); for (const child of this.frames?.values() || []) child.cancel(); }
+  async render(snapshot, signal) {
+    this.cancelLoad?.();
+    const serial = ++this.serial;
+    const check = () => {
+      signal?.throwIfAborted();
+      if (serial !== this.serial) throw new DOMException('Document render cancelled', 'AbortError');
+    };
+    check();
     if (!snapshot.root || JSON.stringify(snapshot).length > 24 * 1024 * 1024) throw Error("Document and resource limit");
     const iframe = this.iframe;
-    if (snapshot.generation !== this.generation) await new Promise(resolve => {
-      iframe.onload = resolve;
-      iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src blob: mediastream:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
+    if (snapshot.generation !== this.generation) await new Promise((resolve, reject) => {
+      const done = error => {
+        clearTimeout(timer);
+        iframe.removeEventListener('load', loaded);
+        signal?.removeEventListener('abort', cancelled);
+        if (this.cancelLoad === cancelled) this.cancelLoad = null;
+        if (error) reject(error); else resolve();
+      };
+      const loaded = () => {
+        if (iframe.contentDocument?.querySelector('meta[name="rui-load"]')?.content === String(serial)) done();
+      };
+      const cancelled = () => done(new DOMException('Document render cancelled', 'AbortError'));
+      const timer = setTimeout(() => done(Error('Document frame load timed out')), 5000);
+      this.cancelLoad = cancelled;
+      iframe.addEventListener('load', loaded);
+      signal?.addEventListener('abort', cancelled, { once: true });
+      iframe.srcdoc = `<!doctype html><html><head><meta name="rui-load" content="${serial}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src blob: mediastream:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
+    check();
     const doc = iframe.contentDocument;
     if (snapshot.generation !== this.generation) {
       this.managed = new WeakSet();
@@ -141,6 +165,7 @@ export class DocumentRenderer {
     const previous = snapshot.generation === this.generation ? this.nodes : new Map();
     if (snapshot.generation !== this.generation) this.frames = new Map();
     const pendingFrames = [];
+    const pendingMedia = [];
     this.nodes = new Map();
     this.ids = new WeakMap();
     this.values = new Map();
@@ -165,6 +190,7 @@ export class DocumentRenderer {
       const keep = new Set();
       if (embedded) keep.add('sandbox');
       if (node.tag === 'video') keep.add('poster');
+      if (node.media) { keep.add('autoplay'); keep.add('playsinline'); }
       this.nodes.set(node.id, element);
       this.ids.set(element, node.id);
       if (typeof node.value === "string") this.values.set(node.id, node.value);
@@ -202,9 +228,9 @@ export class DocumentRenderer {
           renderer = new DocumentRenderer(element, command => this.dispatch({ ...command, frames: [{ node: node.id, generation: this.generation }, ...(command.frames || [])] }), this.canControl, this.media, [...this.route, { node: node.id, generation: snapshot.generation }]);
           this.frames.set(node.id, renderer);
         }
-        pendingFrames.push(() => renderer.render(node.document));
+        pendingFrames.push(() => renderer.render(node.document, signal));
       } else if (node.media && this.media) {
-        this.media.attach(node, element, snapshot.generation, this.route);
+        pendingMedia.push(() => this.media.attach(node, element, snapshot.generation, this.route));
       } else if (blocked || ["canvas", "video", "audio"].includes(node.tag)) {
         element.textContent = `Unsupported region: ${node.tag}`;
         element.setAttribute("data-rui-unsupported", node.tag);
@@ -236,7 +262,8 @@ export class DocumentRenderer {
     if (root !== doc.documentElement) doc.replaceChild(root, doc.documentElement);
     this.generation = snapshot.generation;
     this.revision = snapshot.revision;
-    for (const render of pendingFrames) await render();
+    for (const render of pendingFrames) { await render(); check(); }
+    for (const attach of pendingMedia) attach();
     for (const id of this.frames.keys()) if (!this.nodes.has(id)) this.frames.delete(id);
   }
 }

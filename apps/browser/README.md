@@ -133,7 +133,12 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
 - The address bar stays above the page view.
   The page view uses the site's DOM and CSS with the source viewport matched to the controlling client.
   During a failed update, the previous page stays visible with an updating message and input is paused.
+  Fetch failures retain the document and healthy media streams.
+  Stalled document requests time out after 15 seconds and retry.
   Video and audio connection errors appear beside the page view.
+  Interrupted playback retries, and failed media connections reconnect with increasing delays up to ten seconds.
+  Retired requests cannot replace a newer view or close its media streams.
+  Accessibility refreshes run in the background and publish complete action targets together, so a slow capture does not block the control connection.
   The structured reading controls remain below the page.
   Links and controls target stable source nodes.
   Text fields commit on change or Enter; simple rich-text edits commit on blur and preserve unaffected markup.
@@ -221,6 +226,8 @@ It checks slow navigation, touch input, keyboard viewport changes, delayed comma
 Set `RUI_TEST_LATENCY_MS=150` to add delay to each HTTP request.
 The public-site test reports search-to-render and video-to-frame times, plus decoded and transferred document bytes.
 Use `RUI_TEST_HEADED=1 RUI_TEST_PUBLIC=1 npm --prefix apps/browser run test:control` to include a visible host browser and live YouTube search results, thumbnails, and video playback.
+Add `RUI_TEST_RECOVERY=1` to inject document, media-open, media-renewal, and playback failures into the YouTube flow and check recovery before further navigation and input.
+This mode also stalls the host page for seven seconds and checks that control stays connected.
 These checks simulate a phone viewport; they do not replace testing on a physical phone.
 
 The phone-mode test starts a temporary real Tailscale Serve route and checks HTTPS without a certificate bypass.

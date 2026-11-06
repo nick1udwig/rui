@@ -36,9 +36,22 @@ try {
   await until(() => /Open on your phone: (https:\/\/[^\s]+)/.test(logs), 'Host starts');
   browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, chromiumSandbox: true });
   viewer = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const clientErrors = [];
+  viewer.on('pageerror', error => clientErrors.push(error.message));
   const latency = Number(process.env.RUI_TEST_LATENCY_MS || 0);
-  if (latency) await viewer.route('**/api/**', async route => {
-    await new Promise(resolve => setTimeout(resolve, latency));
+  const recovery = process.env.RUI_TEST_RECOVERY === '1';
+  const faults = { document: 0, open: 0, renew: 0 }, injected = { document: 0, open: 0, renew: 0 };
+  let mediaOpens = 0;
+  if (latency || recovery) await viewer.route('**/api/**', async route => {
+    if (latency) await new Promise(resolve => setTimeout(resolve, latency));
+    const path = new URL(route.request().url()).pathname;
+    const kind = path.endsWith('/document') ? 'document' : path.endsWith('/media') ? route.request().postDataJSON().op : '';
+    if (kind === 'open') mediaOpens++;
+    if (faults[kind] > 0) {
+      faults[kind]--; injected[kind]++;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Injected temporary failure' }) });
+      return;
+    }
     if (!viewer.isClosed()) await route.continue();
   });
   const transfer = { decoded: 0, encoded: 0, compressed: 0, resourceRequests: 0 };
@@ -100,6 +113,7 @@ try {
     const searchToRenderedMs = Math.round(performance.now() - searchStarted);
     await viewer.screenshot({ path: join(output, 'youtube-results.png') });
     const videoStarted = performance.now();
+    if (recovery) { faults.document = 2; faults.open = 2; }
     await result.locator('#video-title').tap();
     await until(() => new URL(page.url()).pathname === '/watch', 'Result opens video on host');
     const player = replica.locator('video').first();
@@ -115,6 +129,40 @@ try {
     await Promise.all(transfers);
     assert.ok(transfer.compressed > 0 && transfer.encoded < transfer.decoded, 'Document and resource traffic is compressed');
     console.log(JSON.stringify({ youtubeResultsAndVideo: true, latencyMs: latency, searchToRenderedMs, videoToFramesMs: Math.round(performance.now() - videoStarted), ...transfer }));
+    if (recovery) {
+      assert.equal(injected.open, 2, 'Media opens fail twice before recovery');
+      await player.evaluate(video => {
+        video.pause();
+        const play = video.play;
+        video.play = function () {
+          this.play = play;
+          window.parent.ruiPlayAborts = (window.parent.ruiPlayAborts || 0) + 1;
+          return Promise.reject(new DOMException('The play() request was interrupted by a new load request', 'AbortError'));
+        };
+        window.parent.ruiSavedVideo = video;
+      });
+      await viewer.getByRole('button', { name: 'Enable page sound', exact: true }).click();
+      await until(async () => player.evaluate(video => !video.paused && video.readyState >= 2), 'Playback resumes after an interrupted play call');
+      assert.equal(await viewer.evaluate(() => ruiPlayAborts), 1);
+      const opensBeforeDocumentErrors = mediaOpens;
+      faults.document = 2;
+      await until(() => injected.document === 4, 'Document failures injected during playback');
+      await until(async () => viewer.locator('iframe[title="Host web page"]').evaluate(frame => !frame.inert), 'Document polling recovers');
+      assert.equal(await player.evaluate(video => video === window.parent.ruiSavedVideo), true, 'Document recovery retains the playing element');
+      assert.equal(mediaOpens, opensBeforeDocumentErrors, 'Document errors do not reconnect healthy media');
+      faults.renew = 1;
+      await until(() => injected.renew === 1 && mediaOpens > opensBeforeDocumentErrors, 'Failed media renewal reconnects');
+      await until(async () => player.evaluate(video => !video.paused && video.readyState >= 2), 'Replacement stream starts');
+      const recoveredTime = await player.evaluate(video => video.currentTime);
+      await until(async () => (await player.evaluate(video => video.currentTime)) > recoveredTime + .5, 'Replacement stream advances');
+      console.log(JSON.stringify({ recovery: true, injected, interruptedPlayRecovered: true, mediaOpens }));
+      await page.evaluate(() => {
+        const end = performance.now() + 7000;
+        while (performance.now() < end) {}
+      });
+      assert.equal(await viewer.locator('#connection').textContent(), 'Controlling host', 'A slow source page cannot stall the control connection past its RPC deadline');
+      console.log('Control connection survived a seven-second host-page stall');
+    }
   }
   await navigate(`http://127.0.0.1:${fixture.address().port}/slow`);
   await replica.locator('#search').waitFor();
@@ -146,8 +194,10 @@ try {
   await replica.locator('#search').tap();
   await until(async () => await page.locator('body').getAttribute('data-clicks') === '2', 'Commands work after recovery');
   assert.equal(dialogs, 1, 'Recovery never replays the uncertain action');
+  assert.deepEqual(clientErrors, [], 'Recovery leaves no unhandled client errors');
   console.log('Paired control passed: slow navigation, touch search, keyboard resize and uncertain-action recovery');
 } catch (error) {
+  console.error('Host diagnostics:', logs.split('\n').filter(line => !line.includes('\u001b')).join('\n').replace(/invite=[a-f0-9]+/g, 'invite=[REDACTED]'));
   if (viewer) { console.error('Geometry:', await viewer.evaluate(() => {const frame=document.querySelector('iframe');const doc=frame?.contentDocument; const target=doc?.querySelector('button[aria-label=Search]');return {scroll:scrollY,frame:frame?.getBoundingClientRect().toJSON(),target:target?.getBoundingClientRect().toJSON(),width:doc?.defaultView.innerWidth,height:doc?.defaultView.innerHeight,hidden:frame?.hidden}})); console.error('Client status:', await viewer.locator('#status').textContent(), await viewer.locator('#view').innerText()); console.error('Source:', source.pages()[0].url(), await source.pages()[0].locator('button').evaluateAll(nodes => nodes.map(n => ({label:n.getAttribute('aria-label'),text:n.textContent,id:n.id,visible:!!n.getClientRects().length}))).catch(()=>[])); await viewer.screenshot({path:join(output, 'control-failure.png')}); }
   throw error;
 } finally {

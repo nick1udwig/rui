@@ -55,7 +55,7 @@ function storage(value?: Device | null): Promise<Device | undefined> {
     transaction.onerror = () => reject(transaction.error);
   });
 }
-async function api(path: string, data: unknown, authenticated = false) {
+async function api(path: string, data: unknown, authenticated = false, signal?: AbortSignal) {
   const response = await fetch(new URL(`api/${path}`, appBase), {
     method: "POST",
     headers: {
@@ -69,6 +69,7 @@ async function api(path: string, data: unknown, authenticated = false) {
     },
     body: JSON.stringify(data),
     cache: "no-store",
+    signal,
   });
   const result = await response.json();
   if (!response.ok) throw Error(result.error);

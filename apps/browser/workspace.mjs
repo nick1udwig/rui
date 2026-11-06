@@ -134,13 +134,25 @@ export class Workspace {
   async observe() {
     if (this.observation && Date.now() - this.observationTime < 1000)
       return this.observation;
-    const generation = this.captureGeneration;
-    const capture = await this.capture();
-    if (generation === this.captureGeneration) {
-      this.observation = capture;
-      this.observationTime = Date.now();
+    if (!this.pendingObservation && Date.now() >= (this.observationRetryAt || 0)) {
+      const generation = this.captureGeneration;
+      this.pendingObservation = this.capture().then(capture => {
+        this.lastObservation = capture;
+        if (generation === this.captureGeneration) {
+          this.observation = capture;
+          this.observationTime = Date.now();
+        }
+        return capture;
+      }).catch(error => {
+        this.observationRetryAt = Date.now() + 1000;
+        if (process.env.RUI_DEBUG_DOCUMENT === '1') console.error('Browser semantic capture failed:', error.message);
+        throw error;
+      }).finally(() => { this.pendingObservation = null; });
+      void this.pendingObservation.catch(() => {});
     }
-    return capture;
+    if (this.lastObservation) return this.lastObservation;
+    if (this.pendingObservation) return this.pendingObservation;
+    throw Error('Browser observation unavailable');
   }
   register(page) {
     if (this.pages.has(page)) return;
@@ -299,7 +311,13 @@ export class Workspace {
     }
   }
   async capture() {
-    this.semantic.targets.clear();
+    if (this.pendingCapture) return this.pendingCapture;
+    this.pendingCapture = this.captureCurrent();
+    try { return await this.pendingCapture; }
+    finally { this.pendingCapture = null; }
+  }
+  async captureCurrent() {
+    const semantic = new SemanticNodes(this.semantic);
     for (const [token, s] of this.secrets)
       if (s.expires < Date.now()) this.secrets.delete(token);
     const byId = new Map(),
@@ -309,10 +327,10 @@ export class Workspace {
       return n.id;
     };
     const group = (key, label, children, kind = null) =>
-      add(this.semantic.node(key, { role: "group", label, children, kind }));
+      add(semantic.node(key, { role: "group", label, children, kind }));
     const button = (key, label, handler, disabled = false) =>
       add(
-        this.semantic.node(
+        semantic.node(
           key,
           { role: "button", label, actions: ["Activate"], disabled },
           handler,
@@ -321,9 +339,10 @@ export class Workspace {
     let status =
       "Observed page semantics. Images, canvas, video and unsupported widgets are unavailable.";
     if (this.closed) {
+      this.semantic = semantic;
       return {
         nodes: [
-          this.semantic.node("root", {
+          semantic.node("root", {
             role: "root",
             label: "Browser closed. Restart the host to continue.",
           }),
@@ -351,13 +370,13 @@ export class Workspace {
     if (page && !page.isClosed()) {
       const entry = this.pages.get(page),
         prefix = `${entry.id}:${entry.generation}`;
-      rootChildren.push(add(this.semantic.node(`${entry.id}:${entry.document.generation}:document`, {
+      rootChildren.push(add(semantic.node(`${entry.id}:${entry.document.generation}:document`, {
         role: "text", label: "Page document", kind: "document-command", value: "",
         description: entry.document.generation, actions: ["SetValue"],
       }, { op: "document", page, documentGeneration: entry.document.generation })));
       toolbar.push(
         add(
-          this.semantic.node(
+          semantic.node(
             `${prefix}:url`,
             {
               role: "text",
@@ -422,7 +441,7 @@ export class Workspace {
         children = [];
       children.push(
         add(
-          this.semantic.node(`${d.id}:message`, {
+          semantic.node(`${d.id}:message`, {
             label: clean(d.dialog.message()),
           }),
         ),
@@ -430,7 +449,7 @@ export class Workspace {
       if (d.dialog.type() === "prompt")
         children.push(
           add(
-            this.semantic.node(
+            semantic.node(
               `${d.id}:prompt`,
               {
                 role: "text",
@@ -671,7 +690,7 @@ export class Workspace {
                   previous?.role === "label" &&
                   previous.label === node.label
                 ))
-                  content.push(add(this.semantic.node(prefix, node, handler)));
+                  content.push(add(semantic.node(prefix, node, handler)));
                 included++;
               }
               if (interactive) return;
@@ -699,7 +718,7 @@ export class Workspace {
       if (!content.length)
         content.push(
           add(
-            this.semantic.node("empty-content", {
+            semantic.node("empty-content", {
               label:
                 "No supported page content in this section. Try the previous section or another address.",
             }),
@@ -747,7 +766,7 @@ export class Workspace {
       for (const d of this.downloads) {
         children.push(
           add(
-            this.semantic.node(`${d.id}:download`, {
+            semantic.node(`${d.id}:download`, {
               label: d.name,
               description: d.status,
             }),
@@ -764,17 +783,18 @@ export class Workspace {
       rootChildren.push(group("downloads", "Host downloads", children));
     }
     const nodes = [
-      this.semantic.node("root", {
+      semantic.node("root", {
         role: "root",
         label: "Remote browser",
         children: rootChildren,
       }),
       ...byId.values(),
     ];
-    this.semantic.retain(nodes);
+    semantic.retain(nodes);
     const capture = { nodes, status };
     if (Buffer.byteLength(JSON.stringify(capture)) > 900_000)
       throw Error("Page semantic limit");
+    this.semantic = semantic;
     return capture;
   }
   stage(scope, secret) {
@@ -799,7 +819,12 @@ export class Workspace {
         if (target.op === "document" ? entry.document.generation !== target.documentGeneration : entry.generation !== target.generation) return { status: "rejected" };
         if (target.op === "navigate" && target.node.value !== target.page.url()) return { status: "rejected" };
       } else {
-        await this.capture();
+        let timer;
+        try {
+          await Promise.race([this.capture(), new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new DocumentActionRejected('Page observation is still updating')), Math.max(1, deadline - Date.now()));
+          })]);
+        } finally { clearTimeout(timer); }
         target = this.semantic.targets.get(request.target);
       }
       if (

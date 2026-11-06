@@ -2,6 +2,7 @@ import { DocumentRenderer } from "./document-renderer.mjs";
 import { DocumentReceiver, DOCUMENT_PROFILE } from "./document-channel.mjs";
 import { concurrent, resourceBatches } from "./document-work.mjs";
 import { DocumentMediaView } from "./document-media.mjs";
+import { documentRequest } from './document-request.mjs';
 
 export class DocumentView {
   constructor(container, api, dispatch, canControl, report, onRendered = () => {}) {
@@ -35,17 +36,21 @@ export class DocumentView {
     this.dispatch = dispatch;
     this.canControl = canControl;
     this.serial = 0;
+    this.requestTimeout = 15000;
   }
   get generation() { return this.renderer.generation; }
   start() {
     if (this.running) return;
     this.running = true;
     const serial = ++this.serial;
+    const controller = this.controller = new AbortController();
+    const request = (path, data) => documentRequest(this.api, path, data, controller.signal, this.requestTimeout);
     const poll = async () => {
       if (!this.running || serial !== this.serial) return;
+      let rendering = false;
       try {
         if (document.visibilityState === "visible") {
-          const packet = await this.api("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation }, true);
+          const packet = await request("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation });
           if (!this.running || serial !== this.serial) return;
           const snapshot = this.receiver.apply(packet);
           const required = new Map();
@@ -70,7 +75,7 @@ export class DocumentView {
             return false;
           });
           await concurrent(resourceBatches(missing), 4, async batch => {
-            const { bodies } = await this.api('document-resource', { generation: packet.generation, keys: batch.map(([key]) => key) }, true);
+            const { bodies } = await request('document-resource', { generation: packet.generation, keys: batch.map(([key]) => key) });
             if (!this.running || serial !== this.serial) return;
             if (!bodies || typeof bodies !== 'object' || Object.keys(bodies).length !== batch.length) throw Error('Invalid resource batch');
             for (const [key, offer] of batch) {
@@ -92,16 +97,19 @@ export class DocumentView {
           }
           if (!this.running || serial !== this.serial) return;
           const previousGeneration = this.displayedGeneration;
+          rendering = true;
           this.media.begin();
-          await this.renderer.render(snapshot);
+          await this.renderer.render(snapshot, controller.signal);
+          if (!this.running || serial !== this.serial) return;
           this.displayedGeneration = snapshot.generation;
           this.media.finish();
+          rendering = false;
           this.failures = 0;
           this.iframe.hidden = false;
           this.iframe.inert = false;
           this.status.hidden = true;
           this.container.removeAttribute("aria-busy");
-          if ([...this.media.streams.values()].some(entry => entry.peer.connectionState === "connected")) this.mediaStatus.hidden = true;
+          if (!this.media.failures.size && [...this.media.streams.values()].every(entry => entry.peer.connectionState === "connected" && !entry.blocked)) this.mediaStatus.hidden = true;
           if (previousGeneration && previousGeneration !== snapshot.generation && this.canControl()) {
             this.container.style.scrollMarginTop = `${(document.querySelector("header")?.offsetHeight || 0) + 8}px`;
             this.container.scrollIntoView({ block: "start" });
@@ -117,7 +125,8 @@ export class DocumentView {
           this.onRendered();
         }
       } catch (error) {
-        this.media.dispose();
+        if (!this.running || serial !== this.serial) return;
+        if (rendering) { this.media.dispose(); this.renderer.generation = null; }
         this.iframe.hidden = !this.displayedGeneration;
         this.iframe.inert = true;
         this.container.setAttribute("aria-busy", "true");
@@ -125,7 +134,6 @@ export class DocumentView {
         this.status.hidden = false;
         this.report(error);
         this.receiver = new DocumentReceiver();
-        this.renderer.generation = null;
         this.failures = (this.failures || 0) + 1;
       }
       if (!this.failures) this.iframe.hidden = false;
@@ -135,6 +143,8 @@ export class DocumentView {
   }
   stop() {
     this.running = false;
+    this.controller?.abort();
+    this.renderer.cancel();
     this.displayedGeneration = null;
     this.status.hidden = true;
     this.mediaStatus.hidden = true;

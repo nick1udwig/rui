@@ -334,8 +334,12 @@ test("observations reuse clean captures and retain invalidations during capture"
   const first = await workspace.observe();
   assert.equal(await workspace.observe(), first);
   workspace.invalidate();
+  assert.equal(await workspace.observe(), first);
+  await workspace.pendingObservation;
   assert.notEqual(await workspace.observe(), first);
   workspace.observationTime = 0;
+  await workspace.observe();
+  await workspace.pendingObservation;
   assert.equal((await workspace.observe()).sequence, 3);
   workspace.invalidate();
   workspace.capture = async () => {
@@ -343,6 +347,47 @@ test("observations reuse clean captures and retain invalidations during capture"
     return { sequence: ++captures };
   };
   await workspace.observe();
+  await workspace.pendingObservation;
   await workspace.observe();
+  await workspace.pendingObservation;
   assert.equal(captures, 5);
+});
+
+test('slow or failed semantic captures keep the last publication available', async () => {
+  const workspace = new Workspace({ on() {}, pages: () => [] }, '', '');
+  const stable = { sequence: 1 }, next = { sequence: 2 };
+  workspace.capture = async () => stable;
+  assert.equal(await workspace.observe(), stable);
+  let complete, calls = 0;
+  workspace.capture = () => { calls++; return new Promise(resolve => { complete = resolve; }); };
+  workspace.invalidate();
+  assert.equal(await workspace.observe(), stable);
+  assert.equal(await workspace.observe(), stable);
+  assert.equal(calls, 1, 'Slow capture is shared while polling remains responsive');
+  complete(next);
+  await workspace.pendingObservation;
+  assert.equal(await workspace.observe(), next);
+  workspace.capture = async () => { calls++; throw Error('Navigation during capture'); };
+  workspace.invalidate();
+  assert.equal(await workspace.observe(), next);
+  await assert.rejects(workspace.pendingObservation, /Navigation/);
+  assert.equal(await workspace.observe(), next);
+  assert.equal(calls, 2, 'Failed captures back off without closing the control connection');
+  workspace.observationRetryAt = 0;
+  workspace.capture = async () => stable;
+  await workspace.observe();
+  await workspace.pendingObservation;
+  assert.equal(await workspace.observe(), stable);
+});
+
+test('failed captures cannot publish partially rebuilt action targets', async () => {
+  const workspace = new Workspace({ on() {}, pages: () => [] }, '', '');
+  const stable = await workspace.capture(), semantic = workspace.semantic;
+  const targets = [...semantic.targets];
+  workspace.downloads = { length: 1, [Symbol.iterator]() { throw Error('Interrupted capture'); } };
+  await assert.rejects(workspace.capture(), /Interrupted capture/);
+  assert.equal(workspace.semantic, semantic);
+  assert.deepEqual([...workspace.semantic.targets], targets);
+  workspace.downloads = [];
+  assert.deepEqual(await workspace.capture(), stable);
 });

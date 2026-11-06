@@ -6,7 +6,7 @@ import { chromium, firefox, webkit } from "playwright";
 import { BrowserDocument } from "../document.mjs";
 
 test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM", { timeout: 45000 }, async () => {
-  const files = new Map(await Promise.all(['document-renderer', 'document-media'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
+  const files = new Map(await Promise.all(['document-renderer', 'document-media', 'document-request'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
   const server = createServer((req, res) => {
     if (files.has(req.url)) { res.setHeader('Content-Type', 'text/javascript'); res.end(files.get(req.url)); }
     else { res.setHeader('Content-Type', 'text/html'); res.end('<h1>Native text</h1>'); }
