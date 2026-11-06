@@ -19,6 +19,8 @@ export class DocumentRenderer {
     this.route = frames;
     this.drafts = new Map();
     this.serial = 0;
+    this.localScrolls = new Map();
+    this.remoteScrolls = new WeakMap();
   }
   cancel() { this.serial++; this.cancelLoad?.(); for (const child of this.frames?.values() || []) child.cancel(); }
   async render(snapshot, signal) {
@@ -54,6 +56,8 @@ export class DocumentRenderer {
     if (snapshot.generation !== this.generation) {
       this.managed = new WeakSet();
       this.styleElements = new Map();
+      this.localScrolls.clear();
+      this.remoteScrolls = new WeakMap();
     }
     const nextStyles = new Map();
     const resource = reference => snapshot.resources?.[reference?.replace(/^rui-resource:/, "")] || "";
@@ -100,6 +104,7 @@ export class DocumentRenderer {
       }, true);
       doc.addEventListener("click", event => {
         event.preventDefault();
+        if (event.composedPath().some(node => node.hasAttribute?.('data-rui-deferred'))) return;
         if (Date.now() < suppressClick) return;
         const path = event.composedPath().filter(node => this.ids?.has(node));
         const target = path.find(node => node.matches?.("button,a[href],input,select,textarea,[role=button],[role=slider],[role=checkbox],[role=link]")) || path[0];
@@ -125,12 +130,22 @@ export class DocumentRenderer {
           this.drafts.delete(node);
         }
       }, true);
-      let scrollTimer;
+      const scrollTimers = new Map();
       doc.addEventListener("scroll", event => {
+        if (iframe.contentDocument !== doc) return;
         const target = event.target === doc ? doc.scrollingElement : event.target;
         const node = this.ids?.get(target);
-        clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(() => { if (node && target.isConnected) send(node, { action: "scroll", x: target.scrollLeft, y: target.scrollTop }); }, 100);
+        if (!node) return;
+        const position = { x: target.scrollLeft, y: target.scrollTop };
+        const remote = this.remoteScrolls.get(target);
+        this.remoteScrolls.delete(target);
+        if (remote && Math.abs(remote.x - position.x) < 1 && Math.abs(remote.y - position.y) < 1) return;
+        this.localScrolls.set(node, { ...position, time: Date.now() });
+        clearTimeout(scrollTimers.get(node));
+        scrollTimers.set(node, setTimeout(() => {
+          scrollTimers.delete(node);
+          if (target.isConnected) send(node, { action: 'scroll', x: target.scrollLeft, y: target.scrollTop });
+        }, 100));
       }, true);
     }
     const reconcile = (parent, children) => {
@@ -166,6 +181,7 @@ export class DocumentRenderer {
     if (snapshot.generation !== this.generation) this.frames = new Map();
     const pendingFrames = [];
     const pendingMedia = [];
+    const pendingScrolls = [];
     this.nodes = new Map();
     this.ids = new WeakMap();
     this.values = new Map();
@@ -210,6 +226,30 @@ export class DocumentRenderer {
         }
       }
       for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);
+      if (node.deferred) {
+        element.setAttribute('data-rui-deferred', '');
+        if (node.deferred.hidden) element.style.setProperty('display', 'none', 'important');
+        else {
+          for (const dimension of ['width', 'height']) {
+            const value = node.deferred[dimension];
+            if (typeof value !== 'string' || !/^\d+(?:\.\d+)?px$/.test(value)) throw Error('Invalid deferred region size');
+            for (const prefix of ['', 'min-', 'max-']) element.style.setProperty(prefix + dimension, value, 'important');
+          }
+          element.style.setProperty('overflow', 'hidden', 'important');
+        }
+      }
+      if (node.scroll) {
+        const { x, y } = node.scroll;
+        if (![x, y].every(value => Number.isFinite(value) && Math.abs(value) <= 10000000)) throw Error('Invalid document scroll');
+        pendingScrolls.push(() => {
+          const local = this.localScrolls.get(node.id);
+          if (local && (Math.abs(local.x - x) >= 1 || Math.abs(local.y - y) >= 1) && Date.now() - local.time < 5000) return;
+          this.localScrolls.delete(node.id);
+          if (Math.abs(element.scrollLeft - x) < 1 && Math.abs(element.scrollTop - y) < 1) return;
+          this.remoteScrolls.set(element, { x, y });
+          element.scrollTo({ left: x, top: y, behavior: 'instant' });
+        });
+      }
       if (node.tag === 'canvas' || node.attrs?.draggable === 'true' || node.attrs?.role === 'slider') element.style.touchAction = 'none';
       const image = resource(node.attrs?.src);
       if (node.tag === "img") {
@@ -264,6 +304,7 @@ export class DocumentRenderer {
     this.revision = snapshot.revision;
     for (const render of pendingFrames) { await render(); check(); }
     for (const attach of pendingMedia) attach();
+    for (const scroll of pendingScrolls) scroll();
     for (const id of this.frames.keys()) if (!this.nodes.has(id)) this.frames.delete(id);
   }
 }

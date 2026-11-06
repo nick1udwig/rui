@@ -12,6 +12,11 @@ await mkdir(output, { recursive: true });
 const cert = join(directory, 'cert.pem'), key = join(directory, 'key.pem');
 execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=localhost', '-keyout', key, '-out', cert], { stdio: 'ignore' });
 const fixture = createServer((req, res) => {
+  if (req.url === '/oversized') {
+    res.setHeader('Content-Type', 'text/html');
+    res.end('<title>Page limit fixture</title><svg width="100" height="100">' + '<path d="M0 0L10 10"/>'.repeat(21000) + '</svg>');
+    return;
+  }
   const send = () => { res.setHeader('Content-Type', 'text/html'); res.end('<title>Control fixture</title><button id=search onclick="document.querySelector(\'input\').hidden=false;document.body.dataset.clicks=Number(document.body.dataset.clicks||0)+1">Search</button><input hidden aria-label="Query"><p id=result>Ready</p><button id=dialog onclick="alert(\'Action received\')">Open dialog</button>'); };
   if (req.url === '/slow') setTimeout(send, 2500); else send();
 });
@@ -107,14 +112,35 @@ try {
     await query.press('Enter');
     await until(() => new URL(page.url()).pathname === '/results' && new URL(page.url()).searchParams.get('search_query') === queryText, 'YouTube query submitted on host');
     await until(async () => (await address.inputValue()).includes('/results?search_query='), 'YouTube navigation published');
-    const result = replica.locator('ytd-video-renderer').first();
+    let result = replica.locator('ytd-video-renderer').first();
     await result.locator('#video-title').waitFor({ state: 'visible', timeout: 30000 });
     await until(async () => result.locator('img').evaluateAll(images => images.some(image => image.complete && image.naturalWidth > 0)), 'Search result thumbnail is rendered');
+    const firstTitle = (await result.locator('#video-title').textContent()).trim();
+    const resultsScrolls = Number(process.env.RUI_TEST_RESULTS_SCROLLS || 0);
+    for (let index = 0; resultsScrolls && index < Math.max(resultsScrolls, 12); index++) {
+      if (index >= resultsScrolls && await replica.locator('[data-rui-deferred]').count()) break;
+      const before = await page.locator('ytd-video-renderer').count();
+      await until(async () => {
+        if ((await page.locator('ytd-video-renderer').count()) > before) return true;
+        await replica.locator('html').evaluate(node => node.scrollTo(0, node.scrollHeight));
+        return false;
+      }, 'Phone scrolling loads more host results');
+      console.log(JSON.stringify({ resultsBatch: index + 1, hostResultCount: await page.locator('ytd-video-renderer').count() }));
+    }
+    if (resultsScrolls) {
+      await until(async () => await replica.locator('[data-rui-deferred]').count() > 0, 'Large results page uses deferred semantic sections');
+      console.log(JSON.stringify({ resultsScrolls, deferredSections: await replica.locator('[data-rui-deferred]').count(), hostResultCount: await page.locator('ytd-video-renderer').count() }));
+      await replica.locator('html').evaluate(node => node.scrollTo(0, 0));
+      await until(async () => await page.evaluate(() => scrollY < 1), 'Phone returns to the top of the host results');
+      result = replica.locator('ytd-video-renderer').filter({ has: replica.locator('#video-title').filter({ hasText: firstTitle }) }).first();
+      await result.locator('#video-title').waitFor({ state: 'visible', timeout: 30000 });
+    }
     const searchToRenderedMs = Math.round(performance.now() - searchStarted);
     await viewer.screenshot({ path: join(output, 'youtube-results.png') });
     const videoStarted = performance.now();
     if (recovery) { faults.document = 2; faults.open = 2; }
-    await result.locator('#video-title').tap();
+    const videoTarget = process.env.RUI_TEST_VIDEO_TARGET === 'thumbnail' ? 'a#thumbnail' : '#video-title';
+    await result.locator(videoTarget).tap();
     await until(() => new URL(page.url()).pathname === '/watch', 'Result opens video on host');
     const player = replica.locator('video').first();
     await player.waitFor({ state: 'visible', timeout: 30000 });
@@ -125,10 +151,24 @@ try {
     await until(async () => player.evaluate(video => video.readyState >= 2 && video.videoWidth > 0), 'Video frames reach mobile replica');
     const before = await player.evaluate(video => video.currentTime);
     await until(async () => (await player.evaluate(video => video.currentTime)) > before + .5, 'Mobile video advances');
+    const videoToFramesMs = Math.round(performance.now() - videoStarted);
+    await until(async () => !(await page.locator('#movie_player').evaluate(player => player.classList.contains('ad-showing'))), 'YouTube pre-roll finishes', 120000);
+    const contentTime = await page.locator('video').first().evaluate(video => video.currentTime);
+    await until(async () => (await page.locator('video').first().evaluate(video => video.currentTime)) > contentTime + 1, 'Selected video plays on the host');
+    await until(async () => player.evaluate(video => !video.paused && video.readyState >= 2 && video.videoWidth > 0), 'Selected video reaches the phone after pre-roll');
+    await player.evaluate(video => new Promise((resolve, reject) => {
+      let frames = 0, callback;
+      const timeout = setTimeout(() => { video.cancelVideoFrameCallback(callback); reject(Error('No new phone video frames after pre-roll')); }, 15000);
+      const frame = () => {
+        if (++frames >= 3) { clearTimeout(timeout); resolve(); }
+        else callback = video.requestVideoFrameCallback(frame);
+      };
+      callback = video.requestVideoFrameCallback(frame);
+    }));
     await viewer.screenshot({ path: join(output, 'youtube-video.png') });
     await Promise.all(transfers);
     assert.ok(transfer.compressed > 0 && transfer.encoded < transfer.decoded, 'Document and resource traffic is compressed');
-    console.log(JSON.stringify({ youtubeResultsAndVideo: true, latencyMs: latency, searchToRenderedMs, videoToFramesMs: Math.round(performance.now() - videoStarted), ...transfer }));
+    console.log(JSON.stringify({ youtubeResultsAndVideo: true, contentAfterPreroll: true, latencyMs: latency, searchToRenderedMs, videoToFramesMs, ...transfer }));
     if (recovery) {
       assert.equal(injected.open, 2, 'Media opens fail twice before recovery');
       await player.evaluate(video => {
@@ -164,6 +204,10 @@ try {
       console.log('Control connection survived a seven-second host-page stall');
     }
   }
+  await navigate(`http://127.0.0.1:${fixture.address().port}/oversized`);
+  await viewer.getByText('This page exceeds the current page-view limit.', { exact: false }).last().waitFor();
+  await until(async () => (await address.inputValue()).endsWith('/oversized'), 'Capture-limit navigation is published to the address bar');
+  await until(async () => !(await go.isDisabled()), 'Page capture limits leave navigation available');
   await navigate(`http://127.0.0.1:${fixture.address().port}/slow`);
   await replica.locator('#search').waitFor();
   await until(async () => !(await go.isDisabled()), 'Slow navigation must not wedge controls');
@@ -195,7 +239,7 @@ try {
   await until(async () => await page.locator('body').getAttribute('data-clicks') === '2', 'Commands work after recovery');
   assert.equal(dialogs, 1, 'Recovery never replays the uncertain action');
   assert.deepEqual(clientErrors, [], 'Recovery leaves no unhandled client errors');
-  console.log('Paired control passed: slow navigation, touch search, keyboard resize and uncertain-action recovery');
+  console.log('Paired control passed: capture-limit recovery, slow navigation, touch search, keyboard resize and uncertain-action recovery');
 } catch (error) {
   console.error('Host diagnostics:', logs.split('\n').filter(line => !line.includes('\u001b')).join('\n').replace(/invite=[a-f0-9]+/g, 'invite=[REDACTED]'));
   if (viewer) { console.error('Geometry:', await viewer.evaluate(() => {const frame=document.querySelector('iframe');const doc=frame?.contentDocument; const target=doc?.querySelector('button[aria-label=Search]');return {scroll:scrollY,frame:frame?.getBoundingClientRect().toJSON(),target:target?.getBoundingClientRect().toJSON(),width:doc?.defaultView.innerWidth,height:doc?.defaultView.innerHeight,hidden:frame?.hidden}})); console.error('Client status:', await viewer.locator('#status').textContent(), await viewer.locator('#view').innerText()); console.error('Source:', source.pages()[0].url(), await source.pages()[0].locator('button').evaluateAll(nodes => nodes.map(n => ({label:n.getAttribute('aria-label'),text:n.textContent,id:n.id,visible:!!n.getClientRects().length}))).catch(()=>[])); await viewer.screenshot({path:join(output, 'control-failure.png')}); }

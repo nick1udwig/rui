@@ -132,7 +132,11 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
 - Downloads remain in `STATE/downloads`; the client shows their completion and host path. It can cancel an active download, but cannot download that file to the phone.
 - The address bar stays above the page view.
   The page view uses the site's DOM and CSS with the source viewport matched to the controlling client.
+  Large pages defer hidden and distant offscreen DOM sections within the node budget.
+  Deferred sections preserve their layout size and load as the controlling phone scrolls the host.
+  Visible content stays DOM, CSS, text, images and scoped media.
   During a failed update, the previous page stays visible with an updating message and input is paused.
+  Pages that exceed the source node limits show an error and keep retrying; the address bar remains available.
   Fetch failures retain the document and healthy media streams.
   Stalled document requests time out after 15 seconds and retry.
   Video and audio connection errors appear beside the page view.
@@ -168,13 +172,15 @@ An HTTPS reverse proxy carries document data and signaling; it does not relay me
 The client and source browser need a working direct media route.
 Use **Enable page sound** for audio playback.
 Media sessions expire without renewal and close when the view is retired or hidden.
+When a media element loads a new source, its old stream closes and the phone connects to the new stream.
 Desktop WebKit in the test container requires direct ICE addresses because container mDNS discovery did not work.
 This test configuration does not validate Safari networking on a phone.
 
 **Physical iOS Safari and Android Chrome acceptance is pending.**
 Desktop engine tests use a 390 × 844 viewport and do not prove OS keyboard, IME, touch, background suspension, certificate or QR behavior on a device.
 
-Bounds include 16 tabs, 16 frames, 20,000 DOM nodes, 8 MiB document packets, an 8 MiB source asset cache and a 16 MiB client resource cache.
+Bounds include 16 tabs, 16 frames, 20,000 transmitted DOM nodes, 8 MiB document packets, an 8 MiB source asset cache and a 16 MiB client resource cache.
+Capture scans at most 150,000 source nodes and assigns at most 100,000 node identities per navigation.
 There are at most eight media regions per source document and 32 worker media sessions.
 Other existing bounds include 16 staged passwords, 16 KiB field values, 128 host file entries and 64 download records.
 A site that exceeds these limits can have omitted assets or a rejected document view.
@@ -222,12 +228,15 @@ The document acceptance checks cover the following cases.
 | Paired application | Resource integrity rejection/recovery, control, reconnect, restart, revocation and proxy path mounting |
 
 The paired control regression runs with `npm --prefix apps/browser run test:control`.
-It checks slow navigation, touch input, keyboard viewport changes, delayed command receipts, and uncertain-action recovery.
+It checks capture-limit recovery, slow navigation, touch input, keyboard viewport changes, delayed command receipts, and uncertain-action recovery.
 Set `RUI_TEST_LATENCY_MS=150` to add delay to each HTTP request.
 The public-site test reports search-to-render and video-to-frame times, plus decoded and transferred document bytes.
 Use `RUI_TEST_HEADED=1 RUI_TEST_PUBLIC=1 npm --prefix apps/browser run test:control` to include a visible host browser and live YouTube search results, thumbnails, and video playback.
+The playback check waits through pre-roll ads and verifies that the selected video continues on the host and phone view.
 Add `RUI_TEST_RECOVERY=1` to inject document, media-open, media-renewal, and playback failures into the YouTube flow and check recovery before further navigation and input.
 This mode also stalls the host page for seven seconds and checks that control stays connected.
+Set `RUI_TEST_RESULTS_SCROLLS=4` to load a large YouTube results page before opening a video.
+Set `RUI_TEST_VIDEO_TARGET=thumbnail` to open its thumbnail; the default opens its title.
 These checks simulate a phone viewport; they do not replace testing on a physical phone.
 
 The phone-mode test starts a temporary real Tailscale Serve route and checks HTTPS without a certificate bypass.

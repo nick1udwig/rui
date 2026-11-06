@@ -130,7 +130,7 @@ export class DocumentView {
         this.iframe.hidden = !this.displayedGeneration;
         this.iframe.inert = true;
         this.container.setAttribute("aria-busy", "true");
-        this.status.textContent = "Updating the host page… The previous view stays visible until the update is ready.";
+        this.status.textContent = error.code === 'DOCUMENT_LIMIT' ? error.message : "Updating the host page… The previous view stays visible until the update is ready.";
         this.status.hidden = false;
         this.report(error);
         this.receiver = new DocumentReceiver();

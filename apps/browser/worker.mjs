@@ -245,6 +245,10 @@ const handler = async (request, response) => {
     );
   } catch (error) {
     if (process.env.RUI_DEBUG_DOCUMENT === "1") console.error("Document request failed:", error.message);
+    if (error.code === 'DOCUMENT_LIMIT') return respond(response, 413, {
+      code: 'DOCUMENT_LIMIT',
+      error: 'This page exceeds the current page-view limit. Use the address bar or host browser to open another page. The view will retry automatically.',
+    });
     respond(response, 400, {
       error: "Request rejected. Check pairing, control, and the current page.",
     });

@@ -18,11 +18,22 @@ export class DocumentMedia {
         const peer = new RTCPeerConnection({ iceServers: [] });
         state.media ||= new Map();
         const session = { peer, stream, timer: null };
-        const close = () => { peer.close(); for (const track of stream.getTracks()) track.stop(); clearTimeout(session.timer); state.media.delete(token); };
+        const tracks = stream.getTracks();
+        const close = () => {
+          if (session.closed) return;
+          session.closed = true;
+          for (const event of ['emptied', 'loadstart']) element.removeEventListener(event, close);
+          stream.removeEventListener('removetrack', close);
+          for (const track of tracks) { track.removeEventListener('ended', close); track.stop(); }
+          peer.close(); clearTimeout(session.timer); state.media.delete(token);
+        };
         session.close = close;
         session.renew = () => { clearTimeout(session.timer); session.timer = setTimeout(close, 10000); };
         state.media.set(token, session);
         session.renew();
+        for (const event of ['emptied', 'loadstart']) element.addEventListener(event, close);
+        stream.addEventListener('removetrack', close);
+        for (const track of tracks) track.addEventListener('ended', close);
         try {
           for (const track of stream.getTracks()) peer.addTrack(track, stream);
           await peer.setLocalDescription(await peer.createOffer());
@@ -31,6 +42,7 @@ export class DocumentMedia {
             peer.addEventListener('icegatheringstatechange', () => { if (peer.iceGatheringState === 'complete') { clearTimeout(timer); resolve(); } });
             if (peer.iceGatheringState === 'complete') { clearTimeout(timer); resolve(); }
           });
+          if (state.media.get(token) !== session) throw Error('Media source changed');
           return { type: peer.localDescription.type, sdp: peer.localDescription.sdp };
         } catch (error) { close(); throw error; }
       }, { key: source.key, node, token });

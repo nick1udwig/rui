@@ -42,6 +42,7 @@ test('transient document failure retains a visible, inactive page and recovers',
           return { bodies: Object.fromEntries(request.keys.map(key => [key, bodies[key]])) };
         }
         if (window.mode === 'error') throw Error('Navigation during capture');
+        if (window.mode === 'limit') throw Object.assign(Error('This page exceeds the current page-view limit. Use the address bar or host browser to open another page.'), { code: 'DOCUMENT_LIMIT' });
         if (window.mode === 'hung') return new Promise((resolve, reject) => { window.hung = { resolve, reject }; });
         return window.packet;
       }, command => commands.push(command), () => controlled, error => failures.push(String(error)));
@@ -72,6 +73,11 @@ test('transient document failure retains a visible, inactive page and recovers',
     assert.equal(await page.evaluate(() => window.resourceCalls), 3, 'Recovery reuses verified content-addressed resources');
     assert.equal(await page.evaluate(() => document.querySelector('iframe').contentDocument === firstDocument), true, 'Fetch recovery retains the document and live media elements');
     assert.equal(await page.evaluate(() => mediaDisposals), 0, 'Fetch failure does not destroy healthy media');
+    await page.evaluate(() => mode = 'limit');
+    await page.getByText('This page exceeds the current page-view limit.', { exact: false }).waitFor();
+    assert.equal(await page.locator('iframe').evaluate(frame => frame.inert), true);
+    await page.evaluate(() => mode = 'ok');
+    await page.waitForFunction(() => !view.iframe.inert && view.status.hidden);
     for (let index = 0; index < 3; index++) {
       await page.evaluate(() => { view.requestTimeout = 100; mode = 'hung'; hung = null; });
       await page.waitForFunction(() => view.iframe.inert && !!hung);

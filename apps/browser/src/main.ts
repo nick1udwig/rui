@@ -72,7 +72,7 @@ async function api(path: string, data: unknown, authenticated = false, signal?: 
     signal,
   });
   const result = await response.json();
-  if (!response.ok) throw Error(result.error);
+  if (!response.ok) throw Object.assign(Error(result.error), { code: result.code });
   return result;
 }
 function say(error: unknown) {

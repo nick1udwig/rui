@@ -127,6 +127,14 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.ok(source.metrics.sourceStyleBytes > 100, 'CSSOM edits invalidate source stylesheet references');
     await viewer.evaluate(snapshot => renderer.render(snapshot), restyled);
     assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n).color), 'rgb(7, 8, 9)');
+    await host.evaluate(key => {
+      globalThis[key].next = 100001;
+      history.pushState(null, '', '#next-route');
+      const button = document.createElement('button'); button.id = 'new-route'; button.textContent = 'New route'; document.body.append(button);
+    }, source.key);
+    const route = await source.capture();
+    assert.notEqual(route.generation, restyled.generation);
+    assert.ok(find(route.root, node => node.attrs?.id === 'new-route'), 'SPA navigation starts a fresh node identity budget');
     await host.reload();
     assert.notEqual((await source.capture()).generation, snapshot.generation);
     await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: button.id, action: 'click' }), /Stale/);

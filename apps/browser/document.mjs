@@ -5,29 +5,36 @@ import { concurrent, taskPool } from "./src/document-work.mjs";
 const MAX_BYTES = 8 * 1024 * 1024;
 
 // Runs in the source document. IDs survive observations but never navigation.
-function observeDocument({ key, knownStyles }) {
-  const state = globalThis[key] ||= { nodes: new WeakMap(), reverse: new Map(), next: 1 };
+function observeDocument({ key, knownStyles, generation }) {
+  const state = globalThis[key] ||= {};
+  if (state.generation !== generation) {
+    Object.assign(state, { generation, nodes: new WeakMap(), reverse: new Map(), next: 1, styles: new WeakMap(), nextStyle: 1, scrollers: new WeakSet() });
+  }
   const id = (node) => {
     if (!state.nodes.has(node)) {
       if (state.next > 100000) throw Error("Source identity limit");
       state.nodes.set(node, state.next++);
     }
-    state.reverse.set(state.nodes.get(node), node);
     return state.nodes.get(node);
   };
   const unsupported = [];
-  state.reverse.clear();
-  let count = 0;
+  const originals = new Map(), sizes = new Map();
+  state.scrollers ||= new WeakSet();
+  let count = 0, visited = 0;
   const visit = (node, depth = 0, shadow = false) => {
-    if (++count > 20000 || depth > 128) throw Error("Document limit");
-    if (node.nodeType === 3) return { id: id(node), text: node.data };
+    if (++visited > 150000 || depth > 128) throw Error("Document scan limit");
+    if (node.nodeType === 3) { count++; return { id: id(node), text: node.data }; }
     if (node.nodeType !== 1) return null;
     const tag = node.localName;
     if (["script", "noscript", "base", "meta", "link"].includes(tag) || (tag === "style" && !shadow)) return null;
+    count++;
     const attrs = Object.fromEntries([...node.attributes].filter(a => !/^on/i.test(a.name) && !["srcdoc", "action", "formaction", "nonce"].includes(a.name)).map(a => [a.name, a.value]));
     if (tag === "img") attrs.src = node.currentSrc || node.src;
     if (tag === "video" && node.poster) attrs.poster = node.poster;
     const result = { id: id(node), tag, ns: node.namespaceURI, attrs, children: [] };
+    originals.set(result, node);
+    if (node.scrollLeft || node.scrollTop) state.scrollers.add(node);
+    if (state.scrollers.has(node)) result.scroll = { x: node.scrollLeft, y: node.scrollTop };
     if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement) {
       result.value = node.type === "password" ? "" : node.value;
       result.checked = !!node.checked;
@@ -44,6 +51,7 @@ function observeDocument({ key, knownStyles }) {
       result.shadow = [...node.shadowRoot.childNodes].map(n => visit(n, depth + 1, true)).filter(Boolean);
       result.shadowStyles = [...node.shadowRoot.adoptedStyleSheets].map(sheet => [...sheet.cssRules].map(rule => rule.cssText).join("\n"));
     }
+    sizes.set(result, 1 + [...result.children, ...(result.shadow || [])].reduce((sum, child) => sum + (sizes.get(child) || 1), 0));
     return result;
   };
   const styles = [];
@@ -62,8 +70,57 @@ function observeDocument({ key, knownStyles }) {
     }
     styles.push(known.get(entry.id) === entry.version ? { id: entry.id, version: entry.version } : { ...entry });
   }
+  const root = visit(document.documentElement);
+  let deferredNodes = 0;
+  if (count > 20000) {
+    const eligible = new Map();
+    const top = -innerHeight * 2, bottom = innerHeight * 3, left = -innerWidth, right = innerWidth * 2;
+    const measure = (record, inHead = false) => {
+      inHead ||= record.tag === 'head';
+      const childVisible = [...(record.children || []), ...(record.shadow || [])].map(child => measure(child, inHead)).some(Boolean);
+      const element = originals.get(record);
+      if (!element || inHead) return childVisible;
+      const box = element.getBoundingClientRect();
+      const visible = childVisible || (box.width > 0 && box.height > 0 && box.bottom >= top && box.top <= bottom && box.right >= left && box.left <= right);
+      if (!visible && !['html', 'body', 'style'].includes(record.tag) && record.ns === 'http://www.w3.org/1999/xhtml' && (sizes.get(record) || 1) > 1) {
+        const style = getComputedStyle(element);
+        if (style.display === 'none' || (box.width > 0 && box.height > 0 && style.transform === 'none' && [style.width, style.height].every(value => /^\d+(?:\.\d+)?px$/.test(value)))) eligible.set(record, {
+          hidden: style.display === 'none', width: style.width, height: style.height,
+          distance: Math.max(top - box.bottom, box.top - bottom, left - box.right, box.left - right),
+        });
+      }
+      return visible;
+    };
+    measure(root);
+    const candidates = [];
+    const collect = record => {
+      if (eligible.has(record)) candidates.push(record);
+      else for (const child of [...(record.children || []), ...(record.shadow || [])]) collect(child);
+    };
+    collect(root);
+    candidates.sort((a, b) => Number(eligible.get(b).hidden) - Number(eligible.get(a).hidden) || eligible.get(b).distance - eligible.get(a).distance || sizes.get(b) - sizes.get(a));
+    for (const record of candidates) {
+      if (count <= 18000) break;
+      const { hidden, width, height } = eligible.get(record);
+      record.deferred = { hidden, width, height };
+      record.children = [];
+      if (record.shadow) { record.shadow = []; record.shadowStyles = []; }
+      const removed = sizes.get(record) - 1;
+      count -= removed;
+      deferredNodes += removed;
+    }
+    if (count > 20000) throw Error('Visible document limit');
+  }
+  const reverse = new Map();
+  const retain = record => {
+    const element = originals.get(record);
+    if (element) reverse.set(record.id, element);
+    for (const child of [...(record.children || []), ...(record.shadow || [])]) retain(child);
+  };
+  retain(root);
+  state.reverse = reverse;
   // Avoid Playwright's per-property encoding for this large, JSON-only snapshot.
-  return JSON.stringify({ root: visit(document.documentElement), styles, unsupported, base: document.baseURI, width: innerWidth, height: innerHeight });
+  return JSON.stringify({ root, styles, unsupported: unsupported.filter(region => reverse.has(region.id)), deferredNodes, base: document.baseURI, width: innerWidth, height: innerHeight });
 }
 
 export class DocumentActionRejected extends Error {}
@@ -256,7 +313,13 @@ export class BrowserDocument {
   async capture(budget = { frames: 16 }) {
     if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
-    const result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
+    let result;
+    try {
+      result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, generation, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
+    } catch (error) {
+      if (/^frame\.evaluate: Error: (Source identity limit|Document scan limit|Visible document limit)\b/.test(error.message)) error.code = 'DOCUMENT_LIMIT';
+      throw error;
+    }
     if (generation !== this.generation) throw Error("Navigation during capture");
     const sourceStyleBytes = Buffer.byteLength(JSON.stringify(result.styles));
     const pending = new Map();

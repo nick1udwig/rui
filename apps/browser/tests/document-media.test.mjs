@@ -22,7 +22,8 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       const glCanvas = document.createElement('canvas'); glCanvas.id = 'gl'; glCanvas.width = glCanvas.height = 32; document.body.append(glCanvas);
       const context = canvas.getContext('2d'), gl = glCanvas.getContext('webgl');
       if (!gl) throw Error('WebGL required');
-      const draw = () => { context.fillStyle = 'red'; context.fillRect(0,0,32,32); gl.clearColor(0,1,0,1); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(draw); }; draw();
+      globalThis.fixtureColor = 'red';
+      const draw = () => { context.fillStyle = fixtureColor; context.fillRect(0,0,32,32); gl.clearColor(0,1,0,1); gl.clear(gl.COLOR_BUFFER_BIT); requestAnimationFrame(draw); }; draw();
       const audio = new AudioContext(); await audio.resume();
       const oscillator = audio.createOscillator(), destination = audio.createMediaStreamDestination();
       oscillator.connect(destination); oscillator.start();
@@ -53,7 +54,8 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       const iframe = document.createElement('iframe'); document.body.replaceChildren(iframe);
       const spacer = document.createElement('div'); spacer.style.height = '2000px'; document.body.append(spacer);
       const renderer = new DocumentRenderer(iframe, () => {}, () => false, media);
-      media.begin(); await renderer.render(snapshot); media.finish();
+      globalThis.render = async snapshot => { media.begin(); await renderer.render(snapshot); media.finish(); };
+      await render(snapshot);
     }, snapshot);
     await viewer.waitForFunction(() => {
       const doc = document.querySelector('iframe').contentDocument;
@@ -82,6 +84,31 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
     assert.equal(audio, true);
     assert.deepEqual(await viewer.evaluate(() => mediaErrors), []);
     assert.equal(await viewer.frames()[1].locator('h1').textContent(), 'Native text');
+    await host.evaluate(async () => {
+      fixtureColor = 'blue';
+      const recorder = new MediaRecorder(document.querySelector('#drawing').captureStream(30), { mimeType: 'video/webm;codecs=vp8' });
+      const chunks = []; recorder.ondataavailable = event => chunks.push(event.data);
+      const done = new Promise(resolve => recorder.onstop = resolve); recorder.start();
+      await new Promise(resolve => setTimeout(resolve, 800)); recorder.stop(); await done;
+      const video = document.querySelector('#movie');
+      video.src = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+      await video.play();
+    });
+    let replaced = false;
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline && !replaced) {
+      await viewer.evaluate(snapshot => render(snapshot), await source.capture());
+      replaced = await viewer.evaluate(() => {
+        const video = document.querySelector('iframe').contentDocument.querySelector('#movie');
+        if (video.readyState < 2) return false;
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
+        const context = canvas.getContext('2d'); context.drawImage(video, 0, 0, 32, 32);
+        const pixel = context.getImageData(10, 10, 1, 1).data;
+        return pixel[2] > 200 && pixel[0] < 60;
+      });
+      if (!replaced) await viewer.waitForTimeout(250);
+    }
+    assert.equal(replaced, true, 'Replacing the host video source delivers new frames, not a frozen frame from the previous clip');
     await viewer.evaluate(() => media.dispose());
     await host.waitForFunction(key => globalThis[key].media.size === 0, source.key);
   } catch (error) {
