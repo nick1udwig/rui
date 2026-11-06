@@ -10,26 +10,29 @@ sys.path.insert(0,str(ROOT))
 from fixtures.gtk.mirror_check import run_private
 from conformance.semantic_client import decode, binary, value
 from conformance.full_reference import FullReplica
+from conformance.compressed_chunks import ChunkHistory
 
 
 def audit(path):
     if path.stat().st_size > 2<<20: raise ValueError('evidence ceiling')
     report=json.loads(path.read_text());replica=FullReplica();pending=None;prefixes=0;scope=None;scopes=0
+    history=ChunkHistory()
     for item in report['evidence']:
         if item['direction']!='received':continue
         packet=decode(bytes.fromhex(item['hex']),set(range(1,7)))
         kind=value(packet,5);payload=binary(packet,6)
         if kind==2:
             incoming=tuple(binary(packet,t) for t in (1,2,3))
-            if incoming!=scope:replica=FullReplica();pending=None;scope=incoming;scopes+=1
+            if incoming!=scope:replica=FullReplica();pending=None;scope=incoming;scopes+=1;history.clear()
         if kind in (10,11):
+            if kind==10:history.clear()
             begin=decode(payload,set(range(1,8)))
             pending=(kind,begin,bytearray())
-        elif kind==12:
+        elif kind in (12,15,16):
             chunk=decode(payload,{1,2,3})
             assert pending and binary(chunk,1)==binary(pending[1],1)
             assert value(chunk,2)==0 # These owned small projections fit one chunk.
-            pending[2].extend(binary(chunk,3))
+            pending[2].extend(history.decode(kind,binary(chunk,3)))
         elif kind==13:
             assert pending
             commit=decode(payload,{1,2,3,4,5})
