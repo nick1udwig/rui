@@ -12,45 +12,65 @@ export class DocumentRenderer {
   async render(snapshot) {
     if (!snapshot.root || JSON.stringify(snapshot).length > 8 * 1024 * 1024) throw Error("Document limit");
     const iframe = this.iframe;
-    await new Promise(resolve => {
+    if (snapshot.generation !== this.generation) await new Promise(resolve => {
       iframe.onload = resolve;
       iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
     const doc = iframe.contentDocument;
+    const previous = snapshot.generation === this.generation ? this.nodes : new Map();
     this.nodes = new Map();
     let count = 0;
     const build = (node, depth = 0) => {
       if (++count > 20000 || depth > 128 || this.nodes.has(node.id)) throw Error("Document structure limit");
       if (typeof node.text === "string") {
-        const text = doc.createTextNode(node.text);
+        const old = previous.get(node.id);
+        const text = old?.nodeType === 3 ? old : doc.createTextNode(node.text);
+        if (text.data !== node.text) text.data = node.text;
         this.nodes.set(node.id, text);
         return text;
       }
       if (![HTML, SVG].includes(node.ns) || !/^[a-zA-Z][\w-]*$/.test(node.tag)) throw Error("Unsupported element");
       const blocked = BLOCKED.has(node.tag);
-      const element = doc.createElementNS(blocked ? HTML : node.ns, blocked ? "span" : node.tag);
+      const tag = blocked ? "span" : node.tag;
+      const ns = blocked ? HTML : node.ns;
+      const old = previous.get(node.id);
+      const element = old?.localName === tag && old?.namespaceURI === ns ? old : doc.createElementNS(ns, tag);
+      const keep = new Set();
       this.nodes.set(node.id, element);
       for (const [name, value] of Object.entries(node.attrs || {})) {
-        if (SAFE_ATTR.test(name) && typeof value === "string") element.setAttribute(name, value);
+        if (SAFE_ATTR.test(name) && typeof value === "string") {
+          keep.add(name);
+          if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+        }
       }
+      for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);
       if (node.tag === "img" && /^data:image\/(png|jpeg|gif|webp|avif);base64,/.test(node.attrs?.src)) element.setAttribute("src", node.attrs.src);
       if (blocked || ["canvas", "video"].includes(node.tag)) {
         element.textContent = `Unsupported region: ${node.tag}`;
         element.setAttribute("data-rui-unsupported", node.tag);
-      } else for (const child of node.children || []) element.append(build(child, depth + 1));
-      if (typeof node.value === "string" && "value" in element) element.value = node.value;
+      } else {
+        const children = (node.children || []).map(child => build(child, depth + 1));
+        let cursor = element.firstChild;
+        for (const child of children) {
+          if (cursor !== child) element.insertBefore(child, cursor);
+          cursor = child.nextSibling;
+        }
+        while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
+      }
+      if (typeof node.value === "string" && "value" in element && element !== doc.activeElement && element.value !== node.value) element.value = node.value;
       if (typeof node.checked === "boolean" && "checked" in element) element.checked = node.checked;
       return element;
     };
+    const csp = doc.head.querySelector("meta[http-equiv]")?.cloneNode(true);
     const root = build(snapshot.root);
     const head = root.querySelector("head") || root.insertBefore(doc.createElement("head"), root.firstChild);
-    head.prepend(doc.head.firstChild.cloneNode(true));
+    if (csp) head.prepend(csp);
     for (const sheet of snapshot.styles) {
       const style = doc.createElement("style");
       style.textContent = sheet.text;
       head.append(style);
     }
-    doc.replaceChild(root, doc.documentElement);
+    if (root !== doc.documentElement) doc.replaceChild(root, doc.documentElement);
     this.generation = snapshot.generation;
     this.revision = snapshot.revision;
   }

@@ -51,6 +51,14 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(await frame.locator('[data-rui-unsupported=canvas]').count(), 1);
     const mobile = await frame.locator('main').evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length);
     assert.equal(mobile, 1);
+    await frame.locator('#field').focus();
+    await frame.locator('#field').evaluate(n => { n.value = 'draft'; n.setSelectionRange(2, 2); globalThis.savedField = n; });
+    await host.locator('h1').evaluate(n => n.textContent = 'Updated');
+    const update = await source.capture();
+    await viewer.evaluate(snapshot => renderer.render(snapshot), update);
+    assert.equal(await frame.locator('h1').textContent(), 'Updated');
+    assert.equal(await frame.locator('#field').evaluate(n => n === globalThis.savedField && n === document.activeElement && n.selectionStart === 2), true);
+    assert.equal(await frame.locator('#field').inputValue(), 'draft');
     await viewer.locator('iframe').evaluate(n => n.style.width = '900px');
     assert.equal(await frame.locator('main').evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length), 2);
     await host.reload();
