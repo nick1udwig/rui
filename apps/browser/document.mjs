@@ -44,6 +44,7 @@ function observeDocument({ key, knownStyles, generation }) {
     if (["canvas", "video", "audio", "iframe", "object", "embed"].includes(tag)) {
       if (typeof node.captureStream === "function") { result.media = true; result.mediaReady = tag === "canvas" || node.readyState >= 2; }
       else unsupported.push({ id: result.id, kind: tag });
+      if (tag === 'video' || tag === 'audio') result.mediaPaused = node.paused;
       return result;
     }
     result.children = [...node.childNodes].map(n => visit(n, depth + 1, shadow)).filter(Boolean);

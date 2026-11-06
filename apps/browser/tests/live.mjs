@@ -199,7 +199,7 @@ try {
   }, blockedIce);
   page = await context.newPage();
   let latestMediaRead, retainedHttp;
-  if (blockedIce) {
+  {
     page.on('response', response => {
       if (!response.url().endsWith('/api/media') || !response.ok()) return;
       const request = response.request(), data = request.postDataJSON();
@@ -220,7 +220,7 @@ try {
     await route.fulfill({ response, json: data });
   });
   const retainMediaPeer = async () => {
-    if (blockedIce) {
+    if (await page.evaluate(() => ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'audio/webm;codecs=opus'].some(type => globalThis.MediaSource?.isTypeSupported(type)))) {
       const start = Date.now();
       await deadline(() => latestMediaRead?.time >= start, 'HTTPS media is active');
       retainedHttp = latestMediaRead;
@@ -238,7 +238,7 @@ try {
     await page.waitForFunction(async () => await window.mediaPacketCount() > window.beforeRevokePackets, null, { timeout: 5000 });
   };
   const assertMediaRetired = async () => {
-    if (blockedIce) {
+    if (retainedHttp) {
       for (const op of ['renew', 'read']) assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op, token: retainedHttp.token, after: 0 } })).status(), 400, 'Retired viewers cannot renew or read HTTPS media even if they omit close');
       retainedHttp = null;
       return;
@@ -332,6 +332,7 @@ try {
     assert.equal(await replica.locator("h1").evaluate(n => getComputedStyle(n).color), "rgb(12, 34, 56)");
     assert.equal(corruptedResource, true, "viewer recovers after rejecting a corrupt resource");
     await deadline(async () => replica.locator("#live-canvas").evaluate(n => n.getContext("2d").getImageData(10,10,1,1).data[0] > 200), "scoped canvas media");
+    if (latestMediaRead) assert.equal(await page.evaluate(() => window.ruiPeers.length), 0, 'HTTPS media starts without a separate peer connection');
     await replica.getByRole("button", { name: "Run action", exact: true }).click();
     await replica.locator("#result").filter({ hasText: "Action confirmed" }).waitFor();
     await deadline(async () => (await replica.locator("h1").evaluate(n => getComputedStyle(n).color)) === "rgb(65, 43, 21)", "stylesheet replacement");
@@ -572,7 +573,7 @@ try {
     engine,
     reverseProxy: proxied,
     tailscalePhone: phone,
-    mediaTransport: blockedIce ? 'https' : 'webrtc',
+    mediaTransport: latestMediaRead ? 'https' : 'webrtc',
     mountPath: mount || "/",
     viewport: "390x844",
     pairing: true,

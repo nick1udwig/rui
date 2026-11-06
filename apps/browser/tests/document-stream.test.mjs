@@ -2,6 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { BrowserDocument } from '../document.mjs';
+import { DocumentStream } from '../src/document-stream.mjs';
+
+test('playback moves into buffered media after a short timestamp gap', () => {
+  const player = { currentTime: 5 };
+  const stream = new DocumentStream(player, new AbortController().signal);
+  stream.buffer = { buffered: { length: 2, start: index => [0, 5.25][index], end: index => [5, 6.5][index] } };
+  stream.catchUp();
+  assert.ok(player.currentTime >= 5.25 && player.currentTime < 6.5, 'A sub-two-second gap cannot strand playback at the previous range end');
+});
 
 test('HTTPS media reads are retryable, bounded and fenced by source lifetime', { timeout: 30000 }, async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true, chromiumSandbox: true });
@@ -33,7 +42,15 @@ test('HTTPS media reads are retryable, bounded and fenced by source lifetime', {
     await assert.rejects(source.media.read(first.token, 1000000), /cursor rejected/);
     await source.media.close(first.token);
     await assert.rejects(source.media.read(first.token, 0), /expired/);
-    for (const [size, count] of [[512 * 1024 + 1, 1], [512 * 1024, 9]]) {
+    const burst = await open();
+    await host.evaluate(({ key, token }) => globalThis[key].media.get(token).recorder.dispatchEvent(new BlobEvent('dataavailable', { data: new Blob([new Uint8Array(1024 * 1024)]) })), { key: source.key, token: burst.token });
+    await host.waitForFunction(({ key, token }) => globalThis[key].media.get(token).sequence >= 4, { key: source.key, token: burst.token });
+    const firstBatch = await source.media.read(burst.token, 0);
+    assert.equal(firstBatch.chunks.reduce((total, chunk) => total + Buffer.from(chunk.data, 'base64').length, 0), 512 * 1024, 'A large encoder burst is split across bounded reads');
+    const secondBatch = await source.media.read(burst.token, firstBatch.chunks.at(-1).sequence);
+    assert.ok(secondBatch.chunks.length);
+    await source.media.close(burst.token);
+    for (const [size, count] of [[4 * 1024 * 1024 + 1, 1], [512 * 1024, 9]]) {
       const opened = await open();
       const closed = await host.evaluate(({ key, token, size, count }) => {
         const state = globalThis[key], session = state.media.get(token);

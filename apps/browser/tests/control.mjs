@@ -50,14 +50,19 @@ try {
     const Peer = RTCPeerConnection;
     window.RTCPeerConnection = class extends Peer { constructor(config) { super({ ...config, iceTransportPolicy: 'relay', iceServers: [] }); } };
   });
-  const faults = { document: 0, open: 0, renew: 0 }, injected = { document: 0, open: 0, renew: 0 };
-  let mediaOpens = 0, mediaReads = 0;
+  const faults = { document: 0, open: 0, renew: 0, read: 0 }, injected = { document: 0, open: 0, renew: 0, read: 0 };
+  let mediaOpens = 0, mediaReads = 0, peerMediaOpens = 0;
+  viewer.on('request', request => {
+    if (!request.url().endsWith('/api/media')) return;
+    const data = request.postDataJSON();
+    if (data.op === 'read') mediaReads++;
+    if (data.op === 'open' && data.transport !== 'https') peerMediaOpens++;
+  });
   if (latency || recovery || blockedIce) await viewer.route('**/api/**', async route => {
     if (latency) await new Promise(resolve => setTimeout(resolve, latency));
     const path = new URL(route.request().url()).pathname;
     const kind = path.endsWith('/document') ? 'document' : path.endsWith('/media') ? route.request().postDataJSON().op : '';
     if (kind === 'open') mediaOpens++;
-    if (kind === 'read') mediaReads++;
     if (faults[kind] > 0) {
       faults[kind]--; injected[kind]++;
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Injected temporary failure' }) });
@@ -173,7 +178,29 @@ try {
     }));
     await viewer.getByRole('button', { name: 'Enable page sound', exact: true }).click();
     await until(async () => player.evaluate(video => !video.paused && !video.muted && video.readyState >= 2), 'Sound activation retains playing video');
-    if (blockedIce) assert.ok(mediaReads > 0, 'Video arrives over the page connection when direct WebRTC is blocked');
+    if (process.env.RUI_TEST_PAUSE === '1') {
+      const tapVideo = async () => {
+        await player.scrollIntoViewIfNeeded();
+        const box = await player.boundingBox();
+        await viewer.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+      };
+      for (let index = 0; index < 3; index++) {
+        await tapVideo();
+        await until(async () => page.locator('video').first().evaluate(video => video.paused), 'Phone tap pauses the host video');
+        await viewer.waitForTimeout([250, 900, 2500][index]);
+        await tapVideo();
+        await until(async () => page.locator('video').first().evaluate(video => !video.paused), 'Phone tap resumes the host video');
+        await player.evaluate(video => new Promise((resolve, reject) => {
+          let count = 0, callback;
+          const timer = setTimeout(() => { video.cancelVideoFrameCallback(callback); reject(Error('Video frames did not resume on the phone')); }, 15000);
+          const frame = () => { if (++count === 3) { clearTimeout(timer); resolve(); } else callback = video.requestVideoFrameCallback(frame); };
+          callback = video.requestVideoFrameCallback(frame);
+        }));
+        console.log(JSON.stringify({ pauseResume: index + 1 }));
+      }
+    }
+    assert.ok(mediaReads > 0, 'Video arrives over the page connection');
+    assert.equal(peerMediaOpens, 0, 'The default media path does not negotiate a separate peer connection');
     await viewer.screenshot({ path: join(output, 'youtube-video.png') });
     await Promise.all(transfers);
     assert.ok(transfer.compressed > 0 && transfer.encoded < transfer.decoded, 'Document and resource traffic is compressed');
@@ -199,8 +226,9 @@ try {
       await until(async () => viewer.locator('iframe[title="Host web page"]').evaluate(frame => !frame.inert), 'Document polling recovers');
       assert.equal(await player.evaluate(video => video === window.parent.ruiSavedVideo), true, 'Document recovery retains the playing element');
       assert.equal(mediaOpens, opensBeforeDocumentErrors, 'Document errors do not reconnect healthy media');
-      faults.renew = 1;
-      await until(() => injected.renew === 1 && mediaOpens > opensBeforeDocumentErrors, 'Failed media renewal reconnects');
+      const operation = mediaReads ? 'read' : 'renew';
+      faults[operation] = 1;
+      await until(() => injected[operation] === 1 && mediaOpens > opensBeforeDocumentErrors, 'Failed media request reconnects');
       await until(async () => player.evaluate(video => !video.paused && video.readyState >= 2), 'Replacement stream starts');
       const recoveredTime = await player.evaluate(video => video.currentTime);
       await until(async () => (await player.evaluate(video => video.currentTime)) > recoveredTime + .5, 'Replacement stream advances');

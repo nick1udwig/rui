@@ -141,6 +141,8 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
   Stalled document requests time out after 15 seconds and retry.
   Video and audio connection errors appear beside the page view.
   Interrupted playback retries, and failed media connections reconnect with increasing delays up to ten seconds.
+  A tap on a locally blocked video starts playback on the phone without pausing the host.
+  A visible video stream reconnects if host frames advance but no phone frames arrive for eight seconds.
   Retired requests cannot replace a newer view or close its media streams.
   Accessibility refreshes run in the background and publish complete action targets together, so a slow capture does not block the control connection.
   The structured reading controls remain below the page.
@@ -167,10 +169,11 @@ CSS imports, blob-backed images and unusual resource formats can be incomplete.
 Unsupported frame/plugin regions remain marked instead of becoming a full-page screenshot.
 Only open shadow trees and accessible frame documents are replicated.
 
-Media first tries a direct WebRTC connection without STUN or TURN.
-If that connection cannot start playback, the client switches to encoded WebM video/audio over the same authenticated HTTPS connection as the page.
-The fallback requires Media Source Extensions with VP8/Opus support.
-Only the affected media elements use this transport; page text, layout and controls remain DOM and CSS.
+Media uses encoded WebM video/audio over the same authenticated HTTPS path as the DOM and CSS snapshots.
+Media reads are separate from document updates and control requests.
+This transport requires Media Source Extensions with VP8/Opus support.
+Browsers without a supported format use direct WebRTC as a compatibility path.
+Media elements use this transport; page text, layout and controls remain DOM and CSS.
 No additional ports or relay service need configuration.
 Use **Enable page sound** for audio playback.
 Media sessions expire without renewal and close when the view is retired or hidden.
@@ -185,6 +188,7 @@ Bounds include 16 tabs, 16 frames, 20,000 transmitted DOM nodes, 8 MiB document 
 Capture scans at most 150,000 source nodes and assigns at most 100,000 node identities per navigation.
 There are at most eight media regions per source document and 32 worker media sessions.
 Each HTTPS media stream retains at most 4 MiB of unacknowledged data and sends at most 512 KiB per read.
+Large encoder bursts are split across reads without restarting playback.
 Stalled or retired streams expire after ten seconds without renewal.
 Other existing bounds include 16 staged passwords, 16 KiB field values, 128 host file entries and 64 download records.
 A site that exceeds these limits can have omitted assets or a rejected document view.
@@ -241,7 +245,8 @@ Add `RUI_TEST_RECOVERY=1` to inject document, media-open, media-renewal, and pla
 This mode also stalls the host page for seven seconds and checks that control stays connected.
 Set `RUI_TEST_RESULTS_SCROLLS=4` to load a large YouTube results page before opening a video.
 Set `RUI_TEST_VIDEO_TARGET=thumbnail` to open its thumbnail; the default opens its title.
-Set `RUI_TEST_BLOCK_ICE=1` for the media, paired control, or phone-mode test to disable direct WebRTC and exercise the HTTPS fallback.
+Set `RUI_TEST_BLOCK_ICE=1` for the media, paired control, or phone-mode test to verify that playback does not need direct WebRTC.
+Set `RUI_TEST_PAUSE=1` for the public-site control test to check repeated phone taps that pause and resume the host video.
 The media test checks decoded audio, sound activation, failed-read recovery and new frame colors after a source change.
 These checks simulate a phone viewport; they do not replace testing on a physical phone.
 

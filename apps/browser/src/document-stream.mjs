@@ -29,7 +29,7 @@ export class DocumentStream {
     if (!streamTypes().includes(mimeType)) throw Error('HTTPS media codec rejected');
     this.source = new MediaSource();
     this.url = URL.createObjectURL(this.source);
-    await completion(this.source, 'sourceopen', this.signal, () => { this.player.src = this.url; });
+    await completion(this.source, 'sourceopen', this.signal, () => { this.player.preload = 'auto'; this.player.src = this.url; this.player.load(); });
     this.buffer = this.source.addSourceBuffer(mimeType);
   }
   async append(chunks) {
@@ -46,10 +46,16 @@ export class DocumentStream {
       await completion(this.buffer, 'updateend', this.signal, () => this.buffer.appendBuffer(body));
       this.cursor = chunk.sequence;
     }
-    const buffered = this.buffer.buffered;
+    this.catchUp();
+  }
+  catchUp(force = false) {
+    const buffered = this.buffer?.buffered;
+    if (!buffered) return;
     if (buffered.length) {
-      const end = buffered.end(buffered.length - 1);
-      if (end - this.player.currentTime > 2 || this.player.currentTime < buffered.start(0)) this.player.currentTime = Math.max(buffered.start(0), end - .5);
+      const last = buffered.length - 1, end = buffered.end(last);
+      let inRange = false;
+      for (let index = 0; index < buffered.length; index++) if (this.player.currentTime >= buffered.start(index) && this.player.currentTime < buffered.end(index) - .02) inRange = true;
+      if ((force && end - this.player.currentTime > .75) || end - this.player.currentTime > 2 || (!inRange && end - this.player.currentTime > .1)) this.player.currentTime = Math.max(buffered.start(last), end - .5);
     }
   }
   close() {

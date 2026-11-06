@@ -107,7 +107,9 @@ export class DocumentRenderer {
         if (event.composedPath().some(node => node.hasAttribute?.('data-rui-deferred'))) return;
         if (Date.now() < suppressClick) return;
         const path = event.composedPath().filter(node => this.ids?.has(node));
-        const target = path.find(node => node.matches?.("button,a[href],input,select,textarea,[role=button],[role=slider],[role=checkbox],[role=link]")) || path[0];
+        const control = path.find(node => node.matches?.("button,a[href],input,select,textarea,[role=button],[role=slider],[role=checkbox],[role=link]"));
+        if (!control && this.media?.activate?.(event)) return;
+        const target = control || path[0];
         if (target) {
           const rect = target.getBoundingClientRect();
           const position = event.detail && rect.width && rect.height ? { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) } : undefined;
@@ -206,12 +208,13 @@ export class DocumentRenderer {
       const keep = new Set();
       if (embedded) keep.add('sandbox');
       if (node.tag === 'video') keep.add('poster');
-      if (node.media) { keep.add('autoplay'); keep.add('playsinline'); }
+      if (node.media) { keep.add('autoplay'); keep.add('playsinline'); keep.add('preload'); }
       this.nodes.set(node.id, element);
       this.ids.set(element, node.id);
       if (typeof node.value === "string") this.values.set(node.id, node.value);
       for (const [name, value] of Object.entries(node.attrs || {})) {
         if (embedded && name === 'sandbox') continue;
+        if (node.media && name === 'preload') continue;
         if (!BLOCKED_ATTR.test(name) && typeof value === "string") {
           keep.add(name);
           const actual = name === 'style' ? css(value) : value;

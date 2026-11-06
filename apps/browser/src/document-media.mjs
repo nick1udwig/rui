@@ -2,7 +2,7 @@ import { documentRequest } from './document-request.mjs';
 import { DocumentStream, streamTypes } from './document-stream.mjs';
 
 export class DocumentMediaView {
-  constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); }
+  constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; }
   begin() { this.live = new Set(); }
   current(entry) { return !entry.closed && this.streams.get(entry.key) === entry; }
   ready() { return [...this.streams.values()].every(entry => !entry.blocked && entry.player.readyState >= 2 && !entry.player.paused && (entry.transport === 'https' || entry.peer.connectionState === 'connected')); }
@@ -19,52 +19,83 @@ export class DocumentMediaView {
     this.failures.set(entry.key, { attempts, retryAt: Date.now() + Math.min(10000, 500 * 2 ** Math.min(attempts - 1, 5)) });
     this.report(error);
   }
-  play(entry) {
+  play(entry, userGesture = false) {
     const player = entry.player;
-    if (!this.current(entry) || (!player.srcObject && !entry.stream?.url) || !player.paused || entry.playing || entry.playRetry || entry.blocked) return;
+    if (!this.current(entry) || (!player.srcObject && !entry.stream?.url) || (!userGesture && (!player.paused || entry.playing || entry.playRetry || entry.blocked))) return;
+    const attempt = entry.playAttempt = (entry.playAttempt || 0) + 1;
     entry.playing = true;
     const failed = error => {
-      if (!this.current(entry)) return;
+      if (!this.current(entry) || attempt !== entry.playAttempt) return;
       if (error.name === 'AbortError' && (entry.playAborts = (entry.playAborts || 0) + 1) <= 3) {
         entry.playRetry = setTimeout(() => { entry.playRetry = null; this.play(entry); }, 200);
       } else if (error.name === 'NotAllowedError') {
         entry.blocked = true;
-        this.report(Error('Tap Enable page sound to start playback.'));
+        this.report(Error('Tap the video to start playback on this phone, or tap Enable page sound.'));
       } else this.fail(entry, error);
     };
     try {
       Promise.resolve(player.play()).then(() => {
-        if (!this.current(entry)) return;
+        if (!this.current(entry) || attempt !== entry.playAttempt) return;
         entry.playAborts = 0;
         clearTimeout(entry.deadline);
         this.failures.delete(entry.key);
-      }, failed).finally(() => { entry.playing = false; });
+      }, failed).finally(() => { if (attempt === entry.playAttempt) entry.playing = false; });
     } catch (error) { entry.playing = false; failed(error); }
   }
+  activate(event) {
+    for (const entry of this.streams.values()) {
+      if (!['video', 'audio'].includes(entry.element.localName) || entry.element.ownerDocument !== event.target.ownerDocument || entry.sourcePaused !== false) continue;
+      if (entry.element.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) === false) continue;
+      const box = entry.element.getBoundingClientRect();
+      if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) continue;
+      if (!entry.blocked && !entry.player.paused && entry.played && (!entry.player.requestVideoFrameCallback || Date.now() - entry.frameAt < 2000)) return false;
+      entry.blocked = false;
+      entry.stream?.catchUp(true);
+      this.play(entry, true);
+      return true;
+    }
+    return false;
+  }
   draw(entry) {
-    if (entry.player === entry.element || entry.drawing) return;
+    if (!entry.player.requestVideoFrameCallback || entry.drawing) return;
     entry.drawing = true;
     const draw = () => {
       if (!this.current(entry)) return;
       try {
-        if (entry.player.readyState >= 2) entry.element.getContext('2d').drawImage(entry.player, 0, 0, entry.element.width, entry.element.height);
+        entry.frameAt = Date.now();
+        if (entry.player !== entry.element && entry.player.readyState >= 2) entry.element.getContext('2d').drawImage(entry.player, 0, 0, entry.element.width, entry.element.height);
         entry.frame = entry.player.requestVideoFrameCallback(draw);
       } catch (error) { this.fail(entry, error); }
     };
-    draw();
+    entry.frame = entry.player.requestVideoFrameCallback(draw);
+  }
+  progress(entry, playback) {
+    if (!playback || typeof playback.paused !== 'boolean' || !Number.isFinite(playback.time)) return;
+    const now = Date.now();
+    entry.sourcePaused = playback.paused;
+    const advancing = Number.isFinite(playback.frames) ? playback.frames !== (entry.sourceFrames ?? playback.frames) : Math.abs(playback.time - (entry.sourceTime ?? playback.time)) > .02;
+    entry.sourceTime = playback.time;
+    entry.sourceFrames = playback.frames;
+    if (!advancing || playback.paused || entry.blocked || entry.element.localName !== 'video' || document.visibilityState !== 'visible') { entry.progressAt = now; return; }
+    if (entry.element.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true }) === false) { entry.progressAt = now; return; }
+    for (let element = entry.element; element; element = element.ownerDocument.defaultView.frameElement) {
+      const box = element.getBoundingClientRect(), view = element.ownerDocument.defaultView, style = view.getComputedStyle(element);
+      if (box.width <= 0 || box.height <= 0 || box.bottom <= 0 || box.right <= 0 || box.top >= view.innerHeight || box.left >= view.innerWidth || style.visibility !== 'visible' || style.opacity === '0') { entry.progressAt = now; return; }
+    }
+    if (now - Math.max(entry.frameAt || 0, entry.progressAt || entry.startedAt) > 8000) this.fail(entry, Error('Video frames stopped arriving. Reconnecting the video…'));
   }
   attach(node, element, generation, frames) {
     const key = `${generation}:${node.id}`;
     this.live.add(key);
     const existing = this.streams.get(key);
-    if (existing?.element === element) { this.play(existing); return; }
+    if (existing?.element === element) { existing.sourcePaused = node.mediaPaused; this.play(existing); return; }
     if (existing) this.close(key, existing);
     if (node.mediaReady === false || Date.now() < (this.failures.get(key)?.retryAt || 0)) return;
     if (this.streams.size >= 8) return;
     let entry;
     try {
-      const transport = this.preferHttps ? 'https' : 'webrtc';
-      entry = { key, transport, controller: new AbortController(), closed: false, element };
+      const transport = this.preferHttps && streamTypes().length ? 'https' : 'webrtc';
+      entry = { key, transport, startedAt: Date.now(), sourcePaused: node.mediaPaused, controller: new AbortController(), closed: false, element };
       this.streams.set(key, entry);
       const player = node.tag === 'canvas' ? document.createElement('video') : element;
       entry.player = player;
@@ -122,13 +153,17 @@ export class DocumentMediaView {
     entry.token = result.token;
     if (!this.current(entry)) { this.release(entry.token); return; }
     entry.stream = new DocumentStream(entry.player, entry.controller.signal);
-    await entry.stream.open(result.mimeType);
+    const opening = entry.stream.open(result.mimeType);
+    this.play(entry);
+    await opening;
     if (!this.current(entry)) return;
     this.draw(entry);
     const poll = async () => {
       if (!this.current(entry)) return;
       try {
-        const { chunks } = await request({ op: 'read', token: entry.token, after: entry.stream.cursor });
+        const { chunks, playback } = await request({ op: 'read', token: entry.token, after: entry.stream.cursor });
+        if (!this.current(entry)) return;
+        this.progress(entry, playback);
         if (!this.current(entry)) return;
         await entry.stream.append(chunks);
         if (!this.current(entry)) return;
@@ -178,7 +213,7 @@ export class DocumentMediaView {
   }
   enableSound() {
     this.soundEnabled = true;
-    for (const entry of this.streams.values()) { entry.player.muted = false; entry.blocked = false; this.play(entry); }
+    for (const entry of this.streams.values()) { entry.player.muted = false; entry.blocked = false; entry.stream?.catchUp(true); this.play(entry, true); }
   }
   release(token) { void documentRequest(this.api, 'media', { op: 'close', token }, undefined, 3000).catch(() => {}); }
   close(key, entry = this.streams.get(key)) {

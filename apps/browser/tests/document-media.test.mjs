@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { chromium, firefox, webkit } from "playwright";
 import { BrowserDocument } from "../document.mjs";
 
-test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM", { timeout: 45000 }, async () => {
+test("scoped media carries canvas, WebGL, video and audio while text stays DOM", { timeout: 45000 }, async () => {
   const files = new Map(await Promise.all(['document-renderer', 'document-media', 'document-request', 'document-stream'].map(async name => [`/${name}.mjs`, await readFile(new URL(`../src/${name}.mjs`, import.meta.url))])));
   const server = createServer((req, res) => {
     if (files.has(req.url)) { res.setHeader('Content-Type', 'text/javascript'); res.end(files.get(req.url)); }
@@ -116,6 +116,23 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       await assert.rejects(source.media.read(previous, 0), /expired/);
     }
     assert.equal(await viewer.frames()[1].locator('h1').textContent(), 'Native text');
+    const stalled = await viewer.evaluate(() => {
+      const entry = [...media.streams.values()].find(entry => entry.element.id === 'movie');
+      const old = Date.now() - 10000;
+      entry.frameAt = entry.progressAt = entry.startedAt = old;
+      entry.sourceTime = 1;
+      media.progress(entry, { paused: true, time: 1 });
+      if (entry.closed) throw Error('A paused host is not a stalled decoder');
+      entry.sourceFrames = 10;
+      entry.frameAt = entry.progressAt = old;
+      media.progress(entry, { paused: false, time: 2, frames: 10 });
+      if (entry.closed) throw Error('A source with no new frames is not a stalled decoder');
+      entry.frameAt = entry.progressAt = old;
+      media.progress(entry, { paused: false, time: 3, frames: 11 });
+      if (!entry.closed) throw Error('A stalled decoder must be reconnected');
+      return entry.token;
+    });
+    await viewer.waitForFunction(token => { const entry = [...media.streams.values()].find(entry => entry.element.id === 'movie'); return entry?.token && entry.token !== token && entry.player.readyState >= 2 && !entry.player.paused; }, stalled);
     await host.evaluate(async () => {
       fixtureColor = 'blue';
       const recorder = new MediaRecorder(document.querySelector('#drawing').captureStream(30), { mimeType: 'video/webm;codecs=vp8' });

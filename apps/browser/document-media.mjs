@@ -47,13 +47,16 @@ export class DocumentMedia {
             recorder.ondataavailable = event => {
               if (session.closed || !event.data.size) return;
               session.bytes += event.data.size;
-              if (event.data.size > 512 * 1024 || session.bytes > 4 * 1024 * 1024) { close(); return; }
+              if (session.bytes > 4 * 1024 * 1024) { close(); return; }
               pending = pending.then(async () => {
                 const bytes = new Uint8Array(await event.data.arrayBuffer());
                 if (session.closed) return;
-                let binary = '';
-                for (let offset = 0; offset < bytes.length; offset += 16384) binary += String.fromCharCode(...bytes.subarray(offset, offset + 16384));
-                session.chunks.push({ sequence: ++session.sequence, data: btoa(binary), bytes: bytes.length });
+                for (let start = 0; start < bytes.length; start += 256 * 1024) {
+                  const part = bytes.subarray(start, start + 256 * 1024);
+                  let binary = '';
+                  for (let offset = 0; offset < part.length; offset += 16384) binary += String.fromCharCode(...part.subarray(offset, offset + 16384));
+                  session.chunks.push({ sequence: ++session.sequence, data: btoa(binary), bytes: part.length });
+                }
               }).catch(close);
             };
             recorder.onerror = close;
@@ -67,7 +70,7 @@ export class DocumentMedia {
                 chunks.push({ sequence: chunk.sequence, data: chunk.data }); bytes += chunk.bytes;
               }
               session.renew();
-              return { chunks };
+              return { chunks, ...(element.localName !== 'canvas' ? { playback: { paused: element.paused, time: element.currentTime, frames: element.getVideoPlaybackQuality?.().totalVideoFrames } } : {}) };
             };
             recorder.start(250);
             return { transport, mimeType };
