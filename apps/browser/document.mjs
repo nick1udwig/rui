@@ -62,7 +62,8 @@ function observeDocument({ key, knownStyles }) {
     }
     styles.push(known.get(entry.id) === entry.version ? { id: entry.id, version: entry.version } : { ...entry });
   }
-  return { root: visit(document.documentElement), styles, unsupported, base: document.baseURI, width: innerWidth, height: innerHeight };
+  // Avoid Playwright's per-property encoding for this large, JSON-only snapshot.
+  return JSON.stringify({ root: visit(document.documentElement), styles, unsupported, base: document.baseURI, width: innerWidth, height: innerHeight });
 }
 
 export class DocumentActionRejected extends Error {}
@@ -255,7 +256,7 @@ export class BrowserDocument {
   async capture(budget = { frames: 16 }) {
     if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
-    const result = await this.frame.evaluate(observeDocument, { key: this.key, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) });
+    const result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
     if (generation !== this.generation) throw Error("Navigation during capture");
     const sourceStyleBytes = Buffer.byteLength(JSON.stringify(result.styles));
     const pending = new Map();
