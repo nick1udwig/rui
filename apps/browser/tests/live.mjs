@@ -87,6 +87,7 @@ const startHost = () => {
       ...(desktopBrowser ? ["--with-browser"] : []),
       "--skip-build",
       "--headless",
+      ...(process.env.RUI_TEST_SOURCE_EXECUTABLE ? ["--chromium", process.env.RUI_TEST_SOURCE_EXECUTABLE] : []),
       "--port",
       String(backendPort),
       ...(proxied
@@ -172,6 +173,13 @@ try {
     hasTouch: true,
   });
   await context.addInitScript(() => {
+    window.ruiUnhandled = [];
+    addEventListener('unhandledrejection', event => window.ruiUnhandled.push(String(event.reason)));
+    window.ruiPeers = [];
+    const Peer = window.RTCPeerConnection;
+    if (Peer) window.RTCPeerConnection = class extends Peer {
+      constructor(options) { super(options); window.ruiPeers.push(this); }
+    };
     const clone = window.structuredClone;
     const copies = new Map();
     window.ruiStateCopies = copies;
@@ -193,7 +201,11 @@ try {
     await route.fulfill({ response, json: data });
   });
   const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  let retiringView = false;
+  page.on("pageerror", e => {
+    if (engine === 'webkit' && retiringView && e.message.includes(new URL(origin).host) && e.message.endsWith('/api/media due to access control checks.')) return;
+    errors.push(e.message);
+  });
   page.on("console", (m) => {
     if (m.type() === "error") console.error("client:", m.text());
   });
@@ -366,6 +378,7 @@ try {
     }),
     { sameText: true, selected: "Host fixture", focused: true, cursor: [2, 5] },
   );
+  retiringView = true;
   await page.reload();
   await deadline(
     async () =>
@@ -386,6 +399,7 @@ try {
         .isDisabled()),
     "restored command sequence",
   );
+  retiringView = false;
   await page.getByRole("button", { name: "Run action", exact: true }).click();
   await deadline(
     async () =>
@@ -393,6 +407,7 @@ try {
     "new action after reload",
   );
   const stop = new Promise((resolve) => host.once("exit", resolve));
+  retiringView = true;
   host.kill("SIGTERM");
   await stop;
   await deadline(
@@ -420,6 +435,7 @@ try {
       (await page.locator("#connection").textContent()) === "Controlling host",
     "fresh epoch control",
   );
+  retiringView = false;
   await page
     .getByLabel("Address", { exact: true })
     .fill(`http://127.0.0.1:${fixture.address().port}/`);
@@ -447,6 +463,7 @@ try {
         };
       }),
   );
+  retiringView = true;
   host.stdin.write(`revoke ${deviceId}\n`);
   await deadline(
     async () =>
@@ -493,6 +510,7 @@ try {
     assert.equal(unrelated, "unrelated-workspace");
   }
   assert.equal(errors.length, 0, errors.join("\n"));
+  assert.deepEqual(await page.evaluate(() => window.ruiUnhandled), []);
   const report = {
     engine,
     reverseProxy: proxied,
@@ -527,6 +545,11 @@ try {
       .replace(/invite=[a-f0-9]+/g, "invite=[REDACTED]"),
   );
   if (page) {
+    console.error("Media diagnostics:", JSON.stringify(await page.evaluate(async () => ({
+      peers: await Promise.all((window.ruiPeers || []).map(async peer => ({ state: peer.connectionState, remoteMdns: peer.remoteDescription?.sdp.includes('.local'), stats: [...(await peer.getStats()).values()].filter(s => s.type === 'inbound-rtp').map(s => ({ kind: s.kind, packets: s.packetsReceived, frames: s.framesDecoded })) }))),
+      unhandled: window.ruiUnhandled,
+      decoders: [...document.querySelectorAll('video')].map(video => ({ ready: video.readyState, paused: video.paused }))
+    }))));
     console.error(
       "Client status:",
       await page.locator("#status").textContent(),

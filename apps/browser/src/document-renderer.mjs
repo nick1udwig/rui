@@ -20,7 +20,7 @@ export class DocumentRenderer {
     const iframe = this.iframe;
     if (snapshot.generation !== this.generation) await new Promise(resolve => {
       iframe.onload = resolve;
-      iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
+      iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src blob: mediastream:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
     const doc = iframe.contentDocument;
     const resource = reference => snapshot.resources?.[reference?.replace(/^rui-resource:/, "")] || "";

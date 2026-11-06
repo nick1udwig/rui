@@ -11,7 +11,7 @@ export class DocumentMediaView {
     const player = node.tag === "canvas" ? document.createElement("video") : element;
     entry.player = player;
     if (node.tag === "canvas") {
-      player.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
+      player.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none";
       player.setAttribute("aria-hidden", "true");
       document.body.append(player);
     }

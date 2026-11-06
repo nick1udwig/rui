@@ -75,7 +75,7 @@ const handler = async (request, response) => {
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'",
+      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src blob: mediastream:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'",
     );
     if (request.headers.host !== new URL(origin).host)
       return respond(response, 403, { error: "Host rejected" });

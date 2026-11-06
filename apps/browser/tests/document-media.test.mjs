@@ -51,6 +51,7 @@ test("scoped WebRTC carries canvas, WebGL, video and audio while text stays DOM"
       globalThis.mediaErrors = [];
       globalThis.media = new DocumentMediaView(globalThis.mediaApi, error => mediaErrors.push(String(error)));
       const iframe = document.createElement('iframe'); document.body.replaceChildren(iframe);
+      const spacer = document.createElement('div'); spacer.style.height = '2000px'; document.body.append(spacer);
       const renderer = new DocumentRenderer(iframe, () => {}, () => false, media);
       media.begin(); await renderer.render(snapshot); media.finish();
     }, snapshot);
