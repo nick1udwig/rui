@@ -1,5 +1,13 @@
 export const DOCUMENT_PROFILE = "browser.document.v1";
 const LIMIT = 8 * 1024 * 1024;
+const offers = entries => Object.fromEntries(entries.map(([key, data]) => [key, { bytes: new TextEncoder().encode(data).length }]));
+function catalog(node) {
+  return { ...node,
+    children: node.children?.map(catalog),
+    shadow: node.shadow?.map(catalog),
+    ...(node.document ? { document: { ...node.document, root: catalog(node.document.root), resources: offers(Object.entries(node.document.resources || {})), styleResources: offers(Object.entries(node.document.styleResources || {})) } } : {}),
+  };
+}
 
 function flatten(root) {
   const records = new Map();
@@ -15,7 +23,7 @@ function flatten(root) {
 
 export class DocumentPublisher {
   publish(snapshot) {
-    const records = flatten(snapshot.root);
+    const records = flatten(catalog(snapshot.root));
     const previous = this.snapshot?.generation === snapshot.generation ? this.records : undefined;
     const { root, ...metadata } = snapshot;
     const packet = {
@@ -26,6 +34,9 @@ export class DocumentPublisher {
       put: [...records.values()].filter(record => JSON.stringify(record) !== JSON.stringify(previous?.get(record.id))),
       remove: previous ? [...previous.keys()].filter(id => !records.has(id)) : [],
     };
+    if (previous && JSON.stringify(this.snapshot.styles) === JSON.stringify(snapshot.styles)) delete packet.styles;
+    packet.resources = offers(Object.entries(snapshot.resources || {}).filter(([key, data]) => !previous || this.snapshot.resources?.[key] !== data));
+    packet.styleResources = offers(Object.entries(snapshot.styleResources || {}).filter(([key, data]) => !previous || this.snapshot.styleResources?.[key] !== data));
     if (JSON.stringify(packet).length > LIMIT) throw Error("Document packet limit");
     this.snapshot = snapshot;
     this.records = records;
@@ -50,15 +61,23 @@ export class DocumentReceiver {
       if (depth > 128 || visited.size >= 20000 || visited.has(id) || !records.has(id)) throw Error("Invalid document graph");
       visited.add(id);
       const node = records.get(id);
-      return { ...node, children: node.children?.map(child => build(child, depth + 1)) };
+      return { ...structuredClone(node), children: node.children?.map(child => build(child, depth + 1)) };
     };
     const root = build(packet.root, 0);
     if (visited.size !== records.size) throw Error("Unreachable document records");
-    const snapshot = { ...packet, root };
+    const styles = packet.styles ?? (packet.base ? this.styles : undefined);
+    if (!Array.isArray(styles)) throw Error("Document styles missing");
+    const resources = { ...(packet.base ? this.resources : {}), ...packet.resources };
+    const styleResources = { ...(packet.base ? this.styleResources : {}), ...packet.styleResources };
+    const { put, remove, ...metadata } = packet;
+    const snapshot = { ...metadata, styles, styleResources, resources, root };
     if (JSON.stringify(snapshot).length > LIMIT) throw Error("Retained document limit");
     this.records = records;
     this.revision = packet.revision;
     this.generation = packet.generation;
+    this.styles = styles;
+    this.resources = resources;
+    this.styleResources = styleResources;
     return snapshot;
   }
 }

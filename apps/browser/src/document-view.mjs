@@ -8,6 +8,7 @@ export class DocumentView {
     this.api = api;
     this.report = report;
     this.receiver = new DocumentReceiver();
+    this.resources = new Map();
     this.iframe = document.createElement("iframe");
     this.iframe.title = "Host web page";
     this.iframe.style.cssText = "width:100%;height:75dvh;border:0;background:white";
@@ -33,6 +34,32 @@ export class DocumentView {
           const packet = await this.api("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation }, true);
           if (!this.running || serial !== this.serial) return;
           const snapshot = this.receiver.apply(packet);
+          if (this.resourceGeneration !== snapshot.generation) { this.resources.clear(); this.resourceGeneration = snapshot.generation; }
+          const hydrate = async snapshot => {
+            for (const kind of ['resources', 'styleResources']) {
+              const result = {};
+              for (const [key, offer] of Object.entries(snapshot[kind] || {})) {
+                if (typeof offer === 'string') { result[key] = offer; continue; }
+                if (!/^[a-f0-9]{64}$/.test(key) || !Number.isSafeInteger(offer.bytes) || offer.bytes < 0 || offer.bytes > 8 * 1024 * 1024) throw Error('Resource offer rejected');
+                if (!this.resources.has(key)) {
+                  const { body } = await this.api('document-resource', { generation: packet.generation, key }, true);
+                  if (typeof body !== 'string') throw Error('Invalid resource body');
+                  const bytes = new TextEncoder().encode(body);
+                  if (bytes.length !== offer.bytes) throw Error('Resource length mismatch');
+                  const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2,'0')).join('');
+                  if (digest !== key) throw Error('Resource integrity mismatch');
+                  if ([...this.resources.values()].reduce((n, v) => n + v.length, body.length) > 16 * 1024 * 1024) throw Error('Resource cache limit');
+                  this.resources.set(key, body);
+                }
+                result[key] = this.resources.get(key);
+              }
+              snapshot[kind] = result;
+            }
+            const visit = async node => { if (node.document) await hydrate(node.document); for (const child of [...(node.children || []), ...(node.shadow || [])]) await visit(child); };
+            await visit(snapshot.root);
+          };
+          await hydrate(snapshot);
+          if (!this.running || serial !== this.serial) return;
           this.media.begin();
           await this.renderer.render(snapshot);
           this.media.finish();
@@ -59,6 +86,7 @@ export class DocumentView {
     clearTimeout(this.timer);
     this.iframe.srcdoc = "";
     this.receiver = new DocumentReceiver();
+    this.resources.clear();
     this.renderer.generation = null;
   }
 }

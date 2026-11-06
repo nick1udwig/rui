@@ -15,13 +15,15 @@ export class DocumentRenderer {
     this.drafts = new Map();
   }
   async render(snapshot) {
-    if (!snapshot.root || JSON.stringify(snapshot).length > 8 * 1024 * 1024) throw Error("Document limit");
+    if (!snapshot.root || JSON.stringify(snapshot).length > 24 * 1024 * 1024) throw Error("Document and resource limit");
     const iframe = this.iframe;
     if (snapshot.generation !== this.generation) await new Promise(resolve => {
       iframe.onload = resolve;
       iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
     const doc = iframe.contentDocument;
+    const resource = reference => snapshot.resources?.[reference?.replace(/^rui-resource:/, "")] || "";
+    const css = text => text.replace(/rui-resource:([a-f0-9]{64})/g, (_, key) => snapshot.resources?.[key] || "");
     if (snapshot.generation !== this.generation) {
       const send = (node, action) => {
         if (!this.canControl() || this.generation !== snapshot.generation || iframe.contentDocument !== doc) return;
@@ -72,7 +74,8 @@ export class DocumentRenderer {
       if (typeof node.text === "string") {
         const old = previous.get(node.id);
         const text = old?.nodeType === 3 ? old : doc.createTextNode(node.text);
-        if (text.data !== node.text) text.data = node.text;
+        const value = node.text.includes('rui-resource:') ? css(node.text) : node.text;
+        if (text.data !== value) text.data = value;
         this.nodes.set(node.id, text);
         return text;
       }
@@ -90,11 +93,16 @@ export class DocumentRenderer {
       for (const [name, value] of Object.entries(node.attrs || {})) {
         if (SAFE_ATTR.test(name) && typeof value === "string") {
           keep.add(name);
-          if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+          const actual = name === 'style' ? css(value) : value;
+          if (element.getAttribute(name) !== actual) element.setAttribute(name, actual);
         }
       }
       for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);
-      if (node.tag === "img" && /^data:image\/(png|jpeg|gif|webp|avif);base64,/.test(node.attrs?.src)) element.setAttribute("src", node.attrs.src);
+      const image = resource(node.attrs?.src);
+      if (node.tag === "img") {
+        if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(image)) element.setAttribute("src", image);
+        else element.removeAttribute('src');
+      }
       if (embedded) {
         element.setAttribute("sandbox", "allow-same-origin");
         let renderer = this.frames.get(node.id);
@@ -128,7 +136,7 @@ export class DocumentRenderer {
           cursor = child.nextSibling;
         }
         while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
-        for (const css of node.shadowStyles || []) { const style = doc.createElement("style"); style.textContent = css; shadow.append(style); }
+        for (const text of node.shadowStyles || []) { const style = doc.createElement("style"); style.textContent = css(text); shadow.append(style); }
       }
       return element;
     };
@@ -138,7 +146,7 @@ export class DocumentRenderer {
     if (csp) head.prepend(csp);
     for (const sheet of snapshot.styles) {
       const style = doc.createElement("style");
-      style.textContent = sheet.text;
+      style.textContent = css(sheet.text ?? snapshot.styleResources?.[sheet.resource] ?? "");
       head.append(style);
     }
     if (root !== doc.documentElement) doc.replaceChild(root, doc.documentElement);

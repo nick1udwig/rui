@@ -88,6 +88,17 @@ const handler = async (request, response) => {
       )
         return respond(response, 403, { error: "Origin rejected" });
       const data = await readJson(request);
+      if (url.pathname === "/api/document-resource" && !desktop) {
+        const auth = credentials(request);
+        const grant = await admin({ op: "document", ...auth });
+        const source = workspace.pages.get(workspace.active)?.document;
+        if (!source || source.generation !== data.generation || !/^[a-f0-9]{64}$/.test(data.key || "")) throw Error("Resource scope rejected");
+        const body = source.resource(data.key);
+        if (body === undefined) throw Error("Resource unavailable");
+        const current = await admin({ op: "document", ...auth });
+        if (current.scope !== grant.scope || workspace.pages.get(workspace.active)?.document !== source) throw Error("Resource scope changed");
+        return respond(response, 200, { body });
+      }
       if (url.pathname === "/api/media" && !desktop) {
         const auth = credentials(request);
         const grant = await admin({ op: "document", ...auth });

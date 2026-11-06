@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { DocumentMedia } from "./document-media.mjs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -62,11 +62,15 @@ export class BrowserDocument {
     this.generation = randomBytes(16).toString("hex");
     this.revision = 0;
     this.assets = new Map();
+    this.resources = new Map();
+    this.styles = new Map();
     this.navigation = (frame) => {
       if (frame === this.frame) {
         void this.media.dispose();
         this.generation = randomBytes(16).toString("hex");
         this.assets.clear();
+        this.resources.clear();
+        this.styles.clear();
       }
     };
     this.page.on("framenavigated", this.navigation);
@@ -75,6 +79,8 @@ export class BrowserDocument {
     void this.media.dispose();
     this.page.off("framenavigated", this.navigation);
     this.assets.clear();
+    this.resources.clear();
+    this.styles.clear();
     for (const child of this.frames.values()) child.dispose();
     this.frames.clear();
   }
@@ -86,6 +92,11 @@ export class BrowserDocument {
       source = source.frames.get(route.node);
     }
     return source;
+  }
+  resource(key) {
+    const body = this.resources.get(key) ?? this.styles.get(key);
+    if (body !== undefined) return body;
+    for (const child of this.frames.values()) { const value = child.resource(key); if (value !== undefined) return value; }
   }
   async dispatch(command) {
     if (command.frames?.length) {
@@ -155,18 +166,27 @@ export class BrowserDocument {
     } finally { await handle.dispose(); }
   }
   async asset(url) {
-    if (!/^https?:/.test(url)) return /^data:image\/(png|jpeg|gif|webp);base64,/.test(url) && url.length < MAX_BYTES ? url : "";
+    const intern = data => {
+      if (data.length > MAX_BYTES) throw Error("Resource limit");
+      const key = createHash('sha256').update(data).digest('hex');
+      if (!this.resources.has(key)) {
+        if ([...this.resources.values()].reduce((n, v) => n + v.length, data.length) > MAX_BYTES) throw Error("Resource cache limit");
+        this.resources.set(key, data);
+      }
+      return `rui-resource:${key}`;
+    };
+    if (!/^https?:/.test(url)) return /^data:(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)[;,]/.test(url) ? intern(url) : "";
     if (this.assets.has(url)) return this.assets.get(url);
     const response = await this.page.context().request.get(url, { timeout: 3000, maxRedirects: 5 });
     try {
       const type = (response.headers()["content-type"] || "").split(";")[0];
-      if (!/^(image\/(png|jpeg|gif|webp|avif)|font\/(woff2?|ttf|otf)|application\/font-woff)$/.test(type)) return "";
+      if (!/^(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)$/.test(type)) return "";
       const body = await response.body();
       if (body.length > MAX_BYTES || this.assets.size >= 128) throw Error("Asset limit");
       const data = `data:${type};base64,${body.toString("base64")}`;
-      if ([...this.assets.values()].reduce((n, v) => n + v.length, data.length) > MAX_BYTES) throw Error("Asset cache limit");
-      this.assets.set(url, data);
-      return data;
+      const reference = intern(data);
+      this.assets.set(url, reference);
+      return reference;
     } finally { await response.dispose(); }
   }
   async capture(budget = { frames: 16 }) {
@@ -217,8 +237,16 @@ export class BrowserDocument {
     await visit(result.root);
     for (const [id, child] of this.frames) if (!liveFrames.has(id)) { child.dispose(); this.frames.delete(id); }
     if (generation !== this.generation) throw Error("Navigation during capture");
-    const snapshot = { ...result, generation, revision: ++this.revision };
-    if (Buffer.byteLength(JSON.stringify(snapshot)) > MAX_BYTES) throw Error("Snapshot limit");
+    const styleResources = {};
+    result.styles = result.styles.map(style => {
+      const key = createHash('sha256').update(style.text).digest('hex');
+      styleResources[key] = style.text;
+      return { resource: key };
+    });
+    this.styles = new Map(Object.entries(styleResources));
+    const snapshot = { ...result, styleResources, resources: Object.fromEntries(this.resources), generation, revision: ++this.revision };
+    this.metrics = { documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
+    if (Buffer.byteLength(JSON.stringify({ ...snapshot, resources: {}, styleResources: {} })) > MAX_BYTES || this.metrics.styleBytes > MAX_BYTES) throw Error("Snapshot limit");
     return snapshot;
   }
 }
