@@ -36,6 +36,8 @@ export class DocumentRenderer {
       }, true);
     }
     const previous = snapshot.generation === this.generation ? this.nodes : new Map();
+    if (snapshot.generation !== this.generation) this.frames = new Map();
+    const pendingFrames = [];
     this.nodes = new Map();
     this.ids = new WeakMap();
     this.values = new Map();
@@ -50,7 +52,8 @@ export class DocumentRenderer {
         return text;
       }
       if (![HTML, SVG].includes(node.ns) || !/^[a-zA-Z][\w-]*$/.test(node.tag)) throw Error("Unsupported element");
-      const blocked = BLOCKED.has(node.tag);
+      const embedded = node.tag === "iframe" && node.document;
+      const blocked = BLOCKED.has(node.tag) && node.tag !== "style" && !embedded;
       const tag = blocked ? "span" : node.tag;
       const ns = blocked ? HTML : node.ns;
       const old = previous.get(node.id);
@@ -67,7 +70,15 @@ export class DocumentRenderer {
       }
       for (const attr of [...element.attributes]) if (!keep.has(attr.name) && attr.name !== "src") element.removeAttribute(attr.name);
       if (node.tag === "img" && /^data:image\/(png|jpeg|gif|webp|avif);base64,/.test(node.attrs?.src)) element.setAttribute("src", node.attrs.src);
-      if (blocked || ["canvas", "video"].includes(node.tag)) {
+      if (embedded) {
+        element.setAttribute("sandbox", "allow-same-origin");
+        let renderer = this.frames.get(node.id);
+        if (!renderer || renderer.iframe !== element) {
+          renderer = new DocumentRenderer(element, command => this.dispatch({ ...command, frames: [{ node: node.id, generation: this.generation }, ...(command.frames || [])] }), this.canControl);
+          this.frames.set(node.id, renderer);
+        }
+        pendingFrames.push(() => renderer.render(node.document));
+      } else if (blocked || ["canvas", "video"].includes(node.tag)) {
         element.textContent = `Unsupported region: ${node.tag}`;
         element.setAttribute("data-rui-unsupported", node.tag);
       } else {
@@ -81,6 +92,17 @@ export class DocumentRenderer {
       }
       if (typeof node.value === "string" && "value" in element && element !== doc.activeElement && element.value !== node.value) element.value = node.value;
       if (typeof node.checked === "boolean" && "checked" in element) element.checked = node.checked;
+      if (node.shadow) {
+        const shadow = element.shadowRoot || element.attachShadow({ mode: "open" });
+        const children = node.shadow.map(child => build(child, depth + 1));
+        let cursor = shadow.firstChild;
+        for (const child of children) {
+          if (child !== cursor) shadow.insertBefore(child, cursor);
+          cursor = child.nextSibling;
+        }
+        while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
+        for (const css of node.shadowStyles || []) { const style = doc.createElement("style"); style.textContent = css; shadow.append(style); }
+      }
       return element;
     };
     const csp = doc.head.querySelector("meta[http-equiv]")?.cloneNode(true);
@@ -95,5 +117,7 @@ export class DocumentRenderer {
     if (root !== doc.documentElement) doc.replaceChild(root, doc.documentElement);
     this.generation = snapshot.generation;
     this.revision = snapshot.revision;
+    for (const render of pendingFrames) await render();
+    for (const id of this.frames.keys()) if (!this.nodes.has(id)) this.frames.delete(id);
   }
 }

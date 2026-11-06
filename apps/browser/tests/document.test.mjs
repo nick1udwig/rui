@@ -11,6 +11,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
   const server = createServer((req, res) => {
     if (req.url === "/renderer.mjs") { res.setHeader("Content-Type", "text/javascript"); res.end(renderer); return; }
     if (req.url === "/viewer") { res.end('<iframe style="width:390px;height:600px;border:0"></iframe>'); return; }
+    if (req.url === "/child") { res.end('<p>Embedded content</p><button onclick="this.textContent=\'Frame clicked\'">Frame action</button>'); return; }
     if (req.url === "/pixel.png") { res.setHeader("Content-Type", "image/png"); res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9x8AAAAASUVORK5CYII=", "base64")); return; }
     if (req.url === "/leak") { unexpected++; res.end(); return; }
     res.setHeader("Content-Type", "text/html");
@@ -24,6 +25,15 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     browser = await chromium.launch({ executablePath: process.env.RUI_CHROMIUM || "/usr/bin/chromium", headless: true, chromiumSandbox: true });
     const host = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await host.goto(origin);
+    await host.evaluate(port => {
+      const child = document.createElement('iframe');
+      child.src = `http://localhost:${port}/child`;
+      document.body.append(child);
+      const host = document.createElement('x-card');
+      host.attachShadow({ mode: 'open' }).innerHTML = '<style>p {color:rgb(10,20,30)}</style><p>Shadow text</p>';
+      document.body.append(host);
+    }, server.address().port);
+    await host.frameLocator('iframe').getByText('Embedded content').waitFor();
     source = new BrowserDocument(host);
     const snapshot = await source.capture();
     assert.equal(JSON.stringify(snapshot).includes("private"), false);
@@ -44,6 +54,8 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n).color), 'rgb(1, 2, 3)');
     assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n, '::before').content), '"Prefix "');
     assert.equal(await frame.locator('svg circle').count(), 1);
+    assert.equal(await frame.locator('x-card p').evaluate(n => getComputedStyle(n).color), 'rgb(10, 20, 30)');
+    await frame.frameLocator('iframe').getByText('Embedded content').waitFor();
     await frame.locator('img').evaluate(n => n.decode());
     await frame.locator('button').click();
     assert.equal(unexpected, 0);
@@ -68,6 +80,10 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     await source.dispatch({ generation: update.generation, revision: update.revision, node: button.id, action: 'click' });
     await host.waitForLoadState('networkidle');
     assert.equal(unexpected, 1);
+    const embedded = find(update.root, n => n.document);
+    const frameButton = find(embedded.document.root, n => n.tag === 'button');
+    await source.dispatch({ frames: [{ node: embedded.id, generation: update.generation }], generation: embedded.document.generation, revision: embedded.document.revision, node: frameButton.id, action: 'click' });
+    await host.frameLocator('iframe').getByText('Frame clicked').waitFor();
     await viewer.locator('iframe').evaluate(n => n.style.width = '900px');
     assert.equal(await frame.locator('main').evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length), 2);
     await host.reload();

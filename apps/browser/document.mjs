@@ -16,12 +16,12 @@ function observeDocument(key) {
   const unsupported = [];
   state.reverse.clear();
   let count = 0;
-  const visit = (node, depth = 0) => {
+  const visit = (node, depth = 0, shadow = false) => {
     if (++count > 20000 || depth > 128) throw Error("Document limit");
     if (node.nodeType === 3) return { id: id(node), text: node.data };
     if (node.nodeType !== 1) return null;
     const tag = node.localName;
-    if (["script", "noscript", "base", "meta", "link", "style"].includes(tag)) return null;
+    if (["script", "noscript", "base", "meta", "link"].includes(tag) || (tag === "style" && !shadow)) return null;
     const attrs = Object.fromEntries([...node.attributes].filter(a => !/^on/i.test(a.name) && !["srcdoc", "action", "formaction", "nonce"].includes(a.name)).map(a => [a.name, a.value]));
     if (tag === "img") attrs.src = node.currentSrc || node.src;
     const result = { id: id(node), tag, ns: node.namespaceURI, attrs, children: [] };
@@ -34,9 +34,10 @@ function observeDocument(key) {
       unsupported.push({ id: result.id, kind: tag });
       return result;
     }
-    result.children = [...node.childNodes].map(n => visit(n, depth + 1)).filter(Boolean);
+    result.children = [...node.childNodes].map(n => visit(n, depth + 1, shadow)).filter(Boolean);
     if (node.shadowRoot) {
-      unsupported.push({ id: result.id, kind: "shadow-root" });
+      result.shadow = [...node.shadowRoot.childNodes].map(n => visit(n, depth + 1, true)).filter(Boolean);
+      result.shadowStyles = [...node.shadowRoot.adoptedStyleSheets].map(sheet => [...sheet.cssRules].map(rule => rule.cssText).join("\n"));
     }
     return result;
   };
@@ -50,21 +51,33 @@ function observeDocument(key) {
 
 export class BrowserDocument {
   constructor(page) {
-    this.page = page;
+    this.frame = typeof page.mainFrame === "function" ? page.mainFrame() : page;
+    this.page = this.frame.page();
+    this.frames = new Map();
     this.key = `__rui_document_${randomBytes(16).toString("hex")}`;
     this.generation = randomBytes(16).toString("hex");
     this.revision = 0;
     this.assets = new Map();
     this.navigation = (frame) => {
-      if (frame === page.mainFrame()) {
+      if (frame === this.frame) {
         this.generation = randomBytes(16).toString("hex");
         this.assets.clear();
       }
     };
-    page.on("framenavigated", this.navigation);
+    this.page.on("framenavigated", this.navigation);
   }
-  dispose() { this.page.off("framenavigated", this.navigation); this.assets.clear(); }
+  dispose() {
+    this.page.off("framenavigated", this.navigation);
+    this.assets.clear();
+    for (const child of this.frames.values()) child.dispose();
+    this.frames.clear();
+  }
   async dispatch(command) {
+    if (command.frames?.length) {
+      const [route, ...frames] = command.frames;
+      if (command.frames.length > 16 || route.generation !== this.generation || !this.frames.has(route.node)) throw Error("Stale frame route");
+      return this.frames.get(route.node).dispatch({ ...command, frames });
+    }
     if (command.generation !== this.generation || !Number.isSafeInteger(command.revision) || command.revision < 1 || command.revision > this.revision) throw Error("Stale document");
     if (command.action === "resize") {
       const { width, height } = command;
@@ -73,7 +86,7 @@ export class BrowserDocument {
       return;
     }
     if (!Number.isSafeInteger(command.node)) throw Error("Invalid document target");
-    const handle = await this.page.evaluateHandle(({ key, id }) => globalThis[key]?.reverse.get(id), { key: this.key, id: command.node });
+    const handle = await this.frame.evaluateHandle(({ key, id }) => globalThis[key]?.reverse.get(id), { key: this.key, id: command.node });
     try {
       const element = handle.asElement();
       if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw Error("Unavailable document target");
@@ -104,9 +117,10 @@ export class BrowserDocument {
       return data;
     } finally { await response.dispose(); }
   }
-  async capture() {
+  async capture(budget = { frames: 16 }) {
+    if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
-    const result = await this.page.evaluate(observeDocument, this.key);
+    const result = await this.frame.evaluate(observeDocument, this.key);
     const rewrite = async (text, base) => {
       const matches = [...text.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)];
       for (const match of matches) {
@@ -125,12 +139,31 @@ export class BrowserDocument {
       if (style.text.length > MAX_BYTES) throw Error("Stylesheet limit");
       style.text = await rewrite(style.text, style.base);
     }
+    const liveFrames = new Set();
     const visit = async (node) => {
+      if (node.tag === "iframe" && budget.frames > 0) {
+        const handle = await this.frame.evaluateHandle(({ key, id }) => globalThis[key]?.reverse.get(id), { key: this.key, id: node.id });
+        try {
+          const frame = await handle.asElement()?.contentFrame();
+          if (frame && !frame.isDetached()) {
+            let child = this.frames.get(node.id);
+            if (child?.frame !== frame) { child?.dispose(); child = new BrowserDocument(frame); this.frames.set(node.id, child); }
+            liveFrames.add(node.id);
+            node.document = await child.capture(budget);
+            result.unsupported = result.unsupported.filter(region => region.id !== node.id);
+          }
+        } catch { /* An inaccessible frame keeps its explicit unsupported region. */ }
+        finally { await handle.dispose(); }
+      }
       if (node.tag === "img") node.attrs.src = await this.asset(new URL(node.attrs.src, result.base).href).catch(() => "");
       if (node.attrs?.style) node.attrs.style = await rewrite(node.attrs.style, result.base);
       for (const child of node.children || []) await visit(child);
+      for (const child of node.shadow || []) await visit(child);
+      if (node.tag === "style") for (const child of node.children || []) if (child.text) child.text = await rewrite(child.text, result.base);
+      if (node.shadowStyles) node.shadowStyles = await Promise.all(node.shadowStyles.map(text => rewrite(text, result.base)));
     };
     await visit(result.root);
+    for (const [id, child] of this.frames) if (!liveFrames.has(id)) { child.dispose(); this.frames.delete(id); }
     if (generation !== this.generation) throw Error("Navigation during capture");
     const snapshot = { ...result, generation, revision: ++this.revision };
     if (Buffer.byteLength(JSON.stringify(snapshot)) > MAX_BYTES) throw Error("Snapshot limit");
