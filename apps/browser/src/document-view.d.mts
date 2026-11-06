@@ -1,0 +1,5 @@
+export class DocumentView {
+  constructor(container: HTMLElement, api: (path: string, data: unknown, authenticated?: boolean) => Promise<any>, dispatch: (command: unknown) => void, canControl: () => boolean, report: (error: unknown) => void);
+  start(): void;
+  stop(): void;
+}

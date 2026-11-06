@@ -4,12 +4,17 @@ const MAX_BYTES = 8 * 1024 * 1024;
 
 // Runs in the source document. IDs survive observations but never navigation.
 function observeDocument(key) {
-  const state = globalThis[key] ||= { nodes: new WeakMap(), next: 1 };
+  const state = globalThis[key] ||= { nodes: new WeakMap(), reverse: new Map(), next: 1 };
   const id = (node) => {
-    if (!state.nodes.has(node)) state.nodes.set(node, state.next++);
+    if (!state.nodes.has(node)) {
+      if (state.next > 100000) throw Error("Source identity limit");
+      state.nodes.set(node, state.next++);
+    }
+    state.reverse.set(state.nodes.get(node), node);
     return state.nodes.get(node);
   };
   const unsupported = [];
+  state.reverse.clear();
   let count = 0;
   const visit = (node, depth = 0) => {
     if (++count > 20000 || depth > 128) throw Error("Document limit");
@@ -17,7 +22,7 @@ function observeDocument(key) {
     if (node.nodeType !== 1) return null;
     const tag = node.localName;
     if (["script", "noscript", "base", "meta", "link", "style"].includes(tag)) return null;
-    const attrs = Object.fromEntries([...node.attributes].map(a => [a.name, a.value]));
+    const attrs = Object.fromEntries([...node.attributes].filter(a => !/^on/i.test(a.name) && !["srcdoc", "action", "formaction", "nonce"].includes(a.name)).map(a => [a.name, a.value]));
     if (tag === "img") attrs.src = node.currentSrc || node.src;
     const result = { id: id(node), tag, ns: node.namespaceURI, attrs, children: [] };
     if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement) {
@@ -59,6 +64,31 @@ export class BrowserDocument {
     page.on("framenavigated", this.navigation);
   }
   dispose() { this.page.off("framenavigated", this.navigation); this.assets.clear(); }
+  async dispatch(command) {
+    if (command.generation !== this.generation || !Number.isSafeInteger(command.revision) || command.revision < 1 || command.revision > this.revision) throw Error("Stale document");
+    if (command.action === "resize") {
+      const { width, height } = command;
+      if (![width, height].every(n => Number.isInteger(n) && n >= 240 && n <= 2560)) throw Error("Viewport limit");
+      await this.page.setViewportSize({ width, height });
+      return;
+    }
+    if (!Number.isSafeInteger(command.node)) throw Error("Invalid document target");
+    const handle = await this.page.evaluateHandle(({ key, id }) => globalThis[key]?.reverse.get(id), { key: this.key, id: command.node });
+    try {
+      const element = handle.asElement();
+      if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw Error("Unavailable document target");
+      if (command.action === "click") await element.click({ timeout: 1000 });
+      else if (command.action === "value") {
+        if (typeof command.value !== "string" || command.value.length > 16384) throw Error("Text limit");
+        const valid = await element.evaluate((n, expected) => n.type !== 'password' && String(n.value ?? '') === expected, command.expected);
+        if (!valid) throw Error("Source text changed");
+        await element.fill(command.value, { timeout: 1000 });
+      } else if (command.action === "scroll") {
+        if (![command.x, command.y].every(n => Number.isFinite(n) && Math.abs(n) <= 10000000)) throw Error("Scroll limit");
+        await element.evaluate((n, c) => n.scrollTo(c.x, c.y), command);
+      } else throw Error("Unsupported document action");
+    } finally { await handle.dispose(); }
+  }
   async asset(url) {
     if (!/^https?:/.test(url)) return /^data:image\/(png|jpeg|gif|webp);base64,/.test(url) && url.length < MAX_BYTES ? url : "";
     if (this.assets.has(url)) return this.assets.get(url);

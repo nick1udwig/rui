@@ -253,6 +253,13 @@ try {
     "page ready",
   );
   await page.getByRole("heading", { name: "Host fixture", level: 1 }).waitFor();
+  if (!desktopBrowser) {
+    const replica = page.frameLocator('iframe[title="Host web page"]');
+    await replica.getByRole("heading", { name: "Host fixture" }).waitFor();
+    assert.equal(await replica.locator("script").count(), 0);
+    await replica.getByRole("button", { name: "Run action", exact: true }).click();
+    await replica.locator("#result").filter({ hasText: "Action confirmed" }).waitFor();
+  }
   assert.ok(await page.getByRole("list").count());
   const more = page.locator('[data-presentation="disclosure"] > summary');
   assert.equal(

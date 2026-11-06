@@ -1,4 +1,5 @@
 import { CaptureCache } from "./capture-cache.mjs";
+import { DocumentPublisher } from "./src/document-channel.mjs";
 import { Workspace } from "./workspace.mjs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
@@ -34,6 +35,7 @@ async function printInvitation() {
   );
 }
 const pairings = new Map();
+const documentPublishers = new Map();
 const equal = (a, b) =>
   typeof a === "string" &&
   a.length === b.length &&
@@ -65,7 +67,7 @@ const handler = async (request, response) => {
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'",
+      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'",
     );
     if (request.headers.host !== new URL(origin).host)
       return respond(response, 403, { error: "Host rejected" });
@@ -78,6 +80,23 @@ const handler = async (request, response) => {
       )
         return respond(response, 403, { error: "Origin rejected" });
       const data = await readJson(request);
+      if (url.pathname === "/api/document" && !desktop) {
+        if (data.profile !== "browser.document.v1") throw Error("Document profile required");
+        const auth = credentials(request);
+        await admin({ op: "auth", ...auth });
+        const page = workspace.active;
+        const source = workspace.pages.get(page)?.document;
+        if (!source) throw Error("No document");
+        const snapshot = await source.capture();
+        await admin({ op: "auth", ...auth });
+        if (workspace.active !== page) throw Error("Selected tab changed");
+        if (!documentPublishers.has(auth.client) && documentPublishers.size >= 32) throw Error("Document viewer limit");
+        let publisher = documentPublishers.get(auth.client);
+        if (!publisher || publisher.snapshot?.revision !== data.revision || publisher.snapshot?.generation !== data.generation) publisher = new DocumentPublisher();
+        const packet = publisher.publish(snapshot);
+        documentPublishers.set(auth.client, publisher);
+        return respond(response, 200, packet);
+      }
       if (url.pathname === "/api/pair") {
         for (const [ticket, pending] of pairings)
           if (pending.expires < Date.now()) pairings.delete(ticket);

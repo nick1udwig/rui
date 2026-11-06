@@ -1,4 +1,5 @@
 import { SemanticNodes } from "../shared/semantic-nodes.mjs";
+import { BrowserDocument } from "./document.mjs";
 import { chromium } from "playwright";
 import { randomBytes } from "node:crypto";
 import { readdir, realpath, lstat, mkdir } from "node:fs/promises";
@@ -125,6 +126,7 @@ export class Workspace {
       id: randomBytes(12).toString("hex"),
       generation: 1,
       sessions: new Map(),
+      document: new BrowserDocument(page),
     };
     for (const event of [
       "framenavigated",
@@ -150,6 +152,7 @@ export class Workspace {
       if (session) void session.detach().catch(() => {});
     });
     page.on("close", () => {
+      entry.document.dispose();
       this.pages.delete(page);
       if (this.active === page) this.active = this.pages.keys().next().value;
       this.secrets.clear();
@@ -316,6 +319,10 @@ export class Workspace {
     if (page && !page.isClosed()) {
       const entry = this.pages.get(page),
         prefix = `${entry.id}:${entry.generation}`;
+      rootChildren.push(add(this.semantic.node(`${prefix}:document`, {
+        role: "text", label: "Page document", kind: "document-command", value: "",
+        description: entry.document.generation, actions: ["SetValue"],
+      }, { op: "document", page })));
       toolbar.push(
         add(
           this.semantic.node(
@@ -780,6 +787,9 @@ export class Workspace {
       }
       const page = target.page;
       switch (target.op) {
+        case "document":
+          await this.pages.get(page).document.dispatch(JSON.parse(value));
+          break;
         case "navigate": {
           const url = new URL(value);
           if (

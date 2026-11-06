@@ -91,6 +91,7 @@ pub fn snapshot_with_vectors(capture: &Capture, batch: bool) -> Result<p::Snapsh
             !matches!(
                 k.as_str(),
                 "text"
+                    | "document-command"
                     | "password"
                     | "email"
                     | "url"

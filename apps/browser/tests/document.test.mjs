@@ -59,10 +59,20 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(await frame.locator('h1').textContent(), 'Updated');
     assert.equal(await frame.locator('#field').evaluate(n => n === globalThis.savedField && n === document.activeElement && n.selectionStart === 2), true);
     assert.equal(await frame.locator('#field').inputValue(), 'draft');
+    const find = (node, predicate) => predicate(node) ? node : (node.children || []).map(n => find(n, predicate)).find(Boolean);
+    const field = find(update.root, n => n.attrs?.id === 'field');
+    await source.dispatch({ generation: update.generation, revision: update.revision, node: field.id, action: 'value', expected: 'live', value: 'Remote 🙂' });
+    assert.equal(await host.locator('#field').inputValue(), 'Remote 🙂');
+    await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: field.id, action: 'value', expected: 'live', value: 'stale' }), /changed/);
+    const button = find(update.root, n => n.tag === 'button');
+    await source.dispatch({ generation: update.generation, revision: update.revision, node: button.id, action: 'click' });
+    await host.waitForLoadState('networkidle');
+    assert.equal(unexpected, 1);
     await viewer.locator('iframe').evaluate(n => n.style.width = '900px');
     assert.equal(await frame.locator('main').evaluate(n => getComputedStyle(n).gridTemplateColumns.split(' ').length), 2);
     await host.reload();
     assert.notEqual((await source.capture()).generation, snapshot.generation);
+    await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: button.id, action: 'click' }), /Stale/);
   } finally {
     source?.dispose();
     await browser?.close();

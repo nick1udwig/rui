@@ -1,5 +1,6 @@
 import { BrowserClient, type Semantic, type State } from "@rui/client-browser";
 import "./style.css";
+import { DocumentView } from "./document-view.mjs";
 const workspace =
   document.documentElement.dataset.workspace === "desktop"
     ? "desktop"
@@ -91,6 +92,14 @@ type Row = {
   filter?: HTMLInputElement;
 };
 const rows = new Map<bigint, Row>();
+let documentTarget: bigint | undefined;
+const documentContainer = document.createElement("section");
+view.before(documentContainer);
+const documentView = workspace === "browser" ? new DocumentView(documentContainer, api, command => {
+  if (client?.hasControl && !client.pendingCommands && documentTarget !== undefined) {
+    try { client.setBrowserValue(documentTarget, JSON.stringify(command)); } catch (error) { say(error); }
+  }
+}, () => !!client?.hasControl && !client.pendingCommands, say) : undefined;
 let renderedState: State | undefined;
 function enabled(node: Semantic) {
   return (
@@ -305,6 +314,8 @@ function sourceValue(node: Semantic) {
       : "";
 }
 function reset() {
+  documentView?.stop();
+  documentTarget = undefined;
   renderedState = undefined;
   authority++;
   for (const row of rows.values()) if (row.input) row.input.value = "";
@@ -357,6 +368,10 @@ function render(state: State) {
     }
     row.node = node;
     const kind = node.browser_input_type ?? "";
+    if (kind === "document-command") {
+      row.element.hidden = true;
+      documentTarget = node.id;
+    }
     if (row.kind !== kind) {
       row.kind = kind;
       row.element.dataset.presentation = kind.startsWith("view:")
@@ -491,6 +506,7 @@ async function connectHost() {
             const state = client!.state!;
             render(state);
             client!.semanticReady(state.revision);
+            documentView?.start();
           } catch (error) {
             say(error);
           }

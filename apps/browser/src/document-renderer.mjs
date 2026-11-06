@@ -4,10 +4,12 @@ const BLOCKED = new Set(["script", "noscript", "iframe", "object", "embed", "bas
 const SAFE_ATTR = /^(id|class|title|lang|dir|role|aria-[\w-]+|data-[\w-]+|style|width|height|viewBox|d|fill|stroke|stroke-width|transform|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|points|xmlns|type|name|placeholder|disabled|readonly|required|min|max|step|multiple|rows|cols|colspan|rowspan|alt)$/;
 
 export class DocumentRenderer {
-  constructor(iframe) {
+  constructor(iframe, dispatch = () => {}, canControl = () => false) {
     this.iframe = iframe;
     iframe.setAttribute("sandbox", "allow-same-origin");
     this.generation = null;
+    this.dispatch = dispatch;
+    this.canControl = canControl;
   }
   async render(snapshot) {
     if (!snapshot.root || JSON.stringify(snapshot).length > 8 * 1024 * 1024) throw Error("Document limit");
@@ -17,8 +19,26 @@ export class DocumentRenderer {
       iframe.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"></head><body></body></html>`;
     });
     const doc = iframe.contentDocument;
+    if (snapshot.generation !== this.generation) {
+      const send = (node, action) => {
+        if (!this.canControl()) return;
+        this.dispatch({ generation: this.generation, revision: this.revision, node, ...action });
+      };
+      doc.addEventListener("click", event => {
+        event.preventDefault();
+        const target = event.composedPath().find(node => this.ids?.has(node));
+        if (target) send(this.ids.get(target), { action: "click" });
+      }, true);
+      doc.addEventListener("beforeinput", event => { if (!this.canControl()) event.preventDefault(); }, true);
+      doc.addEventListener("change", event => {
+        const node = this.ids?.get(event.target);
+        if (node && typeof event.target.value === "string") send(node, { action: "value", value: event.target.value, expected: this.values.get(node) });
+      }, true);
+    }
     const previous = snapshot.generation === this.generation ? this.nodes : new Map();
     this.nodes = new Map();
+    this.ids = new WeakMap();
+    this.values = new Map();
     let count = 0;
     const build = (node, depth = 0) => {
       if (++count > 20000 || depth > 128 || this.nodes.has(node.id)) throw Error("Document structure limit");
@@ -37,6 +57,8 @@ export class DocumentRenderer {
       const element = old?.localName === tag && old?.namespaceURI === ns ? old : doc.createElementNS(ns, tag);
       const keep = new Set();
       this.nodes.set(node.id, element);
+      this.ids.set(element, node.id);
+      if (typeof node.value === "string") this.values.set(node.id, node.value);
       for (const [name, value] of Object.entries(node.attrs || {})) {
         if (SAFE_ATTR.test(name) && typeof value === "string") {
           keep.add(name);
