@@ -1,7 +1,7 @@
 const HTML = "http://www.w3.org/1999/xhtml";
 const SVG = "http://www.w3.org/2000/svg";
 const BLOCKED = new Set(["script", "noscript", "iframe", "object", "embed", "base", "meta", "link", "style", "foreignObject", "animate", "set"]);
-const SAFE_ATTR = /^(id|class|title|lang|dir|role|aria-[\w-]+|data-[\w-]+|style|width|height|viewBox|d|fill|stroke|stroke-width|transform|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|points|xmlns|type|name|placeholder|disabled|readonly|required|min|max|step|multiple|rows|cols|colspan|rowspan|alt)$/;
+const SAFE_ATTR = /^(id|class|title|lang|dir|role|aria-[\w-]+|data-[\w-]+|style|width|height|viewBox|d|fill|stroke|stroke-width|transform|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|points|xmlns|type|name|placeholder|disabled|readonly|required|min|max|step|multiple|rows|cols|colspan|rowspan|alt|for|value|selected|checked|open|tabindex|contenteditable|spellcheck|autocomplete|inputmode|pattern|accept|size|wrap|controls|loop|muted|playsinline|preload)$/;
 
 export class DocumentRenderer {
   constructor(iframe, dispatch = () => {}, canControl = () => false, media, frames = []) {
@@ -12,6 +12,7 @@ export class DocumentRenderer {
     this.canControl = canControl;
     this.media = media;
     this.route = frames;
+    this.drafts = new Map();
   }
   async render(snapshot) {
     if (!snapshot.root || JSON.stringify(snapshot).length > 8 * 1024 * 1024) throw Error("Document limit");
@@ -23,18 +24,40 @@ export class DocumentRenderer {
     const doc = iframe.contentDocument;
     if (snapshot.generation !== this.generation) {
       const send = (node, action) => {
-        if (!this.canControl()) return;
+        if (!this.canControl() || this.generation !== snapshot.generation || iframe.contentDocument !== doc) return;
         this.dispatch({ generation: this.generation, revision: this.revision, node, ...action });
       };
       doc.addEventListener("click", event => {
         event.preventDefault();
         const target = event.composedPath().find(node => this.ids?.has(node));
-        if (target) send(this.ids.get(target), { action: "click" });
+        if (target) {
+          const rect = target.getBoundingClientRect();
+          const position = event.detail && rect.width && rect.height ? { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) } : undefined;
+          send(this.ids.get(target), { action: "click", position });
+        }
       }, true);
-      doc.addEventListener("beforeinput", event => { if (!this.canControl()) event.preventDefault(); }, true);
+      doc.addEventListener("beforeinput", event => {
+        if (!this.canControl()) { event.preventDefault(); return; }
+        const id = this.ids?.get(event.target);
+        if (id && !this.drafts.has(id)) this.drafts.set(id, this.values.get(id));
+      }, true);
       doc.addEventListener("change", event => {
         const node = this.ids?.get(event.target);
-        if (node && typeof event.target.value === "string") send(node, { action: "value", value: event.target.value, expected: this.values.get(node) });
+        if (node && typeof event.target.value === "string") { send(node, { action: "value", value: event.target.value, expected: this.drafts.has(node) ? this.drafts.get(node) : this.values.get(node) }); this.drafts.delete(node); }
+      }, true);
+      doc.addEventListener("focusout", event => {
+        const node = this.ids?.get(event.target);
+        if (node && event.target.isContentEditable && this.drafts.has(node)) {
+          send(node, { action: "rich-value", value: event.target.textContent, expected: this.drafts.get(node) });
+          this.drafts.delete(node);
+        }
+      }, true);
+      let scrollTimer;
+      doc.addEventListener("scroll", event => {
+        const target = event.target === doc ? doc.scrollingElement : event.target;
+        const node = this.ids?.get(target);
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => { if (node && target.isConnected) send(node, { action: "scroll", x: target.scrollLeft, y: target.scrollTop }); }, 100);
       }, true);
     }
     const previous = snapshot.generation === this.generation ? this.nodes : new Map();
@@ -85,7 +108,7 @@ export class DocumentRenderer {
       } else if (blocked || ["canvas", "video", "audio"].includes(node.tag)) {
         element.textContent = `Unsupported region: ${node.tag}`;
         element.setAttribute("data-rui-unsupported", node.tag);
-      } else {
+      } else if (!(element === doc.activeElement && element.isContentEditable && this.drafts.has(node.id))) {
         const children = (node.children || []).map(child => build(child, depth + 1));
         let cursor = element.firstChild;
         for (const child of children) {

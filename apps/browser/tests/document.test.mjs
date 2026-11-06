@@ -32,6 +32,8 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
       const host = document.createElement('x-card');
       host.attachShadow({ mode: 'open' }).innerHTML = '<style>p {color:rgb(10,20,30)}</style><p>Shadow text</p>';
       document.body.append(host);
+      const editor = document.createElement('div'); editor.id = 'rich'; editor.contentEditable = 'true'; editor.innerHTML = '<b>Bold</b> text'; document.body.append(editor);
+      const select = document.createElement('select'); select.id = 'choice'; select.innerHTML = '<option value="a">Alpha</option><option value="b">Beta</option>'; document.body.append(select);
     }, server.address().port);
     await host.frameLocator('iframe').getByText('Embedded content').waitFor();
     source = new BrowserDocument(host);
@@ -73,6 +75,14 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(await frame.locator('#field').inputValue(), 'draft');
     const find = (node, predicate) => predicate(node) ? node : (node.children || []).map(n => find(n, predicate)).find(Boolean);
     const field = find(update.root, n => n.attrs?.id === 'field');
+    const editor = find(update.root, n => n.attrs?.id === 'rich');
+    await source.dispatch({ generation: update.generation, revision: update.revision, node: editor.id, action: 'rich-value', expected: 'Bold text', value: 'Bold te🙂xt' });
+    assert.equal(await host.locator('#rich').textContent(), 'Bold te🙂xt');
+    assert.equal(await host.locator('#rich b').textContent(), 'Bold');
+    await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: editor.id, action: 'rich-value', expected: 'Bold text', value: 'stale' }), /changed/);
+    const select = find(update.root, n => n.attrs?.id === 'choice');
+    await source.dispatch({ generation: update.generation, revision: update.revision, node: select.id, action: 'value', expected: 'a', value: 'b' });
+    assert.equal(await host.locator('#choice').inputValue(), 'b');
     await source.dispatch({ generation: update.generation, revision: update.revision, node: field.id, action: 'value', expected: 'live', value: 'Remote 🙂' });
     assert.equal(await host.locator('#field').inputValue(), 'Remote 🙂');
     await assert.rejects(source.dispatch({ generation: update.generation, revision: update.revision, node: field.id, action: 'value', expected: 'live', value: 'stale' }), /changed/);

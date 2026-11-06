@@ -93,13 +93,21 @@ type Row = {
 };
 const rows = new Map<bigint, Row>();
 let documentTarget: bigint | undefined;
+let documentCommands: unknown[] = [];
+function drainDocumentCommands() {
+  if (client?.hasControl && !client.pendingCommands && documentTarget !== undefined && documentCommands.length) {
+    const command = documentCommands.shift();
+    try { client.setBrowserValue(documentTarget, JSON.stringify(command)); } catch (error) { documentCommands = []; say(error); }
+  }
+}
 const documentContainer = document.createElement("section");
 view.before(documentContainer);
 const documentView = workspace === "browser" ? new DocumentView(documentContainer, api, command => {
-  if (client?.hasControl && !client.pendingCommands && documentTarget !== undefined) {
-    try { client.setBrowserValue(documentTarget, JSON.stringify(command)); } catch (error) { say(error); }
-  }
-}, () => !!client?.hasControl && !client.pendingCommands, say) : undefined;
+  if (!client?.hasControl) return;
+  if (documentCommands.length >= 16) { say("Page input queue full. Wait for the host."); return; }
+  documentCommands.push(command);
+  drainDocumentCommands();
+}, () => !!client?.hasControl, say) : undefined;
 let renderedState: State | undefined;
 function enabled(node: Semantic) {
   return (
@@ -315,6 +323,7 @@ function sourceValue(node: Semantic) {
 }
 function reset() {
   documentView?.stop();
+  documentCommands = [];
   documentTarget = undefined;
   renderedState = undefined;
   authority++;
@@ -511,9 +520,10 @@ async function connectHost() {
             say(error);
           }
         }
-        if (event.type === "semanticReady") refreshControls();
+        if (event.type === "semanticReady") { refreshControls(); queueMicrotask(drainDocumentCommands); }
         if (event.type === "control") {
           if (!event.granted) {
+            documentCommands = [];
             authority++;
             for (const row of rows.values())
               if (row.kind === "password" && row.input) row.input.value = "";
@@ -521,6 +531,7 @@ async function connectHost() {
           refresh();
         }
         if (event.type === "commandResult") {
+          queueMicrotask(drainDocumentCommands);
           say(
             event.status.toLowerCase() === "dispatched"
               ? "Action sent to the host. Content updates separately."

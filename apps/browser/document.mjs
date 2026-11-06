@@ -31,6 +31,7 @@ function observeDocument(key) {
       result.checked = !!node.checked;
       if (node.type === "password") delete attrs.value;
     }
+    if (node.isContentEditable && !node.parentElement?.isContentEditable) result.value = node.textContent;
     if (["canvas", "video", "audio", "iframe", "object", "embed"].includes(tag)) {
       if (typeof node.captureStream === "function") result.media = true;
       else unsupported.push({ id: result.id, kind: tag });
@@ -105,12 +106,48 @@ export class BrowserDocument {
     try {
       const element = handle.asElement();
       if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw Error("Unavailable document target");
-      if (command.action === "click") await element.click({ timeout: 1000 });
+      if (command.action === "click") {
+        let position;
+        if (command.position) {
+          if (![command.position.x, command.position.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw Error("Pointer position rejected");
+          const box = await element.boundingBox();
+          if (!box) throw Error("Invisible target");
+          position = { x: command.position.x * box.width, y: command.position.y * box.height };
+        }
+        await element.click({ timeout: 1000, position });
+      }
       else if (command.action === "value") {
         if (typeof command.value !== "string" || command.value.length > 16384) throw Error("Text limit");
         const valid = await element.evaluate((n, expected) => n.type !== 'password' && String(n.value ?? '') === expected, command.expected);
         if (!valid) throw Error("Source text changed");
-        await element.fill(command.value, { timeout: 1000 });
+        if (await element.evaluate(n => n.localName === 'select')) await element.selectOption(command.value, { timeout: 1000 });
+        else await element.fill(command.value, { timeout: 1000 });
+      } else if (command.action === "rich-value") {
+        if (typeof command.value !== 'string' || command.value.length > 16384 || typeof command.expected !== 'string') throw Error("Text limit");
+        const edit = await element.evaluate((n, command) => {
+          if (!n.isContentEditable || n.textContent !== command.expected) return null;
+          if (command.expected === command.value) return { noop: true };
+          const before = command.expected, after = command.value;
+          let start = 0, tail = 0;
+          while (start < before.length && start < after.length && before[start] === after[start]) start++;
+          if (start && /[\uD800-\uDBFF]/.test(before[start - 1])) start--;
+          while (tail < before.length - start && tail < after.length - start && before[before.length - tail - 1] === after[after.length - tail - 1]) tail++;
+          if (tail && /[\uDC00-\uDFFF]/.test(before[before.length - tail])) tail--;
+          const boundary = offset => {
+            const walker = document.createTreeWalker(n, NodeFilter.SHOW_TEXT);
+            let text;
+            while ((text = walker.nextNode())) { if (offset <= text.length) return [text, offset]; offset -= text.length; }
+            return [n, n.childNodes.length];
+          };
+          n.focus();
+          const range = document.createRange(); range.setStart(...boundary(start)); range.setEnd(...boundary(before.length - tail));
+          const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+          return { text: after.slice(start, after.length - tail) };
+        }, command);
+        if (!edit) throw Error("Source text changed");
+        if (edit.noop) return;
+        if (edit.text) await this.page.keyboard.insertText(edit.text);
+        else await this.page.keyboard.press('Backspace');
       } else if (command.action === "scroll") {
         if (![command.x, command.y].every(n => Number.isFinite(n) && Math.abs(n) <= 10000000)) throw Error("Scroll limit");
         await element.evaluate((n, c) => n.scrollTo(c.x, c.y), command);
