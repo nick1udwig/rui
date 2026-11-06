@@ -182,6 +182,8 @@ Media encoding follows the displayed width, with device pixel ratio capped at 1.
 The default profile caps width at 960 pixels and frame rate at 30 fps.
 Sustained decoder pressure reduces the profile to 480 pixels and 15 fps.
 Offscreen media stops drawing picture frames while its audio remains connected.
+Visible still media repeats its last frame twice per second to keep the encoder and decoder supplied.
+Static canvases can start from an initial canvas copy before their capture stream has a frame.
 Canvas uses a 100 ms recording interval; video uses 250 ms.
 Quality changes restart only the affected media stream, with a 15-second minimum interval.
 Media sessions expire without renewal and close when the view is retired or hidden.

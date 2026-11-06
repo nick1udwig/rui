@@ -106,7 +106,7 @@ export class DocumentMediaView {
       try {
         entry.frameAt = Date.now();
         this.metrics.frames++;
-        if (entry.player !== entry.element && entry.player.readyState >= 2) entry.element.getContext('2d').drawImage(entry.player, 0, 0, entry.element.width, entry.element.height);
+        if (entry.player !== entry.element) entry.element.getContext('2d').drawImage(entry.player, 0, 0, entry.element.width, entry.element.height);
         entry.frame = entry.player.requestVideoFrameCallback(draw);
       } catch (error) { this.fail(entry, error); }
     };

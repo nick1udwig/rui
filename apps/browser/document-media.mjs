@@ -63,13 +63,14 @@ export class DocumentMedia {
               }
               const scaled = session.scaled = canvas.captureStream(0), track = scaled.getVideoTracks()[0];
               for (const audioTrack of stream.getAudioTracks()) scaled.addTrack(audioTrack);
-              let lastTime;
+              let lastTime, lastDraw = -Infinity;
               const draw = () => {
                 if (session.closed) return;
                 try {
+                  const frame = picture.readyState >= 2 ? picture : element.localName === 'canvas' ? element : null;
                   const stamp = picture.getVideoPlaybackQuality?.().totalVideoFrames ?? picture.currentTime;
-                  if (session.visible && picture.readyState >= 2 && stamp !== lastTime) {
-                    context.drawImage(picture, 0, 0, canvas.width, canvas.height); track.requestFrame(); lastTime = stamp;
+                  if (session.visible && frame && (stamp !== lastTime || performance.now() - lastDraw >= 500)) {
+                    context.drawImage(frame, 0, 0, canvas.width, canvas.height); track.requestFrame(); lastTime = stamp; lastDraw = performance.now();
                   }
                   session.drawTimer = setTimeout(draw, 1000 / preset.fps);
                 } catch { close(); }
