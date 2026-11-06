@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Install build tools
         run: apt-get update && apt-get install -y --no-install-recommends build-essential protobuf-compiler python3 ca-certificates curl git
+      - name: Match browser home ownership to the container user
+        run: chown "$(id -u):$(id -g)" "$HOME"
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -55,77 +57,14 @@ jobs:
           retention-days: 7
 
   gtk-integration:
-    # This runner supplies the pinned native environment; Ubuntu's default GTK
-    # is not the cooperating adapter's ABI or capture contract.
-    runs-on: [self-hosted, linux, x64, rui-gtk-4.22.4]
-    timeout-minutes: 30
-    env:
-      RUI_TEST_BROWSERS: chromium
-      RUI_BROWSER_HEADED: '1'
-      RUI_BROWSER_HTTPS: '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.98.1
-          targets: wasm32-unknown-unknown
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26.8.1
-      - name: Verify pinned native environment
-        run: |
-          test "$(pkg-config --modversion gtk4)" = 4.22.4
-          test "$(pkg-config --modversion cairo)" = 1.18.4
-          test -x "$(command -v Xvfb)"
-          python3 -c 'import gi, cairo'
-      - name: Install the exact binding generator
-        run: |
-          version=$(python3 -c 'import tomllib; print(tomllib.load(open("client-wasm/Cargo.toml", "rb"))["dependencies"]["wasm-bindgen"].removeprefix("="))')
-          cargo install wasm-bindgen-cli --version "$version" --locked
-      - run: python3 client-wasm/build.py
-      - run: npm --prefix client-browser ci && npm --prefix demos/web ci && npm --prefix demos/semantic ci
-      - run: npm --prefix client-browser exec -- playwright install chromium
-      - run: npm --prefix client-browser run build && npm --prefix demos/web run build
-      - run: cargo build --release -p rui-client-desktop --features gtk-demo --bins --locked
-      - name: Installed tarball with production HTTPS and replacement adapters
-        run: python3 client-browser/tests/package-live.py --xvfb "$(command -v Xvfb)"
-      - name: Installed-package lifecycle ownership and actual hidden-tab recovery
-        env:
-          RUI_LIFECYCLE: '1'
-        run: python3 client-browser/tests/package-live.py --xvfb "$(command -v Xvfb)"
-      - name: Native shared actor and canonical-clock IME
-        run: |
-          cargo build --release -p rui-client-desktop --features gtk-source-probe --example gtk_source_probe --locked
-          python3 fixtures/gtk/mirror_check.py --xvfb "$(command -v Xvfb)" --scenario composition --output "$RUNNER_TEMP/rui-shared-native"
-      - name: Submitted-node coverage with unsupported-content companion
-        run: |
-          python3 fixtures/gtk/measure.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-coverage"
-          python3 fixtures/gtk/negative_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-negatives"
-          python3 fixtures/gtk/inventory.py "$RUNNER_TEMP/rui-coverage/measurement.json" "$RUNNER_TEMP/rui-negatives/negative-report.json" --output "$RUNNER_TEMP/rui-inventory.json"
-      - name: Native square-border comparison
-        run: |
-          cargo build --release -p rui-client-desktop --example render_capture --locked
-          python3 fixtures/gtk/border_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-borders"
-      - name: Second registered application commands
-        run: |
-          cargo build -p rui-producer-sdk --features gtk-fixture-hooks --bin gtk_command_check --locked
-          python3 fixtures/gtk/native_check.py --case editor --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-editor"
-      - name: Semantic-only portable session on both owned applications
-        run: |
-          python3 demos/semantic/session_check.py --dom-controls --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-semantic-corpus"
-          python3 demos/semantic/session_check.py --dom-controls --xvfb "$(command -v Xvfb)" --application editor --output "$RUNNER_TEMP/rui-semantic-editor"
-      - name: Distinct semantic and mirror clients with lifecycle faults
-        run: |
-          RUI_RESOURCE_RECOVERY=1 python3 demos/semantic/presentation_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-presentation-corpus"
-          RUI_RESOURCE_RECOVERY=1 python3 demos/semantic/presentation_check.py --xvfb "$(command -v Xvfb)" --application editor --output "$RUNNER_TEMP/rui-presentation-editor"
-      - name: Read-only observed applications on private accessibility bus
-        run: python3 fixtures/atspi/native_check.py --xvfb "$(command -v Xvfb)" --output "$RUNNER_TEMP/rui-observed"
-      - name: Development serving, live edits and hidden-tab lifecycle
-        run: python3 demos/web/check.py --xvfb "$(command -v Xvfb)" --timeout 90
-      - name: Production serving, live edits and hidden-tab lifecycle
-        env:
-          RUI_BROWSER_BUILD: '1'
-        run: python3 demos/web/check.py --xvfb "$(command -v Xvfb)" --timeout 90
+      - name: Build pinned native environment
+        run: docker build -f ci/gtk.Dockerfile -t rui-gtk-ci ci
+      - name: Run all native and browser integration checks
+        run: docker run --rm --init --ipc=host -v "$PWD:/workspace" -v "$RUNNER_TEMP:/ci-output" -e RUI_CI_OUTPUT=/ci-output/rui-gtk-ci rui-gtk-ci bash ci/gtk-check.sh
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
