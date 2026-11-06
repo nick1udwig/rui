@@ -137,7 +137,14 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
   Canvas and slider drags send bounded paths to the host.
 - Scrolling the page or a nested scroll region also scrolls its source region to trigger lazy loading.
   The separate reading view uses sections of 400 semantic entries.
-- An action receipt means **dispatched**, not that a website has completed its work. Page state arrives separately. Pending commands can be explicitly retried with their original identity; gestures are never automatically replayed. A full page reload abandons pending client results, but continues above the host's command high-water mark so it cannot reuse an old command identity.
+- An action receipt means **dispatched**.
+  Website loading and page updates continue separately.
+  **Check action status** retrieves the result of a pending command with its original identity.
+  If the host cannot confirm the result, inspect the host page and select **Check host, then reconnect**.
+  Take control again after reconnection.
+  This clears the pending local result without repeating the action or reusing its command identity.
+  Stale or unavailable targets are rejected without blocking later actions.
+  Address drafts remain editable while background viewport commands wait for results.
 
 ## Current limits
 
@@ -206,6 +213,11 @@ The document acceptance checks cover the following cases.
 | Attachment | Existing-browser actions, excess-tab preservation, viewport restoration and non-destructive detach |
 | Paired application | Resource integrity rejection/recovery, control, reconnect, restart, revocation and proxy path mounting |
 
+The paired control regression runs with `npm --prefix apps/browser run test:control`.
+It checks slow navigation, touch input, keyboard viewport changes, delayed command receipts, and uncertain-action recovery.
+Use `RUI_TEST_HEADED=1 RUI_TEST_PUBLIC=1 npm --prefix apps/browser run test:control` to include a visible host browser and live YouTube search.
+These checks simulate a phone viewport; they do not replace testing on a physical phone.
+
 The phone-mode test starts a temporary real Tailscale Serve route and checks HTTPS without a certificate bypass.
 It requires a signed-in local Tailscale daemon and removes the temporary route after the test.
 The public-site probe requires network access and current site availability.
@@ -222,7 +234,8 @@ The negotiated `browser.semantic.v1` profile adds optional input-type metadata a
 
 Clean browser observations are reused for up to one second.
 Accessibility and page lifecycle events invalidate this cache.
-Every command still captures and validates current source state before dispatch.
+Document and navigation commands validate the selected page and source generation without a full accessibility crawl.
+Other semantic commands refresh their source state before dispatch.
 
 
 ## Document transport

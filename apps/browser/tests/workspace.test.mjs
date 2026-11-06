@@ -98,6 +98,32 @@ test(
           structured.nodes.some((n) => n.kind === kind),
           kind,
         );
+      await page.evaluate(() => {
+        const button = document.createElement('button');
+        button.id = 'document-target'; button.textContent = 'Document action';
+        button.onclick = () => { button.textContent = 'Document action received'; };
+        document.body.append(button);
+      });
+      const source = workspace.pages.get(page).document;
+      const snapshot = await source.capture();
+      const find = node => node.attrs?.id === 'document-target' ? node : (node.children || []).map(find).find(Boolean);
+      const documentButton = find(snapshot.root);
+      const documentTarget = (await workspace.capture()).nodes.find(n => n.kind === 'document-command');
+      const command = { generation: snapshot.generation, revision: snapshot.revision, node: documentButton.id, action: 'click' };
+      const sendDocument = value => workspace.dispatch({ target: documentTarget.id, version: documentTarget.version, action: 'SetValue', value, deadlineMs: 2000 });
+      assert.equal((await sendDocument('{invalid')).status, 'rejected');
+      assert.equal((await sendDocument(JSON.stringify({ ...command, generation: 'stale' }))).status, 'rejected');
+      await page.locator('#document-target').evaluate(n => n.hidden = true);
+      assert.equal((await sendDocument(JSON.stringify(command))).status, 'rejected', 'An unclickable target has no uncertain action');
+      await page.locator('#document-target').evaluate(n => n.hidden = false);
+      const capture = workspace.capture;
+      workspace.capture = async () => { throw Error('Actions must not wait for a full accessibility crawl'); };
+      try { assert.equal((await sendDocument(JSON.stringify(command))).status, 'dispatched'); }
+      finally { workspace.capture = capture; }
+      assert.equal(await page.locator('#document-target').textContent(), 'Document action received');
+      await page.frames()[1].goto(`http://127.0.0.1:${server.address().port}/frame`);
+      assert.equal((await sendDocument(JSON.stringify(command))).status, 'dispatched', 'Child navigation does not retire the parent document target');
+      assert.equal((await workspace.capture()).nodes.find(n => n.kind === 'document-command').id, documentTarget.id);
       await dispatch("Increment");
       assert.equal(await page.locator("#result").textContent(), "Clicked");
       await dispatch("Name", "café Ω 𝄞");

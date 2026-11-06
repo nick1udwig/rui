@@ -53,6 +53,8 @@ function observeDocument(key) {
   return { root: visit(document.documentElement), styles, unsupported, base: document.baseURI, width: innerWidth, height: innerHeight };
 }
 
+export class DocumentActionRejected extends Error {}
+
 export class BrowserDocument {
   constructor(page, preserveWindow = false) {
     this.preserveWindow = preserveWindow;
@@ -118,13 +120,13 @@ export class BrowserDocument {
   async dispatch(command) {
     if (command.frames?.length) {
       const [route, ...frames] = command.frames;
-      if (command.frames.length > 16 || route.generation !== this.generation || !this.frames.has(route.node)) throw Error("Stale frame route");
+      if (command.frames.length > 16 || route.generation !== this.generation || !this.frames.has(route.node)) throw new DocumentActionRejected("Stale frame route");
       return this.frames.get(route.node).dispatch({ ...command, frames });
     }
-    if (command.generation !== this.generation || !Number.isSafeInteger(command.revision) || command.revision < 1 || command.revision > this.revision) throw Error("Stale document");
+    if (command.generation !== this.generation || !Number.isSafeInteger(command.revision) || command.revision < 1 || command.revision > this.revision) throw new DocumentActionRejected("Stale document");
     if (command.action === "resize") {
       const { width, height } = command;
-      if (![width, height].every(n => Number.isInteger(n) && n >= 240 && n <= 2560)) throw Error("Viewport limit");
+      if (![width, height].every(n => Number.isInteger(n) && n >= 240 && n <= 2560)) throw new DocumentActionRejected("Viewport limit");
       if (this.preserveWindow) {
         this.viewportSession ||= await this.page.context().newCDPSession(this.page);
         await this.viewportSession.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 0, mobile: false, dontSetVisibleSize: true });
@@ -132,34 +134,36 @@ export class BrowserDocument {
       this.viewportChanged = true;
       return;
     }
-    if (!Number.isSafeInteger(command.node)) throw Error("Invalid document target");
+    if (!Number.isSafeInteger(command.node)) throw new DocumentActionRejected("Invalid document target");
     const handle = await this.frame.evaluateHandle(({ key, id }) => globalThis[key]?.reverse.get(id), { key: this.key, id: command.node });
     try {
       const element = handle.asElement();
-      if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw Error("Unavailable document target");
+      if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw new DocumentActionRejected("Unavailable document target");
       await this.page.bringToFront();
       if (command.action === "click") {
         let position;
         if (command.position) {
-          if (![command.position.x, command.position.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw Error("Pointer position rejected");
+          if (![command.position.x, command.position.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new DocumentActionRejected("Pointer position rejected");
           const box = await element.boundingBox();
-          if (!box) throw Error("Invisible target");
+          if (!box) throw new DocumentActionRejected("Invisible target");
           position = { x: command.position.x * box.width, y: command.position.y * box.height };
         }
-        await element.click({ timeout: 1000, position });
+        try { await element.click({ trial: true, timeout: 1000, position }); }
+        catch { throw new DocumentActionRejected("Target is no longer clickable. Wait for the page update and try again."); }
+        await element.click({ timeout: 1000, position, noWaitAfter: true });
       }
       else if (command.action === "drag") {
         const points = command.points;
-        if (!Array.isArray(points) || points.length < 2 || points.length > 64 || !points.every(p => [p.x, p.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1))) throw Error("Drag path rejected");
+        if (!Array.isArray(points) || points.length < 2 || points.length > 64 || !points.every(p => [p.x, p.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1))) throw new DocumentActionRejected("Drag path rejected");
         await element.scrollIntoViewIfNeeded({ timeout: 1000 });
         if (!await element.evaluate((n, point) => {
           const box = n.getBoundingClientRect();
           const root = n.getRootNode();
           const hit = root.elementFromPoint(box.left + box.width * point.x, box.top + box.height * point.y);
           return hit === n || n.contains(hit);
-        }, points[0])) throw Error("Drag target obscured");
+        }, points[0])) throw new DocumentActionRejected("Drag target obscured");
         const box = await element.boundingBox();
-        if (!box) throw Error("Invisible drag target");
+        if (!box) throw new DocumentActionRejected("Invisible drag target");
         const position = point => [box.x + box.width * point.x, box.y + box.height * point.y];
         await this.page.mouse.move(...position(points[0]));
         await this.page.mouse.down();
@@ -167,15 +171,15 @@ export class BrowserDocument {
         finally { await this.page.mouse.up(); }
       }
       else if (command.action === "value") {
-        if (typeof command.value !== "string" || command.value.length > 16384) throw Error("Text limit");
-        if (command.key !== undefined && command.key !== "Enter") throw Error("Unsupported submit key");
+        if (typeof command.value !== "string" || command.value.length > 16384) throw new DocumentActionRejected("Text limit");
+        if (command.key !== undefined && command.key !== "Enter") throw new DocumentActionRejected("Unsupported submit key");
         const valid = await element.evaluate((n, expected) => n.type !== 'password' && String(n.value ?? '') === expected, command.expected);
-        if (!valid) throw Error("Source text changed");
+        if (!valid) throw new DocumentActionRejected("Source text changed");
         if (await element.evaluate(n => n.localName === 'select')) await element.selectOption(command.value, { timeout: 1000 });
         else await element.fill(command.value, { timeout: 1000 });
         if (command.key) await element.press(command.key, { timeout: 1000 });
       } else if (command.action === "rich-value") {
-        if (typeof command.value !== 'string' || command.value.length > 16384 || typeof command.expected !== 'string') throw Error("Text limit");
+        if (typeof command.value !== 'string' || command.value.length > 16384 || typeof command.expected !== 'string') throw new DocumentActionRejected("Text limit");
         const edit = await element.evaluate((n, command) => {
           if (!n.isContentEditable || n.textContent !== command.expected) return null;
           if (command.expected === command.value) return { noop: true };
@@ -196,14 +200,14 @@ export class BrowserDocument {
           const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
           return { text: after.slice(start, after.length - tail) };
         }, command);
-        if (!edit) throw Error("Source text changed");
+        if (!edit) throw new DocumentActionRejected("Source text changed");
         if (edit.noop) return;
         if (edit.text) await this.page.keyboard.insertText(edit.text);
         else await this.page.keyboard.press('Backspace');
       } else if (command.action === "scroll") {
-        if (![command.x, command.y].every(n => Number.isFinite(n) && Math.abs(n) <= 10000000)) throw Error("Scroll limit");
+        if (![command.x, command.y].every(n => Number.isFinite(n) && Math.abs(n) <= 10000000)) throw new DocumentActionRejected("Scroll limit");
         await element.evaluate((n, c) => n.scrollTo(c.x, c.y), command);
-      } else throw Error("Unsupported document action");
+      } else throw new DocumentActionRejected("Unsupported document action");
     } finally { await handle.dispose(); }
   }
   async asset(url) {

@@ -3,10 +3,11 @@ import { DocumentReceiver, DOCUMENT_PROFILE } from "./document-channel.mjs";
 import { DocumentMediaView } from "./document-media.mjs";
 
 export class DocumentView {
-  constructor(container, api, dispatch, canControl, report) {
+  constructor(container, api, dispatch, canControl, report, onRendered = () => {}) {
     this.container = container;
     this.api = api;
     this.report = report;
+    this.onRendered = onRendered;
     this.receiver = new DocumentReceiver();
     this.resources = new Map();
     this.resourceBytes = 0;
@@ -24,6 +25,7 @@ export class DocumentView {
     this.canControl = canControl;
     this.serial = 0;
   }
+  get generation() { return this.renderer.generation; }
   start() {
     if (this.running) return;
     this.running = true;
@@ -74,9 +76,16 @@ export class DocumentView {
           await this.renderer.render(snapshot);
           this.media.finish();
           this.failures = 0;
+          this.iframe.hidden = false;
           const width = Math.max(240, Math.min(2560, Math.round(this.iframe.clientWidth)));
           const height = Math.max(240, Math.min(2560, Math.round(this.iframe.clientHeight)));
-          if (this.canControl() && (snapshot.width !== width || snapshot.height !== height)) this.dispatch({ generation: snapshot.generation, revision: snapshot.revision, action: "resize", width, height });
+          const viewport = `${snapshot.generation}:${width}:${height}`;
+          if (!this.canControl() || (snapshot.width === width && snapshot.height === height)) this.requestedViewport = null;
+          else if (this.requestedViewport !== viewport && (snapshot.width !== width || snapshot.height !== height)) {
+            this.requestedViewport = viewport;
+            this.dispatch({ generation: snapshot.generation, revision: snapshot.revision, action: "resize", width, height });
+          }
+          this.onRendered();
         }
       } catch (error) {
         this.media.dispose();
@@ -93,6 +102,7 @@ export class DocumentView {
   }
   stop() {
     this.running = false;
+    this.requestedViewport = null;
     this.media.dispose();
     this.serial++;
     clearTimeout(this.timer);

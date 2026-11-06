@@ -1,5 +1,5 @@
 import { SemanticNodes } from "../shared/semantic-nodes.mjs";
-import { BrowserDocument } from "./document.mjs";
+import { BrowserDocument, DocumentActionRejected } from "./document.mjs";
 import { chromium } from "playwright";
 import { randomBytes } from "node:crypto";
 import { readdir, realpath, lstat, mkdir } from "node:fs/promises";
@@ -217,6 +217,12 @@ export class Workspace {
       session.on("Accessibility.loadComplete", () => this.invalidate());
       try {
         await session.send("Accessibility.enable");
+        if (frame === page.mainFrame()) {
+          session.on("Page.javascriptDialogClosed", () => {
+            if (this.dialog?.page === page) { this.dialog = undefined; this.invalidate(); }
+          });
+          await session.send("Page.enable");
+        }
       } catch (error) {
         await session.detach().catch(() => {});
         throw error;
@@ -336,10 +342,10 @@ export class Workspace {
     if (page && !page.isClosed()) {
       const entry = this.pages.get(page),
         prefix = `${entry.id}:${entry.generation}`;
-      rootChildren.push(add(this.semantic.node(`${prefix}:document`, {
+      rootChildren.push(add(this.semantic.node(`${entry.id}:${entry.document.generation}:document`, {
         role: "text", label: "Page document", kind: "document-command", value: "",
         description: entry.document.generation, actions: ["SetValue"],
-      }, { op: "document", page })));
+      }, { op: "document", page, documentGeneration: entry.document.generation })));
       toolbar.push(
         add(
           this.semantic.node(
@@ -351,7 +357,7 @@ export class Workspace {
               value: page.url(),
               actions: ["SetValue"],
             },
-            { op: "navigate", page },
+            { op: "navigate", page, generation: entry.generation },
           ),
         ),
       );
@@ -360,7 +366,7 @@ export class Workspace {
         ["forward", "Forward"],
         ["reload", "Reload"],
       ])
-        toolbar.push(button(`${prefix}:${op}`, label, { op, page }));
+        toolbar.push(button(`${prefix}:${op}`, label, { op, page, generation: entry.generation }));
       tools.push(
         button(
           `${prefix}:previous`,
@@ -775,10 +781,18 @@ export class Workspace {
   }
   async dispatch(request) {
     const deadline = Date.now() + Math.min(2000, request.deadlineMs || 0);
+    let started = false;
     try {
-      // Refresh before resolving a public identity; a changed document never inherits it.
-      await this.capture();
-      const target = this.semantic.targets.get(request.target);
+      let target = this.semantic.targets.get(request.target);
+      if (target?.generation !== undefined || target?.op === "document") {
+        const entry = this.pages.get(target.page);
+        if (!entry || target.page !== this.active || target.page.isClosed() || this.dialog) return { status: "rejected" };
+        if (target.op === "document" ? entry.document.generation !== target.documentGeneration : entry.generation !== target.generation) return { status: "rejected" };
+        if (target.op === "navigate" && target.node.value !== target.page.url()) return { status: "rejected" };
+      } else {
+        await this.capture();
+        target = this.semantic.targets.get(request.target);
+      }
       if (
         !target ||
         target.node.version !== request.version ||
@@ -803,28 +817,34 @@ export class Workspace {
         s.secret = "";
       }
       const page = target.page;
+      started = true;
       switch (target.op) {
-        case "document":
-          await this.pages.get(page).document.dispatch(JSON.parse(value));
+        case "document": {
+          let command;
+          try { command = JSON.parse(value); } catch { return { status: "rejected" }; }
+          if (!command || typeof command !== "object") return { status: "rejected" };
+          await this.pages.get(page).document.dispatch(command);
           break;
+        }
         case "navigate": {
-          const url = new URL(value);
+          let url;
+          try { url = new URL(value); } catch { return { status: "rejected" }; }
           if (
             !["http:", "https:", "about:"].includes(url.protocol) ||
             (url.protocol === "about:" && value !== "about:blank")
           )
             return { status: "rejected" };
-          await page.goto(url.href, { waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(url => location.assign(url), url.href);
           break;
         }
         case "back":
-          await page.goBack({ waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(() => history.back());
           break;
         case "forward":
-          await page.goForward({ waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(() => history.forward());
           break;
         case "reload":
-          await page.reload({ waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(() => location.reload());
           break;
         case "new":
           if (this.pages.size >= 16) return { status: "rejected" };
@@ -912,8 +932,8 @@ export class Workspace {
         }
       }
       return { status: "dispatched" };
-    } catch {
-      return { status: "unknown" };
+    } catch (error) {
+      return { status: !started || error instanceof DocumentActionRejected ? "rejected" : "unknown" };
     } finally {
       this.invalidate();
     }

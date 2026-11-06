@@ -29,7 +29,8 @@ let device: Device | undefined,
   authority = 0,
   connecting = false,
   staging = false,
-  connected = false;
+  connected = false,
+  uncertainAction = false;
 const db = await new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open("rui-browser", 1);
   request.onupgradeneeded = () => request.result.createObjectStore("devices");
@@ -92,23 +93,33 @@ type Row = {
   filter?: HTMLInputElement;
 };
 const rows = new Map<bigint, Row>();
-let documentTarget: bigint | undefined;
-let documentCommands: unknown[] = [];
+type DocumentCommand = { generation: string; frames?: { generation: string }[]; action: string };
+const commandGeneration = (command: DocumentCommand) => command.frames?.[0]?.generation ?? command.generation;
+let documentTarget: Semantic | undefined;
+let documentCommands: DocumentCommand[] = [];
 function drainDocumentCommands() {
-  if (client?.hasControl && !client.pendingCommands && documentTarget !== undefined && documentCommands.length) {
-    const command = documentCommands.shift();
-    try { client.setBrowserValue(documentTarget, JSON.stringify(command)); } catch (error) { documentCommands = []; say(error); }
-  }
+  if (!client?.hasControl || client.pendingCommands || !documentTarget || !documentView?.generation) return;
+  documentCommands = documentCommands.filter(command => commandGeneration(command) === documentView.generation);
+  const command = documentCommands[0];
+  if (!command || documentTarget.description !== commandGeneration(command)) return;
+  documentCommands.shift();
+  try { client.setBrowserValue(documentTarget.id, JSON.stringify(command)); refreshControls(); buttons(); }
+  catch (error) { documentCommands = []; say(error); }
 }
 const documentContainer = document.createElement("section");
 view.before(documentContainer);
 const documentView = workspace === "browser" ? new DocumentView(documentContainer, api, command => {
   if (!client?.hasControl) return;
   if (documentCommands.length >= 16) { say("Page input queue full. Wait for the host."); return; }
-  documentCommands.push(command);
+  const action = command as DocumentCommand;
+  if (action.action === "resize") documentCommands = documentCommands.filter(queued => queued.action !== "resize");
+  documentCommands.push(action);
   drainDocumentCommands();
-}, () => !!client?.hasControl, say) : undefined;
+}, () => !!client?.hasControl, say, drainDocumentCommands) : undefined;
 let renderedState: State | undefined;
+function editable(node: Semantic) {
+  return !!client?.hasControl && !staging && node.states.get("Disabled") !== "True";
+}
 function enabled(node: Semantic) {
   return (
     !!client?.hasControl &&
@@ -341,7 +352,7 @@ function refreshControls() {
       row.input.disabled = !enabled(node);
     else if (row.input)
       row.input.readOnly =
-        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
+        !editable(node) || row.submitted !== undefined || !node.actions.some((a) => a.id === "SetValue");
     if (row.apply)
       row.apply.disabled =
         !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
@@ -352,6 +363,7 @@ function refresh() {
 }
 function render(state: State) {
   renderedState = state;
+  documentTarget = undefined;
   const nodes = new Map<bigint, Semantic>();
   for (const record of state.records.values())
     if ("Semantic" in record) nodes.set(record.Semantic.id, record.Semantic);
@@ -379,7 +391,7 @@ function render(state: State) {
     const kind = node.browser_input_type ?? "";
     if (kind === "document-command") {
       row.element.hidden = true;
-      documentTarget = node.id;
+      documentTarget = node;
     }
     if (row.kind !== kind) {
       row.kind = kind;
@@ -488,6 +500,7 @@ function buttons() {
   connect.hidden = connected;
   document.body.dataset.connected = String(connected);
   retry.hidden = !client?.pendingCommands;
+  retry.textContent = uncertainAction ? "Check host, then reconnect" : "Check action status";
   connection.textContent = client?.hasControl
     ? "Controlling host"
     : connected
@@ -531,9 +544,13 @@ async function connectHost() {
           refresh();
         }
         if (event.type === "commandResult") {
+          uncertainAction = ["outcomeunknown", "outcomeexpired"].includes(event.status.toLowerCase());
+          if (uncertainAction) documentCommands = [];
           queueMicrotask(drainDocumentCommands);
           say(
-            event.status.toLowerCase() === "dispatched"
+            uncertainAction
+              ? "The host could not confirm this action. Check the host page, then reconnect to continue. Reconnect will not repeat the action."
+              : event.status.toLowerCase() === "dispatched"
               ? "Action sent to the host. Content updates separately."
               : `${event.status}${event.rejection ? `: ${event.rejection}` : ""}`,
           );
@@ -603,6 +620,11 @@ control.onclick = () => {
 release.onclick = () => client?.releaseControl();
 retry.onclick = () => {
   try {
+    if (uncertainAction) {
+      client?.dispose();
+      location.reload();
+      return;
+    }
     client?.retryPending();
   } catch (error) {
     say(error);

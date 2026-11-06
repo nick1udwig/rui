@@ -88,7 +88,7 @@ const startHost = () => {
       desktopBrowser ? "apps/desktop/run.py" : "apps/browser/run.py",
       ...(desktopBrowser ? ["--with-browser"] : []),
       "--skip-build",
-      "--headless",
+      ...(process.env.RUI_TEST_HEADED === "1" ? [] : ["--headless"]),
       ...(process.env.RUI_TEST_SOURCE_EXECUTABLE ? ["--chromium", process.env.RUI_TEST_SOURCE_EXECUTABLE] : []),
       ...(phone ? ["--phone"] : ["--port", String(backendPort)]),
       ...(phone ? [] : proxied
