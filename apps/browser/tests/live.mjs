@@ -51,12 +51,13 @@ const socket = createServer();
 await new Promise((r) => socket.listen(0, "127.0.0.1", r));
 const port = socket.address().port;
 await new Promise((r) => socket.close(r));
-const origin = `https://localhost:${port}`;
+let origin = `https://localhost:${port}`;
+const phone = process.env.RUI_TEST_PHONE === "1";
 const proxied = process.env.RUI_TEST_PROXY === "1";
 const mount = proxied
   ? (process.env.RUI_TEST_PATH || "").replace(/\/$/, "")
   : "";
-const publicURL = origin + mount;
+let publicURL = origin + mount;
 let proxy,
   backendPort = port;
 if (proxied) {
@@ -77,6 +78,7 @@ const deadline = async (fn, message, ms = 20000) => {
   throw Error(message);
 };
 const desktopBrowser = process.env.RUI_TEST_DESKTOP_BROWSER === "1";
+if (phone && (proxied || desktopBrowser)) throw Error("Phone test uses the standalone browser and real Tailscale Serve");
 const startHost = () => {
   let browserShared = false;
   logs = "";
@@ -88,9 +90,8 @@ const startHost = () => {
       "--skip-build",
       "--headless",
       ...(process.env.RUI_TEST_SOURCE_EXECUTABLE ? ["--chromium", process.env.RUI_TEST_SOURCE_EXECUTABLE] : []),
-      "--port",
-      String(backendPort),
-      ...(proxied
+      ...(phone ? ["--phone"] : ["--port", String(backendPort)]),
+      ...(phone ? [] : proxied
         ? ["--public-url", publicURL]
         : ["--host", "localhost", "--cert", cert, "--key", key]),
       "--files-dir",
@@ -120,6 +121,7 @@ try {
     "host startup",
     40000,
   );
+  if (phone) { origin = new URL(invitation).origin; publicURL = origin; }
   assert.equal(new URL(invitation).origin, origin);
   assert.equal(new URL(invitation).pathname, mount + "/");
   if (proxied) {
@@ -168,7 +170,7 @@ try {
       : {}),
   });
   const context = await browser.newContext({
-    ignoreHTTPSErrors: true,
+    ignoreHTTPSErrors: !phone,
     viewport: { width: 390, height: 844 },
     hasTouch: true,
   });
@@ -545,6 +547,7 @@ try {
   const report = {
     engine,
     reverseProxy: proxied,
+    tailscalePhone: phone,
     mountPath: mount || "/",
     viewport: "390x844",
     pairing: true,

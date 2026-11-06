@@ -105,7 +105,7 @@ export class Workspace {
         viewport: null,
         acceptDownloads: true,
         downloadsPath: downloads,
-        args: ["--force-renderer-accessibility", "--no-first-run"],
+        args: ["--force-renderer-accessibility", "--no-first-run", ...(process.env.RUI_PHONE === "1" ? ["--disable-features=WebRtcHideLocalIpsWithMdns"] : [])],
       },
     );
     return new Workspace(context, files, downloads);

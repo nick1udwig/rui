@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Build and launch the visible Chromium host and mobile web client."""
 import argparse
+from contextlib import contextmanager
 import fcntl
 import json
 import os
 import re
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
 import threading
+import time
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,7 +26,8 @@ def parse_args(argv=None, workspace="browser"):
     parser = argparse.ArgumentParser(description="Share existing desktop applications" if workspace == "desktop" else __doc__)
     parser.add_argument('--host', default='localhost', help='hostname used by the phone')
     parser.add_argument('--listen', default='127.0.0.1')
-    parser.add_argument('--port', type=int, default=8444, help='local listening port')
+    parser.add_argument('--port', type=int, help='local port (default: 8444, or automatic with --phone)')
+    parser.add_argument('--phone', action='store_true', help='automatic trusted HTTPS and QR connection through Tailscale')
     parser.add_argument('--public-url', help='external HTTPS URL, optionally with a path prefix; enables loopback HTTP')
     parser.add_argument('--cert', type=Path, help='phone-trusted HTTPS certificate PEM')
     parser.add_argument('--key', type=Path, help='HTTPS private key PEM')
@@ -37,6 +41,11 @@ def parse_args(argv=None, workspace="browser"):
     parser.add_argument('--skip-build', action='store_true')
     parser.add_argument('--headless', action='store_true', help='automated testing only')
     args = parser.parse_args(argv)
+    args.automatic_port = args.phone and args.port is None
+    if args.port is None:
+        args.port = 8444
+    if args.phone and (args.public_url or args.http_local or args.cert or args.key or args.host != 'localhost' or args.listen != '127.0.0.1'):
+        parser.error('--phone manages HTTPS, hostname and listener; do not combine it with manual connection options')
     if args.cdp_url:
         endpoint = urlsplit(args.cdp_url)
         if endpoint.scheme not in ('http', 'ws') or endpoint.hostname not in ('localhost', '127.0.0.1', '::1') or endpoint.username or endpoint.password:
@@ -73,13 +82,99 @@ def parse_args(argv=None, workspace="browser"):
     elif args.http_local:
         if args.host not in ('localhost', '127.0.0.1') or args.listen not in ('127.0.0.1', '::1') or args.cert or args.key:
             parser.error('--http-local requires a loopback host/listener and no HTTPS options')
-    elif not args.cert or not args.key:
-        parser.error('supply --cert and --key, --public-url for an HTTPS proxy, or --http-local for local development')
-    if not args.public_url:
+    elif not args.phone and (not args.cert or not args.key):
+        parser.error('use --phone for automatic phone setup, --public-url for an existing HTTPS proxy, --cert and --key for manual HTTPS, or --http-local for local development')
+    if not args.public_url and not args.phone:
         scheme = 'http' if args.http_local else 'https'
         default_port = 80 if args.http_local else 443
         args.origin = f'{scheme}://{args.host}' + (f':{args.port}' if args.port != default_port else '')
     return args
+
+
+def tailscale_json(*arguments):
+    try:
+        result = subprocess.run(['tailscale', *arguments, '--json'], capture_output=True, text=True, timeout=10, check=True)
+        return json.loads(result.stdout)
+    except FileNotFoundError:
+        raise SystemExit('--phone needs Tailscale installed and signed in on this computer and your phone')
+    except (subprocess.SubprocessError, ValueError) as error:
+        detail = getattr(error, 'stderr', '') or str(error)
+        raise SystemExit(f'Tailscale is not ready: {detail.strip()}')
+
+
+def serve_ports(config):
+    ports = set()
+    if not isinstance(config, dict):
+        return ports
+    ports.update(int(port) for port in config.get('TCP', {}) if str(port).isdigit())
+    for host, enabled in config.get('AllowFunnel', {}).items():
+        if enabled and host.rpartition(':')[2].isdigit():
+            ports.add(int(host.rpartition(':')[2]))
+    for child in config.get('Foreground', {}).values():
+        ports.update(serve_ports(child))
+    return ports
+
+
+def configure_phone(args):
+    status = tailscale_json('status')
+    hostname = status.get('Self', {}).get('DNSName', '').rstrip('.').lower()
+    if status.get('BackendState') != 'Running' or not re.fullmatch(r'[a-z0-9-]+(?:\.[a-z0-9-]+)+', hostname):
+        raise SystemExit('Sign in to Tailscale on this computer and phone, then run --phone again')
+    occupied = serve_ports(tailscale_json('serve', 'status'))
+    args.phone_port = next((port for port in range(8443, 8464) if port not in occupied and port != args.port), None)
+    if args.phone_port is None:
+        raise SystemExit('No unused Tailscale HTTPS demo port is available')
+    if args.automatic_port:
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            args.port = listener.getsockname()[1]
+    args.origin = f'https://{hostname}:{args.phone_port}'
+    args.public_url = args.origin
+
+
+def phone_handler(config, authority):
+    handler = config.get('Web', {}).get(authority, {}).get('Handlers', {}).get('/')
+    if handler:
+        return handler
+    for child in config.get('Foreground', {}).values():
+        handler = phone_handler(child, authority)
+        if handler:
+            return handler
+    return None
+
+
+@contextmanager
+def phone_share(args):
+    if not args.phone:
+        yield None
+        return
+    if args.phone_port in serve_ports(tailscale_json('serve', 'status')):
+        raise SystemExit('The selected Tailscale demo port is now in use; run --phone again')
+    target = f'http://127.0.0.1:{args.port}'
+    authority = urlsplit(args.origin).netloc
+    print('Starting phone connection. Keep Tailscale connected on your phone.', file=sys.stderr)
+    share = subprocess.Popen(['tailscale', 'serve', f'--https={args.phone_port}', target],
+                             stdin=subprocess.DEVNULL, stdout=sys.stderr, stderr=sys.stderr,
+                             start_new_session=True)
+    try:
+        deadline = time.monotonic() + 30
+        while True:
+            if share.poll() is not None:
+                raise SystemExit('Tailscale Serve stopped; check the message above for HTTPS or permission setup')
+            if phone_handler(tailscale_json('serve', 'status'), authority) == {'Proxy': target}:
+                break
+            if time.monotonic() >= deadline:
+                raise SystemExit('Phone HTTPS is not ready; complete any Tailscale setup shown above and run --phone again')
+            time.sleep(0.2)
+        yield share
+    finally:
+        if share.poll() is None:
+            share.send_signal(signal.SIGINT)
+            try:
+                share.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                share.kill()
+                share.wait()
 
 
 def validate_inputs(args, workspace):
@@ -103,6 +198,8 @@ def validate_inputs(args, workspace):
 def main(workspace="browser"):
     args = parse_args(workspace=workspace)
     validate_inputs(args, workspace)
+    if args.phone:
+        configure_phone(args)
     os.umask(0o077)
     directory = args.state_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
@@ -133,6 +230,7 @@ def main(workspace="browser"):
                RUI_WEB_LISTEN=args.listen, RUI_CHROMIUM=args.chromium, RUI_FILES_DIR=str(args.files_dir.resolve()),
                RUI_HEADLESS='1' if args.headless else '0',
                RUI_DESKTOP_BROWSER='1' if getattr(args, 'with_browser', False) else '0')
+    env['RUI_PHONE'] = '1' if args.phone else '0'
     env.pop('RUI_WEB_CERT', None)
     env.pop('RUI_CDP_URL', None)
     if args.cdp_url:
@@ -140,6 +238,11 @@ def main(workspace="browser"):
     env.pop('RUI_WEB_KEY', None)
     if args.cert:
         env.update(RUI_WEB_CERT=str(args.cert.resolve()), RUI_WEB_KEY=str(args.key.resolve()))
+    with phone_share(args) as share:
+        return serve_host(directory, env, metadata, share)
+
+
+def serve_host(directory, env, metadata, share=None):
     process = subprocess.Popen([str(Path(metadata['target_directory'])/'debug/rui-browser-host'), str(directory), str(ROOT/'apps/browser/worker.mjs')], cwd=ROOT, env=env, start_new_session=True, stdin=subprocess.PIPE, text=True)
     def commands():
         try:
@@ -161,6 +264,13 @@ def main(workspace="browser"):
                     os.killpg(process.pid, signal.SIGKILL)
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
+    if share is not None:
+        def watch_share():
+            share.wait()
+            if process.poll() is None:
+                print('Phone connection stopped; stopping the demo.', file=sys.stderr)
+                stop()
+        threading.Thread(target=watch_share, daemon=True).start()
     try:
         return process.wait()
     finally:

@@ -12,7 +12,30 @@ Canvas, WebGL, video and audio use separate element-scoped media streams.
 Unloaded videos retain their poster images.
 The app never sends a full-page raster as its page representation.
 
-## Start locally
+## Try it on your phone
+
+Keep Tailscale installed, signed in and connected on both this computer and your phone.
+From the repository root, run:
+
+```sh
+python3 apps/browser/run.py --phone
+```
+
+The first run builds the demo and opens a host Chromium window.
+Scan the printed QR code with your phone.
+Approve the phone once by typing the printed `approve CODE` command in the host terminal, then tap **Take control** on the phone.
+Enter a website address in the mobile app to try it.
+No PEM files, hostname selection or separate proxy command is needed.
+
+The launcher selects unused ports and starts a temporary [Tailscale Serve](https://tailscale.com/docs/reference/examples/serve) HTTPS route.
+It leaves existing Serve routes unchanged and removes its own route when you quit or press Ctrl+C.
+If Tailscale asks you to enable HTTPS for your tailnet, follow its printed setup link once and run the command again.
+Use `--skip-build` on later runs when the code has not changed.
+The managed browser uses direct ICE addresses so its element media streams can connect over the tailnet.
+Phone mode does not add a media relay or change the ICE settings of an externally attached browser.
+
+## Desktop-only development
+
 
 See the shared [prerequisites](../../docs/getting-started.md#prerequisites) for the tested Rust/Node versions and build tools.
 This app additionally needs Chromium, the WASM target, and `wasm-bindgen-cli` 0.2.129; GTK is not required.
@@ -151,6 +174,7 @@ npm --prefix apps/browser test
 npm --prefix apps/browser run test:live
 npm --prefix apps/browser run test:proxy
 npm --prefix apps/browser run test:proxy:path
+RUI_TEST_PHONE=1 node apps/browser/tests/live.mjs
 npm --prefix apps/browser exec -- playwright install firefox webkit
 RUI_CLIENT_ENGINE=firefox npm --prefix apps/browser run test:live
 RUI_CLIENT_ENGINE=webkit npm --prefix apps/browser run test:live
@@ -182,6 +206,8 @@ The document acceptance checks cover the following cases.
 | Attachment | Existing-browser actions, excess-tab preservation, viewport restoration and non-destructive detach |
 | Paired application | Resource integrity rejection/recovery, control, reconnect, restart, revocation and proxy path mounting |
 
+The phone-mode test starts a temporary real Tailscale Serve route and checks HTTPS without a certificate bypass.
+It requires a signed-in local Tailscale daemon and removes the temporary route after the test.
 The public-site probe requires network access and current site availability.
 It saves screenshots and reports actual results; it does not replace deterministic fixtures.
 No protected-media or physical-device pass is claimed.
