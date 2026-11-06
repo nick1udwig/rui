@@ -1088,14 +1088,19 @@ mod tests {
         ClientHello, Permissions, ReceiverLimits, SessionConfig, VerifiedAuthorization,
     };
     use std::sync::atomic::Ordering;
-    async fn setup(
-        cleanup: Arc<dyn Fn(InputCleanup) + Send + Sync>,
-    ) -> (
-        Arc<Shared>,
-        Connection,
-        Connection,
-        Arc<Mutex<ControlledHost>>,
-    ) {
+    struct Fixture {
+        shared: Arc<Shared>,
+        first: Connection,
+        second: Connection,
+        host: Arc<Mutex<ControlledHost>>,
+    }
+    impl Fixture {
+        async fn shutdown(&self) {
+            self.shared.port.shutdown();
+            self.shared.port.flush_lifecycle(0).await.unwrap();
+        }
+    }
+    async fn setup(cleanup: Arc<dyn Fn(InputCleanup) + Send + Sync>) -> Fixture {
         let auth = VerifiedAuthorization {
             principal: "operator".into(),
             policy_version: 1,
@@ -1194,8 +1199,8 @@ mod tests {
         })
         .await
         .unwrap();
-        (
-            Arc::new(Shared {
+        Fixture {
+            shared: Arc::new(Shared {
                 changed: watch::channel(()).0,
                 port: Arc::new(port),
                 pairing: Arc::new(StdMutex::new(pairing)),
@@ -1209,7 +1214,7 @@ mod tests {
             first,
             second,
             host,
-        )
+        }
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     async fn cleanup_completes_before_another_connection_can_acquire() {
@@ -1218,62 +1223,50 @@ mod tests {
         let (release, wait) = std::sync::mpsc::channel();
         let wait = StdMutex::new(wait);
         let callback = Arc::new(move |_: InputCleanup| {
-            entered.lock().unwrap().take().unwrap().send(()).unwrap();
-            // Let the test runtime schedule the competing socket while this
-            // deliberately synchronous trusted cleanup owns the host lock.
-            tokio::task::block_in_place(|| {
-                wait.lock()
-                    .unwrap()
-                    .recv_timeout(Duration::from_secs(2))
-                    .unwrap();
-            });
+            if let Some(entered) = entered.lock().unwrap().take() {
+                entered.send(()).unwrap();
+                tokio::task::block_in_place(|| wait.lock().unwrap().recv().unwrap());
+            }
         });
-        let (shared, _, second, host) = setup(callback).await;
-        host.lock().await.local_activity(0);
+        let fixture = setup(callback).await;
+        fixture.host.lock().await.local_activity(0);
         let draining = {
-            let shared = shared.clone();
+            let shared = fixture.shared.clone();
             tokio::spawn(async move {
                 shared.port.flush_lifecycle(0).await.unwrap();
             })
         };
         entered_rx.await.unwrap();
-        let mut acquisition = {
-            let shared = shared.clone();
-            tokio::spawn(async move {
-                handle(
-                    &shared,
-                    &second,
-                    p::Kind::AcquireControl,
-                    &p::AcquireControl {
-                        request_id: vec![7; 16],
-                    }
-                    .encode_to_vec(),
-                )
-                .await
-            })
-        };
-        assert!(
-            tokio::time::timeout(Duration::from_millis(30), &mut acquisition)
-                .await
-                .is_err()
+        let raw = p::AcquireControl {
+            request_id: vec![7; 16],
+        }
+        .encode_to_vec();
+        let acquisition = handle(
+            &fixture.shared,
+            &fixture.second,
+            p::Kind::AcquireControl,
+            &raw,
         );
+        tokio::pin!(acquisition);
+        assert!(futures_util::poll!(&mut acquisition).is_pending());
         release.send(()).unwrap();
         draining.await.unwrap();
-        assert!(acquisition.await.unwrap().unwrap().is_some());
+        assert!(acquisition.await.unwrap().is_some());
+        fixture.shutdown().await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cleanup_panic_keeps_authority_gate_closed() {
-        let (shared, _, second, host) = setup(Arc::new(|_| panic!("trusted cleanup failed"))).await;
-        host.lock().await.local_activity(0);
+        let fixture = setup(Arc::new(|_| panic!("trusted cleanup failed"))).await;
+        fixture.host.lock().await.local_activity(0);
         let task = {
-            let shared = shared.clone();
+            let shared = fixture.shared.clone();
             tokio::spawn(async move { shared.port.flush_lifecycle(0).await })
         };
         assert_eq!(task.await.unwrap(), Err(TransportError::Authority));
         assert_eq!(
             handle(
-                &shared,
-                &second,
+                &fixture.shared,
+                &fixture.second,
                 p::Kind::AcquireControl,
                 &p::AcquireControl {
                     request_id: vec![7; 16]
@@ -1283,11 +1276,17 @@ mod tests {
             .await,
             Err(TransportError::Authority)
         );
+        fixture.shared.port.shutdown();
+        assert_eq!(
+            fixture.shared.port.flush_lifecycle(0).await,
+            Err(TransportError::Authority)
+        );
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn revocation_while_waiting_for_host_lock_prevents_ledger_admission() {
-        let (shared, first, _, host) = setup(Arc::new(|_| {})).await;
-        let locked = host.lock().await;
+        let fixture = setup(Arc::new(|_| {})).await;
+        let locked = fixture.host.lock().await;
+        let first = &fixture.first;
         let command = rui_protocol_core::wire::proto::SemanticCommand {
             epoch: first.session().epoch.to_vec(),
             view_id: first.session().view_id.to_vec(),
@@ -1307,30 +1306,28 @@ mod tests {
             ..Default::default()
         }
         .encode_to_vec();
-        let task = {
-            let shared = shared.clone();
-            tokio::spawn(async move {
-                handle(&shared, &first, p::Kind::SemanticCommand, &command).await
-            })
-        };
-        tokio::task::yield_now().await;
-        shared.pairing.lock().unwrap().revoke_local([3; 16]);
+        let task = handle(&fixture.shared, first, p::Kind::SemanticCommand, &command);
+        tokio::pin!(task);
+        assert!(futures_util::poll!(&mut task).is_pending());
+        fixture.shared.pairing.lock().unwrap().revoke_local([3; 16]);
         drop(locked);
-        assert_eq!(task.await.unwrap(), Err(TransportError::Authentication));
-        assert_eq!(host.lock().await.diagnostics().consumed_commands, 0);
+        assert_eq!(task.await, Err(TransportError::Authentication));
+        assert_eq!(fixture.host.lock().await.diagnostics().consumed_commands, 0);
+        fixture.shutdown().await;
     }
     #[tokio::test]
     async fn queued_cleanup_is_drained_by_acquire_before_grant() {
         let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let observed = calls.clone();
-        let (shared, _, second, host) = setup(Arc::new(move |_| {
+        let fixture = setup(Arc::new(move |_| {
             observed.fetch_add(1, Ordering::AcqRel);
         }))
         .await;
-        host.lock().await.local_activity(0);
+        fixture.host.lock().await.local_activity(0);
+        assert_eq!(calls.load(Ordering::Acquire), 0);
         assert!(handle(
-            &shared,
-            &second,
+            &fixture.shared,
+            &fixture.second,
             p::Kind::AcquireControl,
             &p::AcquireControl {
                 request_id: vec![7; 16]
@@ -1341,6 +1338,7 @@ mod tests {
         .unwrap()
         .is_some());
         assert_eq!(calls.load(Ordering::Acquire), 1);
+        fixture.shutdown().await;
     }
     #[test]
     fn publication_metadata_borrows_and_does_not_decode_graph() {
@@ -1359,7 +1357,8 @@ mod tests {
     #[tokio::test]
     async fn producer_envelope_must_match_issued_scope_and_required_profiles() {
         use rui_protocol_core::wire::proto as core;
-        let (shared, first, _, _) = setup(Arc::new(|_| {})).await;
+        let fixture = setup(Arc::new(|_| {})).await;
+        let first = &fixture.first;
         let session = first.session();
         let envelope = core::Envelope {
             protocol_version: session.version,
@@ -1406,8 +1405,7 @@ mod tests {
         let mut optional = bytes;
         optional.extend([128, 8, 1]); // optional field128 metadata
         source_scope(&optional, session).unwrap();
-        shared.port.shutdown();
-        shared.port.flush_lifecycle(0).await.unwrap();
+        fixture.shutdown().await;
     }
 }
 

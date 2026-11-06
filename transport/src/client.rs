@@ -844,11 +844,7 @@ mod tests {
         let mut peer = WebSocketStream::from_raw_socket(reader, Role::Server, Some(config)).await;
 
         // This polls feed/start_send and then blocks on the 16-byte duplex pipe.
-        assert!(
-            timeout(Duration::from_millis(10), pending.flush(&mut socket))
-                .await
-                .is_err()
-        );
+        assert!(futures_util::poll!(std::pin::pin!(pending.flush(&mut socket))).is_pending());
         assert!(pending.entries.front().unwrap().submitted);
         assert_eq!(pending.entries.len(), 1);
         assert_eq!(budget.used(), queued_charge);
@@ -868,9 +864,7 @@ mod tests {
         assert_eq!(ack.revision, 1);
         assert!(pending.entries.is_empty());
         assert_eq!(budget.used(), writer_charge);
-        assert!(timeout(Duration::from_millis(10), peer.next())
-            .await
-            .is_err());
+        assert!(futures_util::poll!(peer.next()).is_pending());
         drop(socket);
         drop(pending);
         assert_eq!(budget.used(), 0);
