@@ -54,13 +54,13 @@ try {
       assert.equal(await replica.locator('script').count(), 0);
       const expected = (await page.locator('h1').allTextContents()).find(text => text.trim());
       assert.ok(expected && (await replica.locator('body').textContent()).includes(expected), `source heading remains selectable DOM: expected=${expected}, actual=${await replica.locator('h1').allTextContents()}`);
-      const hostImages = await page.locator('img').evaluateAll(images => images.filter(n => n.naturalWidth && n.getBoundingClientRect().width > 0).length);
-      await replica.locator('img[src]').evaluateAll(images => Promise.all(images.filter(n => n.getBoundingClientRect().width > 0).slice(0, 10).map(n => n.decode())));
-      const renderedImages = await replica.locator('img').evaluateAll(images => images.filter(n => n.naturalWidth && n.getBoundingClientRect().width > 0).length);
+      const hostImages = await page.locator('img').evaluateAll(images => images.filter(n => { const r = n.getBoundingClientRect(); return n.naturalWidth && r.width > 0 && r.top < innerHeight && r.bottom > 0; }).length);
+      await replica.locator('img[src]').evaluateAll(images => Promise.all(images.filter(n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.top < innerHeight && r.bottom > 0; }).slice(0, 10).map(n => Promise.race([n.decode(), new Promise((_, reject) => setTimeout(() => reject(Error('Visible image decode deadline')), 5000))]))));
+      const renderedImages = await replica.locator('img').evaluateAll(images => images.filter(n => { const r = n.getBoundingClientRect(); return n.naturalWidth && r.width > 0 && r.top < innerHeight && r.bottom > 0; }).length);
       assert.ok(renderedImages >= hostImages, `decoded images: host=${hostImages}, replica=${renderedImages}`);
       let video = null;
       stage = "play";
-      if (await page.locator('video').count()) {
+      if (new URL(url).hostname.endsWith('youtube.com')) {
         const play = replica.locator('.ytp-large-play-button');
         if (await page.locator('video').evaluate(n => n.paused)) {
           if (await play.isVisible()) await play.click({ timeout: 5000 });

@@ -25,6 +25,7 @@ function observeDocument(key) {
     if (["script", "noscript", "base", "meta", "link"].includes(tag) || (tag === "style" && !shadow)) return null;
     const attrs = Object.fromEntries([...node.attributes].filter(a => !/^on/i.test(a.name) && !["srcdoc", "action", "formaction", "nonce"].includes(a.name)).map(a => [a.name, a.value]));
     if (tag === "img") attrs.src = node.currentSrc || node.src;
+    if (tag === "video" && node.poster) attrs.poster = node.poster;
     const result = { id: id(node), tag, ns: node.namespaceURI, attrs, children: [] };
     if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement) {
       result.value = node.type === "password" ? "" : node.value;
@@ -33,7 +34,7 @@ function observeDocument(key) {
     }
     if (node.isContentEditable && !node.parentElement?.isContentEditable) result.value = node.textContent;
     if (["canvas", "video", "audio", "iframe", "object", "embed"].includes(tag)) {
-      if (typeof node.captureStream === "function") result.media = true;
+      if (typeof node.captureStream === "function") { result.media = true; result.mediaReady = tag === "canvas" || node.readyState >= 2; }
       else unsupported.push({ id: result.id, kind: tag });
       return result;
     }
@@ -273,7 +274,8 @@ export class BrowserDocument {
         } catch { /* An inaccessible frame keeps its explicit unsupported region. */ }
         finally { await handle.dispose(); }
       }
-      if (node.tag === "img") node.attrs.src = await asset(new URL(node.attrs.src, result.base).href);
+      if (node.tag === "img") node.attrs.src = node.attrs.src ? await asset(new URL(node.attrs.src, result.base).href) : "";
+      if (node.tag === "video" && node.attrs.poster) node.attrs.poster = await asset(new URL(node.attrs.poster, result.base).href);
       if (node.attrs?.style) node.attrs.style = await rewrite(node.attrs.style, result.base);
       for (const child of node.children || []) await visit(child);
       for (const child of node.shadow || []) await visit(child);

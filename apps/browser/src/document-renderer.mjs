@@ -1,7 +1,7 @@
 const HTML = "http://www.w3.org/1999/xhtml";
 const SVG = "http://www.w3.org/2000/svg";
 const BLOCKED = new Set(["script", "noscript", "iframe", "object", "embed", "base", "meta", "link", "style", "foreignObject", "animate", "set"]);
-const BLOCKED_ATTR = /^(on.*|src|srcset|srcdoc|href|xlink:href|action|formaction|ping|target|formtarget|nonce|integrity|autofocus|autoplay)$/i;
+const BLOCKED_ATTR = /^(on.*|src|srcset|srcdoc|poster|href|xlink:href|action|formaction|ping|target|formtarget|nonce|integrity|autofocus|autoplay)$/i;
 
 export class DocumentRenderer {
   constructor(iframe, dispatch = () => {}, canControl = () => false, media, frames = []) {
@@ -148,6 +148,11 @@ export class DocumentRenderer {
       if (node.tag === "img") {
         if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(image)) element.setAttribute("src", image);
         else element.removeAttribute('src');
+      }
+      if (node.tag === 'video') {
+        const poster = resource(node.attrs?.poster);
+        if (/^data:image\/(png|jpeg|gif|webp|avif|svg\+xml)[;,]/.test(poster)) element.setAttribute('poster', poster);
+        else element.removeAttribute('poster');
       }
       if (embedded) {
         element.setAttribute("sandbox", "allow-same-origin allow-scripts");

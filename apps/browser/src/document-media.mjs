@@ -4,6 +4,7 @@ export class DocumentMediaView {
   attach(node, element, generation, frames) {
     const key = `${generation}:${node.id}`;
     this.live.add(key);
+    if (node.mediaReady === false) { this.close(key); return; }
     if (this.streams.has(key)) return;
     if (this.streams.size >= 8) { this.report(Error("Media region limit")); return; }
     const entry = { peer: new RTCPeerConnection({ iceServers: [] }), closed: false, element };

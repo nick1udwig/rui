@@ -15,7 +15,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     if (req.url === "/pixel.png") { res.setHeader("Content-Type", "image/png"); res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9x8AAAAASUVORK5CYII=", "base64")); return; }
     if (req.url === "/leak") { unexpected++; res.end(); return; }
     res.setHeader("Content-Type", "text/html");
-    res.end(`<!doctype html><style>main {display:grid;grid-template-columns:1fr 1fr} @media(max-width:500px){main{grid-template-columns:1fr}h1{color:rgb(1,2,3)}} h1::before{content:'Prefix '}[app-layout=mobile]{border-top:3px solid red}</style><main app-layout=mobile><h1>Real text</h1><p>Second column</p></main><img src=/pixel.png><input id=field value=initial><input id=secret type=password value=private><svg width=30 height=30><circle cx=15 cy=15 r=10 fill=red></circle></svg><canvas></canvas><button onclick="fetch('/leak')">Button</button><script>document.querySelector('#field').value='live';</script>`);
+    res.end(`<!doctype html><style>main {display:grid;grid-template-columns:1fr 1fr} @media(max-width:500px){main{grid-template-columns:1fr}h1{color:rgb(1,2,3)}} h1::before{content:'Prefix '}[app-layout=mobile]{border-top:3px solid red}</style><main app-layout=mobile><h1>Real text</h1><p>Second column</p></main><img src=/pixel.png><input id=field value=initial><input id=secret type=password value=private><svg width=30 height=30><circle cx=15 cy=15 r=10 fill=red></circle></svg><canvas></canvas><video id=waiting poster=/pixel.png></video><button onclick="fetch('/leak')">Button</button><script>document.querySelector('#field').value='live';</script>`);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -40,6 +40,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     const snapshot = await source.capture();
     assert.equal(JSON.stringify(snapshot).includes("private"), false);
     assert.equal(JSON.stringify(snapshot).includes('"media":true'), true);
+    assert.equal(JSON.stringify(snapshot).includes('"mediaReady":false'), true);
     const second = await source.capture();
     assert.equal(second.root.id, snapshot.root.id);
     const viewer = await browser.newPage();
@@ -60,6 +61,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.equal(await frame.locator('x-card p').evaluate(n => getComputedStyle(n).color), 'rgb(10, 20, 30)');
     await frame.frameLocator('iframe').getByText('Embedded content').waitFor();
     await frame.locator('img').evaluate(n => n.decode());
+    assert.ok((await frame.locator('#waiting').getAttribute('poster')).startsWith('data:image/png;base64,'));
     await frame.locator('button').click();
     assert.equal(unexpected, 0);
     assert.equal(await frame.locator('script').count(), 0);
