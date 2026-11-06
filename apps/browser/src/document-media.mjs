@@ -2,12 +2,19 @@ import { documentRequest } from './document-request.mjs';
 import { DocumentStream, streamTypes } from './document-stream.mjs';
 
 export class DocumentMediaView {
-  constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; }
+  constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; this.metrics = { bytes: 0, batches: 0, frames: 0, failures: 0, opens: 0, appendMs: 0 }; }
+  diagnostics() {
+    return { ...this.metrics, streams: [...this.streams.values()].map(entry => {
+      const player = entry.player, buffered = player.buffered;
+      return { transport: entry.transport, ready: player.readyState, paused: player.paused, bufferSeconds: buffered.length ? buffered.end(buffered.length - 1) - player.currentTime : 0, frames: player.getVideoPlaybackQuality?.().totalVideoFrames, droppedFrames: player.getVideoPlaybackQuality?.().droppedVideoFrames, frameAgeMs: entry.frameAt ? Date.now() - entry.frameAt : null };
+    }) };
+  }
   begin() { this.live = new Set(); }
   current(entry) { return !entry.closed && this.streams.get(entry.key) === entry; }
   ready() { return [...this.streams.values()].every(entry => !entry.blocked && entry.player.readyState >= 2 && !entry.player.paused && (entry.transport === 'https' || entry.peer.connectionState === 'connected')); }
   fail(entry, error, connection = false) {
     if (!this.current(entry)) return;
+    this.metrics.failures++;
     this.close(entry.key, entry);
     if (connection && !entry.played && entry.transport === 'webrtc' && streamTypes().length) {
       this.preferHttps = true;
@@ -63,6 +70,7 @@ export class DocumentMediaView {
       if (!this.current(entry)) return;
       try {
         entry.frameAt = Date.now();
+        this.metrics.frames++;
         if (entry.player !== entry.element && entry.player.readyState >= 2) entry.element.getContext('2d').drawImage(entry.player, 0, 0, entry.element.width, entry.element.height);
         entry.frame = entry.player.requestVideoFrameCallback(draw);
       } catch (error) { this.fail(entry, error); }
@@ -97,6 +105,7 @@ export class DocumentMediaView {
       const transport = this.preferHttps && streamTypes().length ? 'https' : 'webrtc';
       entry = { key, transport, startedAt: Date.now(), sourcePaused: node.mediaPaused, controller: new AbortController(), closed: false, element };
       this.streams.set(key, entry);
+      this.metrics.opens++;
       const player = node.tag === 'canvas' ? document.createElement('video') : element;
       entry.player = player;
       if (node.tag === 'canvas') {
@@ -165,7 +174,11 @@ export class DocumentMediaView {
         if (!this.current(entry)) return;
         this.progress(entry, playback);
         if (!this.current(entry)) return;
+        const started = performance.now();
         await entry.stream.append(chunks);
+        this.metrics.appendMs += performance.now() - started;
+        this.metrics.batches++;
+        this.metrics.bytes += chunks.reduce((total, chunk) => total + Math.floor(chunk.data.length * 3 / 4) - (chunk.data.endsWith("==") ? 2 : chunk.data.endsWith("=") ? 1 : 0), 0);
         if (!this.current(entry)) return;
         this.play(entry);
         entry.timer = setTimeout(poll, 150);

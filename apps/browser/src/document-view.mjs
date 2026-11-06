@@ -10,6 +10,8 @@ export class DocumentView {
     this.api = api;
     this.report = report;
     this.onRendered = onRendered;
+    this.metrics = { polls: 0, changedNodes: 0, requestMs: 0, renderMs: 0 };
+    this.startedAt = performance.now();
     this.receiver = new DocumentReceiver();
     this.resources = new Map();
     this.resourceSizes = new Map();
@@ -38,6 +40,7 @@ export class DocumentView {
     this.serial = 0;
     this.requestTimeout = 15000;
   }
+  diagnostics() { return { elapsedMs: performance.now() - this.startedAt, document: { ...this.metrics }, media: this.media.diagnostics() }; }
   get generation() { return this.renderer.generation; }
   start() {
     if (this.running) return;
@@ -50,8 +53,12 @@ export class DocumentView {
       let rendering = false;
       try {
         if (document.visibilityState === "visible") {
+          const requested = performance.now();
           const packet = await request("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation });
           if (!this.running || serial !== this.serial) return;
+          this.metrics.polls++;
+          this.metrics.requestMs += performance.now() - requested;
+          this.metrics.changedNodes += packet.put.length;
           const snapshot = this.receiver.apply(packet);
           const required = new Map();
           const documents = [];
@@ -99,7 +106,9 @@ export class DocumentView {
           const previousGeneration = this.displayedGeneration;
           rendering = true;
           this.media.begin();
+          const renderingAt = performance.now();
           await this.renderer.render(snapshot, controller.signal);
+          this.metrics.renderMs += performance.now() - renderingAt;
           if (!this.running || serial !== this.serial) return;
           this.displayedGeneration = snapshot.generation;
           this.media.finish();

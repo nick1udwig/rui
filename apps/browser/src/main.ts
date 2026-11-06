@@ -118,6 +118,7 @@ const documentView = workspace === "browser" ? new DocumentView(documentContaine
   documentCommands.push(action);
   drainDocumentCommands();
 }, () => !!client?.hasControl, say, drainDocumentCommands) : undefined;
+Object.defineProperty(window, "ruiPerformance", { get: () => documentView?.diagnostics() });
 let renderedState: State | undefined;
 function editable(node: Semantic) {
   return !!client?.hasControl && !staging && node.states.get("Disabled") !== "True";

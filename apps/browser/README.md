@@ -285,3 +285,9 @@ Unchanged source styles use version references, and the receiver retains parsed 
 Large JSON responses use gzip when the client supports it.
 Its sandbox permits native canvas/media rendering; the strict script CSP remains active.
 Website scripts are not copied to the client.
+
+Performance diagnostics are available as `window.ruiPerformance` in the phone browser console.
+Counters include document requests, changed nodes, render time, encoded media bytes, frame callbacks, buffer depth, dropped frames, and reconnects.
+Run `cd apps/browser && node tests/performance.mjs` for idle, live DOM, canvas, and video fixtures.
+The report includes browser task time, JavaScript heap size, payload throughput before HTTP compression, and action-to-display delay.
+These synthetic measurements do not include GPU process usage or physical phone battery use.

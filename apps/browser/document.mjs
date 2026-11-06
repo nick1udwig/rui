@@ -312,6 +312,7 @@ export class BrowserDocument {
     } finally { await response.dispose(); }
   }
   async capture(budget = { frames: 16 }) {
+    const captureStarted = performance.now();
     if (--budget.frames < 0) throw Error("Frame limit");
     const generation = this.generation;
     let result;
@@ -408,7 +409,7 @@ export class BrowserDocument {
     });
     this.styles = new Map(Object.entries(styleResources));
     const snapshot = { ...result, styleResources, resources: Object.fromEntries(this.resources), generation, revision: ++this.revision };
-    this.metrics = { sourceStyleBytes, documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
+    this.metrics = { captureMs: performance.now() - captureStarted, sourceStyleBytes, documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
     if (Buffer.byteLength(JSON.stringify({ ...snapshot, resources: {}, styleResources: {} })) > MAX_BYTES || this.metrics.styleBytes > MAX_BYTES) throw Error("Snapshot limit");
     return snapshot;
   }
