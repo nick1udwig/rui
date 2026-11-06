@@ -386,24 +386,16 @@ impl CommandLedger {
     fn bound_outcomes(&mut self) {
         let mut retained: Vec<_> = self
             .producers
-            .iter()
-            .flat_map(|(client, p)| {
-                p.records
-                    .iter()
-                    .filter(|(_, r)| r.outcome.is_some())
-                    .map(move |(seq, r)| (r.order, client.clone(), *seq))
-            })
+            .values_mut()
+            .flat_map(|p| p.records.values_mut())
+            .filter(|r| r.outcome.is_some())
             .collect();
-        retained.sort_by_key(|r| r.0);
         let remove = retained.len().saturating_sub(self.limits.max_outcomes);
-        for (_, client, seq) in retained.into_iter().take(remove) {
-            self.producers
-                .get_mut(&client)
-                .unwrap()
-                .records
-                .get_mut(&seq)
-                .unwrap()
-                .outcome = None;
+        if remove > 0 {
+            let (oldest, _, _) = retained.select_nth_unstable_by_key(remove, |r| r.order);
+            for record in oldest {
+                record.outcome = None;
+            }
         }
     }
     /// Decode the same original Protobuf payload used for exact-byte deduplication.
