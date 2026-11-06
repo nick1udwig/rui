@@ -35,3 +35,14 @@ test("resource bodies stay out of checkpoints and unchanged styles stay out of p
   assert.deepEqual(patch.styleResources, {});
   assert.deepEqual(receiver.apply(patch).root.document.resources[key], { bytes: 10 });
 });
+
+
+test('replaced styles retire their old resource offers', () => {
+  const publisher = new DocumentPublisher(), receiver = new DocumentReceiver();
+  const oldKey = 'a'.repeat(64), newKey = 'b'.repeat(64);
+  const first = { generation: 'c'.repeat(32), revision: 1, root: { id: 1, tag: 'p', children: [] }, styles: [{ resource: oldKey }], resources: {}, styleResources: { [oldKey]: 'p{color:red}' } };
+  receiver.apply(publisher.publish(first));
+  const patch = publisher.publish({ ...first, revision: 2, styles: [{ resource: newKey }], styleResources: { [newKey]: 'p{color:blue}' } });
+  assert.deepEqual(patch.retireStyles, [oldKey]);
+  assert.deepEqual(Object.keys(receiver.apply(patch).styleResources), [newKey]);
+});

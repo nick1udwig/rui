@@ -35,6 +35,8 @@ export class DocumentPublisher {
       remove: previous ? [...previous.keys()].filter(id => !records.has(id)) : [],
     };
     if (previous && JSON.stringify(this.snapshot.styles) === JSON.stringify(snapshot.styles)) delete packet.styles;
+    packet.retireResources = previous ? Object.keys(this.snapshot.resources || {}).filter(key => !(key in (snapshot.resources || {}))) : [];
+    packet.retireStyles = previous ? Object.keys(this.snapshot.styleResources || {}).filter(key => !(key in (snapshot.styleResources || {}))) : [];
     packet.resources = offers(Object.entries(snapshot.resources || {}).filter(([key, data]) => !previous || this.snapshot.resources?.[key] !== data));
     packet.styleResources = offers(Object.entries(snapshot.styleResources || {}).filter(([key, data]) => !previous || this.snapshot.styleResources?.[key] !== data));
     if (JSON.stringify(packet).length > LIMIT) throw Error("Document packet limit");
@@ -69,6 +71,10 @@ export class DocumentReceiver {
     if (!Array.isArray(styles)) throw Error("Document styles missing");
     const resources = { ...(packet.base ? this.resources : {}), ...packet.resources };
     const styleResources = { ...(packet.base ? this.styleResources : {}), ...packet.styleResources };
+    for (const [kind, target] of [['retireResources', resources], ['retireStyles', styleResources]]) {
+      if (!Array.isArray(packet[kind] || [])) throw Error('Invalid resource retirement');
+      for (const key of packet[kind] || []) delete target[key];
+    }
     const { put, remove, ...metadata } = packet;
     const snapshot = { ...metadata, styles, styleResources, resources, root };
     if (JSON.stringify(snapshot).length > LIMIT) throw Error("Retained document limit");

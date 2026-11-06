@@ -9,6 +9,7 @@ export class DocumentView {
     this.report = report;
     this.receiver = new DocumentReceiver();
     this.resources = new Map();
+    this.resourceBytes = 0;
     this.iframe = document.createElement("iframe");
     this.iframe.title = "Host web page";
     this.iframe.style.cssText = "width:100%;height:75dvh;border:0;background:white";
@@ -34,7 +35,15 @@ export class DocumentView {
           const packet = await this.api("document", { profile: DOCUMENT_PROFILE, revision: this.receiver.revision, generation: this.receiver.generation }, true);
           if (!this.running || serial !== this.serial) return;
           const snapshot = this.receiver.apply(packet);
-          if (this.resourceGeneration !== snapshot.generation) { this.resources.clear(); this.resourceGeneration = snapshot.generation; }
+          if (this.resourceGeneration !== snapshot.generation) { this.resources.clear(); this.resourceBytes = 0; this.resourceGeneration = snapshot.generation; }
+          const retained = new Set();
+          const collect = snapshot => {
+            for (const kind of ['resources', 'styleResources']) for (const key of Object.keys(snapshot[kind] || {})) retained.add(key);
+            const visit = node => { if (node.document) collect(node.document); for (const child of [...(node.children || []), ...(node.shadow || [])]) visit(child); };
+            visit(snapshot.root);
+          };
+          collect(snapshot);
+          for (const [key, body] of this.resources) if (!retained.has(key)) { this.resources.delete(key); this.resourceBytes -= new TextEncoder().encode(body).length; }
           const hydrate = async snapshot => {
             for (const kind of ['resources', 'styleResources']) {
               const result = {};
@@ -48,8 +57,9 @@ export class DocumentView {
                   if (bytes.length !== offer.bytes) throw Error('Resource length mismatch');
                   const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2,'0')).join('');
                   if (digest !== key) throw Error('Resource integrity mismatch');
-                  if ([...this.resources.values()].reduce((n, v) => n + v.length, body.length) > 16 * 1024 * 1024) throw Error('Resource cache limit');
+                  if (this.resourceBytes + bytes.length > 16 * 1024 * 1024) throw Error('Resource cache limit');
                   this.resources.set(key, body);
+                  this.resourceBytes += bytes.length;
                 }
                 result[key] = this.resources.get(key);
               }
@@ -89,6 +99,7 @@ export class DocumentView {
     this.iframe.srcdoc = "";
     this.receiver = new DocumentReceiver();
     this.resources.clear();
+    this.resourceBytes = 0;
     this.renderer.generation = null;
   }
 }
