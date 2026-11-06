@@ -52,6 +52,7 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     const frame = viewer.frames()[1];
     assert.equal(await frame.locator('#field').inputValue(), 'live');
     assert.equal(await frame.locator('#secret').inputValue(), '');
+    assert.equal(await frame.locator('#secret').evaluate(n => n.readOnly), true);
     assert.equal(await frame.locator('h1').textContent(), 'Real text');
     assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n).color), 'rgb(1, 2, 3)');
     assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n, '::before').content), '"Prefix "');

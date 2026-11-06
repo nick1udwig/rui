@@ -621,6 +621,8 @@ $("forget").onclick = async () => {
 };
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    documentView?.stop();
+    documentCommands = [];
     authority++;
     for (const row of rows.values())
       if (row.kind === "password" && row.input) row.input.value = "";
@@ -628,6 +630,7 @@ document.addEventListener("visibilitychange", () => {
     refresh();
     try {
       client.semanticReady(renderedState.revision);
+      documentView?.start();
     } catch {}
   }
 });

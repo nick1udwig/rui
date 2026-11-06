@@ -172,6 +172,10 @@ export class DocumentRenderer {
         while (cursor) { const next = cursor.nextSibling; cursor.remove(); cursor = next; }
       }
       if (typeof node.value === "string" && "value" in element && element !== doc.activeElement && element.value !== node.value) element.value = node.value;
+      if (node.tag === 'input' && node.attrs?.type === 'password') {
+        element.readOnly = true;
+        element.placeholder = 'Use the password control below the page';
+      }
       if (typeof node.checked === "boolean" && "checked" in element) element.checked = node.checked;
       if (node.shadow) {
         const shadow = element.shadowRoot || element.attachShadow({ mode: "open" });

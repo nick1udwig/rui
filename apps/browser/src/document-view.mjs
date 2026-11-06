@@ -63,6 +63,7 @@ export class DocumentView {
           this.media.begin();
           await this.renderer.render(snapshot);
           this.media.finish();
+          this.failures = 0;
           const width = Math.max(240, Math.min(2560, Math.round(this.iframe.clientWidth)));
           const height = Math.max(240, Math.min(2560, Math.round(this.iframe.clientHeight)));
           if (this.canControl() && (snapshot.width !== width || snapshot.height !== height)) this.dispatch({ generation: snapshot.generation, revision: snapshot.revision, action: "resize", width, height });
@@ -71,11 +72,12 @@ export class DocumentView {
         this.media.dispose();
         this.iframe.hidden = true;
         this.report(error);
-        this.running = false;
-        return;
+        this.receiver = new DocumentReceiver();
+        this.renderer.generation = null;
+        this.failures = (this.failures || 0) + 1;
       }
-      this.iframe.hidden = false;
-      if (this.running) this.timer = setTimeout(poll, 300);
+      if (!this.failures) this.iframe.hidden = false;
+      if (this.running && serial === this.serial) this.timer = setTimeout(poll, this.failures ? Math.min(5000, this.failures * 1000) : 300);
     };
     void poll();
   }

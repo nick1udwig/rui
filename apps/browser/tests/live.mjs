@@ -182,6 +182,16 @@ try {
     };
   });
   page = await context.newPage();
+  let corruptedResource = false;
+  if (!desktopBrowser) await page.route('**/api/document-resource', async route => {
+    if (corruptedResource) return route.continue();
+    const response = await route.fetch();
+    const data = await response.json();
+    if (typeof data.body !== 'string' || !data.body.length) return route.fulfill({ response });
+    corruptedResource = true;
+    data.body = (data.body[0] === 'x' ? 'y' : 'x') + data.body.slice(1);
+    await route.fulfill({ response, json: data });
+  });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => {
@@ -260,6 +270,7 @@ try {
     assert.equal(await replica.locator("script").count(), 0);
     await deadline(async () => replica.locator("#live-image").evaluate(n => n.complete && n.naturalWidth === 32), "authenticated image resource");
     assert.equal(await replica.locator("h1").evaluate(n => getComputedStyle(n).color), "rgb(12, 34, 56)");
+    assert.equal(corruptedResource, true, "viewer recovers after rejecting a corrupt resource");
     await deadline(async () => replica.locator("#live-canvas").evaluate(n => n.getContext("2d").getImageData(10,10,1,1).data[0] > 200), "scoped canvas media");
     await replica.getByRole("button", { name: "Run action", exact: true }).click();
     await replica.locator("#result").filter({ hasText: "Action confirmed" }).waitFor();

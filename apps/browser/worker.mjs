@@ -96,7 +96,7 @@ const handler = async (request, response) => {
         const body = source.resource(data.key);
         if (body === undefined) throw Error("Resource unavailable");
         const current = await admin({ op: "document", ...auth });
-        if (current.scope !== grant.scope || workspace.pages.get(workspace.active)?.document !== source) throw Error("Resource scope changed");
+        if (current.scope !== grant.scope || workspace.pages.get(workspace.active)?.document !== source || source.generation !== data.generation) throw Error("Resource scope changed");
         return respond(response, 200, { body });
       }
       if (url.pathname === "/api/media" && !desktop) {
@@ -134,7 +134,7 @@ const handler = async (request, response) => {
         const snapshot = await source.capture();
         const current = await admin({ op: "document", ...auth });
         if (current.scope !== grant.scope) throw Error("Document scope changed");
-        if (workspace.active !== page) throw Error("Selected tab changed");
+        if (workspace.active !== page || source.generation !== snapshot.generation) throw Error("Selected tab changed");
         if (!documentPublishers.has(auth.client) && documentPublishers.size >= 32) throw Error("Document viewer limit");
         let publisher = documentPublishers.get(auth.client);
         if (!publisher || publisher.snapshot?.revision !== data.revision || publisher.snapshot?.generation !== data.generation) publisher = new DocumentPublisher();
