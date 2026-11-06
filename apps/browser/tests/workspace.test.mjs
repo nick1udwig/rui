@@ -11,7 +11,23 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { Workspace, safeFile } from "../workspace.mjs";
+import { Workspace, safeFile, navigationURL } from "../workspace.mjs";
+
+test("address navigation defaults bare hosts to HTTPS and preserves explicit URLs", () => {
+  for (const [address, expected] of [
+    ["youtube.com", "https://youtube.com/"],
+    ["  youtube.com/results?search_query=browser#top  ", "https://youtube.com/results?search_query=browser#top"],
+    ["//youtube.com", "https://youtube.com/"],
+    ["youtube.com:8443/watch", "https://youtube.com:8443/watch"],
+    ["localhost:8443", "https://localhost:8443/"],
+    ["[::1]:8443", "https://[::1]:8443/"],
+    ["https://youtube.com", "https://youtube.com/"],
+    ["http://localhost:8080/path", "http://localhost:8080/path"],
+    ["about:blank", "about:blank"],
+  ]) assert.equal(navigationURL(address), expected);
+  for (const address of ["", "   ", null, "not a host", "javascript:alert(1)", "data:text/html,hello", "file:///tmp/private", "about:config"])
+    assert.throws(() => navigationURL(address));
+});
 
 test("host file selection rejects traversal and symlinks", async () => {
   const root = await mkdtemp(join(tmpdir(), "rui-files-"));

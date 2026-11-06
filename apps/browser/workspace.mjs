@@ -47,6 +47,15 @@ const INFORMATIONAL = new Set([
 const MAX_NODES = 900,
   MAX_TEXT = 16_384;
 const clean = (value) => String(value ?? "").slice(0, MAX_TEXT / 4);
+export function navigationURL(value) {
+  if (typeof value !== "string" || !value.trim()) throw Error("Address required");
+  const address = value.trim();
+  const scheme = /^[a-z][a-z\d+.-]*:/i.test(address);
+  const hostPort = /^(?:localhost|[^/:?#\s]+\.[^/:?#\s]+):\d+(?:[/?#]|$)/i.test(address);
+  const url = new URL(scheme && !hostPort ? address : `https:${address.startsWith("//") ? "" : "//"}${address}`);
+  if (!["http:", "https:"].includes(url.protocol) && url.href !== "about:blank") throw Error("Unsupported address");
+  return url.href;
+}
 export function inside(root, path) {
   return path === root || path.startsWith(root + sep);
 }
@@ -828,13 +837,8 @@ export class Workspace {
         }
         case "navigate": {
           let url;
-          try { url = new URL(value); } catch { return { status: "rejected" }; }
-          if (
-            !["http:", "https:", "about:"].includes(url.protocol) ||
-            (url.protocol === "about:" && value !== "about:blank")
-          )
-            return { status: "rejected" };
-          await page.evaluate(url => location.assign(url), url.href);
+          try { url = navigationURL(value); } catch { return { status: "rejected" }; }
+          await page.evaluate(url => location.assign(url), url);
           break;
         }
         case "back":

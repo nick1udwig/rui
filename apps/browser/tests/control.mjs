@@ -53,7 +53,7 @@ try {
   const navigate = async url => { await address.fill(url); await go.click(); };
   const replica = viewer.frameLocator('iframe[title="Host web page"]');
   if (process.env.RUI_TEST_PUBLIC === '1') {
-    await navigate('https://www.youtube.com/');
+    await navigate('youtube.com');
     const search = replica.getByRole('button', { name: 'Search', exact: true }).first();
     await search.waitFor({ state: 'visible', timeout: 30000 });
     await search.tap();
