@@ -370,7 +370,7 @@ async function shutdown() {
   server.close();
   rpc.close();
   for (const client of wss.clients) client.terminate();
-  await workspace.context.close().catch(() => {});
+  await (workspace.close ? workspace.close() : workspace.context.close()).catch(() => {});
   process.exit(0);
 }
 process.on("SIGTERM", shutdown);

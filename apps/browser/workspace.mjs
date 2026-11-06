@@ -57,8 +57,9 @@ export async function safeFile(root, path) {
   return actual;
 }
 export class Workspace {
-  constructor(context, files, downloads) {
+  constructor(context, files, downloads, attachedBrowser = null) {
     this.context = context;
+    this.attachedBrowser = attachedBrowser;
     this.files = files;
     this.downloadDir = downloads;
     this.semantic = new SemanticNodes();
@@ -83,6 +84,14 @@ export class Workspace {
     const files = await realpath(process.env.RUI_FILES_DIR);
     const downloads = resolve(directory, "downloads");
     await mkdir(downloads, { recursive: true });
+    if (process.env.RUI_CDP_URL) {
+      const endpoint = new URL(process.env.RUI_CDP_URL);
+      if (!['http:', 'ws:'].includes(endpoint.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname) || endpoint.username || endpoint.password) throw Error('CDP must use a local endpoint');
+      const browser = await chromium.connectOverCDP(endpoint.href, { noDefaults: true });
+      const context = browser.contexts()[0];
+      if (!context) { await browser.close(); throw Error('No browser context'); }
+      return new Workspace(context, files, downloads, browser);
+    }
     const context = await chromium.launchPersistentContext(
       resolve(directory, "profile"),
       {
@@ -100,6 +109,17 @@ export class Workspace {
       },
     );
     return new Workspace(context, files, downloads);
+  }
+  async close() {
+    for (const [page, entry] of this.pages) {
+      if (this.attachedBrowser && entry.document.viewportChanged && !page.isClosed()) {
+        const session = await this.context.newCDPSession(page).catch(() => null);
+        if (session) { await session.send('Emulation.clearDeviceMetricsOverride').catch(() => {}); await session.detach().catch(() => {}); }
+      }
+      entry.document.dispose();
+    }
+    if (this.attachedBrowser) await this.attachedBrowser.close();
+    else await this.context.close();
   }
   invalidate() {
     this.captureGeneration++;
@@ -119,7 +139,7 @@ export class Workspace {
   register(page) {
     if (this.pages.has(page)) return;
     if (this.pages.size >= 16) {
-      void page.close().catch(() => {});
+      if (!this.attachedBrowser) void page.close().catch(() => {});
       return;
     }
     const entry = {

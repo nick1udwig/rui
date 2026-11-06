@@ -97,6 +97,7 @@ export class BrowserDocument {
       const { width, height } = command;
       if (![width, height].every(n => Number.isInteger(n) && n >= 240 && n <= 2560)) throw Error("Viewport limit");
       await this.page.setViewportSize({ width, height });
+      this.viewportChanged = true;
       return;
     }
     if (!Number.isSafeInteger(command.node)) throw Error("Invalid document target");

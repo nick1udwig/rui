@@ -31,11 +31,16 @@ def parse_args(argv=None, workspace="browser"):
     parser.add_argument('--state-dir', type=Path, default=Path.home()/f'.local/state/rui/{workspace}')
     parser.add_argument('--files-dir', type=Path, default=Path.home()/'Downloads')
     parser.add_argument('--chromium', default='/usr/bin/chromium')
+    parser.add_argument('--cdp-url', help='attach to an existing Chromium through its loopback debugging endpoint')
     if workspace == 'desktop':
         parser.add_argument('--with-browser', action='store_true', help='also open a managed host browser with responsive semantic pages')
     parser.add_argument('--skip-build', action='store_true')
     parser.add_argument('--headless', action='store_true', help='automated testing only')
     args = parser.parse_args(argv)
+    if args.cdp_url:
+        endpoint = urlsplit(args.cdp_url)
+        if endpoint.scheme not in ('http', 'ws') or endpoint.hostname not in ('localhost', '127.0.0.1', '::1') or endpoint.username or endpoint.password:
+            parser.error('--cdp-url requires a loopback HTTP or WebSocket endpoint')
     if not 1 <= args.port <= 65535 or any(c in args.host for c in '/?#@, \t\n:'):
         parser.error('invalid hostname or port')
     args.public_path = '/'
@@ -129,6 +134,9 @@ def main(workspace="browser"):
                RUI_HEADLESS='1' if args.headless else '0',
                RUI_DESKTOP_BROWSER='1' if getattr(args, 'with_browser', False) else '0')
     env.pop('RUI_WEB_CERT', None)
+    env.pop('RUI_CDP_URL', None)
+    if args.cdp_url:
+        env['RUI_CDP_URL'] = args.cdp_url
     env.pop('RUI_WEB_KEY', None)
     if args.cert:
         env.update(RUI_WEB_CERT=str(args.cert.resolve()), RUI_WEB_KEY=str(args.key.resolve()))
