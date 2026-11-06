@@ -164,6 +164,54 @@ export function checkPixels() {
       resource,
     );
   };
+  const segments = [
+    [2, 4, 22, 16, 0.5, 0, 0, 0.5],
+    [22, 4, 2, 16, 0, 0, 0.75, 0.75],
+    [12, 10, 12, 10, 0, 1, 0, 1],
+  ];
+  const transform = { ...I, tx: 1.25 },
+    clip = { x: 4, y: 2, width: 16, height: 18 };
+  render([
+    scene(
+      3,
+      { SegmentBatch: { segments, width: 3, minimum_length: 2 } },
+      [],
+      0.6,
+      transform,
+      clip,
+    ),
+  ]);
+  const segmentPixels = canvas
+    .getContext("2d")
+    .getImageData(0, 0, 32, 32)
+    .data.slice();
+  render([
+    scene(3, "Group", [4, 5, 6], 0.6, transform, clip),
+    ...segments.map((s, i) => {
+      const dx = s[2] - s[0],
+        dy = s[3] - s[1],
+        length = Math.hypot(dx, dy);
+      const xx = length > 0 ? dx / length : 1,
+        yx = length > 0 ? dy / length : 0;
+      return scene(
+        i + 4,
+        solid(
+          { red: s[4], green: s[5], blue: s[6], alpha: s[7] },
+          { x: 0, y: -1.5, width: Math.max(length, 2), height: 3 },
+        ),
+        [],
+        1,
+        { xx, yx, xy: -yx, yy: xx, tx: s[0], ty: s[1] },
+      );
+    }),
+  ]);
+  const expandedPixels = canvas
+    .getContext("2d")
+    .getImageData(0, 0, 32, 32).data;
+  assert(
+    segmentPixels.every((v, i) => v === expandedPixels[i]),
+    "segment batch composition differs from expanded rectangles",
+  );
   render([
     scene(3, "Group", [4, 5]),
     scene(4, solid(green)),
@@ -436,6 +484,50 @@ export function checkPixels() {
       renderer.allocationStats().nodeHits > 0,
     "unchanged nodes recompiled",
   );
+  const batchState = state([
+    scene(3, {
+      SegmentBatch: {
+        segments: structuredClone(segments),
+        width: 3,
+        minimum_length: 2,
+      },
+    }),
+  ]);
+  renderer.render(batchState, viewport, () => rvp());
+  const batchBuilds = renderer.allocationStats().nodeBuilds;
+  batchState.records.get(3n).Scene.version++;
+  renderer.render(batchState, viewport, () => rvp());
+  assert(
+    renderer.allocationStats().nodeBuilds === batchBuilds,
+    "batch version rebuilt unchanged segments",
+  );
+  const referenceCanvas = document.createElement("canvas");
+  const referenceRenderer = new CanvasRenderer(
+    referenceCanvas,
+    1 << 20,
+    undefined,
+    false,
+  );
+  for (let frame = 0; frame < 20; frame++) {
+    const node = batchState.records.get(3n).Scene;
+    node.version++;
+    node.primitive.SegmentBatch.segments[0][0] = frame % 7;
+    node.primitive.SegmentBatch.segments[1][4] = frame % 2 ? 0.25 : 0;
+    node.transform.tx = frame % 3;
+    node.opacity = frame % 2 ? 0.5 : 1;
+    node.clip = frame % 4 ? null : { x: 0, y: 0, width: 16, height: 32 };
+    renderer.render(batchState, viewport, () => rvp());
+    referenceRenderer.render(batchState, viewport, () => rvp());
+    const actual = canvas.getContext("2d").getImageData(0, 0, 32, 32).data;
+    const expected = referenceCanvas
+      .getContext("2d")
+      .getImageData(0, 0, 32, 32).data;
+    assert(
+      actual.every((value, index) => value === expected[index]),
+      "cached segment update differs from reference",
+    );
+  }
+  referenceRenderer.dispose();
   unchanged.records.get(3n).Scene.transform = { ...I, tx: 8 };
   renderer.render(unchanged, viewport, () => rvp());
   close(
@@ -466,7 +558,7 @@ export function checkPixels() {
   );
   canvas.remove();
   return {
-    primitives: 9,
+    primitives: 10,
     linearBlending: true,
     isolatedOpacity: true,
     clips: true,

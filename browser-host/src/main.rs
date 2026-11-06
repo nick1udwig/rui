@@ -13,7 +13,7 @@ use std::{
     io::{self, BufRead},
     os::unix::fs::PermissionsExt,
     path::PathBuf,
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -79,6 +79,14 @@ async fn main() -> Result<(), Error> {
     let directory = PathBuf::from(&args[1]);
     let approvals_path = directory.join("devices.json");
     let mut authority = PairingAuthority::new(32)?;
+    let game_credential = if std::env::var("RUI_WORKSPACE").as_deref() == Ok("game") {
+        let client = [3; 16];
+        let request = authority.request_local_pairing(client)?;
+        let credential = authority.approve_local(request.request_id, permissions(client))?;
+        Some(credential)
+    } else {
+        None
+    };
     if approvals_path.exists() {
         for record in serde_json::from_slice::<Vec<Value>>(&fs::read(&approvals_path)?)? {
             let client =
@@ -98,11 +106,21 @@ async fn main() -> Result<(), Error> {
         }
     }
     let admin = UnixListener::bind(&admin_path)?;
-    let child = Command::new("node")
+    let mut command = Command::new("node");
+    command
         .arg("--max-old-space-size=256")
         .arg(&args[2])
-        .env("RUI_STATE", &directory)
-        .spawn()?;
+        .stdin(Stdio::null())
+        .env("RUI_STATE", &directory);
+    if let Some(credential) = &game_credential {
+        command.env(
+            "RUI_GAME_CREDENTIAL",
+            hex(credential.expose_for_tls_authentication()),
+        );
+    }
+    let child = command.spawn()?;
+    drop(command);
+    drop(game_credential);
     let mut child = ChildGuard(child);
     let deadline = Instant::now() + Duration::from_secs(30);
     let worker = loop {

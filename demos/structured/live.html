@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>RUI / Retained objects</title>
+  <style>
+    body {
+      margin: 0;
+      background: #080f19;
+      color: #d8ebff;
+      font: 16px system-ui;
+    }
+    main {
+      max-width: 1000px;
+      margin: 36px auto;
+      padding: 0 20px;
+    }
+    .eyebrow {
+      color: #70e8ba;
+      letter-spacing: 0.15em;
+      font-size: 12px;
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 52px);
+      margin: 10px 0;
+    }
+    p {
+      color: #adc2d8;
+      line-height: 1.6;
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: end;
+      margin: 24px 0;
+    }
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+    }
+    button,
+    select {
+      background: #163148;
+      color: #e6f4ff;
+      border: 1px solid #466883;
+      border-radius: 6px;
+      font: inherit;
+      padding: 10px;
+    }
+    button {
+      cursor: pointer;
+    }
+    canvas {
+      width: 100%;
+      aspect-ratio: 4/3;
+      border: 1px solid #29485c;
+      background: #101b29;
+    }
+    .metrics {
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+    .metrics strong {
+      display: block;
+      font-size: 26px;
+      color: #8cf0c5;
+    }
+    .metrics span {
+      font-size: 13px;
+      color: #a6b9cf;
+    }
+    #status {
+      min-height: 26px;
+    }
+    footer {
+      font-size: 13px;
+      border-top: 1px solid #29485c;
+      margin-top: 28px;
+      padding: 16px 0;
+    }
+  </style>
+  <main>
+    <p class="eyebrow">RUI / SOURCE-AWARE REPLAY</p>
+    <h1>Move the objects.<br />Keep the geometry.</h1>
+    <p>
+      32 retained shapes. Eight moving objects. One moving camera.<br />Compare
+      object transforms with the same scene flattened into changing line
+      endpoints.
+    </p>
+    <div class="controls">
+      <label
+        >Representation<select id="variant">
+          <option value="objects">Retained objects</option>
+          <option value="flattened">Flattened segments</option>
+        </select></label
+      ><label
+        >Local resolution<select id="width">
+          <option value="320">320 × 240</option>
+          <option value="640" selected>640 × 480</option>
+          <option value="1280">1280 × 960</option>
+        </select></label
+      ><button id="play">Play from host</button
+      ><button id="pause" disabled>Pause</button>
+    </div>
+    <p id="status" role="status">
+      Ready. This demo uses authored scene traces, not a MAME object extractor.
+    </p>
+    <canvas id="screen" aria-label="Host-authored asteroid field"></canvas>
+    <div class="metrics">
+      <div><strong id="bytes">0</strong><span>KiB received</span></div>
+      <div><strong id="frames">0</strong><span>presented updates</span></div>
+      <div><strong id="draw">0</strong><span>ms last local draw</span></div>
+      <div><strong id="rate">0</strong><span>KiB/s over playback</span></div>
+    </div>
+    <footer>
+      The host streams source-owned scene state over WebSocket. No game code or
+      simulation runs in the browser. Pause, then change resolution to redraw
+      the retained state without more host geometry. Playback uses real
+      presentation acknowledgements and backpressure.<br />This is an
+      unprivileged trace fixture, not the authenticated production host. Byte
+      counters exclude TLS and TCP/IP framing.
+    </footer>
+  </main>
+  <script type="module">
+    import init, { Session } from "/client-browser/wasm/rui_client_wasm.js";
+    import { CanvasRenderer } from "/client-browser/dist/index.js";
+    import { exportState } from "/demos/structured/state.mjs";
+    const $ = (id) => document.getElementById(id);
+    let session,
+      renderer,
+      ws,
+      state,
+      paused = false,
+      pending = 0n,
+      revision = 0n,
+      total = 0,
+      frames = 0,
+      start = 0,
+      generation = 0;
+    function drain() {
+      let p;
+      while ((p = session.nextOutbound())) ws.send(p);
+    }
+    function draw() {
+      if (!state) return;
+      const width = Number($("width").value),
+        t = performance.now();
+      renderer.render(
+        state,
+        {
+          width,
+          height: (width * 3) / 4,
+          origin: { x: 0, y: 0 },
+          scale: width / 640,
+        },
+        () => {
+          throw Error("unexpected resource");
+        },
+      );
+      $("draw").textContent = (performance.now() - t).toFixed(1);
+    }
+    function present() {
+      draw();
+      if (pending) {
+        session.presented(pending);
+        pending = 0n;
+        drain();
+        frames++;
+        $("frames").textContent = frames;
+        $("rate").textContent = (
+          total /
+          1024 /
+          Math.max(0.001, (performance.now() - start) / 1000)
+        ).toFixed(1);
+      }
+    }
+    $("width").value = innerWidth < 600 ? "320" : "640";
+    $("width").onchange = draw;
+    $("pause").onclick = () => {
+      paused = !paused;
+      $("pause").textContent = paused ? "Resume" : "Pause";
+      if (!paused && pending) present();
+      $("status").textContent = paused
+        ? "Paused. Change local resolution without requesting new geometry."
+        : "Playing host trace.";
+    };
+    $("play").onclick = async () => {
+      const mine = ++generation;
+      ws?.close();
+      session?.close();
+      session?.free();
+      renderer?.dispose();
+      session = undefined;
+      renderer = undefined;
+      state = undefined;
+      paused = false;
+      pending = 0n;
+      revision = 0n;
+      total = frames = 0;
+      for (const id of ["bytes", "frames", "draw", "rate"])
+        $(id).textContent = "0";
+      $("bytes").dataset.bytes = "0";
+      $("pause").disabled = true;
+      $("pause").textContent = "Pause";
+      $("play").disabled = true;
+      $("status").textContent = "Loading renderer and connecting…";
+      try {
+        await init();
+        if (mine !== generation) return;
+        renderer = new CanvasRenderer($("screen"));
+        session = new Session(new Uint8Array(16).fill(3), "fixture");
+        session.start(new Uint8Array(32).fill(7));
+        ws = new WebSocket(
+          `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/stream/${$("variant").value}`,
+          "rui.v1",
+        );
+        ws.binaryType = "arraybuffer";
+        start = performance.now();
+        ws.onopen = () => {
+          if (mine !== generation) return;
+          drain();
+          $("pause").disabled = false;
+          $("status").textContent = "Playing host trace.";
+        };
+        ws.onmessage = (event) => {
+          if (mine !== generation) return;
+          try {
+            total += event.data.byteLength;
+            $("bytes").textContent = (total / 1024).toFixed(1);
+            $("bytes").dataset.bytes = String(total);
+            session.receive(new Uint8Array(event.data));
+            drain();
+            if (session.revision !== revision) {
+              revision = session.revision;
+              state = exportState(session, state);
+              pending = revision;
+              if (!paused) present();
+            }
+          } catch (e) {
+            $("status").textContent = String(e);
+            ws.close();
+          }
+        };
+        ws.onerror = () => {
+          if (mine === generation)
+            $("status").textContent =
+              "Connection failed. Check that both generated traces are in the server data directory.";
+        };
+        ws.onclose = (event) => {
+          if (mine !== generation) return;
+          $("play").disabled = false;
+          $("pause").disabled = true;
+          $("status").textContent =
+            event.code === 1000
+              ? "Replay complete. Change resolution or play the other representation."
+              : "Replay disconnected.";
+          session.close();
+          session.free();
+          session = undefined;
+        };
+      } catch (e) {
+        $("status").textContent = String(e);
+        $("play").disabled = false;
+      }
+    };
+    addEventListener("pagehide", () => {
+      generation++;
+      ws?.close();
+      session?.close();
+      session?.free();
+      renderer?.dispose();
+      session = renderer = ws = state = undefined;
+      $("play").disabled = false;
+      $("pause").disabled = true;
+    });
+  </script>
+</html>

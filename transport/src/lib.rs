@@ -4,6 +4,8 @@ pub use rui_wire::{codec, proto, TransportError};
 #[cfg(feature = "native")]
 mod client;
 #[cfg(feature = "native")]
+pub mod compression;
+#[cfg(feature = "native")]
 pub mod diagnostics;
 #[cfg(feature = "native")]
 pub mod pairing;

@@ -410,6 +410,7 @@ impl Fixture {
                             Primitive::RoundedRect(_) => "RoundedRect", Primitive::Border(_) => "Border",
                             Primitive::LinearGradient(_) => "LinearGradient", Primitive::RadialGradient(_) => "RadialGradient",
                             Primitive::StrokePath(_) => "StrokePath",
+                            Primitive::SegmentBatch(_) => "SegmentBatch",
                         };
                         *primitives.entry(kind).or_default() += 1;
                     }

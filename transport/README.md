@@ -38,7 +38,8 @@ No remote message can approve or widen access.
 Revocation invalidates the immutable grant even if the same principal is immediately approved again.
 
 `spec/session.proto` is a separate generated wire module.
-Every WebSocket application message is one binary `Packet`; JSON/text transport and compression are rejected.
+Every WebSocket application message is one binary `Packet`; JSON/text transport and WebSocket extension compression are rejected.
+The optional [publication chunk compression profile](../spec/compression-profile.md) uses bounded Zstandard frames inside authenticated packets and preserves the original publication hashes and limits.
 A bounded HTTP upgrade on both sides selects the allocation ceiling before any credential envelope is read.
 Native clients send `x-rui-envelope-limit`. Browsers cannot set that header, so an upgrade with an exact explicitly allowed Origin uses the server ceiling; ClientHello must offer at least that ceiling, and ServerHello confirms the negotiated value. `ServerConfig.allowed_browser_origins` defaults to empty. Browser extension offers are accepted without selecting compression; compressed frames remain forbidden. Native upgrades continue to reject extension offers and require the limit header.
 

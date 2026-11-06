@@ -67,6 +67,10 @@ pub const SUPPORTED_FEATURES: &[&str] = &[
     "semantics.core.v1",
     "semantics.only.v1",
     "browser.semantic.v1",
+    "game.vector.v1",
+    "geometry.segments.v1",
+    "transport.zstd-chunks.v1",
+    "transport.zstd-history.v1",
     "glyph.outline-single.v1",
     "cursor.vector.v1",
     "text.clock.gtk-editable4224.v1",
@@ -224,6 +228,7 @@ pub(crate) enum Context {
     Color,
     Group,
     Solid,
+    Segments,
     Path,
     Glyph,
     Radii,
@@ -270,7 +275,8 @@ impl Context {
         match self {
             Self::Record => tag < 128 && !(1..=6).contains(&tag),
             Self::Mutation => tag < 128 && !(1..=2).contains(&tag),
-            Self::Scene => tag < 128 && !matches!(tag,1..=6|10..=18|20),
+            Self::Scene => tag < 128 && !matches!(tag,1..=6|10..=20),
+            Self::Segments => tag < 128 && !matches!(tag, 1..=3),
             Self::Glyph => tag < 128 && !matches!(tag, 1..=7),
             Self::Radii | Self::Border => tag < 128 && !matches!(tag, 1..=4),
             Self::Rounded => tag < 128 && !matches!(tag, 1..=3),
@@ -306,7 +312,7 @@ impl Context {
             Record=>Record, Surface=>Surface, Scene=>SceneNode, Semantic=>SemanticNode,
             Text=>TextModel, Binding=>Binding, Session=>SessionState, Ref=>ObjectRef,
             Rect=>Rect, Point=>Point, Size=>Size, Affine=>Affine, Color=>Color,
-            Group=>Group, Solid=>SolidRect, Path=>FillPath, Glyph=>GlyphRun,
+            Group=>Group, Solid=>SolidRect, Segments=>SegmentBatch, Path=>FillPath, Glyph=>GlyphRun,
             Radii=>CornerRadii,Rounded=>RoundedRect,Border=>Border,Stop=>GradientStop,
             Linear=>LinearGradient,Radial=>RadialGradient,Stroke=>StrokePath,
             Value=>TypedValue, State=>StateValue, Relation=>Relation, Action=>Action,
@@ -355,6 +361,7 @@ impl Context {
             (Scene, 16) => Some(Linear),
             (Scene, 17) => Some(Radial),
             (Scene, 18) => Some(Stroke),
+            (Scene, 19) => Some(Segments),
             (Rounded | Border, 2) => Some(Radii),
             (Linear, 4) | (Radial, 5) => Some(Stop),
             (Glyph, 5) | (Cursor, 1 | 2) | (Linear, 2 | 3) | (Radial, 2) => Some(Point),
@@ -447,6 +454,7 @@ fn scan(
     let mut values = SceneValues {
         stops: usize::from(matches!(context, Context::Stop)),
         dashes: 0,
+        segments: 0,
     };
     if matches!(context, Context::Record | Context::Mutation) {
         budget.records += 1;
@@ -486,6 +494,9 @@ fn scan(
             }
             1 => {
                 take(&mut input, 8)?;
+                if matches!((context, tag), (Context::Segments, 1)) {
+                    values.segments = values.segments.saturating_add(1);
+                }
                 if matches!((context, tag), (Context::Stroke, 7)) {
                     values.dashes = values.dashes.saturating_add(1);
                 }
@@ -504,9 +515,16 @@ fn scan(
                 }
                 if let Some(nested) = context.nested(tag) {
                     let child = scan(data, nested, depth + 1, budget, limits)?;
+                    values.segments = values.segments.saturating_add(child.segments);
                     values.stops = values.stops.saturating_add(child.stops);
                     values.dashes = values.dashes.saturating_add(child.dashes);
                 } else {
+                    if matches!((context, tag), (Context::Segments, 1)) {
+                        if len % 8 != 0 {
+                            return Err(WireError::Malformed("packed segment data".into()));
+                        }
+                        values.segments = values.segments.saturating_add(len / 8);
+                    }
                     if matches!((context, tag), (Context::Stroke, 7)) {
                         if len % 8 != 0 {
                             return Err(WireError::Malformed("packed dash length".into()));
@@ -520,6 +538,13 @@ fn scan(
                 take(&mut input, 4)?;
             }
             _ => return Err(WireError::Malformed("unsupported wire type".into())),
+        }
+        if matches!(
+            context,
+            Context::Segments | Context::Scene | Context::Record | Context::Mutation
+        ) && values.segments > 2048 * 8
+        {
+            return Err(WireError::Limit);
         }
         if matches!(
             context,
@@ -541,6 +566,7 @@ fn scan(
 struct SceneValues {
     stops: usize,
     dashes: usize,
+    segments: usize,
 }
 
 /// Scalar publication metadata inspection, after preflight, without allocation.

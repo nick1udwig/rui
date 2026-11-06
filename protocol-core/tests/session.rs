@@ -239,7 +239,10 @@ fn neg_001_authentication_precedes_projection_and_views_start_read_only() {
         Err(SessionError::Unauthenticated)
     );
     let session = connect(&mut broker, 3, "alice", true);
-    assert_eq!(session.profiles, SessionConfig::default().required_profiles);
+    assert_eq!(
+        session.profiles,
+        SessionConfig::default().supported_profiles
+    );
     assert!(broker.current_lease(0).is_none());
     assert!(broker
         .authorize_projection(&session.client, session.view_id)

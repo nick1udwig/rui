@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from conformance.full_reference import FullReplica
+from conformance.compressed_chunks import ChunkHistory
 from conformance.network_audit import MAX_FILE, MAX_PACKET, MAX_PUBLICATION, assemble, complete, identity
 from conformance.reference import fields, many, number, one, string
 
@@ -68,6 +69,7 @@ def verify_controller(path, *, clock_policy="native-gtk"):
     receipts, retired, stages, commits = {}, set(), Counter(), []
     profiles, modes, actions = None, set(), set()
     semantic_commands = 0
+    history = ChunkHistory()
 
     def confirm():
         nonlocal pending
@@ -106,14 +108,16 @@ def verify_controller(path, *, clock_policy="native-gtk"):
             lease = identity(body, 1), number(body, 2)
             actions = {raw.decode() for raw in many(body, 4, 2)}
         elif host and kind in (10, 11):
+            if kind == 10:
+                history.clear()
             if transfer is not None or not 0 < number(body, 4) <= MAX_PUBLICATION or not 0 < number(body, 5) <= 4096:
                 raise ValueError('composition publication ceiling')
             transfer = {'id': identity(body, 1), 'count': number(body, 5), 'total': number(body, 4),
                         'received': 0, 'chunks': [], 'kind': 'snapshot' if kind == 10 else 'transaction'}
-        elif host and kind == 12:
+        elif host and kind in (12, 15, 16):
             if transfer is None:
                 raise ValueError('composition publication chunk without begin')
-            assemble(transfer, identity(body, 1), number(body, 2), one(body, 3, 2))
+            assemble(transfer, identity(body, 1), number(body, 2), history.decode(kind, one(body, 3, 2)))
         elif host and kind == 13:
             if transfer is None:
                 raise ValueError('composition publication commit without begin')

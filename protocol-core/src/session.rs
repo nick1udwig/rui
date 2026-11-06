@@ -163,7 +163,14 @@ impl Default for SessionConfig {
         .collect();
         Self {
             versions: [1].into_iter().collect(),
-            supported_profiles: profiles.clone(),
+            supported_profiles: profiles
+                .iter()
+                .cloned()
+                .chain([
+                    "transport.zstd-chunks.v1".into(),
+                    "transport.zstd-history.v1".into(),
+                ])
+                .collect(),
             required_profiles: profiles,
             receiver_limits: ReceiverLimits::default(),
             max_clients: 1024,

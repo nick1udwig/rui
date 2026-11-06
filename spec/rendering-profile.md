@@ -1,6 +1,7 @@
 # RUI initial retained scene vocabulary
 
 This document defines the mathematical paint semantics of the nine initial `SceneNode` primitives in `rui.proto`.
+The optional [segment profile](segments-profile.md) adds ordered independent segments.
 It defines a bounded model vocabulary, not a renderer or a pixel comparison claim.
 A renderer profile must additionally pin rasterization, antialiasing and exact font handling.
 Unsupported source features require explicit coverage gaps or an equivalence-preserving lowering.
@@ -150,7 +151,8 @@ The path resource contains geometry only; arbitrary stroke shaders and toolkit s
 
 ## Required vocabulary and allocation bounds
 
-Scene primitive tags 10 through 18 name the nine forms; tag 19 remains unknown required vocabulary.
+Scene primitive tags 10 through 18 name the nine initial forms.
+Tag 19 names `SegmentBatch` under `geometry.segments.v1`; tag 20 remains the existing resource-reference field.
 Unknown primitive tags below 128 reject the publication, including when a known primitive also occurs.
 New primitive option messages also reserve tags below 128 for required behavior.
 Optional metadata uses tags 128 and above and cannot change these semantics.

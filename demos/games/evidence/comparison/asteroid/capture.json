@@ -1,0 +1,19 @@
+{
+  "game": "asteroid",
+  "fps": 25,
+  "seconds": 8,
+  "frames": 200,
+  "trace_sha256": "707777b477e210b2301ddc64d5b1b0edd821edc7451bfdb393355987b4d92cb7",
+  "unique_native_frames": 200,
+  "min_lines": 104,
+  "max_lines": 149,
+  "mame": "0.289 (mame0289-dirty)",
+  "schedule": "2-second coin/start setup; repeat 2-second drive/fire, two turning/fire patterns, idle phases",
+  "scheduled_start_after_setup": true,
+  "scriptedPhaseMasks": [
+    12,
+    5,
+    6,
+    0
+  ]
+}

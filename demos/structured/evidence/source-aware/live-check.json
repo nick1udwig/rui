@@ -1,0 +1,22 @@
+{
+  "reports": [
+    {
+      "variant": "objects",
+      "frames": 300,
+      "applicationBytes": 139154,
+      "lastFrameSha256": "72f73c693e9653481b651924f8cab6b741e4466f428d33a0bffcf43df0084c42",
+      "pauseBackpressure": true,
+      "localZoomWithoutTraffic": true
+    },
+    {
+      "variant": "flattened",
+      "frames": 300,
+      "applicationBytes": 793990,
+      "lastFrameSha256": "72f73c693e9653481b651924f8cab6b741e4466f428d33a0bffcf43df0084c42",
+      "pauseBackpressure": true,
+      "localZoomWithoutTraffic": true
+    }
+  ],
+  "physicalPhone": false,
+  "scope": "Actual browser WebSocket replay with real rendering and presentation acknowledgements; desktop Chromium, including a narrow layout check"
+}

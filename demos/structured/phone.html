@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <meta name="viewport" content="width=device-width,initial-scale=1" /><meta
+    charset="utf-8"
+  /><title>RUI structured workload lab</title>
+  <style>
+    body {
+      background: #080e19;
+      color: #d2e5ff;
+      font: 16px system-ui;
+      max-width: 900px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    h1 {
+      font-size: 28px;
+    }
+    select,
+    button {
+      font: inherit;
+      margin: 6px;
+      padding: 10px;
+      background: #1b3048;
+      color: white;
+      border: 1px solid #5a7996;
+      border-radius: 6px;
+    }
+    canvas {
+      width: 100%;
+      border: 1px solid #29415c;
+    }
+    pre {
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+    p {
+      line-height: 1.5;
+    }
+  </style>
+  <h1>Structured workload lab</h1>
+  <p>
+    Play an authored RUI scene locally from a compressed host trace. Change
+    resolution without downloading different geometry.
+  </p>
+  <label
+    >Workload
+    <select id="workload">
+      <option>editor</option>
+      <option>scroll</option>
+      <option>chart</option>
+      <option>diagram</option>
+    </select></label
+  >
+  <label
+    >Canvas
+    <select id="width">
+      <option>320</option>
+      <option selected>640</option>
+      <option>1280</option>
+    </select></label
+  ><button id="run">Run</button
+  ><button id="save" disabled>Save result</button>
+  <p id="status" role="status">
+    Ready. A run includes idle time and plays at 25 updates per second.
+  </p>
+  <canvas id="screen"></canvas>
+  <pre id="result"></pre>
+  <script type="module">
+    import init, { Session } from "/client-browser/wasm/rui_client_wasm.js";
+    import { CanvasRenderer } from "/client-browser/dist/index.js";
+    import { exportState } from "/demos/structured/state.mjs";
+    const get = (id) => document.getElementById(id);
+    let result;
+    get("save").onclick = () => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(
+        new Blob([JSON.stringify(result, null, 2)], {
+          type: "application/json",
+        }),
+      );
+      a.download = "rui-device-result.json";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
+    get("run").onclick = async () => {
+      get("run").disabled = true;
+      get("save").disabled = true;
+      let session, renderer, state;
+      try {
+        const started = performance.now();
+        await init();
+        const workload = get("workload").value,
+          width = Number(get("width").value),
+          height = (width * 3) / 4;
+        const response = await fetch(
+          "/data/" + workload + "/publications.packets",
+        );
+        if (!response.ok)
+          throw Error("Missing workload trace: run the exporter first.");
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const fetched = performance.now();
+        session = new Session(new Uint8Array(16).fill(3), "fixture");
+        session.start(new Uint8Array(32).fill(7));
+        renderer = new CanvasRenderer(get("screen"));
+        let outgoing = 0,
+          frames = 0,
+          revision = 0n,
+          offset = 0;
+        const samples = [];
+        let first;
+        const drain = () => {
+          let packet;
+          while ((packet = session.nextOutbound()))
+            outgoing += packet.byteLength;
+        };
+        drain();
+        while (offset < bytes.length) {
+          let sample = performance.now();
+          let changed = false;
+          while (offset < bytes.length && !changed) {
+            if (offset + 4 > bytes.length) throw Error("Truncated frame");
+            const n = new DataView(bytes.buffer, offset, 4).getUint32(0);
+            offset += 4;
+            if (!n || offset + n > bytes.length) throw Error("Invalid frame");
+            session.receive(bytes.subarray(offset, offset + n));
+            offset += n;
+            drain();
+            changed = session.revision !== revision;
+          }
+          if (changed) {
+            revision = session.revision;
+            state = exportState(session, state);
+            renderer.render(
+              state,
+              { width, height, origin: { x: 0, y: 0 }, scale: width / 640 },
+              () => {
+                throw Error("Unexpected resource");
+              },
+            );
+            session.presented(revision);
+            drain();
+            samples.push(performance.now() - sample);
+            frames++;
+            if (!first) first = performance.now() - started;
+            get("status").textContent =
+              `${workload}: ${frames} updates · ${(bytes.length / 1024).toFixed(1)} KiB trace`;
+            await new Promise((r) =>
+              setTimeout(r, Math.max(0, 40 - (performance.now() - sample))),
+            );
+          }
+        }
+        samples.sort((a, b) => a - b);
+        result = {
+          workload,
+          width,
+          height,
+          frames,
+          userAgent: navigator.userAgent,
+          devicePixelRatio,
+          traceBytes: bytes.length,
+          generatedClientPacketBytes: outgoing,
+          fetchAndInitMs: fetched - started,
+          firstFrameMs: first,
+          reduceExportRenderMsP50: samples[Math.ceil(samples.length * 0.5) - 1],
+          reduceExportRenderMsP95:
+            samples[Math.ceil(samples.length * 0.95) - 1],
+          wasmAccountedPeakBytes: session.memoryPeak,
+          renderer: renderer.allocationStats(),
+          scope:
+            "Fetched trace replay, not a live input or network-latency test. Local canvas size is not evidence of phone hardware. Energy is unmeasured.",
+        };
+        get("result").textContent = JSON.stringify(result, null, 2);
+        get("save").disabled = false;
+      } catch (error) {
+        get("status").textContent = String(error);
+      } finally {
+        session?.close();
+        session?.free();
+        if (renderer) {
+          const canvas = get("screen");
+          const preview =
+            canvas.width && canvas.height
+              ? canvas
+                  .getContext("2d")
+                  .getImageData(0, 0, canvas.width, canvas.height)
+              : null;
+          renderer.dispose();
+          if (preview) {
+            canvas.width = preview.width;
+            canvas.height = preview.height;
+            canvas.getContext("2d").putImageData(preview, 0, 0);
+          }
+        }
+        get("run").disabled = false;
+      }
+    };
+  </script>
+</html>

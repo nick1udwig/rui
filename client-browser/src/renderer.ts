@@ -285,6 +285,7 @@ export class CanvasRenderer implements Renderer {
     resources: (digest: Digest) => Uint8Array,
   ): Rect {
     if (p === "Group") return empty;
+    if ("SegmentBatch" in p) throw new Error("unexpanded segments");
     if ("FillPath" in p)
       return this.path(p.FillPath.resource, resources).bounds;
     if ("StrokePath" in p) {
@@ -355,6 +356,81 @@ export class CanvasRenderer implements Renderer {
       depth: number,
     ): Node => {
       if (depth > 128) throw new Error("scene depth limit");
+      if (scene.primitive !== "Group" && "SegmentBatch" in scene.primitive) {
+        const batch = scene.primitive.SegmentBatch;
+        if (batch.segments.length > 2048) throw new Error("segment limit");
+        if (
+          !Number.isFinite(batch.width) ||
+          batch.width <= 0 ||
+          !Number.isFinite(batch.minimum_length) ||
+          batch.minimum_length < 0
+        )
+          throw new Error("segment dimensions");
+        for (const s of batch.segments) {
+          if (
+            s.length !== 8 ||
+            !s.every(Number.isFinite) ||
+            s[7] < 0 ||
+            s[7] > 1 ||
+            s.slice(4, 7).some((v) => v < 0 || v > s[7])
+          )
+            throw new Error("segment values");
+        }
+        const m = multiply(parent, scene.transform);
+        const c = scene.clip
+          ? [...clips, { matrix: m, rect: scene.clip }]
+          : clips;
+        const children = batch.segments.map((s, i) => {
+          const dx = s[2] - s[0],
+            dy = s[3] - s[1],
+            length = Math.hypot(dx, dy);
+          const xx = length > 0 ? dx / length : 1,
+            yx = length > 0 ? dy / length : 0;
+          return compile(
+            {
+              ...scene,
+              id: -(scene.id << 32n) - BigInt(i + 1),
+              version: 0n,
+              children: [],
+              clip: null,
+              opacity: 1,
+              transform: { xx, yx, xy: -yx, yy: xx, tx: s[0], ty: s[1] },
+              primitive: {
+                SolidRect: {
+                  rect: {
+                    x: 0,
+                    y: -batch.width / 2,
+                    width: Math.max(length, batch.minimum_length),
+                    height: batch.width,
+                  },
+                  color: { red: s[4], green: s[5], blue: s[6], alpha: s[7] },
+                },
+              },
+            },
+            m,
+            c,
+            depth,
+          );
+        });
+        const batchBytes = 640 + children.length * 32;
+        this.charge(batchBytes);
+        graphBytes += batchBytes;
+        return {
+          id: scene.id,
+          version: scene.version,
+          matrix: m,
+          clips: c,
+          opacity: scene.opacity,
+          primitive: "Group",
+          children,
+          bounds: integral(
+            intersect(
+              children.reduce((b, n) => union(b, n.bounds), empty),
+              screen,
+            ),
+          ),
+        };
+      }
       const m = multiply(parent, scene.transform),
         c = scene.clip ? [...clips, { matrix: m, rect: scene.clip }] : clips;
       // The compiled graph is independently owned JS memory, beyond pixels.
@@ -841,6 +917,7 @@ function gradient(stops: Stop[], t: number): Color {
 }
 function paint(p: Primitive, pos: Point): Color {
   if (p === "Group") throw new Error("group paint");
+  if ("SegmentBatch" in p) throw new Error("unexpanded segments");
   if ("LinearGradient" in p) {
     const g = p.LinearGradient,
       dx = g.end.x - g.start.x,

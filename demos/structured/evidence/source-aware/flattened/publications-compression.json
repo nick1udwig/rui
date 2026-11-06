@@ -1,0 +1,1 @@
+{"chunks":300,"compressed_chunks":300,"compressed_publication_packet_bytes":793704,"frames":300,"plain_publication_packet_bytes":7575217,"scope":"publication begin/chunk/commit packets; excludes handshake, acknowledgements, TLS and WebSocket framing"}

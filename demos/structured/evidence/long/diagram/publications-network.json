@@ -1,0 +1,18 @@
+{
+  "publications": 1500,
+  "receivedPackets": 4501,
+  "applicationDownBytes": 964256,
+  "applicationUpBytes": 189223,
+  "tlsDownBytes": 1045478,
+  "tlsUpBytes": 275148,
+  "cold": {
+    "tlsDownBytes": 5969,
+    "tlsUpBytes": 2558,
+    "elapsedMs": 65.676793
+  },
+  "appliedRoundTripMsP50": 3.662188999999671,
+  "appliedRoundTripMsP95": 5.146560000000022,
+  "wasmAccountedPeakBytes": 3037194,
+  "messageDelayMs": 0,
+  "scope": "Actual loopback TLS stream including handshake, WebSocket upgrade/framing, WASM applied acknowledgements and simulated presented acknowledgements; excludes TCP/IP headers, browser assets, authorization service, rendering and input. Synthetic replay endpoint, not production host. Delays are per message delivery, not network emulation."
+}

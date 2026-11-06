@@ -52,6 +52,8 @@ fn tracked(kind: p::Kind) -> bool {
         p::Kind::SnapshotBegin
             | p::Kind::TransactionBegin
             | p::Kind::PublicationChunk
+            | p::Kind::ZstdPublicationChunk
+            | p::Kind::ZstdHistoryChunk
             | p::Kind::PublicationCommit
             | p::Kind::ResourceOffer
             | p::Kind::ResourceChunk

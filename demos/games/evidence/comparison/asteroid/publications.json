@@ -1,0 +1,1807 @@
+{
+  "controls_included": false,
+  "reducer_equivalence_verified": true,
+  "samples": [
+    {
+      "bytes": 14611,
+      "frame": 0,
+      "lines": 104,
+      "mutations": 109,
+      "project_build_encode_ms": 0.14385900000000001,
+      "scene_mutation_bytes": 14333,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 1,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.07957499999999999,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 2,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.06968400000000001,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 3,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.058786000000000005,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 4,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.061283000000000004,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 5,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.057229999999999996,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 6,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.063841,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 7,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.058186999999999996,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 8,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.047701,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 9,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.044594,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 10,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.043854,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 11,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.043903000000000005,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 12,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.043729000000000004,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 13,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.042128,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 14,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040712,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 15,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.043351,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 16,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.042053,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 17,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040097,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 18,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.043241,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 19,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.041051,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 20,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.04022,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 21,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.039957,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 22,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040556,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 23,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.041139,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 24,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.039882999999999995,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 25,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.039851000000000004,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 26,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.03924,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 27,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040588,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 28,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040679999999999994,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 29,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.039873000000000006,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 30,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040263,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 31,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.041518,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 32,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.040667999999999996,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 33,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.041932,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 34,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.041492999999999995,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 206,
+      "frame": 35,
+      "lines": 104,
+      "mutations": 1,
+      "project_build_encode_ms": 0.041035,
+      "scene_mutation_bytes": 0,
+      "slots": 104
+    },
+    {
+      "bytes": 17276,
+      "frame": 36,
+      "lines": 119,
+      "mutations": 121,
+      "project_build_encode_ms": 0.081272,
+      "scene_mutation_bytes": 16774,
+      "slots": 119
+    },
+    {
+      "bytes": 16893,
+      "frame": 37,
+      "lines": 121,
+      "mutations": 118,
+      "project_build_encode_ms": 0.082612,
+      "scene_mutation_bytes": 16398,
+      "slots": 121
+    },
+    {
+      "bytes": 16909,
+      "frame": 38,
+      "lines": 123,
+      "mutations": 118,
+      "project_build_encode_ms": 0.087261,
+      "scene_mutation_bytes": 16414,
+      "slots": 123
+    },
+    {
+      "bytes": 16820,
+      "frame": 39,
+      "lines": 121,
+      "mutations": 124,
+      "project_build_encode_ms": 0.07883,
+      "scene_mutation_bytes": 16310,
+      "slots": 123
+    },
+    {
+      "bytes": 17032,
+      "frame": 40,
+      "lines": 123,
+      "mutations": 124,
+      "project_build_encode_ms": 0.086614,
+      "scene_mutation_bytes": 16520,
+      "slots": 123
+    },
+    {
+      "bytes": 18218,
+      "frame": 41,
+      "lines": 125,
+      "mutations": 127,
+      "project_build_encode_ms": 0.08042099999999999,
+      "scene_mutation_bytes": 17697,
+      "slots": 125
+    },
+    {
+      "bytes": 6696,
+      "frame": 42,
+      "lines": 125,
+      "mutations": 46,
+      "project_build_encode_ms": 0.060118000000000005,
+      "scene_mutation_bytes": 6361,
+      "slots": 125
+    },
+    {
+      "bytes": 6696,
+      "frame": 43,
+      "lines": 125,
+      "mutations": 46,
+      "project_build_encode_ms": 0.058831,
+      "scene_mutation_bytes": 6361,
+      "slots": 125
+    },
+    {
+      "bytes": 18546,
+      "frame": 44,
+      "lines": 127,
+      "mutations": 129,
+      "project_build_encode_ms": 0.082106,
+      "scene_mutation_bytes": 18019,
+      "slots": 127
+    },
+    {
+      "bytes": 18856,
+      "frame": 45,
+      "lines": 129,
+      "mutations": 131,
+      "project_build_encode_ms": 0.097854,
+      "scene_mutation_bytes": 18323,
+      "slots": 129
+    },
+    {
+      "bytes": 7306,
+      "frame": 46,
+      "lines": 129,
+      "mutations": 50,
+      "project_build_encode_ms": 0.081093,
+      "scene_mutation_bytes": 6959,
+      "slots": 129
+    },
+    {
+      "bytes": 19166,
+      "frame": 47,
+      "lines": 131,
+      "mutations": 133,
+      "project_build_encode_ms": 0.08870600000000001,
+      "scene_mutation_bytes": 18627,
+      "slots": 131
+    },
+    {
+      "bytes": 18098,
+      "frame": 48,
+      "lines": 130,
+      "mutations": 132,
+      "project_build_encode_ms": 0.083396,
+      "scene_mutation_bytes": 17564,
+      "slots": 131
+    },
+    {
+      "bytes": 7433,
+      "frame": 49,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.07059800000000001,
+      "scene_mutation_bytes": 7084,
+      "slots": 131
+    },
+    {
+      "bytes": 19300,
+      "frame": 50,
+      "lines": 132,
+      "mutations": 134,
+      "project_build_encode_ms": 0.30115600000000003,
+      "scene_mutation_bytes": 18759,
+      "slots": 132
+    },
+    {
+      "bytes": 7729,
+      "frame": 51,
+      "lines": 132,
+      "mutations": 53,
+      "project_build_encode_ms": 0.06806,
+      "scene_mutation_bytes": 7374,
+      "slots": 132
+    },
+    {
+      "bytes": 18140,
+      "frame": 52,
+      "lines": 130,
+      "mutations": 133,
+      "project_build_encode_ms": 0.081029,
+      "scene_mutation_bytes": 17604,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 53,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.067736,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 54,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.065161,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 55,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06525,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7412,
+      "frame": 56,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.063536,
+      "scene_mutation_bytes": 7064,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 57,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.074623,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 58,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06252,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 59,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.28406,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 60,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.061642,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 61,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.069772,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 62,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.070145,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 63,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.07428,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7412,
+      "frame": 64,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.063982,
+      "scene_mutation_bytes": 7064,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 65,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06712599999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 66,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06305,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 67,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06901199999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 68,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06727,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7433,
+      "frame": 69,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.065666,
+      "scene_mutation_bytes": 7084,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 70,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064457,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 71,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.069532,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 72,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.065108,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 73,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.076266,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 74,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06849899999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 75,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.07443799999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 76,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064902,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 77,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.078687,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 78,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064974,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 79,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.070793,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 80,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064669,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 81,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.079009,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 82,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.063818,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 83,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.072825,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 84,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.065383,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 85,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.07425200000000001,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7433,
+      "frame": 86,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.065936,
+      "scene_mutation_bytes": 7084,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 87,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.072599,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 88,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064667,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 89,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.070837,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 90,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.062801,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7412,
+      "frame": 91,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.072555,
+      "scene_mutation_bytes": 7064,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 92,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.063754,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 93,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.073899,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 94,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06245900000000001,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 95,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.075795,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 96,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.063456,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 97,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.072989,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 98,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06457399999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7412,
+      "frame": 99,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.071276,
+      "scene_mutation_bytes": 7064,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 100,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.069688,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 101,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.069825,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 102,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.067765,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 103,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06741899999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 104,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.073393,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 105,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.073019,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 106,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.06769499999999999,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 107,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064994,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 108,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.064815,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 109,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.067493,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 7454,
+      "frame": 110,
+      "lines": 130,
+      "mutations": 51,
+      "project_build_encode_ms": 0.066084,
+      "scene_mutation_bytes": 7104,
+      "slots": 132
+    },
+    {
+      "bytes": 17759,
+      "frame": 111,
+      "lines": 127,
+      "mutations": 131,
+      "project_build_encode_ms": 0.081772,
+      "scene_mutation_bytes": 17229,
+      "slots": 132
+    },
+    {
+      "bytes": 6968,
+      "frame": 112,
+      "lines": 127,
+      "mutations": 48,
+      "project_build_encode_ms": 0.067939,
+      "scene_mutation_bytes": 6629,
+      "slots": 132
+    },
+    {
+      "bytes": 21126,
+      "frame": 113,
+      "lines": 145,
+      "mutations": 147,
+      "project_build_encode_ms": 0.09563,
+      "scene_mutation_bytes": 20555,
+      "slots": 145
+    },
+    {
+      "bytes": 8754,
+      "frame": 114,
+      "lines": 145,
+      "mutations": 60,
+      "project_build_encode_ms": 0.08075,
+      "scene_mutation_bytes": 8379,
+      "slots": 145
+    },
+    {
+      "bytes": 21008,
+      "frame": 115,
+      "lines": 146,
+      "mutations": 146,
+      "project_build_encode_ms": 0.094316,
+      "scene_mutation_bytes": 20439,
+      "slots": 146
+    },
+    {
+      "bytes": 9784,
+      "frame": 116,
+      "lines": 146,
+      "mutations": 68,
+      "project_build_encode_ms": 0.082203,
+      "scene_mutation_bytes": 9392,
+      "slots": 146
+    },
+    {
+      "bytes": 9784,
+      "frame": 117,
+      "lines": 146,
+      "mutations": 68,
+      "project_build_encode_ms": 0.07915900000000001,
+      "scene_mutation_bytes": 9392,
+      "slots": 146
+    },
+    {
+      "bytes": 10225,
+      "frame": 118,
+      "lines": 146,
+      "mutations": 71,
+      "project_build_encode_ms": 0.075889,
+      "scene_mutation_bytes": 9824,
+      "slots": 146
+    },
+    {
+      "bytes": 9490,
+      "frame": 119,
+      "lines": 146,
+      "mutations": 66,
+      "project_build_encode_ms": 0.077878,
+      "scene_mutation_bytes": 9104,
+      "slots": 146
+    },
+    {
+      "bytes": 21318,
+      "frame": 120,
+      "lines": 148,
+      "mutations": 148,
+      "project_build_encode_ms": 0.09375299999999999,
+      "scene_mutation_bytes": 20743,
+      "slots": 148
+    },
+    {
+      "bytes": 10080,
+      "frame": 121,
+      "lines": 148,
+      "mutations": 70,
+      "project_build_encode_ms": 0.08233,
+      "scene_mutation_bytes": 9682,
+      "slots": 148
+    },
+    {
+      "bytes": 10227,
+      "frame": 122,
+      "lines": 148,
+      "mutations": 71,
+      "project_build_encode_ms": 0.077789,
+      "scene_mutation_bytes": 9826,
+      "slots": 148
+    },
+    {
+      "bytes": 9639,
+      "frame": 123,
+      "lines": 148,
+      "mutations": 67,
+      "project_build_encode_ms": 0.075127,
+      "scene_mutation_bytes": 9250,
+      "slots": 148
+    },
+    {
+      "bytes": 21746,
+      "frame": 124,
+      "lines": 149,
+      "mutations": 151,
+      "project_build_encode_ms": 0.099532,
+      "scene_mutation_bytes": 21163,
+      "slots": 149
+    },
+    {
+      "bytes": 10207,
+      "frame": 125,
+      "lines": 149,
+      "mutations": 71,
+      "project_build_encode_ms": 0.080392,
+      "scene_mutation_bytes": 9807,
+      "slots": 149
+    },
+    {
+      "bytes": 20573,
+      "frame": 126,
+      "lines": 148,
+      "mutations": 150,
+      "project_build_encode_ms": 0.092263,
+      "scene_mutation_bytes": 19994,
+      "slots": 149
+    },
+    {
+      "bytes": 10355,
+      "frame": 127,
+      "lines": 148,
+      "mutations": 72,
+      "project_build_encode_ms": 0.08521699999999999,
+      "scene_mutation_bytes": 9950,
+      "slots": 149
+    },
+    {
+      "bytes": 8802,
+      "frame": 128,
+      "lines": 148,
+      "mutations": 60,
+      "project_build_encode_ms": 0.075251,
+      "scene_mutation_bytes": 8422,
+      "slots": 149
+    },
+    {
+      "bytes": 19537,
+      "frame": 129,
+      "lines": 138,
+      "mutations": 148,
+      "project_build_encode_ms": 0.091954,
+      "scene_mutation_bytes": 18960,
+      "slots": 149
+    },
+    {
+      "bytes": 9233,
+      "frame": 130,
+      "lines": 138,
+      "mutations": 63,
+      "project_build_encode_ms": 0.088661,
+      "scene_mutation_bytes": 8844,
+      "slots": 149
+    },
+    {
+      "bytes": 8792,
+      "frame": 131,
+      "lines": 138,
+      "mutations": 60,
+      "project_build_encode_ms": 0.077724,
+      "scene_mutation_bytes": 8412,
+      "slots": 149
+    },
+    {
+      "bytes": 8939,
+      "frame": 132,
+      "lines": 138,
+      "mutations": 61,
+      "project_build_encode_ms": 0.07369500000000001,
+      "scene_mutation_bytes": 8556,
+      "slots": 149
+    },
+    {
+      "bytes": 8645,
+      "frame": 133,
+      "lines": 138,
+      "mutations": 59,
+      "project_build_encode_ms": 0.0739,
+      "scene_mutation_bytes": 8268,
+      "slots": 149
+    },
+    {
+      "bytes": 9233,
+      "frame": 134,
+      "lines": 138,
+      "mutations": 63,
+      "project_build_encode_ms": 0.078051,
+      "scene_mutation_bytes": 8844,
+      "slots": 149
+    },
+    {
+      "bytes": 8645,
+      "frame": 135,
+      "lines": 138,
+      "mutations": 59,
+      "project_build_encode_ms": 0.074962,
+      "scene_mutation_bytes": 8268,
+      "slots": 149
+    },
+    {
+      "bytes": 8939,
+      "frame": 136,
+      "lines": 138,
+      "mutations": 61,
+      "project_build_encode_ms": 0.07398600000000001,
+      "scene_mutation_bytes": 8556,
+      "slots": 149
+    },
+    {
+      "bytes": 9086,
+      "frame": 137,
+      "lines": 138,
+      "mutations": 62,
+      "project_build_encode_ms": 0.07539,
+      "scene_mutation_bytes": 8700,
+      "slots": 149
+    },
+    {
+      "bytes": 8645,
+      "frame": 138,
+      "lines": 138,
+      "mutations": 59,
+      "project_build_encode_ms": 0.075269,
+      "scene_mutation_bytes": 8268,
+      "slots": 149
+    },
+    {
+      "bytes": 19158,
+      "frame": 139,
+      "lines": 137,
+      "mutations": 139,
+      "project_build_encode_ms": 0.09227099999999999,
+      "scene_mutation_bytes": 18599,
+      "slots": 149
+    },
+    {
+      "bytes": 8938,
+      "frame": 140,
+      "lines": 137,
+      "mutations": 61,
+      "project_build_encode_ms": 0.075838,
+      "scene_mutation_bytes": 8555,
+      "slots": 149
+    },
+    {
+      "bytes": 8938,
+      "frame": 141,
+      "lines": 137,
+      "mutations": 61,
+      "project_build_encode_ms": 0.074619,
+      "scene_mutation_bytes": 8555,
+      "slots": 149
+    },
+    {
+      "bytes": 8791,
+      "frame": 142,
+      "lines": 137,
+      "mutations": 60,
+      "project_build_encode_ms": 0.080749,
+      "scene_mutation_bytes": 8411,
+      "slots": 149
+    },
+    {
+      "bytes": 8791,
+      "frame": 143,
+      "lines": 137,
+      "mutations": 60,
+      "project_build_encode_ms": 0.07441,
+      "scene_mutation_bytes": 8411,
+      "slots": 149
+    },
+    {
+      "bytes": 9085,
+      "frame": 144,
+      "lines": 137,
+      "mutations": 62,
+      "project_build_encode_ms": 0.074142,
+      "scene_mutation_bytes": 8699,
+      "slots": 149
+    },
+    {
+      "bytes": 8497,
+      "frame": 145,
+      "lines": 137,
+      "mutations": 58,
+      "project_build_encode_ms": 0.076736,
+      "scene_mutation_bytes": 8123,
+      "slots": 149
+    },
+    {
+      "bytes": 8938,
+      "frame": 146,
+      "lines": 137,
+      "mutations": 61,
+      "project_build_encode_ms": 0.077567,
+      "scene_mutation_bytes": 8555,
+      "slots": 149
+    },
+    {
+      "bytes": 8644,
+      "frame": 147,
+      "lines": 137,
+      "mutations": 59,
+      "project_build_encode_ms": 0.083512,
+      "scene_mutation_bytes": 8267,
+      "slots": 149
+    },
+    {
+      "bytes": 8938,
+      "frame": 148,
+      "lines": 137,
+      "mutations": 61,
+      "project_build_encode_ms": 0.080611,
+      "scene_mutation_bytes": 8555,
+      "slots": 149
+    },
+    {
+      "bytes": 8644,
+      "frame": 149,
+      "lines": 137,
+      "mutations": 59,
+      "project_build_encode_ms": 0.076493,
+      "scene_mutation_bytes": 8267,
+      "slots": 149
+    },
+    {
+      "bytes": 9085,
+      "frame": 150,
+      "lines": 137,
+      "mutations": 62,
+      "project_build_encode_ms": 0.07501000000000001,
+      "scene_mutation_bytes": 8699,
+      "slots": 149
+    },
+    {
+      "bytes": 9085,
+      "frame": 151,
+      "lines": 137,
+      "mutations": 62,
+      "project_build_encode_ms": 0.079182,
+      "scene_mutation_bytes": 8699,
+      "slots": 149
+    },
+    {
+      "bytes": 19010,
+      "frame": 152,
+      "lines": 136,
+      "mutations": 138,
+      "project_build_encode_ms": 0.087637,
+      "scene_mutation_bytes": 18454,
+      "slots": 149
+    },
+    {
+      "bytes": 8937,
+      "frame": 153,
+      "lines": 136,
+      "mutations": 61,
+      "project_build_encode_ms": 0.082092,
+      "scene_mutation_bytes": 8554,
+      "slots": 149
+    },
+    {
+      "bytes": 8496,
+      "frame": 154,
+      "lines": 136,
+      "mutations": 58,
+      "project_build_encode_ms": 0.078485,
+      "scene_mutation_bytes": 8122,
+      "slots": 149
+    },
+    {
+      "bytes": 8937,
+      "frame": 155,
+      "lines": 136,
+      "mutations": 61,
+      "project_build_encode_ms": 0.076185,
+      "scene_mutation_bytes": 8554,
+      "slots": 149
+    },
+    {
+      "bytes": 8496,
+      "frame": 156,
+      "lines": 136,
+      "mutations": 58,
+      "project_build_encode_ms": 0.077917,
+      "scene_mutation_bytes": 8122,
+      "slots": 149
+    },
+    {
+      "bytes": 8937,
+      "frame": 157,
+      "lines": 136,
+      "mutations": 61,
+      "project_build_encode_ms": 0.077772,
+      "scene_mutation_bytes": 8554,
+      "slots": 149
+    },
+    {
+      "bytes": 8790,
+      "frame": 158,
+      "lines": 136,
+      "mutations": 60,
+      "project_build_encode_ms": 0.080496,
+      "scene_mutation_bytes": 8410,
+      "slots": 149
+    },
+    {
+      "bytes": 8601,
+      "frame": 159,
+      "lines": 136,
+      "mutations": 59,
+      "project_build_encode_ms": 0.07648300000000001,
+      "scene_mutation_bytes": 8226,
+      "slots": 149
+    },
+    {
+      "bytes": 18756,
+      "frame": 160,
+      "lines": 134,
+      "mutations": 137,
+      "project_build_encode_ms": 0.09325,
+      "scene_mutation_bytes": 18204,
+      "slots": 149
+    },
+    {
+      "bytes": 8347,
+      "frame": 161,
+      "lines": 134,
+      "mutations": 57,
+      "project_build_encode_ms": 0.076261,
+      "scene_mutation_bytes": 7976,
+      "slots": 149
+    },
+    {
+      "bytes": 8524,
+      "frame": 162,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.076229,
+      "scene_mutation_bytes": 8150,
+      "slots": 149
+    },
+    {
+      "bytes": 8525,
+      "frame": 163,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.076275,
+      "scene_mutation_bytes": 8151,
+      "slots": 149
+    },
+    {
+      "bytes": 18206,
+      "frame": 164,
+      "lines": 132,
+      "mutations": 133,
+      "project_build_encode_ms": 0.094561,
+      "scene_mutation_bytes": 17666,
+      "slots": 149
+    },
+    {
+      "bytes": 18313,
+      "frame": 165,
+      "lines": 131,
+      "mutations": 133,
+      "project_build_encode_ms": 0.09797,
+      "scene_mutation_bytes": 17772,
+      "slots": 149
+    },
+    {
+      "bytes": 7947,
+      "frame": 166,
+      "lines": 131,
+      "mutations": 54,
+      "project_build_encode_ms": 0.0771,
+      "scene_mutation_bytes": 7585,
+      "slots": 149
+    },
+    {
+      "bytes": 8094,
+      "frame": 167,
+      "lines": 131,
+      "mutations": 55,
+      "project_build_encode_ms": 0.075312,
+      "scene_mutation_bytes": 7729,
+      "slots": 149
+    },
+    {
+      "bytes": 18019,
+      "frame": 168,
+      "lines": 130,
+      "mutations": 131,
+      "project_build_encode_ms": 0.093197,
+      "scene_mutation_bytes": 17484,
+      "slots": 149
+    },
+    {
+      "bytes": 8094,
+      "frame": 169,
+      "lines": 130,
+      "mutations": 55,
+      "project_build_encode_ms": 0.07810800000000001,
+      "scene_mutation_bytes": 7729,
+      "slots": 149
+    },
+    {
+      "bytes": 8094,
+      "frame": 170,
+      "lines": 130,
+      "mutations": 55,
+      "project_build_encode_ms": 0.075437,
+      "scene_mutation_bytes": 7729,
+      "slots": 149
+    },
+    {
+      "bytes": 7800,
+      "frame": 171,
+      "lines": 130,
+      "mutations": 53,
+      "project_build_encode_ms": 0.075565,
+      "scene_mutation_bytes": 7441,
+      "slots": 149
+    },
+    {
+      "bytes": 8073,
+      "frame": 172,
+      "lines": 130,
+      "mutations": 55,
+      "project_build_encode_ms": 0.077523,
+      "scene_mutation_bytes": 7709,
+      "slots": 149
+    },
+    {
+      "bytes": 18126,
+      "frame": 173,
+      "lines": 131,
+      "mutations": 131,
+      "project_build_encode_ms": 0.092539,
+      "scene_mutation_bytes": 17590,
+      "slots": 149
+    },
+    {
+      "bytes": 8095,
+      "frame": 174,
+      "lines": 131,
+      "mutations": 55,
+      "project_build_encode_ms": 0.077243,
+      "scene_mutation_bytes": 7730,
+      "slots": 149
+    },
+    {
+      "bytes": 7948,
+      "frame": 175,
+      "lines": 131,
+      "mutations": 54,
+      "project_build_encode_ms": 0.077926,
+      "scene_mutation_bytes": 7586,
+      "slots": 149
+    },
+    {
+      "bytes": 8243,
+      "frame": 176,
+      "lines": 131,
+      "mutations": 56,
+      "project_build_encode_ms": 0.07470800000000001,
+      "scene_mutation_bytes": 7875,
+      "slots": 149
+    },
+    {
+      "bytes": 7950,
+      "frame": 177,
+      "lines": 131,
+      "mutations": 54,
+      "project_build_encode_ms": 0.07533200000000001,
+      "scene_mutation_bytes": 7588,
+      "slots": 149
+    },
+    {
+      "bytes": 18169,
+      "frame": 178,
+      "lines": 130,
+      "mutations": 132,
+      "project_build_encode_ms": 0.093037,
+      "scene_mutation_bytes": 17631,
+      "slots": 149
+    },
+    {
+      "bytes": 8096,
+      "frame": 179,
+      "lines": 130,
+      "mutations": 55,
+      "project_build_encode_ms": 0.078873,
+      "scene_mutation_bytes": 7731,
+      "slots": 149
+    },
+    {
+      "bytes": 7949,
+      "frame": 180,
+      "lines": 130,
+      "mutations": 54,
+      "project_build_encode_ms": 0.07581500000000001,
+      "scene_mutation_bytes": 7587,
+      "slots": 149
+    },
+    {
+      "bytes": 18635,
+      "frame": 181,
+      "lines": 134,
+      "mutations": 135,
+      "project_build_encode_ms": 0.08902399999999999,
+      "scene_mutation_bytes": 18091,
+      "slots": 149
+    },
+    {
+      "bytes": 8541,
+      "frame": 182,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.08521000000000001,
+      "scene_mutation_bytes": 8167,
+      "slots": 149
+    },
+    {
+      "bytes": 8688,
+      "frame": 183,
+      "lines": 134,
+      "mutations": 59,
+      "project_build_encode_ms": 0.076908,
+      "scene_mutation_bytes": 8311,
+      "slots": 149
+    },
+    {
+      "bytes": 8542,
+      "frame": 184,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.077248,
+      "scene_mutation_bytes": 8168,
+      "slots": 149
+    },
+    {
+      "bytes": 8542,
+      "frame": 185,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.07702700000000001,
+      "scene_mutation_bytes": 8168,
+      "slots": 149
+    },
+    {
+      "bytes": 8689,
+      "frame": 186,
+      "lines": 134,
+      "mutations": 59,
+      "project_build_encode_ms": 0.074385,
+      "scene_mutation_bytes": 8312,
+      "slots": 149
+    },
+    {
+      "bytes": 8542,
+      "frame": 187,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.079894,
+      "scene_mutation_bytes": 8168,
+      "slots": 149
+    },
+    {
+      "bytes": 8543,
+      "frame": 188,
+      "lines": 134,
+      "mutations": 58,
+      "project_build_encode_ms": 0.075554,
+      "scene_mutation_bytes": 8169,
+      "slots": 149
+    },
+    {
+      "bytes": 18288,
+      "frame": 189,
+      "lines": 130,
+      "mutations": 135,
+      "project_build_encode_ms": 0.09061899999999999,
+      "scene_mutation_bytes": 17744,
+      "slots": 149
+    },
+    {
+      "bytes": 18445,
+      "frame": 190,
+      "lines": 134,
+      "mutations": 134,
+      "project_build_encode_ms": 0.09316500000000001,
+      "scene_mutation_bytes": 17904,
+      "slots": 149
+    },
+    {
+      "bytes": 18597,
+      "frame": 191,
+      "lines": 133,
+      "mutations": 135,
+      "project_build_encode_ms": 0.094268,
+      "scene_mutation_bytes": 18050,
+      "slots": 149
+    },
+    {
+      "bytes": 8524,
+      "frame": 192,
+      "lines": 133,
+      "mutations": 58,
+      "project_build_encode_ms": 0.079104,
+      "scene_mutation_bytes": 8150,
+      "slots": 149
+    },
+    {
+      "bytes": 8524,
+      "frame": 193,
+      "lines": 133,
+      "mutations": 58,
+      "project_build_encode_ms": 0.07448199999999999,
+      "scene_mutation_bytes": 8150,
+      "slots": 149
+    },
+    {
+      "bytes": 8524,
+      "frame": 194,
+      "lines": 133,
+      "mutations": 58,
+      "project_build_encode_ms": 0.074799,
+      "scene_mutation_bytes": 8150,
+      "slots": 149
+    },
+    {
+      "bytes": 8542,
+      "frame": 195,
+      "lines": 133,
+      "mutations": 58,
+      "project_build_encode_ms": 0.077141,
+      "scene_mutation_bytes": 8168,
+      "slots": 149
+    },
+    {
+      "bytes": 8542,
+      "frame": 196,
+      "lines": 133,
+      "mutations": 58,
+      "project_build_encode_ms": 0.07382599999999999,
+      "scene_mutation_bytes": 8168,
+      "slots": 149
+    },
+    {
+      "bytes": 8542,
+      "frame": 197,
+      "lines": 133,
+      "mutations": 58,
+      "project_build_encode_ms": 0.07229200000000001,
+      "scene_mutation_bytes": 8168,
+      "slots": 149
+    },
+    {
+      "bytes": 19314,
+      "frame": 198,
+      "lines": 138,
+      "mutations": 139,
+      "project_build_encode_ms": 0.093874,
+      "scene_mutation_bytes": 18754,
+      "slots": 149
+    },
+    {
+      "bytes": 8543,
+      "frame": 199,
+      "lines": 138,
+      "mutations": 58,
+      "project_build_encode_ms": 0.074343,
+      "scene_mutation_bytes": 8169,
+      "slots": 149
+    }
+  ],
+  "transport_framing_included": false
+}

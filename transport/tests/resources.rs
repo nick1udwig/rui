@@ -101,10 +101,23 @@ async fn premature_applied_cannot_bypass_pending_resource_verification() {
         .send(p::Kind::AppliedAck, &p::RevisionAck { revision: 1 })
         .await
         .unwrap();
-    let event = tokio::time::timeout(Duration::from_secs(3), client.receive())
-        .await
-        .unwrap();
-    assert!(event.is_err());
+    tokio::time::timeout(Duration::from_secs(3), async {
+        // Already queued resource bodies can arrive before the host closes.
+        // None may apply the incomplete publication after the forged ack.
+        loop {
+            match client.receive().await {
+                Ok(
+                    ClientEvent::ResourceAvailable | ClientEvent::ResourcesNeeded { revision: 1 },
+                ) => {
+                    assert_eq!(client.receiver().state().unwrap().revision, 0);
+                }
+                Err(_) => break,
+                other => panic!("unexpected event after premature acknowledgement: {other:?}"),
+            }
+        }
+    })
+    .await
+    .unwrap();
     assert_eq!(client.receiver().state().unwrap().revision, 0);
     assert_eq!(server.host.lock().await.diagnostics().consumed_commands, 0);
     server.shutdown().await;

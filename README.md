@@ -34,6 +34,7 @@ Later runs can add `--skip-build`.
 For a phone connection, follow the [desktop HTTPS/Tailscale setup](apps/desktop/README.md#run).
 Add `--with-browser` for a managed host browser, or try the [standalone browser workspace](apps/browser/README.md#start-locally).
 To compare responsive semantic controls with vector mirroring, follow the [GTK demo walkthroughs](docs/getting-started.md#cooperating-gtk-demos).
+For a playable vector-game demonstration, run [Battlezone or Asteroids through MAME](demos/games/README.md).
 
 ## Documentation
 

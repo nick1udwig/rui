@@ -452,7 +452,8 @@ export class BrowserClient {
             if (event.type === "commandResult") {
               const dispatched =
                 event.status.toLowerCase() === "dispatched" &&
-                this.capabilities.profiles.includes("browser.semantic.v1");
+                (this.capabilities.profiles.includes("browser.semantic.v1") ||
+                  this.capabilities.profiles.includes("game.vector.v1"));
               this.causal.result(
                 event.sequence,
                 dispatched ? "browserDispatched" : event.status,

@@ -3,6 +3,7 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/rui.session.v1.rs"));
 }
 pub mod codec;
+pub mod compression;
 use thiserror::Error;
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum WireError {

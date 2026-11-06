@@ -1,0 +1,7 @@
+{
+  "game": "flattened",
+  "fps": 25,
+  "seconds": 12,
+  "frames": 300,
+  "scope": "authored quarter-unit geometry; 32 shapes, 8 moving objects, one moving camera; final quarter idle; no client simulation"
+}

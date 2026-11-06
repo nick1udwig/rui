@@ -1,0 +1,905 @@
+{
+  "reducer_equivalence_verified": true,
+  "samples": [
+    {
+      "bytes": 51188,
+      "frame": 150,
+      "mutations": 10,
+      "snapshot": true
+    },
+    {
+      "bytes": 1036,
+      "frame": 151,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 152,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 153,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 154,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 155,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 156,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 157,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 158,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 159,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 160,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 161,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 162,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 163,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 164,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 165,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 166,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 167,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 168,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 169,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 170,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 171,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 172,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 173,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 174,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 175,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 176,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 177,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 178,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 179,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 180,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 181,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 182,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 183,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 184,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 185,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 186,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 187,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 188,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 189,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 190,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 191,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 192,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 193,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 194,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 195,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 968,
+      "frame": 196,
+      "mutations": 9,
+      "snapshot": false
+    },
+    {
+      "bytes": 968,
+      "frame": 197,
+      "mutations": 9,
+      "snapshot": false
+    },
+    {
+      "bytes": 968,
+      "frame": 198,
+      "mutations": 9,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 199,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 200,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 201,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 202,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 203,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 204,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 205,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 206,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 207,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 208,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 209,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 210,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 211,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 212,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 213,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 214,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 215,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 216,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 217,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 218,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 219,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 220,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 221,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 222,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 223,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 224,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 1036,
+      "frame": 225,
+      "mutations": 10,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 226,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 227,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 228,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 229,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 230,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 231,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 232,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 233,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 234,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 235,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 236,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 237,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 238,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 239,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 240,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 241,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 242,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 243,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 244,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 245,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 246,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 247,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 248,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 249,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 250,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 251,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 252,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 253,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 254,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 255,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 256,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 257,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 258,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 259,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 260,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 261,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 262,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 263,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 264,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 265,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 266,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 267,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 268,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 269,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 270,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 271,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 272,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 273,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 274,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 275,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 276,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 277,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 278,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 279,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 280,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 281,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 282,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 283,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 284,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 285,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 286,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 287,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 288,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 289,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 290,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 291,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 292,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 293,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 294,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 295,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 296,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 297,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 298,
+      "mutations": 1,
+      "snapshot": false
+    },
+    {
+      "bytes": 205,
+      "frame": 299,
+      "mutations": 1,
+      "snapshot": false
+    }
+  ]
+}

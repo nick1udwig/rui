@@ -2,6 +2,7 @@
 name = "rui-browser-host"
 version.workspace = true
 edition.workspace = true
+default-run = "rui-browser-host"
 
 [dependencies]
 rui-protocol-core = { path = "../protocol-core" }

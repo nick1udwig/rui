@@ -36,6 +36,11 @@ The profiles below document implemented contracts and extensions.
 
 - [Current status](status.md): distinguish existing-app semantics, managed browsing, and the original controlled prototype.
 - [Application matrix](application-matrix.md), [GTK coverage](gtk-coverage.md), and [square-border lowering](gtk-square-borders.md): supported cooperating source content and explicit gaps.
+- [Game vector/raster comparison](game-vector-raster-comparison.md): paired payload, processing, quality, and scaling measurements with reproducible scripts.
+- [RUI bandwidth directions](rui-bandwidth-directions.md): measured compression and compact geometry probes, plus transport and architecture options for competing with H.264.
+- [Source-aware replay](source-aware-demo.md): retained objects, camera transforms, paired pixels, and next directions.
+- [Structured workload measurements](structured-bandwidth.md): broader paired workloads, transport accounting, recovery, and device limits.
+- [Bandwidth implementation](bandwidth-implementation.md): deployed code paths, production encoder measurements, and receiver checks.
 - [Performance](performance.md), [large workloads](large-performance.md), and [performance gates](performance-gates.md): measurements, procedures, and unmet targets.
 - [Dirty notifications](dirty-notifications.md), [incremental GTK publications](incremental-gtk.md), [browser rendering](browser-render-performance.md), and [browser lifecycle](browser-lifecycle-performance.md): changes and retained evidence.
 - [Browser CI](browser-ci.md): reproducible three-engine checks and the pinned native runner.
