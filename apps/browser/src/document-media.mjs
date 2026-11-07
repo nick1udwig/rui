@@ -1,6 +1,8 @@
 import { documentRequest } from './document-request.mjs';
 import { DocumentStream, streamTypes, mediaPackets } from './document-stream.mjs';
 
+const MAX_HTTP_MEDIA_STREAMS = 4; // Reserve two of the six HTTP/1.1 connections for document and control requests.
+
 export class DocumentMediaView {
   constructor(api, report) { this.api = api; this.report = report; this.streams = new Map(); this.failures = new Map(); this.preferHttps = true; this.qualities = new Map(); this.metrics = { bytes: 0, batches: 0, frames: 0, failures: 0, opens: 0, appendMs: 0 }; }
   diagnostics() {
@@ -138,6 +140,7 @@ export class DocumentMediaView {
     let entry;
     try {
       const transport = this.preferHttps && streamTypes().length ? 'https' : 'webrtc';
+      if (transport === 'https' && [...this.streams.values()].filter(entry => entry.transport === 'https').length >= MAX_HTTP_MEDIA_STREAMS) return;
       entry = { key, transport, startedAt: Date.now(), sourcePaused: node.mediaPaused, controller: new AbortController(), closed: false, element };
       this.streams.set(key, entry);
       this.metrics.opens++;
