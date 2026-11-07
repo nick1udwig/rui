@@ -311,3 +311,7 @@ A full capture every two seconds checks properties that do not emit mutation eve
 The phone preserves unchanged records and skips unchanged DOM subtrees after validating each patch.
 Documents with shadow trees or embedded frames keep the full reconciliation path.
 Media sessions and field values are maintained even when the surrounding DOM is unchanged.
+
+Detaching waits for page cleanup before disconnecting from an external browser.
+Cleanup removes injected observers, listeners, media sessions, and frame state.
+Pending captures cannot publish or recreate state after detach.

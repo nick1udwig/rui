@@ -4,6 +4,7 @@ export class DocumentMedia {
   constructor(source) { this.source = source; this.sessions = new Map(); }
   async open(node, generation, transport = 'webrtc', types = [], quality) {
     const source = this.source;
+    if (source.disposed) throw Error("Document detached");
     if (quality !== undefined && (!quality || !Number.isInteger(quality.level) || quality.level < 0 || quality.level > 2 || !Number.isInteger(quality.width) || quality.width < 2 || quality.width > 1920)) throw Error('Media quality rejected');
     if (!['webrtc', 'https'].includes(transport) || !Array.isArray(types) || types.length > 8 || types.some(type => typeof type !== 'string' || type.length > 128)) throw Error('Media transport rejected');
     if (generation !== source.generation || this.sessions.size >= 8) throw Error("Media scope rejected");

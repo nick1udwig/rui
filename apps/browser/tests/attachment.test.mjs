@@ -37,6 +37,7 @@ test('attachment leaves external browser and excess tabs alive on detach', { tim
     await doc.dispatch({ generation: snapshot.generation, revision: snapshot.revision, action: 'resize', width: 390, height: 600 });
     await workspace.close(); workspace = null;
     assert.equal(child.exitCode, null);
+    assert.equal(await externalPage.evaluate(key => key in globalThis, doc.key), false, 'Detach removes injected page state before closing its browser connection');
     assert.equal(await externalPage.evaluate(() => innerWidth), originalWidth);
     assert.equal(context.pages().length, 17);
     assert.equal(await context.pages()[0].evaluate(() => 2 + 2), 4);

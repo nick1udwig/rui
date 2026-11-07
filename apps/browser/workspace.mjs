@@ -120,10 +120,7 @@ export class Workspace {
     return new Workspace(context, files, downloads);
   }
   async close() {
-    for (const [page, entry] of this.pages) {
-      await entry.document.restoreViewport();
-      entry.document.dispose();
-    }
+    await Promise.all([...this.pages.values()].map(entry => entry.document.dispose()));
     if (this.attachedBrowser) await this.attachedBrowser.close();
     else await this.context.close();
   }

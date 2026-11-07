@@ -186,17 +186,34 @@ export class BrowserDocument {
     this.page.on("framenavigated", this.navigation);
   }
   dispose() {
-    void this.restoreViewport();
-    void this.media.dispose();
+    if (this.disposal) return this.disposal;
+    this.disposed = true;
     this.page.off("framenavigated", this.navigation);
-    this.assets.clear();
-    this.resources.clear();
-    this.styles.clear();
-    this.rewrites.clear();
-    this.sourceStyles.clear();
-    this.failedAssets.clear();
-    for (const child of this.frames.values()) child.dispose();
-    this.frames.clear();
+    this.disposal = (async () => {
+      await this.pendingCapture?.catch(() => {});
+      await Promise.all([this.restoreViewport(), this.media.dispose(), ...[...this.frames.values()].map(child => child.dispose())]);
+      await this.frame.evaluate(key => {
+        const state = globalThis[key];
+        if (!state) return;
+        state.observer?.disconnect();
+        for (const [type, listener] of state.listeners || []) document.removeEventListener(type, listener, true);
+        for (const wake of state.waiters || []) wake();
+        state.waiters?.clear();
+        for (const session of state.media?.values() || []) session.close();
+        state.reverse?.clear();
+        state.lastRoot = null;
+        delete globalThis[key];
+      }, this.key).catch(() => {});
+      this.lastCapture = null;
+      this.assets.clear();
+      this.resources.clear();
+      this.styles.clear();
+      this.rewrites.clear();
+      this.sourceStyles.clear();
+      this.failedAssets.clear();
+      this.frames.clear();
+    })();
+    return this.disposal;
   }
   async restoreViewport() {
     const session = this.viewportSession;
@@ -221,6 +238,7 @@ export class BrowserDocument {
     for (const child of this.frames.values()) { const value = child.resource(key); if (value !== undefined) return value; }
   }
   async dispatch(command) {
+    if (this.disposed) throw new DocumentActionRejected("Document detached");
     if (command.frames?.length) {
       const [route, ...frames] = command.frames;
       if (command.frames.length > 16 || route.generation !== this.generation || !this.frames.has(route.node)) throw new DocumentActionRejected("Stale frame route");
@@ -340,6 +358,7 @@ export class BrowserDocument {
     } finally { await response.dispose(); }
   }
   async waitForChange(version) {
+    if (this.disposed) throw Error("Document detached");
     await this.frame.evaluate(({ key, version }) => {
       const state = globalThis[key];
       if (!state || state.version !== version) return;
@@ -350,8 +369,10 @@ export class BrowserDocument {
         const timer = setTimeout(done, delay); state.waiters.add(done);
       });
     }, { key: this.key, version });
+    if (this.disposed) throw Error("Document detached");
   }
   capture(budget = { frames: 16 }) {
+    if (this.disposed) return Promise.reject(Error("Document detached"));
     if (!this.pendingCapture) this.pendingCapture = this.captureCurrent(budget).then(snapshot => {
       this.captureFailed = false; return snapshot;
     }, error => { this.captureFailed = true; throw error; }).finally(() => { this.pendingCapture = null; });
@@ -368,6 +389,7 @@ export class BrowserDocument {
       if (/^frame\.evaluate: Error: (Source identity limit|Document scan limit|Visible document limit)\b/.test(error.message)) error.code = 'DOCUMENT_LIMIT';
       throw error;
     }
+    if (this.disposed) throw Error("Document detached");
     if (generation !== this.generation) throw Error("Navigation during capture");
     if (result.unchanged && this.lastCapture?.generation === generation) {
       this.metrics = { ...this.metrics, captureMs: performance.now() - captureStarted, inspectedNodes: result.inspectedNodes, sourceStyleBytes: 0, cached: true };
@@ -400,6 +422,7 @@ export class BrowserDocument {
       }));
       text = text.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (match, quote, url) => replacements.has(url) ? `url("${replacements.get(url)}")` : match);
       if ([...this.rewrites.values()].reduce((n, v) => n + v.text.length, text.length) > MAX_BYTES) this.rewrites.clear();
+      if (this.disposed) throw Error("Document detached");
       if (generation !== this.generation) throw Error("Navigation during capture");
       this.rewrites.set(key, { text, expires: Date.now() + 30000 });
       return text;
@@ -449,6 +472,7 @@ export class BrowserDocument {
     });
     await concurrent(jobs, 8, job => job());
     for (const [id, child] of this.frames) if (!liveFrames.has(id)) { child.dispose(); this.frames.delete(id); }
+    if (this.disposed) throw Error("Document detached");
     if (generation !== this.generation) throw Error("Navigation during capture");
     this.sourceStyles = sourceStyles;
     const styleResources = {};
