@@ -680,8 +680,9 @@ body[data-control="true"] .host-chip {
 [data-icon] > button,
 #tabs-slot button[aria-label="Close tab"] {
   flex: none;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 44px;
   padding: 0;
@@ -946,9 +947,20 @@ body:not([data-connected="true"]) #reader,
   color: var(--host);
 }
 #new-tab-slot > .node > button {
-  border-radius: 50%;
+  width: auto;
+  height: 40px;
+  gap: 6px;
+  padding: 0 16px 0 12px;
+  border-radius: 999px;
   background: var(--host);
   color: #fff;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1;
+}
+#new-tab-slot > .node > button::before {
+  width: 18px;
+  height: 18px;
 }
 #new-tab-slot > .node > button:hover:not(:disabled) {
   background: #24584a;
