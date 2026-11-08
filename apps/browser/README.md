@@ -120,11 +120,13 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
 ## Using the workspace
 
 - The client looks like a mobile browser.
-  A dark host strip above the address bar shows the connection and control state, and a monitor icon in the address bar marks pages that run on the host.
-  The strip shows an amber indicator while this device controls the host.
+  A monitor icon in the address bar marks pages that run on the host.
+  The icon and an underline under the address bar turn amber while this device controls the host.
+  **Connect** and **Take control** appear at the end of the address bar when they apply.
+  The menu shows the connection state and **Release control**.
   The bottom toolbar has back, forward, page sound, tabs and menu buttons.
   The tabs button shows the host tab count and opens a tab list with new-tab and close buttons.
-  The menu holds the reader view link, page section controls, host downloads and session details.
+  The menu also holds the reader view link, page section controls, host downloads and session details.
   Page dialogs and host file selection open as sheets above the page.
 - Tabs, address navigation, back/forward/reload, and links operate on the real host browser. Popups become tabs. Local host changes are observed too.
 - Text, Unicode/IME composition, plain contenteditable, checkboxes, radio buttons, native selects, date/number fields, and JavaScript dialogs use semantic controls. Typing remains a local draft until **Apply**. Changed source fields invalidate old drafts; **Discard** loads the latest value.

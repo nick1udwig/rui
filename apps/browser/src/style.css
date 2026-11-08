@@ -534,25 +534,106 @@ button[aria-pressed="true"] {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px max(8px, env(safe-area-inset-right)) 8px
-    max(10px, env(safe-area-inset-left));
+  padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+    8px max(10px, env(safe-area-inset-left));
   background: var(--chrome);
   border-bottom: 1px solid var(--chrome-line);
   color: #20342d;
 }
+[data-workspace="browser"] .host-strip {
+  display: none;
+}
+[data-workspace="browser"] header {
+  background: var(--chrome);
+  box-shadow: none;
+}
 body[data-control="true"] #address-bar {
-  box-shadow: inset 0 3px 0 var(--live);
+  box-shadow: inset 0 -2px 0 var(--live);
+}
+#address-bar nav {
+  flex: none;
+  flex-wrap: nowrap;
+}
+#address-bar nav button {
+  min-height: 40px;
+  padding: 6px 14px;
+  white-space: nowrap;
+  background: var(--host);
+  color: #fff;
+}
+#address-bar nav button:hover:not(:disabled) {
+  background: #24584a;
+}
+#address-bar nav #control {
+  background: var(--live);
+  color: #2b1d00;
+}
+#address-bar nav #control:hover:not(:disabled) {
+  background: #f8c96c;
+}
+#address-bar nav #retry {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--chrome-bottom) + 64px);
+  z-index: 11;
+  transform: translateX(-50%);
+  background: #8b4314;
+  box-shadow: 0 6px 24px #0004;
+}
+body:not([data-control="true"]) #reload-slot {
+  display: none;
+}
+.menu-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fff;
+}
+.menu-session #connection {
+  flex: 1;
+  color: #20342d;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.menu-session .host-dot {
+  margin: 0;
+}
+body[data-connected="true"] .menu-session .host-dot {
+  background: #4caf50;
+}
+body[data-control="true"] .menu-session .host-dot {
+  background: var(--live);
+}
+.menu-session #release {
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--chrome-line);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 .host-chip {
   flex: none;
-  width: 34px;
-  height: 34px;
-  margin-right: -40px;
+  width: 30px;
+  height: 30px;
+  margin: 0 -36px 0 2px;
   z-index: 1;
   display: grid;
   place-items: center;
-  color: var(--host);
+  border-radius: 50%;
+  color: #8fa69a;
   pointer-events: none;
+}
+body[data-connected="true"] .host-chip {
+  color: var(--host);
+}
+body[data-control="true"] .host-chip {
+  color: #6b4500;
+  background: #fbe3b0;
 }
 .host-chip::before,
 .icon-button::before,

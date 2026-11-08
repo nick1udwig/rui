@@ -142,6 +142,11 @@ if (workspace === "browser") {
   documentView!.soundButton.setAttribute("aria-label", "Enable page sound");
   documentView!.soundButton.addEventListener("click", () => documentView!.soundButton.setAttribute("aria-pressed", "true"));
   slots.menu.after(document.querySelector(".session-details")!);
+  $("address-bar").append(document.querySelector('nav[aria-label="Session"]')!);
+  $("menu-session").append(document.querySelector(".host-dot")!, connection, release);
+  release.textContent = "Release control";
+  release.addEventListener("click", () => menuSheet.close());
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#ffffff");
   for (const sheet of [tabsSheet, menuSheet]) {
     sheet.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
