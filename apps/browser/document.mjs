@@ -4,9 +4,13 @@ import { concurrent, taskPool } from "./src/document-work.mjs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
-// Runs in the source document. IDs survive observations but never navigation.
-function observeDocument({ key, knownStyles, generation, reuse }) {
+// Runs in the source document. IDs survive observations and most same-document navigation, but never a document replacement.
+function observeDocument({ key, knownStyles, generation, reuse, established }) {
+  const previous = globalThis[key];
+  // A same-document route change after heavy identity use starts a fresh identity budget.
+  if (established && (previous?.generation !== generation || (previous.url !== location.href && previous.next > 50000))) return JSON.stringify({ replaced: true });
   const state = globalThis[key] ||= {};
+  state.url = location.href;
   if (state.generation !== generation) {
     state.observer?.disconnect();
     for (const [type, listener] of state.listeners || []) document.removeEventListener(type, listener, true);
@@ -171,19 +175,26 @@ export class BrowserDocument {
     this.sourceStyles = new Map();
     this.fetchAsset = taskPool(8);
     this.failedAssets = new Map();
+    // History API and fragment changes also emit framenavigated; only a replaced document needs a new generation.
+    // Capture also detects replacement, so this early check only releases old media promptly.
     this.navigation = (frame) => {
-      if (frame === this.frame) {
-        void this.media.dispose();
-        this.generation = randomBytes(16).toString("hex");
-        this.assets.clear();
-        this.resources.clear();
-        this.styles.clear();
-        this.rewrites.clear();
-        this.sourceStyles.clear();
-        this.failedAssets.clear();
-      }
+      if (frame !== this.frame) return;
+      const generation = this.generation;
+      void this.frame.evaluate(key => key in globalThis, this.key)
+        .catch(() => false)
+        .then(current => { if (!current && generation === this.generation && this.lastCapture?.generation === generation) this.replaceDocument(); });
     };
     this.page.on("framenavigated", this.navigation);
+  }
+  replaceDocument() {
+    void this.media.dispose();
+    this.generation = randomBytes(16).toString("hex");
+    this.assets.clear();
+    this.resources.clear();
+    this.styles.clear();
+    this.rewrites.clear();
+    this.sourceStyles.clear();
+    this.failedAssets.clear();
   }
   dispose() {
     if (this.disposal) return this.disposal;
@@ -256,7 +267,7 @@ export class BrowserDocument {
       return;
     }
     if (!Number.isSafeInteger(command.node)) throw new DocumentActionRejected("Invalid document target");
-    const handle = await this.frame.evaluateHandle(({ key, id }) => globalThis[key]?.reverse.get(id), { key: this.key, id: command.node });
+    const handle = await this.frame.evaluateHandle(({ key, id, generation }) => globalThis[key]?.generation === generation ? globalThis[key].reverse.get(id) : undefined, { key: this.key, id: command.node, generation: this.generation });
     try {
       const element = handle.asElement();
       if (!element || !await element.evaluate(n => n.isConnected && !n.closest('[inert]') && !n.disabled)) throw new DocumentActionRejected("Unavailable document target");
@@ -384,12 +395,18 @@ export class BrowserDocument {
     const generation = this.generation;
     let result;
     try {
-      result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, generation, reuse: !this.captureFailed && this.lastCapture?.generation === generation, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
+      const established = this.lastCapture?.generation === generation;
+      result = JSON.parse(await this.frame.evaluate(observeDocument, { key: this.key, generation, established, reuse: !this.captureFailed && established, knownStyles: [...this.sourceStyles].map(([id, style]) => [id, style.version]) }));
     } catch (error) {
       if (/^frame\.evaluate: Error: (Source identity limit|Document scan limit|Visible document limit)\b/.test(error.message)) error.code = 'DOCUMENT_LIMIT';
       throw error;
     }
     if (this.disposed) throw Error("Document detached");
+    if (result.replaced) {
+      if (generation === this.generation) this.replaceDocument();
+      budget.frames++;
+      return this.captureCurrent(budget);
+    }
     if (generation !== this.generation) throw Error("Navigation during capture");
     if (result.unchanged && this.lastCapture?.generation === generation) {
       this.metrics = { ...this.metrics, captureMs: performance.now() - captureStarted, inspectedNodes: result.inspectedNodes, sourceStyleBytes: 0, cached: true };

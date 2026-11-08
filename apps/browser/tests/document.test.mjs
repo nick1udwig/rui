@@ -127,6 +127,11 @@ test("document replica renders responsive CSS, SVG, images and live fields witho
     assert.ok(source.metrics.sourceStyleBytes > 100, 'CSSOM edits invalidate source stylesheet references');
     await viewer.evaluate(snapshot => renderer.render(snapshot), restyled);
     assert.equal(await frame.locator('h1').evaluate(n => getComputedStyle(n).color), 'rgb(7, 8, 9)');
+    await host.evaluate(() => history.replaceState(null, '', '#scrolled'));
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const scrolled = await source.capture();
+    assert.equal(scrolled.generation, restyled.generation, 'Same-document URL changes keep the replica document');
+    await source.dispatch({ generation: scrolled.generation, revision: scrolled.revision, node: button.id, action: 'click' });
     await host.evaluate(key => {
       globalThis[key].next = 100001;
       history.pushState(null, '', '#next-route');

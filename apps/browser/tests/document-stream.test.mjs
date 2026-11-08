@@ -62,7 +62,7 @@ test('HTTPS media reads are retryable, bounded and fenced by source lifetime', {
       await source.media.close(opened.token);
     }
     const retired = await open();
-    await host.goto('about:blank#next');
+    await host.goto('data:text/html,<p>Next document</p>');
     await assert.rejects(source.media.read(retired.token, 0), /expired|changed/);
     await source.media.dispose();
     assert.equal(source.media.sessions.size, 0);

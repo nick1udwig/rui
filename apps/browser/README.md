@@ -314,6 +314,8 @@ The report includes browser task time, JavaScript heap size, payload throughput 
 These synthetic measurements do not include GPU process usage or physical phone battery use.
 
 Document capture tracks changed subtrees with mutation and input events.
+History API and fragment URL changes keep the current document view, so pages that update their URL while scrolling do not reload on the phone.
+Only a replaced source document, or a route change after half of the node identity budget is used, starts a new document view.
 Idle document requests wait for a change or a bounded heartbeat.
 Active update intervals follow capture cost, from 50 to 300 ms.
 A full capture every two seconds checks properties that do not emit mutation events.
