@@ -124,6 +124,7 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
   The icon and an underline under the address bar turn amber while this device controls the host.
   **Connect** and **Take control** appear at the end of the address bar when they apply.
   The menu shows the connection state and **Release control**.
+  Without control, a tap on the page or a host control shows a reminder and highlights **Take control**.
   The bottom toolbar has back, forward, page sound, tabs and menu buttons.
   The tabs button shows the host tab count and opens a tab list with new-tab and close buttons.
   The menu also holds the reader view link, page section controls, host downloads and session details.

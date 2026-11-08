@@ -169,6 +169,12 @@ if (workspace === "browser") {
   track(document.querySelector("header")!, "--chrome-top");
   track($("bottom-bar"), "--chrome-bottom");
 }
+documentView?.iframe.addEventListener("load", () => {
+  const page = documentView.iframe.contentDocument;
+  const blocked = () => { if (client && !client.hasControl) needControl(); };
+  page?.addEventListener("click", blocked, true);
+  page?.addEventListener("keydown", blocked, true);
+});
 Object.defineProperty(window, "ruiPerformance", { get: () => documentView?.diagnostics() });
 let renderedState: State | undefined;
 function editable(node: Semantic) {
@@ -405,22 +411,54 @@ function reset() {
   view.replaceChildren();
   for (const slot of Object.values(slots)) slot.replaceChildren();
 }
+// Controls blocked only by a missing control lease stay clickable so a tap can explain what to do.
+function lockControl(element: HTMLButtonElement | HTMLInputElement, node: Semantic, available: boolean) {
+  const needsControl = available && !!client && !client.hasControl && node.states.get("Disabled") !== "True";
+  element.disabled = !needsControl && !(available && enabled(node));
+  element.toggleAttribute("data-needs-control", needsControl);
+  if (needsControl) element.setAttribute("aria-disabled", "true");
+  else element.removeAttribute("aria-disabled");
+}
 function refreshControls() {
   for (const row of rows.values()) {
     const node = row.node;
+    const settable = node.actions.some((a) => a.id === "SetValue");
     if (row.button)
-      row.button.disabled =
-        !enabled(node) || !node.actions.some((a) => a.id === "Activate");
+      lockControl(row.button, node, node.actions.some((a) => a.id === "Activate"));
     if (row.input instanceof HTMLInputElement && row.input.type === "checkbox")
-      row.input.disabled = !enabled(node);
-    else if (row.input)
+      lockControl(row.input, node, true);
+    else if (row.input) {
       row.input.readOnly =
-        !editable(node) || row.submitted !== undefined || !node.actions.some((a) => a.id === "SetValue");
-    if (row.apply)
-      row.apply.disabled =
-        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
+        !editable(node) || row.submitted !== undefined || !settable;
+      row.input.toggleAttribute("data-needs-control", settable && !!client && !client.hasControl);
+    }
+    if (row.apply) lockControl(row.apply, node, settable);
   }
 }
+function needControl() {
+  if (!connected) {
+    say(device ? "Connect to the host to use the browser." : "Pair this device with the host first.");
+    return;
+  }
+  say("View only. Take control to interact.");
+  control.classList.remove("attention");
+  void control.offsetWidth;
+  control.classList.add("attention");
+}
+const controlRequired = (event: Event) => {
+  if (client?.hasControl) return;
+  const target = (event.target as Element).closest?.("[data-needs-control]");
+  if (!target) return;
+  if (!(target instanceof HTMLInputElement && target.type !== "checkbox")) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  needControl();
+};
+document.addEventListener("click", controlRequired, true);
+document.addEventListener("keydown", (event) => {
+  if (!["Tab", "Shift", "Escape"].includes(event.key) && !event.metaKey && !event.ctrlKey) controlRequired(event);
+}, true);
 function refresh() {
   if (renderedState) render(renderedState);
 }

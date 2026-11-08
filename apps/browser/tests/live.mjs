@@ -438,6 +438,16 @@ try {
     }),
     { sameText: true, selected: "Host fixture", focused: true, cursor: [2, 5] },
   );
+  const promptsForControl = async (tap, label) => {
+    await page.locator("#status").evaluate(node => { node.textContent = ""; });
+    await tap();
+    await deadline(async () => (await page.locator("#status").textContent()).includes("Take control"), label);
+  };
+  await promptsForControl(() => page.getByRole("button", { name: "Run action", exact: true }).click({ force: true }), "blocked action asks for control");
+  if (!desktopBrowser) {
+    await promptsForControl(() => page.frameLocator('iframe[title="Host web page"]').locator("h1").click(), "page tap asks for control");
+    await page.screenshot({ path: join(out, `control-prompt-${engine}.png`) });
+  }
   retiringView = true;
   if (!desktopBrowser) {
     await retainMediaPeer();

@@ -119,9 +119,20 @@ button:hover:not(:disabled) {
   background: #eef5e9;
   border-color: #9caf9f;
 }
-button:disabled {
+button:disabled,
+button[aria-disabled="true"],
+input[aria-disabled="true"] {
   opacity: 0.5;
   cursor: default;
+}
+#control.attention {
+  animation: attention 0.6s ease-in-out 3;
+}
+@keyframes attention {
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px #f5b94a66;
+  }
 }
 button:focus-visible,
 input:focus-visible,
