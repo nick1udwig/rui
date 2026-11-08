@@ -76,8 +76,12 @@ async function api(path: string, data: unknown, authenticated = false, signal?: 
   if (!response.ok) throw Object.assign(Error(result.error), { code: result.code });
   return result;
 }
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function say(error: unknown) {
   status.textContent = String(error);
+  status.classList.add("toast-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => status.classList.remove("toast-visible"), 5000);
 }
 type Row = {
   element: HTMLElement;
@@ -108,9 +112,21 @@ function drainDocumentCommands() {
   try { client.setBrowserValue(documentTarget.id, JSON.stringify(command)); refreshControls(); buttons(); }
   catch (error) { documentCommands = []; say(error); }
 }
-const toolbarContainer = document.createElement("div");
 const documentContainer = document.createElement("section");
-view.before(toolbarContainer, documentContainer);
+documentContainer.id = "page";
+$("reader").before(documentContainer);
+const slots = {
+  address: $("address-slot"),
+  reload: $("reload-slot"),
+  nav: $("nav-slot"),
+  tabs: $("tabs-slot"),
+  newTab: $("new-tab-slot"),
+  menu: $("menu-slot"),
+  prompt: $("prompt-slot"),
+  store: $("chrome-store"),
+};
+const tabsSheet = $<HTMLDialogElement>("tabs-sheet"),
+  menuSheet = $<HTMLDialogElement>("menu-sheet");
 const documentView = workspace === "browser" ? new DocumentView(documentContainer, api, command => {
   if (!client?.hasControl) return;
   if (documentCommands.length >= 16) { say("Page input queue full. Wait for the host."); return; }
@@ -119,6 +135,35 @@ const documentView = workspace === "browser" ? new DocumentView(documentContaine
   documentCommands.push(action);
   drainDocumentCommands();
 }, () => !!client?.hasControl, say, drainDocumentCommands) : undefined;
+if (workspace === "browser") {
+  $("sound-slot").append(documentView!.soundButton);
+  documentView!.soundButton.classList.add("icon-button");
+  documentView!.soundButton.dataset.icon = "sound";
+  documentView!.soundButton.setAttribute("aria-label", "Enable page sound");
+  documentView!.soundButton.addEventListener("click", () => documentView!.soundButton.setAttribute("aria-pressed", "true"));
+  slots.menu.after(document.querySelector(".session-details")!);
+  for (const sheet of [tabsSheet, menuSheet]) {
+    sheet.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      if (target === sheet || target.closest(".sheet-done")) sheet.close();
+    });
+  }
+  $("tabs-button").onclick = () => tabsSheet.showModal();
+  $("menu-button").onclick = () => menuSheet.showModal();
+  $("open-reader").onclick = () => {
+    menuSheet.close();
+    $("reader").scrollIntoView({ behavior: "smooth" });
+  };
+  slots.tabs.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest("button");
+    if (button && !button.disabled && button.getAttribute("aria-label") !== "Close tab") tabsSheet.close();
+  });
+  slots.newTab.addEventListener("click", () => tabsSheet.close());
+  const track = (element: HTMLElement, property: string) =>
+    new ResizeObserver(() => document.documentElement.style.setProperty(property, `${element.offsetHeight}px`)).observe(element);
+  track(document.querySelector("header")!, "--chrome-top");
+  track($("bottom-bar"), "--chrome-bottom");
+}
 Object.defineProperty(window, "ruiPerformance", { get: () => documentView?.diagnostics() });
 let renderedState: State | undefined;
 function editable(node: Semantic) {
@@ -225,6 +270,13 @@ function createRow(node: Semantic): Row {
       row.dirty ??= { version: row.node.version, authority };
       input.dataset.dirty = "true";
     });
+    if (input instanceof HTMLInputElement)
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.isComposing && !apply.disabled) {
+          event.preventDefault();
+          apply.click();
+        }
+      });
     const actions = document.createElement("div");
     actions.className = "edit-actions";
     const apply = document.createElement("button");
@@ -271,6 +323,7 @@ function createRow(node: Semantic): Row {
         }
         row.submitted = client.setBrowserValue(node.id, value);
         message.textContent = "Sending to host…";
+        if (kind === "url") input.blur();
       } catch (error) {
         message.textContent = String(error);
       } finally {
@@ -345,7 +398,7 @@ function reset() {
   for (const row of rows.values()) if (row.input) row.input.value = "";
   rows.clear();
   view.replaceChildren();
-  toolbarContainer.replaceChildren();
+  for (const slot of Object.values(slots)) slot.replaceChildren();
 }
 function refreshControls() {
   for (const row of rows.values()) {
@@ -372,6 +425,9 @@ function render(state: State) {
   const nodes = new Map<bigint, Semantic>();
   for (const record of state.records.values())
     if ("Semantic" in record) nodes.set(record.Semantic.id, record.Semantic);
+  const parents = new Map<bigint, Semantic>();
+  for (const node of nodes.values())
+    for (const child of node.children) parents.set(child.id, node);
   for (const [id, row] of rows)
     if (!nodes.has(id)) {
       row.element.remove();
@@ -424,6 +480,11 @@ function render(state: State) {
           ? "Scroll into view"
           : node.label!.split(":")[0];
       }
+      if (workspace === "browser" && parents.get(node.id)?.browser_input_type === "view:tabs") {
+        const current = label.startsWith("Current: ");
+        if (current) label = label.slice("Current: ".length);
+        row.element.dataset.current = String(current);
+      }
       text(row.button, label);
       if (["view:app", "view:window"].includes(rowShape(row.kind))) {
         attribute(
@@ -464,21 +525,22 @@ function render(state: State) {
     }
   }
   refreshControls();
-  const place = (container: HTMLElement, ids: bigint[]) => {
-    let cursor = container.firstElementChild;
+  const cursors = new Map<HTMLElement, Element | null>();
+  const place = (container: HTMLElement, ids: bigint[], parent?: Row) => {
+    cursors.set(container, container.firstElementChild);
     for (const id of ids) {
       const row = rows.get(id);
       if (!row) continue;
-      if (workspace === "browser" && row.kind === "view:toolbar") {
-        if (row.element.parentElement !== toolbarContainer) toolbarContainer.append(row.element);
-      } else {
-        if (row.element !== cursor) container.insertBefore(row.element, cursor);
-        cursor = row.element.nextElementSibling;
-      }
+      const target = chromeSlot(row, parent) ?? container;
+      if (!cursors.has(target)) cursors.set(target, target.firstElementChild);
+      const cursor = cursors.get(target)!;
+      if (row.element !== cursor) target.insertBefore(row.element, cursor);
+      cursors.set(target, row.element.nextElementSibling);
       if (row.children)
         place(
           row.children,
           row.node.children.map((r) => r.id),
+          row,
         );
     }
   };
@@ -490,12 +552,38 @@ function render(state: State) {
     [...nodes.keys()].filter((id) => !owned.has(id)),
   );
   for (const row of rows.values()) filterApps(row);
+  if (workspace === "browser")
+    $("tabs-count").textContent = String(
+      Array.from(slots.tabs.querySelectorAll("button")).filter((b) => b.getAttribute("aria-label") !== "Close tab").length,
+    );
   const surfaces = [...state.records.values()].flatMap((r) =>
     "Surface" in r ? [r.Surface] : [],
   );
   $("coverage").textContent = surfaces
     .flatMap((s) => s.unsupported_features)
     .join(" ");
+}
+const icons: Record<string, string> = { Back: "back", Forward: "forward", Reload: "reload" };
+function chromeSlot(row: Row, parent?: Row): HTMLElement | undefined {
+  if (workspace !== "browser") return;
+  const label = row.node.label ?? "";
+  if (parent?.kind === "view:toolbar") {
+    if (row.input) return slots.address;
+    row.element.dataset.icon = icons[label] ?? "";
+    return label === "Reload" ? slots.reload : slots.nav;
+  }
+  if (row.kind === "view:toolbar") return slots.store;
+  if (row.kind === "view:tabs") return slots.tabs;
+  if (parent?.kind === "view:disclosure" && label === "New tab") {
+    row.element.dataset.icon = "plus";
+    return slots.newTab;
+  }
+  if (row.kind === "view:disclosure" && parent?.node.role === "Root") {
+    (row.element as HTMLDetailsElement).open = true;
+    return slots.menu;
+  }
+  if (row.kind === "view:dialog" || (row.children && label === "Choose a host file")) return slots.prompt;
+  if (row.children && label === "Host downloads") return slots.menu;
 }
 function buttons() {
   control.disabled =
@@ -504,17 +592,20 @@ function buttons() {
     client.hasControl ||
     !client.capabilities.can_control;
   release.disabled = !client?.hasControl;
-  control.hidden = !!client?.hasControl;
+  control.hidden = !!client?.hasControl || !connected;
   release.hidden = !client?.hasControl;
-  connect.hidden = connected;
+  connect.hidden = connected || !device;
   document.body.dataset.connected = String(connected);
+  document.body.dataset.control = String(!!client?.hasControl);
   retry.hidden = !client?.pendingCommands;
   retry.textContent = uncertainAction ? "Check host, then reconnect" : "Check action status";
   connection.textContent = client?.hasControl
     ? "Controlling host"
     : connected
       ? "Viewing host"
-      : "Disconnected";
+      : device
+        ? "Disconnected"
+        : "Not paired";
 }
 async function connectHost() {
   if (!device || connecting) return;
@@ -667,6 +758,7 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => client?.disconnect());
 device = await storage();
+buttons();
 const invitation = new URLSearchParams(location.hash.slice(1)).get("invite");
 history.replaceState(null, "", location.pathname);
 if (!device && invitation) {

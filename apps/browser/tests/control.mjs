@@ -275,7 +275,7 @@ try {
     new MutationObserver(() => { if (input.readOnly) window.readonlyDuringDraft = true; }).observe(input, { attributes: true, attributeFilter: ['readonly'] });
   });
   await viewer.setViewportSize({ width: 390, height: 520 });
-  await until(async () => await page.evaluate(() => innerHeight) === Math.round(520 * .75), 'Keyboard-sized viewport reaches host');
+  await until(async () => await page.evaluate(() => innerHeight) === await viewer.locator('iframe[title="Host web page"]').evaluate(frame => Math.round(frame.clientHeight)) && await page.evaluate(() => innerHeight) < 520, 'Keyboard-sized viewport reaches host');
   await until(async () => !(await go.isDisabled()), 'Resize acknowledged');
   assert.equal(await address.inputValue(), 'https://example.com/draft');
   assert.equal(await viewer.evaluate(() => window.readonlyDuringDraft), false, 'Background commands must leave the address draft editable');

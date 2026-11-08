@@ -306,6 +306,7 @@ try {
         .isDisabled()),
     "connected controls",
   );
+  await page.screenshot({ path: join(out, `viewing-${engine}.png`) });
   await page.getByRole("button", { name: "Take control", exact: true }).click();
   await deadline(
     async () =>
@@ -343,21 +344,25 @@ try {
     await deadline(async () => (await replica.locator("h1").evaluate(n => getComputedStyle(n).color)) === "rgb(65, 43, 21)", "stylesheet replacement");
   }
   assert.ok(await page.getByRole("list").count());
-  const more = page.locator('[data-presentation="disclosure"] > summary');
-  assert.equal(
-    await page
-      .getByRole("button", { name: "New tab", exact: true })
-      .isVisible(),
-    false,
-  );
-  await more.click();
-  assert.equal(
-    await page
-      .getByRole("button", { name: "New tab", exact: true })
-      .isVisible(),
-    true,
-  );
-  await more.click();
+  const newTab = page.getByRole("button", { name: "New tab", exact: true });
+  if (desktopBrowser) {
+    const more = page.locator('[data-presentation="disclosure"] > summary');
+    assert.equal(await newTab.isVisible(), false);
+    await more.click();
+    assert.equal(await newTab.isVisible(), true);
+    await more.click();
+  } else {
+    assert.equal(await newTab.isVisible(), false);
+    await page.getByRole("button", { name: "Show tabs", exact: true }).click();
+    assert.equal(await newTab.isVisible(), true);
+    await page.screenshot({ path: join(out, `tabs-${engine}.png`) });
+    await page.locator("#tabs-sheet .sheet-done").click();
+    await page.getByRole("button", { name: "Browser menu", exact: true }).click();
+    await page.getByRole("button", { name: "Next page section", exact: true }).waitFor();
+    await page.screenshot({ path: join(out, `menu-${engine}.png`) });
+    await page.locator("#menu-sheet .sheet-done").click();
+    await page.screenshot({ path: join(out, `page-${engine}.png`) });
+  }
   assert.equal(await page.locator("#view img").count(), 0);
   assert.ok(
     await page.evaluate(
@@ -533,11 +538,7 @@ try {
     "local revocation disconnect",
   );
   if (!desktopBrowser) await assertMediaRetired();
-  assert.ok(
-    await page
-      .getByRole("button", { name: "Take control", exact: true })
-      .isDisabled(),
-  );
+  assert.ok(await page.locator("#control").isDisabled());
   if (mount) {
     assert.ok(
       proxy.requests.every(

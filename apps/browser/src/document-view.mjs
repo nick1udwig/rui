@@ -18,6 +18,7 @@ export class DocumentView {
     this.resourceBytes = 0;
     this.iframe = document.createElement("iframe");
     this.iframe.title = "Host web page";
+    this.iframe.className = "page-frame";
     this.iframe.style.cssText = "width:100%;height:75dvh;border:0;background:white";
     this.status = document.createElement("p");
     this.status.setAttribute("role", "status");
@@ -30,7 +31,7 @@ export class DocumentView {
       this.mediaStatus.hidden = false;
     });
     this.renderer = new DocumentRenderer(this.iframe, dispatch, canControl, this.media);
-    const sound = document.createElement("button");
+    const sound = this.soundButton = document.createElement("button");
     sound.textContent = "Enable page sound";
     sound.onclick = () => this.media.enableSound();
     this.container.append(sound, this.status, this.mediaStatus);

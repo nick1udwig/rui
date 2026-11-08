@@ -13,25 +13,53 @@
   </head>
   <body>
     <header>
-      <div>
-        <strong
-          ><span class="brand-mark" aria-hidden="true">r</span> RUI
-          Browser</strong
-        ><span id="connection">Not paired</span>
+      <div class="host-strip">
+        <div class="host-identity">
+          <span class="brand-mark" aria-hidden="true">r</span>
+          <strong>RUI Browser</strong>
+          <span class="host-dot" aria-hidden="true"></span>
+          <span id="connection">Not paired</span>
+        </div>
+        <nav aria-label="Session">
+          <button id="connect">Connect</button
+          ><button id="control" disabled>Take control</button
+          ><button id="release" disabled hidden>Release</button
+          ><button id="retry" hidden>Check action status</button>
+        </nav>
       </div>
-      <nav aria-label="Session">
-        <button id="connect">Connect</button
-        ><button id="control" disabled>Take control</button
-        ><button id="release" disabled>Release</button
-        ><button id="retry" hidden>Check action status</button>
-      </nav>
+      <div id="address-bar" class="browser-only">
+        <span
+          class="host-chip"
+          role="img"
+          aria-label="Page runs on the host computer"
+          title="Page runs on the host computer"
+        ></span>
+        <div id="address-slot"></div>
+        <div id="reload-slot"></div>
+      </div>
     </header>
     <main>
       <section id="pairing" hidden>
+        <span class="empty-icon" aria-hidden="true"></span>
         <h1>Pair this device</h1>
         <p id="pair-status"></p>
       </section>
-      <div id="view"></div>
+      <section id="offline" class="browser-only">
+        <span class="empty-icon" aria-hidden="true"></span>
+        <h1>Host browser</h1>
+        <p>
+          Pages open in a browser on the host computer and appear here.
+          Scan the host’s pairing QR code, or connect if this device is
+          already paired.
+        </p>
+      </section>
+      <section id="reader">
+        <div class="reader-heading browser-only">
+          <h2>Reader view</h2>
+          <p>Text and form controls from the host page. Enter passwords here.</p>
+        </div>
+        <div id="view"></div>
+      </section>
       <p id="status" role="status" aria-live="polite">
         Scan the host’s pairing QR code to begin.
       </p>
@@ -40,7 +68,44 @@
         <p id="coverage"></p>
         <button id="forget">Forget device</button>
       </details>
+      <div id="prompt-slot" class="browser-only"></div>
+      <div id="chrome-store" hidden></div>
     </main>
+    <nav id="bottom-bar" class="browser-only" aria-label="Browser">
+      <div id="nav-slot"></div>
+      <span id="sound-slot"></span>
+      <button
+        id="tabs-button"
+        class="tabs-button"
+        aria-label="Show tabs"
+        aria-haspopup="dialog"
+      >
+        <span id="tabs-count">0</span>
+      </button>
+      <button
+        id="menu-button"
+        class="icon-button"
+        data-icon="more"
+        aria-label="Browser menu"
+        aria-haspopup="dialog"
+      ></button>
+    </nav>
+    <dialog id="tabs-sheet" class="sheet browser-only" aria-labelledby="tabs-title">
+      <div class="sheet-header">
+        <h2 id="tabs-title">Tabs on host</h2>
+        <div id="new-tab-slot"></div>
+        <button class="sheet-done">Done</button>
+      </div>
+      <div id="tabs-slot"></div>
+    </dialog>
+    <dialog id="menu-sheet" class="sheet browser-only" aria-labelledby="menu-title">
+      <div class="sheet-header">
+        <h2 id="menu-title">Browser menu</h2>
+        <button class="sheet-done">Done</button>
+      </div>
+      <button id="open-reader" class="menu-item">Reader view</button>
+      <div id="menu-slot"></div>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

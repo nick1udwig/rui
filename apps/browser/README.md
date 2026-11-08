@@ -119,6 +119,13 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
 
 ## Using the workspace
 
+- The client looks like a mobile browser.
+  A dark host strip above the address bar shows the connection and control state, and a monitor icon in the address bar marks pages that run on the host.
+  The strip shows an amber indicator while this device controls the host.
+  The bottom toolbar has back, forward, page sound, tabs and menu buttons.
+  The tabs button shows the host tab count and opens a tab list with new-tab and close buttons.
+  The menu holds the reader view link, page section controls, host downloads and session details.
+  Page dialogs and host file selection open as sheets above the page.
 - Tabs, address navigation, back/forward/reload, and links operate on the real host browser. Popups become tabs. Local host changes are observed too.
 - Text, Unicode/IME composition, plain contenteditable, checkboxes, radio buttons, native selects, date/number fields, and JavaScript dialogs use semantic controls. Typing remains a local draft until **Apply**. Changed source fields invalidate old drafts; **Discard** loads the latest value.
 - Passwords are blank in publications.
@@ -131,6 +138,8 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
 - Uploads choose a host file inside `--files-dir`. Folder traversal and symlinks outside that root are rejected. Uploading from the phone, directory uploads, and selecting multiple files are not implemented.
 - Downloads remain in `STATE/downloads`; the client shows their completion and host path. It can cancel an active download, but cannot download that file to the phone.
 - The address bar stays above the page view.
+  Enter in the address bar navigates; **Go** also appears while editing.
+  The page view fills the space between the address bar and the bottom toolbar.
   The page view uses the site's DOM and CSS with the source viewport matched to the controlling client.
   Large pages defer hidden and distant offscreen DOM sections within the node budget.
   Deferred sections preserve their layout size and load as the controlling phone scrolls the host.
@@ -145,7 +154,7 @@ Approvals are remembered in the client's IndexedDB and on the host. Terminal com
   A visible video stream reconnects if host frames advance but no phone frames arrive for eight seconds.
   Retired requests cannot replace a newer view or close its media streams.
   Accessibility refreshes run in the background and publish complete action targets together, so a slow capture does not block the control connection.
-  The structured reading controls remain below the page.
+  The structured reading controls remain below the page in the reader view.
   Links and controls target stable source nodes.
   Text fields commit on change or Enter; simple rich-text edits commit on blur and preserve unaffected markup.
   Canvas and slider drags send bounded paths to the host.
@@ -177,7 +186,7 @@ This transport requires Media Source Extensions with VP8/Opus support.
 Browsers without a supported format use direct WebRTC as a compatibility path.
 Media elements use this transport; page text, layout and controls remain DOM and CSS.
 No additional ports or relay service need configuration.
-Use **Enable page sound** for audio playback.
+Use **Enable page sound**, the speaker button in the bottom toolbar, for audio playback.
 Media encoding follows the displayed width, with device pixel ratio capped at 1.5 and source resolution preserved as an upper bound.
 The default profile caps width at 960 pixels and frame rate at 30 fps.
 Sustained decoder pressure reduces the profile to 480 pixels and 15 fps.
