@@ -31,7 +31,7 @@ The launcher selects unused ports and starts a temporary [Tailscale Serve](https
 It leaves existing Serve routes unchanged and removes its own route when you quit or press Ctrl+C.
 If Tailscale asks you to enable HTTPS for your tailnet, follow its printed setup link once and run the command again.
 Use `--skip-build` on later runs when the code has not changed.
-The managed browser uses direct ICE addresses so its element media streams can connect over the tailnet.
+For the WebRTC media path, phone mode makes the managed Chromium advertise its IP addresses so clients can connect over the tailnet.
 Phone mode does not add a media relay or change the ICE settings of an externally attached browser.
 
 ## Desktop-only development
@@ -185,8 +185,8 @@ Media uses encoded WebM video/audio over the same authenticated HTTPS path as th
 A persistent binary HTTPS response carries media separately from document updates and control requests.
 The phone does not poll or decode base64 media.
 The host capture bridge still uses base64 internally.
-This transport requires Media Source Extensions with VP8/Opus support.
-Browsers without a supported format use direct WebRTC as a compatibility path.
+The viewer selects HTTPS media when Media Source Extensions reports support for WebM with VP8, Opus, or both.
+The viewer uses direct WebRTC when it detects none of the supported formats.
 Media elements use this transport; page text, layout and controls remain DOM and CSS.
 No additional ports or relay service need configuration.
 Use **Enable page sound**, the speaker button in the bottom toolbar, for audio playback.
@@ -200,8 +200,6 @@ Canvas uses a 100 ms recording interval; video uses 250 ms.
 Quality changes restart only the affected media stream, with a 15-second minimum interval.
 Media sessions expire without renewal and close when the view is retired or hidden.
 When a media element loads a new source, its old stream closes and the phone connects to the new stream.
-Desktop WebKit in the test container requires direct ICE addresses because container mDNS discovery did not work.
-This test configuration does not validate Safari networking on a phone.
 
 **Physical iOS Safari and Android Chrome acceptance is pending.**
 Desktop engine tests use a 390 × 844 viewport and do not prove OS keyboard, IME, touch, background suspension, certificate or QR behavior on a device.
@@ -245,6 +243,12 @@ The proxy test runs the live flow through a local TLS-terminating reverse proxy 
 
 The worker fixture checks Unicode edits, stale source and navigation rejection, password redaction/single-use/expiry/lease binding, upload path confinement, native form controls, embedded frames, dialogs, downloads and tabs. The live test exercises production assets through the Rust host, HTTPS/WSS, local approval, control, navigation, edits, password entry, release, remembered-device reconnect, host restart with a persistent login cookie, and host revocation.
 
+The paired live test passed in desktop Chromium and Firefox.
+In Playwright's Linux WebKit, the paired test rendered the document and its image, then timed out waiting for the first canvas frame.
+WebKit reported support for the WebM codecs and received HTTPS media data.
+The viewer then reported `NotSupportedError` and drew zero frames.
+Earlier WebKit media tests used direct WebRTC with direct ICE addresses because mDNS discovery failed in the test container.
+
 The document acceptance checks cover the following cases.
 
 | Case | Verified behavior |
@@ -254,7 +258,7 @@ The document acceptance checks cover the following cases.
 | Dynamic page | DOM patches, stylesheet replacement, virtualized scrolling, navigation generation fences |
 | Embedded content | Open shadow trees and cross-origin frame rendering and actions |
 | Canvas and WebGL | Element streams, visible screenshot pixels, bounded canvas drag input |
-| Video and audio | Decoded video and inbound audio packets in Chromium, Firefox and WebKit |
+| Video and audio | Decoded video and audio reception in the Chromium fixture, with earlier Firefox and WebKit passes over WebRTC |
 | Public sites | Wikipedia text/images and YouTube play, audio, pause and seek through the replica |
 | Attachment | Existing-browser actions, excess-tab preservation, viewport restoration and non-destructive detach |
 | Paired application | Resource integrity rejection/recovery, control, reconnect, restart, revocation and proxy path mounting |

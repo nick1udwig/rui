@@ -8,12 +8,12 @@ Use the app guides for current operational behavior, the profile documents for p
 | Path | Implemented behavior | Coverage boundary |
 | --- | --- | --- |
 | [Desktop workspace](../apps/desktop/README.md) | Share already-running same-user Linux apps, pair devices, switch apps/windows, and interact through accessible controls | Observed, partial AT-SPI semantics; tested GTK fixtures plus specific Writer and Nautilus workflows, with app-specific gaps |
-| [Browser workspace](../apps/browser/README.md) | A managed host Chromium with tabs, structured pages, standard forms, password staging, host files, and persistent profiles | Semantic presentation of supported page controls; original page appearance, canvas, and video are not mirrored |
+| [Standalone browser workspace](../apps/browser/README.md) | Launch or attach to host Chromium, render pages from DOM and CSS, and control tabs, forms, and host files | Separate streams for canvas, WebGL, video, and audio, with browser-specific playback limits |
 | [Semantic GTK presentation](../demos/semantic/README.md) | Responsive web controls, guarded Unicode drafts, Boolean values, stable-item selection, dialogs, and redaction for two cooperating apps | Requires a cooperating source and advertised actions; automated layout/accessibility checks do not establish screen-reader usability |
 | [Vector arcade](../demos/games/README.md) | Native MAME Battlezone/Asteroids controlled through a browser, with vector scenes, local render scale, and desktop/mobile controls | MAME 0.289 line hooks; fixed-width beam presentation, no remote audio or CRT effects; local acceptance, game data supplied separately |
 | [Vector GTK mirrors](../demos/web/README.md) | Native and browser rendering of host-owned geometry and outline glyphs, control leases, guarded edits, and recovery | Pinned GTK corpus and declared styles/renderers; unsupported source paint remains explicit |
 
-The desktop workspace can include the managed browser in the same paired session with `--with-browser`.
+The desktop workspace can include a managed Chromium with a structured reading view in the same paired session with `--with-browser`.
 All paired viewers share the workspace's selected app, and only one device holds remote control at a time.
 Clients may reflow semantic controls locally without changing the authoritative application's layout.
 
@@ -29,7 +29,12 @@ The read-only [AT-SPI adapter baseline](../adapters/atspi/README.md) and interac
 
 Desktop mobile flows have automated Chromium/WebKit coverage, specific real Writer/Nautilus checks, and a reported successful physical-phone tryout.
 A complete device/OS keyboard, IME, orientation, suspension, and assistive-technology matrix remains open.
-The standalone browser and cooperating demos retain their own device and two-machine acceptance limits in their guides.
+
+The standalone browser passed paired tests in desktop Chromium and Firefox.
+In Playwright's Linux WebKit, the paired test received HTTPS canvas data and timed out waiting for the first frame.
+Physical iOS Safari and Android Chrome acceptance is pending.
+See the [standalone browser verification guide](../apps/browser/README.md#verification).
+The cooperating demos describe their device and two-machine acceptance limits in their own guides.
 
 The [performance report](performance.md), [large-workload report](large-performance.md), and [gates](performance-gates.md) record missed original action-latency and large-scene 60 Hz targets.
 The browser library has a tested private runtime tarball and compatibility policy; public registry publication and project licensing remain separate release decisions.
@@ -41,7 +46,7 @@ The next work is:
 
 1. Expand real-app compatibility and fill missing accessible names/text capabilities with explicit source evidence.
 2. Add bounded paging or window-scoped reads for larger application trees, documents, and collections.
-3. Improve managed-browser presentation beyond the current structured reading view.
+3. Resolve standalone browser media playback in WebKit and run the paired browser checks in CI.
 4. Validate physical mobile keyboards, IME, orientation, suspension, and assistive technology.
 5. Reduce measured host/client latency and rendering costs while preserving bounded ownership and recovery.
 

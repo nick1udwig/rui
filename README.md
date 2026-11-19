@@ -5,9 +5,11 @@ The host owns application state; clients receive authorized UI semantics and sup
 
 Its [design foundations](docs/RFC.md#2-foundations-and-alternatives) include GTK4/GSK's retained rendering, AccessKit's semantic updates, Remote DOM's UI replication, and Qt Remote Objects' source/replica model.
 RUI combines visual and semantic replication with authentication, control leases, guarded commands, and reconnect recovery.
-It sends UI state instead of video frames: a client can mirror supported source layouts or build responsive web controls from semantics.
+Clients use replicated UI state to mirror supported source layouts or build responsive web controls.
 
-Today, the [desktop workspace](apps/desktop/README.md) shares existing Linux apps through accessibility, and the [browser workspace](apps/browser/README.md) controls a dedicated host Chromium.
+The [desktop workspace](apps/desktop/README.md) shares existing Linux apps through accessibility.
+The [standalone browser workspace](apps/browser/README.md) can launch Chromium on the host or attach to an existing instance with a local debugging endpoint.
+It renders the page from DOM and CSS and streams canvas, WebGL, video, and audio for individual elements.
 Cooperating GTK demos also support vector mirroring.
 Coverage depends on the source; existing-app accessibility is partial, and the strict vector profile excludes raster content.
 The direction is a useful mobile interface to an existing Linux session, with broader app coverage, richer browser presentation, and better performance; see [status and next steps](docs/status.md).
@@ -32,7 +34,8 @@ Stop with `quit` or Ctrl+C; attached apps keep running.
 Later runs can add `--skip-build`.
 
 For a phone connection, follow the [desktop HTTPS/Tailscale setup](apps/desktop/README.md#run).
-Add `--with-browser` for a managed host browser, or try the [standalone browser workspace](apps/browser/README.md#start-locally).
+Add `--with-browser` to include a managed Chromium in the desktop workspace.
+The [standalone browser workspace](apps/browser/README.md#try-it-on-your-phone) has its own phone launcher.
 To compare responsive semantic controls with vector mirroring, follow the [GTK demo walkthroughs](docs/getting-started.md#cooperating-gtk-demos).
 For a playable vector-game demonstration, run [Battlezone or Asteroids through MAME](demos/games/README.md).
 
