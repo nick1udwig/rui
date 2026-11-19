@@ -487,18 +487,10 @@ async fn request_saturation_and_cancelled_waiter_leave_priority_cleanup_availabl
         call(&port, &connection, Operation::Authorize).await,
         Err(TransportError::Limit)
     ));
-    assert!(
-        tokio::time::timeout(std::time::Duration::from_millis(5), &mut waiters[0])
-            .await
-            .is_err()
-    );
+    assert!(futures_util::poll!(&mut waiters[0]).is_pending());
     port.disconnect(&connection);
     let mut cleanup = port.flush_lifecycle(0);
-    assert!(
-        tokio::time::timeout(std::time::Duration::from_millis(5), &mut cleanup)
-            .await
-            .is_err()
-    );
+    assert!(futures_util::poll!(&mut cleanup).is_pending());
     assert_eq!(port.flush_lifecycle(0).await, Err(TransportError::Limit));
     drop(waiters);
     drop(locked);

@@ -54,7 +54,11 @@ def main():
     try:
         address = daemon.stdout.readline().strip()
         os.environ['AT_SPI_BUS_ADDRESS'] = address
-        registry = subprocess.Popen(['/usr/lib/at-spi2-registryd'], stdout=subprocess.DEVNULL)
+        registry_path = next((path for path in ('/usr/libexec/at-spi2-registryd', '/usr/lib/at-spi2-registryd')
+                              if os.access(path, os.X_OK)), None)
+        if registry_path is None:
+            raise FileNotFoundError('AT-SPI registry executable is not installed')
+        registry = subprocess.Popen([registry_path], stdout=subprocess.DEVNULL)
         time.sleep(.15)
         for name in ('A', 'B'):
             sources.append(Source(name))

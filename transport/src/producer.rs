@@ -1528,12 +1528,8 @@ mod lifecycle_tests {
             now: 4990,
         });
         // Both futures really reached the owner lock before its lease deadline.
-        assert!(tokio::time::timeout(Duration::from_millis(1), &mut command)
-            .await
-            .is_err());
-        assert!(tokio::time::timeout(Duration::from_millis(1), &mut acquire)
-            .await
-            .is_err());
+        assert!(futures_util::poll!(&mut command).is_pending());
+        assert!(futures_util::poll!(&mut acquire).is_pending());
         tokio::time::sleep(Duration::from_millis(20)).await;
         drop(locked);
         let received = command.await.unwrap();
@@ -1640,9 +1636,7 @@ mod lifecycle_tests {
         let locked = host.lock().await;
         port.disconnect(&connection);
         let mut flush = port.flush_lifecycle(0);
-        assert!(tokio::time::timeout(Duration::from_millis(5), &mut flush)
-            .await
-            .is_err());
+        assert!(futures_util::poll!(&mut flush).is_pending());
         drop(flush);
         drop(port);
         drop(locked);

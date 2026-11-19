@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 
 from .network_audit import audit
+from .compressed_chunks import ChunkHistory, HISTORY_BYTES
+from .reference import fields, one
 from .semantic_client import blob, scalar
 from .test_semantic_client import node, snapshot
 
@@ -61,6 +63,18 @@ class NetworkAuditTests(unittest.TestCase):
         self.assertEqual(result['commands'], 1)
         self.assertEqual(result['exact_command_retries'], 1)
         self.assertEqual(result['command_results'], 2)
+
+    def test_compressed_publication_replays_the_same_prefix(self):
+        rows = fixture()
+        packet = fields(bytes.fromhex(rows[2]['exact_packet_hex']))
+        body = fields(one(packet, 6, 2))
+        encoded = bytes.fromhex('28b52ffd201bd90000080112171a150801100118012207436f756e746572800101880101')
+        payload = blob(1, one(body, 1, 2)) + blob(3, encoded)
+        raw = b''.join(blob(tag, one(packet, tag, 2)) for tag in (1, 2, 3)) + scalar(4, 1) + scalar(5, 15) + blob(6, payload)
+        rows[2].update(kind=15, wire_bytes=len(raw), exact_packet_hex=raw.hex())
+        result = self.run_audit(rows)
+        self.assertEqual(result['complete_publications'], 1)
+        self.assertEqual(result['presented_acknowledgements'], 1)
 
     def test_scope_sequence_and_wire_length_corruption_rejected(self):
         for key, value in [('segment', 9), ('sequence', 9), ('wire_bytes', 9), ('kind', 1)]:
@@ -132,6 +146,39 @@ class NetworkAuditTests(unittest.TestCase):
                     self.run_audit(rows)
             else:
                 self.assertEqual(self.run_audit(rows)['verified_resource_transfers'], 1)
+
+
+class CompressedChunkTests(unittest.TestCase):
+    encoded = bytes.fromhex('28b52ffd60a6005d0000206e65787401009f4f5540')
+    base = b'bounded trace history ' * 20
+    expected = b'bounded trace history ' * 19 + b'next'
+
+    def test_history_decodes_exactly_and_rejects_wrong_or_reset_base(self):
+        decoder = ChunkHistory()
+        self.assertEqual(decoder.decode(12, self.base), self.base)
+        frame = hashlib.sha256(self.base).digest() + self.encoded
+        self.assertEqual(decoder.decode(16, frame), self.expected)
+        with self.assertRaises(ValueError):
+            decoder.decode(16, frame)
+        decoder.clear()
+        with self.assertRaises(ValueError):
+            decoder.decode(16, frame)
+
+    def test_truncated_trailing_and_oversized_frames_are_rejected(self):
+        oversized = bytes.fromhex('28b52ffd6001ff5500001078780100fc7f1d6001')
+        for data in (self.encoded[:-1], self.encoded + b'x', oversized, b''):
+            decoder = ChunkHistory()
+            decoder.decode(12, self.base)
+            with self.subTest(data=data.hex()), self.assertRaises(ValueError):
+                decoder.decode(16, hashlib.sha256(self.base).digest() + data)
+            self.assertEqual(decoder.history, self.base)
+
+    def test_history_storage_is_bounded(self):
+        decoder = ChunkHistory()
+        for byte in range(10):
+            decoder.decode(12, bytes([byte]) * 65536)
+        self.assertEqual(len(decoder.history), HISTORY_BYTES)
+        self.assertEqual(decoder.history, b''.join(bytes([byte]) * 65536 for byte in range(6, 10)))
 
 
 if __name__ == '__main__':

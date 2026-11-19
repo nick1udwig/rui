@@ -123,6 +123,7 @@ def main():
         'fixtures/gtk/whole_native_source.py', 'fixtures/gtk/compare.py',
         'fixtures/gtk/mirror_check.py', 'fixtures/gtk/place_windows.py',
         'fixtures/gtk/composition_trace.py',
+        'conformance/compressed_chunks.py', 'conformance/network_audit.py',
         'fixtures/render/native_events.py', 'client-desktop/Cargo.toml',
         'client-desktop/examples/gtk_source_probe.rs',
         'client-desktop/examples/corpus_support/trace.rs',

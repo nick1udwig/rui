@@ -263,6 +263,7 @@ fn public_capture(
         .ok_or("actual diagnostic scope absent")?;
     let limits = Limits::default();
     let mut model = Replica::new(limits.clone());
+    let mut history = rui_wire::compression::History::default();
     let mut transfer: Option<(p::Kind, p::PublicationBegin, Vec<u8>, u32)> = None;
     diagnostics.inspect(context, |entries| -> Result<()> {
         for entry in entries {
@@ -283,6 +284,9 @@ fn public_capture(
             let kind = p::Kind::try_from(packet.kind)?;
             match kind {
                 p::Kind::SnapshotBegin | p::Kind::TransactionBegin => {
+                    if kind == p::Kind::SnapshotBegin {
+                        history.clear();
+                    }
                     let begin: p::PublicationBegin = codec::decode(&packet.payload, CEILING)?;
                     if transfer.is_some() || begin.total_bytes > 1 << 20 || begin.chunk_count > 64 {
                         return Err("oracle publication ceiling/order".into());
@@ -290,8 +294,20 @@ fn public_capture(
                     let bytes = Vec::with_capacity(begin.total_bytes as usize);
                     transfer = Some((kind, begin, bytes, 0));
                 }
-                p::Kind::PublicationChunk => {
-                    let chunk: p::PublicationChunk = codec::decode(&packet.payload, CEILING)?;
+                p::Kind::PublicationChunk
+                | p::Kind::ZstdPublicationChunk
+                | p::Kind::ZstdHistoryChunk => {
+                    let mut chunk: p::PublicationChunk = codec::decode(&packet.payload, CEILING)?;
+                    chunk.data = match kind {
+                        p::Kind::ZstdPublicationChunk => rui_wire::compression::decode(
+                            &chunk.data,
+                            rui_wire::compression::MAX_CHUNK,
+                        )?,
+                        p::Kind::ZstdHistoryChunk => {
+                            history.decode(&chunk.data, rui_wire::compression::MAX_CHUNK)?
+                        }
+                        _ => chunk.data,
+                    };
                     let (_, begin, bytes, index) =
                         transfer.as_mut().ok_or("oracle chunk without begin")?;
                     if chunk.publication_id != begin.publication_id
@@ -301,6 +317,7 @@ fn public_capture(
                         return Err("oracle chunk order/ceiling".into());
                     }
                     bytes.extend_from_slice(&chunk.data);
+                    history.update(&chunk.data);
                     *index += 1;
                 }
                 p::Kind::PublicationCommit => {
@@ -311,6 +328,7 @@ fn public_capture(
                     if count != begin.chunk_count
                         || commit.chunk_count != count
                         || commit.total_bytes != bytes.len() as u64
+                        || begin.total_bytes != commit.total_bytes
                         || commit.publication_id != begin.publication_id
                         || begin.digest != digest
                         || commit.digest != digest
@@ -337,6 +355,10 @@ fn public_capture(
                     if model.state().revision == revision {
                         return Ok(());
                     }
+                }
+                p::Kind::AbortPublication => {
+                    transfer = None;
+                    history.clear();
                 }
                 _ => {}
             }

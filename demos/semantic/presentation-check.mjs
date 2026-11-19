@@ -95,7 +95,7 @@ try {
         }
         throw Error("truncated");
       };
-      const kind = (b) => {
+      const wireField = (b, tag) => {
         let at = 0;
         while (at < b.length) {
           let key;
@@ -104,15 +104,16 @@ try {
           if (type === 0) {
             let n;
             [n, at] = varint(b, at);
-            if (key >> 3n === 5n) return Number(n);
+            if (Number(key >> 3n) === tag) return n;
           } else if (type === 2) {
             let n;
             [n, at] = varint(b, at);
+            if (Number(key >> 3n) === tag) return b.slice(at, at + Number(n));
             at += Number(n);
           } else if (type === 1) at += 8;
           else throw Error("wire");
         }
-        throw Error("kind");
+        throw Error("field");
       };
       for (let i = 0; i < 2; i++) {
         const evidence = [],
@@ -121,7 +122,7 @@ try {
         let bytes = 0;
         const record = (direction, data) => {
           const b = new Uint8Array(data),
-            k = kind(b);
+            k = Number(wireField(b, 5));
           if (k === 1) {
             evidence.push({ direction, kind: k, redacted: true });
             return;
@@ -132,6 +133,9 @@ try {
           evidence.push({
             direction,
             kind: k,
+            ...(k === 6 || k === 7
+              ? { nonce: String(wireField(wireField(b, 6), 1)) }
+              : {}),
             hex: [...b].map((n) => n.toString(16).padStart(2, "0")).join(""),
           });
         };
@@ -277,6 +281,27 @@ try {
         JSON.stringify(normalize(values(team[1])));
       const settled = (t) =>
         t.client.hasControl && t.client.pendingCommands === 0;
+      const release = async (t) => {
+        const before = t.evidence.length;
+        t.client.releaseControl();
+        // Local authority drops before the host processes ReleaseControl.
+        // A later heartbeat reply confirms ordered delivery on that socket.
+        await wait(() => {
+          const later = t.evidence.slice(before);
+          const ping = later.find(
+            (p) => p.direction === "sent" && p.kind === 6,
+          );
+          return (
+            ping &&
+            later.some(
+              (p) =>
+                p.direction === "received" &&
+                p.kind === 7 &&
+                p.nonce === ping.nonce,
+            )
+          );
+        });
+      };
       window.team = {
         application,
         credentials,
@@ -290,6 +315,7 @@ try {
         normalize,
         same,
         settled,
+        release,
         text,
       };
       for (const t of team) await t.client.connect();
@@ -310,7 +336,7 @@ try {
   second.fill(0);
   if (process.env.RUI_RESOURCE_RECOVERY === "1") {
     await page.evaluate(async () => {
-      const { team, wait, normalize, same } = window.team,
+      const { team, wait, normalize, same, release } = window.team,
         [, m] = team;
       m.client.requestControl();
       await wait(() => m.client.hasControl);
@@ -350,15 +376,24 @@ try {
         throw Error("cache recovery changed committed records");
       if (m.client.resourceBytes(digest)[0] !== first)
         throw Error("cache refill did not restore exact verified bytes");
-      m.client.releaseControl();
-      await wait(() => !m.client.hasControl);
+      await release(m);
       window.team.resourceRecovery = true;
     });
   }
 
   await page.evaluate(async () => {
-    const { team, wait, button, field, nodes, action, settled, same, text } =
-        window.team,
+    const {
+        team,
+        wait,
+        button,
+        field,
+        nodes,
+        action,
+        settled,
+        same,
+        text,
+        release,
+      } = window.team,
       [s, m] = team;
     s.client.requestControl();
     await wait(() => s.client.hasControl);
@@ -423,7 +458,7 @@ try {
     await wait(() => settled(s) && s.root.querySelector("[data-local-draft]"));
     s.root.querySelector("[data-local-draft]").value =
       "never submit after revocation";
-    s.client.releaseControl();
+    await release(s);
     await wait(
       () => !s.client.hasControl && !s.root.querySelector("[data-local-draft]"),
     );
@@ -461,8 +496,7 @@ try {
       ),
     });
     await wait(() => settled(m) && same());
-    m.client.releaseControl();
-    await wait(() => !m.client.hasControl);
+    await release(m);
     s.controls.consumeCurrent();
     s.client.requestControl();
     await wait(() => s.client.hasControl);
@@ -583,7 +617,7 @@ try {
         JSON.stringify(before.surfaces.map((s) => s.size)),
   );
   await page.evaluate(async () => {
-    const { team, wait, same, settled, capture } = window.team,
+    const { team, wait, same, settled, capture, release } = window.team,
       [s] = team;
     // The native capture file precedes publication and socket delivery. Equal
     // semantic values can still be the old projection after a geometry change.
@@ -598,8 +632,7 @@ try {
     }
     if (!rejected) throw Error("stale capture sent");
     window.team.staleRejected = true;
-    s.client.releaseControl();
-    await wait(() => !s.client.hasControl);
+    await release(s);
     s.client.disconnect();
     await wait(() => s.root.childNodes.length === 0);
     for (let i = 0; i < 10; i++) {
@@ -717,14 +750,13 @@ try {
   );
   observerCredential.fill(0);
   await page.evaluate(async () => {
-    const { team, wait, button, settled, same } = window.team,
+    const { team, wait, button, settled, same, release } = window.team,
       [, m] = team;
     m.client.requestControl();
     await wait(() => m.client.hasControl);
     m.client.activate(button(m).id);
     await wait(() => settled(m) && same());
-    m.client.releaseControl();
-    await wait(() => !m.client.hasControl);
+    await release(m);
   });
   const replacementFinal = await newest();
   assert(

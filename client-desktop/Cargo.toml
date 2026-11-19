@@ -57,5 +57,6 @@ pkg-config = "0.3"
 
 [dev-dependencies]
 prost = "0.13"
+rui-wire = { path = "../wire" }
 rui-producer-sdk = { path = "../adapters/sdk" }
 rui-host-broker = { path = "../host-broker" }

@@ -554,5 +554,5 @@ try {
       }, 3000).unref();
     });
   }
-  await rm(temporary, { recursive: true, force: true });
+  await rm(temporary, { recursive: true, force: true, maxRetries: 10 });
 }
