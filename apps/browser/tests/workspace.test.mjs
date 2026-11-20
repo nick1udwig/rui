@@ -314,10 +314,14 @@ test(
         "rejected",
       );
       assert.equal(await page.locator("#password").inputValue(), "");
+      await page.evaluate(() => { document.title = "Current: Archive"; });
       await dispatch("New tab");
       assert.equal(workspace.pages.size, 2);
       const c = await workspace.capture();
-      assert.ok(c.nodes.some((n) => n.label.includes("Workspace test")));
+      const tabs = c.nodes.filter(node => node.kind === "view:tab");
+      assert.equal(tabs.length, 2);
+      assert.equal(tabs.filter(node => node.selected).length, 1);
+      assert.equal(tabs.find(node => node.label === "Current: Archive")?.selected, false);
     } finally {
       await workspace.context.close();
       await new Promise((resolve) => server.close(resolve));

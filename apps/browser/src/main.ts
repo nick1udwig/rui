@@ -160,9 +160,8 @@ if (workspace === "browser") {
     $("reader").scrollIntoView({ behavior: "smooth" });
   };
   slots.tabs.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest("button");
-    if (button && !button.disabled && button.getAttribute("aria-label") !== "Close tab") tabsSheet.close();
-  });
+    if ((event.target as Element).closest('button[data-kind="view:tab"]:enabled')) tabsSheet.close();
+  }, true);
   slots.newTab.addEventListener("click", () => tabsSheet.close());
   const track = (element: HTMLElement, property: string) =>
     new ResizeObserver(() => document.documentElement.style.setProperty(property, `${element.offsetHeight}px`)).observe(element);
@@ -468,9 +467,6 @@ function render(state: State) {
   const nodes = new Map<bigint, Semantic>();
   for (const record of state.records.values())
     if ("Semantic" in record) nodes.set(record.Semantic.id, record.Semantic);
-  const parents = new Map<bigint, Semantic>();
-  for (const node of nodes.values())
-    for (const child of node.children) parents.set(child.id, node);
   for (const [id, row] of rows)
     if (!nodes.has(id)) {
       row.element.remove();
@@ -516,17 +512,15 @@ function render(state: State) {
       let label = node.label ?? "Activate";
       attribute(row.button, "aria-label", label);
       if (
-        workspace === "desktop" &&
+        workspace === "desktop" && row.kind !== "view:tab" &&
         /^(Select|Selected|Deselect|Scroll to): /.test(node.label ?? "")
       ) {
         label = node.label!.startsWith("Scroll to:")
           ? "Scroll into view"
           : node.label!.split(":")[0];
       }
-      if (workspace === "browser" && parents.get(node.id)?.browser_input_type === "view:tabs") {
-        const current = label.startsWith("Current: ");
-        if (current) label = label.slice("Current: ".length);
-        row.element.dataset.current = String(current);
+      if (row.kind === "view:tab") {
+        attribute(row.button, "aria-pressed", String(node.states.get("Selected") === "True"));
       }
       text(row.button, label);
       if (["view:app", "view:window"].includes(rowShape(row.kind))) {
@@ -597,7 +591,7 @@ function render(state: State) {
   for (const row of rows.values()) filterApps(row);
   if (workspace === "browser")
     $("tabs-count").textContent = String(
-      Array.from(slots.tabs.querySelectorAll("button")).filter((b) => b.getAttribute("aria-label") !== "Close tab").length,
+      slots.tabs.querySelectorAll('button[data-kind="view:tab"]').length,
     );
   const surfaces = [...state.records.values()].flatMap((r) =>
     "Surface" in r ? [r.Surface] : [],
@@ -606,18 +600,16 @@ function render(state: State) {
     .flatMap((s) => s.unsupported_features)
     .join(" ");
 }
-const icons: Record<string, string> = { Back: "back", Forward: "forward", Reload: "reload" };
 function chromeSlot(row: Row, parent?: Row): HTMLElement | undefined {
   if (workspace !== "browser") return;
-  const label = row.node.label ?? "";
   if (parent?.kind === "view:toolbar") {
     if (row.input) return slots.address;
-    row.element.dataset.icon = icons[label] ?? "";
-    return label === "Reload" ? slots.reload : slots.nav;
+    row.element.dataset.icon = row.kind.slice("view:".length);
+    return row.kind === "view:reload" ? slots.reload : slots.nav;
   }
   if (row.kind === "view:toolbar") return slots.store;
   if (row.kind === "view:tabs") return slots.tabs;
-  if (parent?.kind === "view:disclosure" && label === "New tab") {
+  if (row.kind === "view:new-tab") {
     row.element.dataset.icon = "plus";
     return slots.newTab;
   }
@@ -625,8 +617,8 @@ function chromeSlot(row: Row, parent?: Row): HTMLElement | undefined {
     (row.element as HTMLDetailsElement).open = true;
     return slots.menu;
   }
-  if (row.kind === "view:dialog" || (row.children && label === "Choose a host file")) return slots.prompt;
-  if (row.children && label === "Host downloads") return slots.menu;
+  if (row.kind === "view:dialog" || row.kind === "view:file-picker") return slots.prompt;
+  if (row.kind === "view:downloads") return slots.menu;
 }
 function buttons() {
   control.disabled =

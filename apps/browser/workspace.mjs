@@ -325,11 +325,11 @@ export class Workspace {
     };
     const group = (key, label, children, kind = null) =>
       add(semantic.node(key, { role: "group", label, children, kind }));
-    const button = (key, label, handler, disabled = false) =>
+    const button = (key, label, handler, properties = {}) =>
       add(
         semantic.node(
           key,
-          { role: "button", label, actions: ["Activate"], disabled },
+          { role: "button", label, actions: ["Activate"], ...properties },
           handler,
         ),
       );
@@ -391,13 +391,13 @@ export class Workspace {
         ["forward", "Forward"],
         ["reload", "Reload"],
       ])
-        toolbar.push(button(`${prefix}:${op}`, label, { op, page, generation: entry.generation }));
+        toolbar.push(button(`${prefix}:${op}`, label, { op, page, generation: entry.generation }, { kind: `view:${op}` }));
       tools.push(
         button(
           `${prefix}:previous`,
           "Previous page section",
           { op: "section", delta: -400 },
-          this.offset === 0,
+          { disabled: this.offset === 0 },
         ),
       );
       tools.push(
@@ -413,7 +413,7 @@ export class Workspace {
         }),
       );
     }
-    tools.push(button("new-tab", "New tab", { op: "new" }));
+    tools.push(button("new-tab", "New tab", { op: "new" }, { kind: "view:new-tab" }));
     rootChildren.push(group("toolbar", "Browser", toolbar, "view:toolbar"));
     const tabs = [];
     for (const [p, entry] of this.pages) {
@@ -421,12 +421,13 @@ export class Workspace {
       tabs.push(
         button(
           `${entry.id}:switch`,
-          `${p === page ? "Current: " : ""}${clean(entry.title || "Tab") || p.url()}`,
+          clean(entry.title || "Tab") || p.url(),
           { op: "switch", page: p },
+          { kind: "view:tab", selected: p === page },
         ),
       );
       tabs.push(
-        button(`${entry.id}:close`, "Close tab", { op: "close", page: p }),
+        button(`${entry.id}:close`, "Close tab", { op: "close", page: p }, { kind: "view:close-tab" }),
       );
     }
     rootChildren.push(group("tabs", "Tabs", tabs, "view:tabs"));
@@ -579,7 +580,7 @@ export class Workspace {
                             option: option.index,
                             optionValue: option.value,
                           },
-                          node.disabled || option.disabled,
+                          { disabled: node.disabled || option.disabled },
                         ),
                       );
                     content.push(
@@ -756,7 +757,7 @@ export class Workspace {
       children.push(
         button("file-cancel", "Cancel file selection", { op: "cancel-file" }),
       );
-      rootChildren.push(group("file-picker", "Choose a host file", children));
+      rootChildren.push(group("file-picker", "Choose a host file", children, "view:file-picker"));
     }
     if (this.downloads.length) {
       const children = [];
@@ -777,7 +778,7 @@ export class Workspace {
             }),
           );
       }
-      rootChildren.push(group("downloads", "Host downloads", children));
+      rootChildren.push(group("downloads", "Host downloads", children, "view:downloads"));
     }
     const nodes = [
       semantic.node("root", {
