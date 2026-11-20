@@ -22,6 +22,15 @@ pub enum PublicationKind {
     },
 }
 
+impl PublicationKind {
+    pub(crate) fn revision(self) -> u64 {
+        match self {
+            Self::Snapshot { revision } => revision,
+            Self::Transaction { new_revision, .. } => new_revision,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationBegin {
     pub publication_id: PublicationId,

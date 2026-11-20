@@ -69,12 +69,17 @@ fn snapshot(digest: [u8; 32]) -> Vec<u8> {
     .encode_to_vec()
 }
 
-fn assemble(budget: MemoryBudget, bytes: &[u8], item_count: u32) -> AssembledPublication {
+fn assemble(
+    budget: MemoryBudget,
+    kind: PublicationKind,
+    bytes: &[u8],
+    item_count: u32,
+) -> AssembledPublication {
     let ctx = context();
     let mut assembler = PublicationAssembler::new(ctx, PublicationLimits::default(), budget);
     let begin = PublicationBegin {
         publication_id: [5; 16],
-        kind: PublicationKind::Snapshot { revision: 1 },
+        kind,
         total_bytes: bytes.len() as u64,
         chunk_count: 2,
         item_count,
@@ -109,7 +114,12 @@ fn missing_resource_waits_then_commits_with_pins_and_shared_budget() {
     cache.open_view(ctx.view_id).unwrap();
     cache.authorize_resource(ctx.view_id, digest).unwrap();
     let mut replica = Replica::with_memory_budget(Limits::default(), budget.clone());
-    let publication = assemble(budget.clone(), &snapshot(digest), 1);
+    let publication = assemble(
+        budget.clone(),
+        PublicationKind::Snapshot { revision: 1 },
+        &snapshot(digest),
+        1,
+    );
     let staged = PinOwner::Staged {
         view_id: ctx.view_id,
         publication_id: [5; 16],
@@ -173,7 +183,12 @@ fn missing_resource_waits_then_commits_with_pins_and_shared_budget() {
 #[test]
 fn verified_outer_digest_does_not_excuse_false_decoded_item_count() {
     let budget = MemoryBudget::new(2 * 1024 * 1024);
-    let publication = assemble(budget.clone(), &snapshot([7; 32]), 0);
+    let publication = assemble(
+        budget.clone(),
+        PublicationKind::Snapshot { revision: 1 },
+        &snapshot([7; 32]),
+        0,
+    );
     let mut replica = Replica::with_memory_budget(Limits::default(), budget.clone());
     assert!(replica
         .apply_publication(&publication, &BTreeSet::new())
@@ -183,4 +198,47 @@ fn verified_outer_digest_does_not_excuse_false_decoded_item_count() {
     drop(publication);
     drop(replica);
     assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn assembled_transactions_use_the_transaction_limit() {
+    let checkpoint = pb::Snapshot {
+        revision: 1,
+        ..Default::default()
+    }
+    .encode_to_vec();
+    let edit = pb::Transaction {
+        base_revision: 1,
+        new_revision: 2,
+        required_features: vec!["semantics.core.v1".into()],
+        ..Default::default()
+    }
+    .encode_to_vec();
+    let limits = Limits {
+        max_snapshot_bytes: checkpoint.len(),
+        max_transaction_bytes: edit.len(),
+        ..Default::default()
+    };
+    assert!(edit.len() > limits.max_snapshot_bytes);
+    let mut direct = Replica::new(limits.clone());
+    let mut assembled = Replica::new(limits);
+    let available = BTreeSet::new();
+    direct.apply_snapshot(&checkpoint, &available).unwrap();
+    assembled.apply_snapshot(&checkpoint, &available).unwrap();
+    let publication = assemble(
+        MemoryBudget::new(2 << 20),
+        PublicationKind::Transaction {
+            base_revision: 1,
+            new_revision: 2,
+        },
+        &edit,
+        0,
+    );
+    assert_eq!(
+        assembled
+            .apply_publication(&publication, &available)
+            .unwrap(),
+        direct.apply_transaction(&edit, &available).unwrap()
+    );
+    assert_eq!(assembled.state(), direct.state());
 }
