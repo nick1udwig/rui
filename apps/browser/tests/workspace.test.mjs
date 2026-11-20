@@ -11,7 +11,23 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { Workspace, safeFile } from "../workspace.mjs";
+import { Workspace, safeFile, navigationURL } from "../workspace.mjs";
+
+test("address navigation defaults bare hosts to HTTPS and preserves explicit URLs", () => {
+  for (const [address, expected] of [
+    ["youtube.com", "https://youtube.com/"],
+    ["  youtube.com/results?search_query=browser#top  ", "https://youtube.com/results?search_query=browser#top"],
+    ["//youtube.com", "https://youtube.com/"],
+    ["youtube.com:8443/watch", "https://youtube.com:8443/watch"],
+    ["localhost:8443", "https://localhost:8443/"],
+    ["[::1]:8443", "https://[::1]:8443/"],
+    ["https://youtube.com", "https://youtube.com/"],
+    ["http://localhost:8080/path", "http://localhost:8080/path"],
+    ["about:blank", "about:blank"],
+  ]) assert.equal(navigationURL(address), expected);
+  for (const address of ["", "   ", null, "not a host", "javascript:alert(1)", "data:text/html,hello", "file:///tmp/private", "about:config"])
+    assert.throws(() => navigationURL(address));
+});
 
 test("host file selection rejects traversal and symlinks", async () => {
   const root = await mkdtemp(join(tmpdir(), "rui-files-"));
@@ -98,6 +114,32 @@ test(
           structured.nodes.some((n) => n.kind === kind),
           kind,
         );
+      await page.evaluate(() => {
+        const button = document.createElement('button');
+        button.id = 'document-target'; button.textContent = 'Document action';
+        button.onclick = () => { button.textContent = 'Document action received'; };
+        document.body.append(button);
+      });
+      const source = workspace.pages.get(page).document;
+      const snapshot = await source.capture();
+      const find = node => node.attrs?.id === 'document-target' ? node : (node.children || []).map(find).find(Boolean);
+      const documentButton = find(snapshot.root);
+      const documentTarget = (await workspace.capture()).nodes.find(n => n.kind === 'document-command');
+      const command = { generation: snapshot.generation, revision: snapshot.revision, node: documentButton.id, action: 'click' };
+      const sendDocument = value => workspace.dispatch({ target: documentTarget.id, version: documentTarget.version, action: 'SetValue', value, deadlineMs: 2000 });
+      assert.equal((await sendDocument('{invalid')).status, 'rejected');
+      assert.equal((await sendDocument(JSON.stringify({ ...command, generation: 'stale' }))).status, 'rejected');
+      await page.locator('#document-target').evaluate(n => n.hidden = true);
+      assert.equal((await sendDocument(JSON.stringify(command))).status, 'rejected', 'An unclickable target has no uncertain action');
+      await page.locator('#document-target').evaluate(n => n.hidden = false);
+      const capture = workspace.capture;
+      workspace.capture = async () => { throw Error('Actions must not wait for a full accessibility crawl'); };
+      try { assert.equal((await sendDocument(JSON.stringify(command))).status, 'dispatched'); }
+      finally { workspace.capture = capture; }
+      assert.equal(await page.locator('#document-target').textContent(), 'Document action received');
+      await page.frames()[1].goto(`http://127.0.0.1:${server.address().port}/frame`);
+      assert.equal((await sendDocument(JSON.stringify(command))).status, 'dispatched', 'Child navigation does not retire the parent document target');
+      assert.equal((await workspace.capture()).nodes.find(n => n.kind === 'document-command').id, documentTarget.id);
       await dispatch("Increment");
       assert.equal(await page.locator("#result").textContent(), "Clicked");
       await dispatch("Name", "café Ω 𝄞");
@@ -272,10 +314,14 @@ test(
         "rejected",
       );
       assert.equal(await page.locator("#password").inputValue(), "");
+      await page.evaluate(() => { document.title = "Current: Archive"; });
       await dispatch("New tab");
       assert.equal(workspace.pages.size, 2);
       const c = await workspace.capture();
-      assert.ok(c.nodes.some((n) => n.label.includes("Workspace test")));
+      const tabs = c.nodes.filter(node => node.kind === "view:tab");
+      assert.equal(tabs.length, 2);
+      assert.equal(tabs.filter(node => node.selected).length, 1);
+      assert.equal(tabs.find(node => node.label === "Current: Archive")?.selected, false);
     } finally {
       await workspace.context.close();
       await new Promise((resolve) => server.close(resolve));
@@ -292,8 +338,12 @@ test("observations reuse clean captures and retain invalidations during capture"
   const first = await workspace.observe();
   assert.equal(await workspace.observe(), first);
   workspace.invalidate();
+  assert.equal(await workspace.observe(), first);
+  await workspace.pendingObservation;
   assert.notEqual(await workspace.observe(), first);
   workspace.observationTime = 0;
+  await workspace.observe();
+  await workspace.pendingObservation;
   assert.equal((await workspace.observe()).sequence, 3);
   workspace.invalidate();
   workspace.capture = async () => {
@@ -301,6 +351,47 @@ test("observations reuse clean captures and retain invalidations during capture"
     return { sequence: ++captures };
   };
   await workspace.observe();
+  await workspace.pendingObservation;
   await workspace.observe();
+  await workspace.pendingObservation;
   assert.equal(captures, 5);
+});
+
+test('slow or failed semantic captures keep the last publication available', async () => {
+  const workspace = new Workspace({ on() {}, pages: () => [] }, '', '');
+  const stable = { sequence: 1 }, next = { sequence: 2 };
+  workspace.capture = async () => stable;
+  assert.equal(await workspace.observe(), stable);
+  let complete, calls = 0;
+  workspace.capture = () => { calls++; return new Promise(resolve => { complete = resolve; }); };
+  workspace.invalidate();
+  assert.equal(await workspace.observe(), stable);
+  assert.equal(await workspace.observe(), stable);
+  assert.equal(calls, 1, 'Slow capture is shared while polling remains responsive');
+  complete(next);
+  await workspace.pendingObservation;
+  assert.equal(await workspace.observe(), next);
+  workspace.capture = async () => { calls++; throw Error('Navigation during capture'); };
+  workspace.invalidate();
+  assert.equal(await workspace.observe(), next);
+  await assert.rejects(workspace.pendingObservation, /Navigation/);
+  assert.equal(await workspace.observe(), next);
+  assert.equal(calls, 2, 'Failed captures back off without closing the control connection');
+  workspace.observationRetryAt = 0;
+  workspace.capture = async () => stable;
+  await workspace.observe();
+  await workspace.pendingObservation;
+  assert.equal(await workspace.observe(), stable);
+});
+
+test('failed captures cannot publish partially rebuilt action targets', async () => {
+  const workspace = new Workspace({ on() {}, pages: () => [] }, '', '');
+  const stable = await workspace.capture(), semantic = workspace.semantic;
+  const targets = [...semantic.targets];
+  workspace.downloads = { length: 1, [Symbol.iterator]() { throw Error('Interrupted capture'); } };
+  await assert.rejects(workspace.capture(), /Interrupted capture/);
+  assert.equal(workspace.semantic, semantic);
+  assert.deepEqual([...workspace.semantic.targets], targets);
+  workspace.downloads = [];
+  assert.deepEqual(await workspace.capture(), stable);
 });

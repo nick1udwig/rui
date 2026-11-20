@@ -336,7 +336,7 @@ fn admin_request(
                     None => json!({"pending":true}),
                 })
             }
-            Some("auth") | Some("secret") => {
+            Some("auth") | Some("secret") | Some("document") => {
                 let client = unhex(request["client"].as_str().ok_or("client")?).ok_or("client")?;
                 let credential: [u8; 32] =
                     unhex(request["credential"].as_str().ok_or("credential")?)
@@ -344,7 +344,9 @@ fn admin_request(
                 auth.authenticated(&credential, client)?;
                 drop(auth);
                 drop(entries);
-                if request["op"] == "secret" {
+                if request["op"] == "document" {
+                    Ok(port.document_scope(client)?)
+                } else if request["op"] == "secret" {
                     Ok(port.secret_scope(client, request["target"].as_u64().ok_or("target")?)?)
                 } else {
                     Ok(json!({"ok":true}))

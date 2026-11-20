@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--fixture-hooks', action='store_true')
+    parser.add_argument('--empty-modal-entry', action='store_true')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     app = Gtk.Application(application_id='org.rui.WholeAdmittedSource')
@@ -26,6 +27,8 @@ def main():
         def activate(app):
             app.hold()
             whole = WholeView(app, args.output, scripted=False)
+            if args.empty_modal_entry:
+                whole.modal_entry.set_text('')
             corpus, source = whole.corpus, whole.source
 
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)

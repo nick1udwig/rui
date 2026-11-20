@@ -1,9 +1,8 @@
 # Tested browser capability subset
 
-The browser requests a small semantic-command subset. A node must advertise schema
-one and the current host lease must permit the action. Unknown schemas, unavailable
-text, mismatched value kinds, stale drafts/model versions and absent authority fail
-before dispatch. A shared Rust helper does not itself enable a browser capability.
+The browser client library uses the semantic-command subset below in the core RUI protocol.
+A node must advertise schema one and the current host lease must permit the action.
+Unknown schemas, unavailable text, mismatched value kinds, stale drafts or model versions, and absent authority fail before dispatch.
 
 | Operation | Browser API and source evidence | Guards / limits |
 | --- | --- | --- |
@@ -48,3 +47,14 @@ one Boolean effect and rejects another after release. Its bounded authorized pac
 report in `fixtures/gtk/semantic-values.json` is independently replayed by Python;
 credentials are redacted. Existing native editor stale text/focus/modal/removal
 checks and SDK authority/publication tests remain enabled.
+
+
+## Browser document extension
+
+The standalone browser workspace also provides the optional `browser.document.v1` HTTP document extension.
+It carries DOM and CSS updates and serves images and fonts by content hash under the active-view grant.
+Media streams for canvas, WebGL, video, and audio also use that grant.
+The viewer uses persistent binary HTTPS streams when Media Source Extensions reports support for WebM with VP8 or Opus.
+The viewer uses direct WebRTC when it detects none of the supported formats.
+The core `SetValue` command ledger carries document input to the browser adapter, which checks the document generation, node identity, field value, and action bounds.
+See the [browser workspace](../apps/browser/README.md#document-transport) for its contract, acceptance cases and limits.

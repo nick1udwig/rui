@@ -1,5 +1,6 @@
 import { BrowserClient, type Semantic, type State } from "@rui/client-browser";
 import "./style.css";
+import { DocumentView } from "./document-view.mjs";
 const workspace =
   document.documentElement.dataset.workspace === "desktop"
     ? "desktop"
@@ -28,7 +29,8 @@ let device: Device | undefined,
   authority = 0,
   connecting = false,
   staging = false,
-  connected = false;
+  connected = false,
+  uncertainAction = false;
 const db = await new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open("rui-browser", 1);
   request.onupgradeneeded = () => request.result.createObjectStore("devices");
@@ -53,7 +55,7 @@ function storage(value?: Device | null): Promise<Device | undefined> {
     transaction.onerror = () => reject(transaction.error);
   });
 }
-async function api(path: string, data: unknown, authenticated = false) {
+async function api(path: string, data: unknown, authenticated = false, signal?: AbortSignal) {
   const response = await fetch(new URL(`api/${path}`, appBase), {
     method: "POST",
     headers: {
@@ -67,13 +69,19 @@ async function api(path: string, data: unknown, authenticated = false) {
     },
     body: JSON.stringify(data),
     cache: "no-store",
+    signal,
   });
+  if (response.ok && response.headers.get("content-type") === "application/vnd.rui.media") return response;
   const result = await response.json();
-  if (!response.ok) throw Error(result.error);
+  if (!response.ok) throw Object.assign(Error(result.error), { code: result.code });
   return result;
 }
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function say(error: unknown) {
   status.textContent = String(error);
+  status.classList.add("toast-visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => status.classList.remove("toast-visible"), 5000);
 }
 type Row = {
   element: HTMLElement;
@@ -91,7 +99,86 @@ type Row = {
   filter?: HTMLInputElement;
 };
 const rows = new Map<bigint, Row>();
+type DocumentCommand = { generation: string; frames?: { generation: string }[]; action: string };
+const commandGeneration = (command: DocumentCommand) => command.frames?.[0]?.generation ?? command.generation;
+let documentTarget: Semantic | undefined;
+let documentCommands: DocumentCommand[] = [];
+function drainDocumentCommands() {
+  if (!client?.hasControl || client.pendingCommands || !documentTarget || !documentView?.generation) return;
+  documentCommands = documentCommands.filter(command => commandGeneration(command) === documentView.generation);
+  const command = documentCommands[0];
+  if (!command || documentTarget.description !== commandGeneration(command)) return;
+  documentCommands.shift();
+  try { client.setBrowserValue(documentTarget.id, JSON.stringify(command)); refreshControls(); buttons(); }
+  catch (error) { documentCommands = []; say(error); }
+}
+const documentContainer = document.createElement("section");
+documentContainer.id = "page";
+$("reader").before(documentContainer);
+const slots = {
+  address: $("address-slot"),
+  reload: $("reload-slot"),
+  nav: $("nav-slot"),
+  tabs: $("tabs-slot"),
+  newTab: $("new-tab-slot"),
+  menu: $("menu-slot"),
+  prompt: $("prompt-slot"),
+  store: $("chrome-store"),
+};
+const tabsSheet = $<HTMLDialogElement>("tabs-sheet"),
+  menuSheet = $<HTMLDialogElement>("menu-sheet");
+const documentView = workspace === "browser" ? new DocumentView(documentContainer, api, command => {
+  if (!client?.hasControl) return;
+  if (documentCommands.length >= 16) { say("Page input queue full. Wait for the host."); return; }
+  const action = command as DocumentCommand;
+  if (action.action === "resize") documentCommands = documentCommands.filter(queued => queued.action !== "resize");
+  documentCommands.push(action);
+  drainDocumentCommands();
+}, () => !!client?.hasControl, say, drainDocumentCommands) : undefined;
+if (workspace === "browser") {
+  $("sound-slot").append(documentView!.soundButton);
+  documentView!.soundButton.classList.add("icon-button");
+  documentView!.soundButton.dataset.icon = "sound";
+  documentView!.soundButton.setAttribute("aria-label", "Enable page sound");
+  documentView!.soundButton.addEventListener("click", () => documentView!.soundButton.setAttribute("aria-pressed", "true"));
+  slots.menu.after(document.querySelector(".session-details")!);
+  $("address-bar").append(document.querySelector('nav[aria-label="Session"]')!);
+  $("menu-session").append(document.querySelector(".host-dot")!, connection, release);
+  release.textContent = "Release control";
+  release.addEventListener("click", () => menuSheet.close());
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#ffffff");
+  for (const sheet of [tabsSheet, menuSheet]) {
+    sheet.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      if (target === sheet || target.closest(".sheet-done")) sheet.close();
+    });
+  }
+  $("tabs-button").onclick = () => tabsSheet.showModal();
+  $("menu-button").onclick = () => menuSheet.showModal();
+  $("open-reader").onclick = () => {
+    menuSheet.close();
+    $("reader").scrollIntoView({ behavior: "smooth" });
+  };
+  slots.tabs.addEventListener("click", (event) => {
+    if ((event.target as Element).closest('button[data-kind="view:tab"]:enabled')) tabsSheet.close();
+  }, true);
+  slots.newTab.addEventListener("click", () => tabsSheet.close());
+  const track = (element: HTMLElement, property: string) =>
+    new ResizeObserver(() => document.documentElement.style.setProperty(property, `${element.offsetHeight}px`)).observe(element);
+  track(document.querySelector("header")!, "--chrome-top");
+  track($("bottom-bar"), "--chrome-bottom");
+}
+documentView?.iframe.addEventListener("load", () => {
+  const page = documentView.iframe.contentDocument;
+  const blocked = () => { if (client && !client.hasControl) needControl(); };
+  page?.addEventListener("click", blocked, true);
+  page?.addEventListener("keydown", blocked, true);
+});
+Object.defineProperty(window, "ruiPerformance", { get: () => documentView?.diagnostics() });
 let renderedState: State | undefined;
+function editable(node: Semantic) {
+  return !!client?.hasControl && !staging && node.states.get("Disabled") !== "True";
+}
 function enabled(node: Semantic) {
   return (
     !!client?.hasControl &&
@@ -193,6 +280,13 @@ function createRow(node: Semantic): Row {
       row.dirty ??= { version: row.node.version, authority };
       input.dataset.dirty = "true";
     });
+    if (input instanceof HTMLInputElement)
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.isComposing && !apply.disabled) {
+          event.preventDefault();
+          apply.click();
+        }
+      });
     const actions = document.createElement("div");
     actions.className = "edit-actions";
     const apply = document.createElement("button");
@@ -239,6 +333,7 @@ function createRow(node: Semantic): Row {
         }
         row.submitted = client.setBrowserValue(node.id, value);
         message.textContent = "Sending to host…";
+        if (kind === "url") input.blur();
       } catch (error) {
         message.textContent = String(error);
       } finally {
@@ -305,33 +400,70 @@ function sourceValue(node: Semantic) {
       : "";
 }
 function reset() {
+  documentView?.stop();
+  documentCommands = [];
+  documentTarget = undefined;
   renderedState = undefined;
   authority++;
   for (const row of rows.values()) if (row.input) row.input.value = "";
   rows.clear();
   view.replaceChildren();
+  for (const slot of Object.values(slots)) slot.replaceChildren();
+}
+// Controls blocked only by a missing control lease stay clickable so a tap can explain what to do.
+function lockControl(element: HTMLButtonElement | HTMLInputElement, node: Semantic, available: boolean) {
+  const needsControl = available && !!client && !client.hasControl && node.states.get("Disabled") !== "True";
+  element.disabled = !needsControl && !(available && enabled(node));
+  element.toggleAttribute("data-needs-control", needsControl);
+  if (needsControl) element.setAttribute("aria-disabled", "true");
+  else element.removeAttribute("aria-disabled");
 }
 function refreshControls() {
   for (const row of rows.values()) {
     const node = row.node;
+    const settable = node.actions.some((a) => a.id === "SetValue");
     if (row.button)
-      row.button.disabled =
-        !enabled(node) || !node.actions.some((a) => a.id === "Activate");
+      lockControl(row.button, node, node.actions.some((a) => a.id === "Activate"));
     if (row.input instanceof HTMLInputElement && row.input.type === "checkbox")
-      row.input.disabled = !enabled(node);
-    else if (row.input)
+      lockControl(row.input, node, true);
+    else if (row.input) {
       row.input.readOnly =
-        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
-    if (row.apply)
-      row.apply.disabled =
-        !enabled(node) || !node.actions.some((a) => a.id === "SetValue");
+        !editable(node) || row.submitted !== undefined || !settable;
+      row.input.toggleAttribute("data-needs-control", settable && !!client && !client.hasControl);
+    }
+    if (row.apply) lockControl(row.apply, node, settable);
   }
 }
+function needControl() {
+  if (!connected) {
+    say(device ? "Connect to the host to use the browser." : "Pair this device with the host first.");
+    return;
+  }
+  say("View only. Take control to interact.");
+  control.classList.remove("attention");
+  void control.offsetWidth;
+  control.classList.add("attention");
+}
+const controlRequired = (event: Event) => {
+  if (client?.hasControl) return;
+  const target = (event.target as Element).closest?.("[data-needs-control]");
+  if (!target) return;
+  if (!(target instanceof HTMLInputElement && target.type !== "checkbox")) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  needControl();
+};
+document.addEventListener("click", controlRequired, true);
+document.addEventListener("keydown", (event) => {
+  if (!["Tab", "Shift", "Escape"].includes(event.key) && !event.metaKey && !event.ctrlKey) controlRequired(event);
+}, true);
 function refresh() {
   if (renderedState) render(renderedState);
 }
 function render(state: State) {
   renderedState = state;
+  documentTarget = undefined;
   const nodes = new Map<bigint, Semantic>();
   for (const record of state.records.values())
     if ("Semantic" in record) nodes.set(record.Semantic.id, record.Semantic);
@@ -357,6 +489,10 @@ function render(state: State) {
     }
     row.node = node;
     const kind = node.browser_input_type ?? "";
+    if (kind === "document-command") {
+      row.element.hidden = true;
+      documentTarget = node;
+    }
     if (row.kind !== kind) {
       row.kind = kind;
       row.element.dataset.presentation = kind.startsWith("view:")
@@ -376,12 +512,15 @@ function render(state: State) {
       let label = node.label ?? "Activate";
       attribute(row.button, "aria-label", label);
       if (
-        workspace === "desktop" &&
+        workspace === "desktop" && row.kind !== "view:tab" &&
         /^(Select|Selected|Deselect|Scroll to): /.test(node.label ?? "")
       ) {
         label = node.label!.startsWith("Scroll to:")
           ? "Scroll into view"
           : node.label!.split(":")[0];
+      }
+      if (row.kind === "view:tab") {
+        attribute(row.button, "aria-pressed", String(node.states.get("Selected") === "True"));
       }
       text(row.button, label);
       if (["view:app", "view:window"].includes(rowShape(row.kind))) {
@@ -423,17 +562,22 @@ function render(state: State) {
     }
   }
   refreshControls();
-  const place = (container: HTMLElement, ids: bigint[]) => {
-    let cursor = container.firstElementChild;
+  const cursors = new Map<HTMLElement, Element | null>();
+  const place = (container: HTMLElement, ids: bigint[], parent?: Row) => {
+    cursors.set(container, container.firstElementChild);
     for (const id of ids) {
       const row = rows.get(id);
       if (!row) continue;
-      if (row.element !== cursor) container.insertBefore(row.element, cursor);
-      cursor = row.element.nextElementSibling;
+      const target = chromeSlot(row, parent) ?? container;
+      if (!cursors.has(target)) cursors.set(target, target.firstElementChild);
+      const cursor = cursors.get(target)!;
+      if (row.element !== cursor) target.insertBefore(row.element, cursor);
+      cursors.set(target, row.element.nextElementSibling);
       if (row.children)
         place(
           row.children,
           row.node.children.map((r) => r.id),
+          row,
         );
     }
   };
@@ -445,12 +589,36 @@ function render(state: State) {
     [...nodes.keys()].filter((id) => !owned.has(id)),
   );
   for (const row of rows.values()) filterApps(row);
+  if (workspace === "browser")
+    $("tabs-count").textContent = String(
+      slots.tabs.querySelectorAll('button[data-kind="view:tab"]').length,
+    );
   const surfaces = [...state.records.values()].flatMap((r) =>
     "Surface" in r ? [r.Surface] : [],
   );
   $("coverage").textContent = surfaces
     .flatMap((s) => s.unsupported_features)
     .join(" ");
+}
+function chromeSlot(row: Row, parent?: Row): HTMLElement | undefined {
+  if (workspace !== "browser") return;
+  if (parent?.kind === "view:toolbar") {
+    if (row.input) return slots.address;
+    row.element.dataset.icon = row.kind.slice("view:".length);
+    return row.kind === "view:reload" ? slots.reload : slots.nav;
+  }
+  if (row.kind === "view:toolbar") return slots.store;
+  if (row.kind === "view:tabs") return slots.tabs;
+  if (row.kind === "view:new-tab") {
+    row.element.dataset.icon = "plus";
+    return slots.newTab;
+  }
+  if (row.kind === "view:disclosure" && parent?.node.role === "Root") {
+    (row.element as HTMLDetailsElement).open = true;
+    return slots.menu;
+  }
+  if (row.kind === "view:dialog" || row.kind === "view:file-picker") return slots.prompt;
+  if (row.kind === "view:downloads") return slots.menu;
 }
 function buttons() {
   control.disabled =
@@ -459,16 +627,20 @@ function buttons() {
     client.hasControl ||
     !client.capabilities.can_control;
   release.disabled = !client?.hasControl;
-  control.hidden = !!client?.hasControl;
+  control.hidden = !!client?.hasControl || !connected;
   release.hidden = !client?.hasControl;
-  connect.hidden = connected;
+  connect.hidden = connected || !device;
   document.body.dataset.connected = String(connected);
+  document.body.dataset.control = String(!!client?.hasControl);
   retry.hidden = !client?.pendingCommands;
+  retry.textContent = uncertainAction ? "Check host, then reconnect" : "Check action status";
   connection.textContent = client?.hasControl
     ? "Controlling host"
     : connected
       ? "Viewing host"
-      : "Disconnected";
+      : device
+        ? "Disconnected"
+        : "Not paired";
 }
 async function connectHost() {
   if (!device || connecting) return;
@@ -491,13 +663,15 @@ async function connectHost() {
             const state = client!.state!;
             render(state);
             client!.semanticReady(state.revision);
+            documentView?.start();
           } catch (error) {
             say(error);
           }
         }
-        if (event.type === "semanticReady") refreshControls();
+        if (event.type === "semanticReady") { refreshControls(); queueMicrotask(drainDocumentCommands); }
         if (event.type === "control") {
           if (!event.granted) {
+            documentCommands = [];
             authority++;
             for (const row of rows.values())
               if (row.kind === "password" && row.input) row.input.value = "";
@@ -505,8 +679,13 @@ async function connectHost() {
           refresh();
         }
         if (event.type === "commandResult") {
+          uncertainAction = ["outcomeunknown", "outcomeexpired"].includes(event.status.toLowerCase());
+          if (uncertainAction) documentCommands = [];
+          queueMicrotask(drainDocumentCommands);
           say(
-            event.status.toLowerCase() === "dispatched"
+            uncertainAction
+              ? "The host could not confirm this action. Check the host page, then reconnect to continue. Reconnect will not repeat the action."
+              : event.status.toLowerCase() === "dispatched"
               ? "Action sent to the host. Content updates separately."
               : `${event.status}${event.rejection ? `: ${event.rejection}` : ""}`,
           );
@@ -576,6 +755,11 @@ control.onclick = () => {
 release.onclick = () => client?.releaseControl();
 retry.onclick = () => {
   try {
+    if (uncertainAction) {
+      client?.dispose();
+      location.reload();
+      return;
+    }
     client?.retryPending();
   } catch (error) {
     say(error);
@@ -594,6 +778,8 @@ $("forget").onclick = async () => {
 };
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    documentView?.stop();
+    documentCommands = [];
     authority++;
     for (const row of rows.values())
       if (row.kind === "password" && row.input) row.input.value = "";
@@ -601,11 +787,13 @@ document.addEventListener("visibilitychange", () => {
     refresh();
     try {
       client.semanticReady(renderedState.revision);
+      documentView?.start();
     } catch {}
   }
 });
 window.addEventListener("pagehide", () => client?.disconnect());
 device = await storage();
+buttons();
 const invitation = new URLSearchParams(location.hash.slice(1)).get("invite");
 history.replaceState(null, "", location.pathname);
 if (!device && invitation) {

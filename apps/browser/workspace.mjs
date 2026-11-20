@@ -1,4 +1,5 @@
 import { SemanticNodes } from "../shared/semantic-nodes.mjs";
+import { BrowserDocument, DocumentActionRejected } from "./document.mjs";
 import { chromium } from "playwright";
 import { randomBytes } from "node:crypto";
 import { readdir, realpath, lstat, mkdir } from "node:fs/promises";
@@ -46,6 +47,15 @@ const INFORMATIONAL = new Set([
 const MAX_NODES = 900,
   MAX_TEXT = 16_384;
 const clean = (value) => String(value ?? "").slice(0, MAX_TEXT / 4);
+export function navigationURL(value) {
+  if (typeof value !== "string" || !value.trim()) throw Error("Address required");
+  const address = value.trim();
+  const scheme = /^[a-z][a-z\d+.-]*:/i.test(address);
+  const hostPort = /^(?:localhost|[^/:?#\s]+\.[^/:?#\s]+):\d+(?:[/?#]|$)/i.test(address);
+  const url = new URL(scheme && !hostPort ? address : `https:${address.startsWith("//") ? "" : "//"}${address}`);
+  if (!["http:", "https:"].includes(url.protocol) && url.href !== "about:blank") throw Error("Unsupported address");
+  return url.href;
+}
 export function inside(root, path) {
   return path === root || path.startsWith(root + sep);
 }
@@ -56,8 +66,9 @@ export async function safeFile(root, path) {
   return actual;
 }
 export class Workspace {
-  constructor(context, files, downloads) {
+  constructor(context, files, downloads, attachedBrowser = null) {
     this.context = context;
+    this.attachedBrowser = attachedBrowser;
     this.files = files;
     this.downloadDir = downloads;
     this.semantic = new SemanticNodes();
@@ -82,6 +93,14 @@ export class Workspace {
     const files = await realpath(process.env.RUI_FILES_DIR);
     const downloads = resolve(directory, "downloads");
     await mkdir(downloads, { recursive: true });
+    if (process.env.RUI_CDP_URL) {
+      const endpoint = new URL(process.env.RUI_CDP_URL);
+      if (!['http:', 'ws:'].includes(endpoint.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname) || endpoint.username || endpoint.password) throw Error('CDP must use a local endpoint');
+      const browser = await chromium.connectOverCDP(endpoint.href, { noDefaults: true });
+      const context = browser.contexts()[0];
+      if (!context) { await browser.close(); throw Error('No browser context'); }
+      return new Workspace(context, files, downloads, browser);
+    }
     const context = await chromium.launchPersistentContext(
       resolve(directory, "profile"),
       {
@@ -95,10 +114,15 @@ export class Workspace {
         viewport: null,
         acceptDownloads: true,
         downloadsPath: downloads,
-        args: ["--force-renderer-accessibility", "--no-first-run"],
+        args: ["--force-renderer-accessibility", "--no-first-run", ...(process.env.RUI_PHONE === "1" ? ["--disable-features=WebRtcHideLocalIpsWithMdns"] : [])],
       },
     );
     return new Workspace(context, files, downloads);
+  }
+  async close() {
+    await Promise.all([...this.pages.values()].map(entry => entry.document.dispose()));
+    if (this.attachedBrowser) await this.attachedBrowser.close();
+    else await this.context.close();
   }
   invalidate() {
     this.captureGeneration++;
@@ -107,24 +131,37 @@ export class Workspace {
   async observe() {
     if (this.observation && Date.now() - this.observationTime < 1000)
       return this.observation;
-    const generation = this.captureGeneration;
-    const capture = await this.capture();
-    if (generation === this.captureGeneration) {
-      this.observation = capture;
-      this.observationTime = Date.now();
+    if (!this.pendingObservation && Date.now() >= (this.observationRetryAt || 0)) {
+      const generation = this.captureGeneration;
+      this.pendingObservation = this.capture().then(capture => {
+        this.lastObservation = capture;
+        if (generation === this.captureGeneration) {
+          this.observation = capture;
+          this.observationTime = Date.now();
+        }
+        return capture;
+      }).catch(error => {
+        this.observationRetryAt = Date.now() + 1000;
+        if (process.env.RUI_DEBUG_DOCUMENT === '1') console.error('Browser semantic capture failed:', error.message);
+        throw error;
+      }).finally(() => { this.pendingObservation = null; });
+      void this.pendingObservation.catch(() => {});
     }
-    return capture;
+    if (this.lastObservation) return this.lastObservation;
+    if (this.pendingObservation) return this.pendingObservation;
+    throw Error('Browser observation unavailable');
   }
   register(page) {
     if (this.pages.has(page)) return;
     if (this.pages.size >= 16) {
-      void page.close().catch(() => {});
+      if (!this.attachedBrowser) void page.close().catch(() => {});
       return;
     }
     const entry = {
       id: randomBytes(12).toString("hex"),
       generation: 1,
       sessions: new Map(),
+      document: new BrowserDocument(page, !!this.attachedBrowser),
     };
     for (const event of [
       "framenavigated",
@@ -150,6 +187,7 @@ export class Workspace {
       if (session) void session.detach().catch(() => {});
     });
     page.on("close", () => {
+      entry.document.dispose();
       this.pages.delete(page);
       if (this.active === page) this.active = this.pages.keys().next().value;
       this.secrets.clear();
@@ -197,6 +235,12 @@ export class Workspace {
       session.on("Accessibility.loadComplete", () => this.invalidate());
       try {
         await session.send("Accessibility.enable");
+        if (frame === page.mainFrame()) {
+          session.on("Page.javascriptDialogClosed", () => {
+            if (this.dialog?.page === page) { this.dialog = undefined; this.invalidate(); }
+          });
+          await session.send("Page.enable");
+        }
       } catch (error) {
         await session.detach().catch(() => {});
         throw error;
@@ -264,7 +308,13 @@ export class Workspace {
     }
   }
   async capture() {
-    this.semantic.targets.clear();
+    if (this.pendingCapture) return this.pendingCapture;
+    this.pendingCapture = this.captureCurrent();
+    try { return await this.pendingCapture; }
+    finally { this.pendingCapture = null; }
+  }
+  async captureCurrent() {
+    const semantic = new SemanticNodes(this.semantic);
     for (const [token, s] of this.secrets)
       if (s.expires < Date.now()) this.secrets.delete(token);
     const byId = new Map(),
@@ -274,21 +324,22 @@ export class Workspace {
       return n.id;
     };
     const group = (key, label, children, kind = null) =>
-      add(this.semantic.node(key, { role: "group", label, children, kind }));
-    const button = (key, label, handler, disabled = false) =>
+      add(semantic.node(key, { role: "group", label, children, kind }));
+    const button = (key, label, handler, properties = {}) =>
       add(
-        this.semantic.node(
+        semantic.node(
           key,
-          { role: "button", label, actions: ["Activate"], disabled },
+          { role: "button", label, actions: ["Activate"], ...properties },
           handler,
         ),
       );
     let status =
       "Observed page semantics. Images, canvas, video and unsupported widgets are unavailable.";
     if (this.closed) {
+      this.semantic = semantic;
       return {
         nodes: [
-          this.semantic.node("root", {
+          semantic.node("root", {
             role: "root",
             label: "Browser closed. Restart the host to continue.",
           }),
@@ -316,9 +367,13 @@ export class Workspace {
     if (page && !page.isClosed()) {
       const entry = this.pages.get(page),
         prefix = `${entry.id}:${entry.generation}`;
+      rootChildren.push(add(semantic.node(`${entry.id}:${entry.document.generation}:document`, {
+        role: "text", label: "Page document", kind: "document-command", value: "",
+        description: entry.document.generation, actions: ["SetValue"],
+      }, { op: "document", page, documentGeneration: entry.document.generation })));
       toolbar.push(
         add(
-          this.semantic.node(
+          semantic.node(
             `${prefix}:url`,
             {
               role: "text",
@@ -327,7 +382,7 @@ export class Workspace {
               value: page.url(),
               actions: ["SetValue"],
             },
-            { op: "navigate", page },
+            { op: "navigate", page, generation: entry.generation },
           ),
         ),
       );
@@ -336,13 +391,13 @@ export class Workspace {
         ["forward", "Forward"],
         ["reload", "Reload"],
       ])
-        toolbar.push(button(`${prefix}:${op}`, label, { op, page }));
+        toolbar.push(button(`${prefix}:${op}`, label, { op, page, generation: entry.generation }, { kind: `view:${op}` }));
       tools.push(
         button(
           `${prefix}:previous`,
           "Previous page section",
           { op: "section", delta: -400 },
-          this.offset === 0,
+          { disabled: this.offset === 0 },
         ),
       );
       tools.push(
@@ -358,7 +413,7 @@ export class Workspace {
         }),
       );
     }
-    tools.push(button("new-tab", "New tab", { op: "new" }));
+    tools.push(button("new-tab", "New tab", { op: "new" }, { kind: "view:new-tab" }));
     rootChildren.push(group("toolbar", "Browser", toolbar, "view:toolbar"));
     const tabs = [];
     for (const [p, entry] of this.pages) {
@@ -366,12 +421,13 @@ export class Workspace {
       tabs.push(
         button(
           `${entry.id}:switch`,
-          `${p === page ? "Current: " : ""}${clean(entry.title || "Tab") || p.url()}`,
+          clean(entry.title || "Tab") || p.url(),
           { op: "switch", page: p },
+          { kind: "view:tab", selected: p === page },
         ),
       );
       tabs.push(
-        button(`${entry.id}:close`, "Close tab", { op: "close", page: p }),
+        button(`${entry.id}:close`, "Close tab", { op: "close", page: p }, { kind: "view:close-tab" }),
       );
     }
     rootChildren.push(group("tabs", "Tabs", tabs, "view:tabs"));
@@ -383,7 +439,7 @@ export class Workspace {
         children = [];
       children.push(
         add(
-          this.semantic.node(`${d.id}:message`, {
+          semantic.node(`${d.id}:message`, {
             label: clean(d.dialog.message()),
           }),
         ),
@@ -391,7 +447,7 @@ export class Workspace {
       if (d.dialog.type() === "prompt")
         children.push(
           add(
-            this.semantic.node(
+            semantic.node(
               `${d.id}:prompt`,
               {
                 role: "text",
@@ -524,7 +580,7 @@ export class Workspace {
                             option: option.index,
                             optionValue: option.value,
                           },
-                          node.disabled || option.disabled,
+                          { disabled: node.disabled || option.disabled },
                         ),
                       );
                     content.push(
@@ -632,7 +688,7 @@ export class Workspace {
                   previous?.role === "label" &&
                   previous.label === node.label
                 ))
-                  content.push(add(this.semantic.node(prefix, node, handler)));
+                  content.push(add(semantic.node(prefix, node, handler)));
                 included++;
               }
               if (interactive) return;
@@ -660,7 +716,7 @@ export class Workspace {
       if (!content.length)
         content.push(
           add(
-            this.semantic.node("empty-content", {
+            semantic.node("empty-content", {
               label:
                 "No supported page content in this section. Try the previous section or another address.",
             }),
@@ -701,14 +757,14 @@ export class Workspace {
       children.push(
         button("file-cancel", "Cancel file selection", { op: "cancel-file" }),
       );
-      rootChildren.push(group("file-picker", "Choose a host file", children));
+      rootChildren.push(group("file-picker", "Choose a host file", children, "view:file-picker"));
     }
     if (this.downloads.length) {
       const children = [];
       for (const d of this.downloads) {
         children.push(
           add(
-            this.semantic.node(`${d.id}:download`, {
+            semantic.node(`${d.id}:download`, {
               label: d.name,
               description: d.status,
             }),
@@ -722,20 +778,21 @@ export class Workspace {
             }),
           );
       }
-      rootChildren.push(group("downloads", "Host downloads", children));
+      rootChildren.push(group("downloads", "Host downloads", children, "view:downloads"));
     }
     const nodes = [
-      this.semantic.node("root", {
+      semantic.node("root", {
         role: "root",
         label: "Remote browser",
         children: rootChildren,
       }),
       ...byId.values(),
     ];
-    this.semantic.retain(nodes);
+    semantic.retain(nodes);
     const capture = { nodes, status };
     if (Buffer.byteLength(JSON.stringify(capture)) > 900_000)
       throw Error("Page semantic limit");
+    this.semantic = semantic;
     return capture;
   }
   stage(scope, secret) {
@@ -751,10 +808,23 @@ export class Workspace {
   }
   async dispatch(request) {
     const deadline = Date.now() + Math.min(2000, request.deadlineMs || 0);
+    let started = false;
     try {
-      // Refresh before resolving a public identity; a changed document never inherits it.
-      await this.capture();
-      const target = this.semantic.targets.get(request.target);
+      let target = this.semantic.targets.get(request.target);
+      if (target?.generation !== undefined || target?.op === "document") {
+        const entry = this.pages.get(target.page);
+        if (!entry || target.page !== this.active || target.page.isClosed() || this.dialog) return { status: "rejected" };
+        if (target.op === "document" ? entry.document.generation !== target.documentGeneration : entry.generation !== target.generation) return { status: "rejected" };
+        if (target.op === "navigate" && target.node.value !== target.page.url()) return { status: "rejected" };
+      } else {
+        let timer;
+        try {
+          await Promise.race([this.capture(), new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new DocumentActionRejected('Page observation is still updating')), Math.max(1, deadline - Date.now()));
+          })]);
+        } finally { clearTimeout(timer); }
+        target = this.semantic.targets.get(request.target);
+      }
       if (
         !target ||
         target.node.version !== request.version ||
@@ -779,25 +849,29 @@ export class Workspace {
         s.secret = "";
       }
       const page = target.page;
+      started = true;
       switch (target.op) {
+        case "document": {
+          let command;
+          try { command = JSON.parse(value); } catch { return { status: "rejected" }; }
+          if (!command || typeof command !== "object") return { status: "rejected" };
+          await this.pages.get(page).document.dispatch(command);
+          break;
+        }
         case "navigate": {
-          const url = new URL(value);
-          if (
-            !["http:", "https:", "about:"].includes(url.protocol) ||
-            (url.protocol === "about:" && value !== "about:blank")
-          )
-            return { status: "rejected" };
-          await page.goto(url.href, { waitUntil: "commit", timeout: 1500 });
+          let url;
+          try { url = navigationURL(value); } catch { return { status: "rejected" }; }
+          await page.evaluate(url => location.assign(url), url);
           break;
         }
         case "back":
-          await page.goBack({ waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(() => history.back());
           break;
         case "forward":
-          await page.goForward({ waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(() => history.forward());
           break;
         case "reload":
-          await page.reload({ waitUntil: "commit", timeout: 1500 });
+          await page.evaluate(() => location.reload());
           break;
         case "new":
           if (this.pages.size >= 16) return { status: "rejected" };
@@ -885,8 +959,8 @@ export class Workspace {
         }
       }
       return { status: "dispatched" };
-    } catch {
-      return { status: "unknown" };
+    } catch (error) {
+      return { status: !started || error instanceof DocumentActionRejected ? "rejected" : "unknown" };
     } finally {
       this.invalidate();
     }

@@ -1,5 +1,8 @@
+import { streamMedia } from "./media-response.mjs";
 import { CaptureCache } from "./capture-cache.mjs";
+import { DocumentPublisher } from "./src/document-channel.mjs";
 import { Workspace } from "./workspace.mjs";
+import { resourceReply } from "./document-resources.mjs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
 import { createServer as socketServer } from "node:net";
@@ -10,6 +13,7 @@ import { resolve, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import QRCode from "qrcode";
+import { gzip } from "node:zlib";
 
 const directory = process.env.RUI_STATE,
   origin = process.env.RUI_ORIGIN;
@@ -34,6 +38,15 @@ async function printInvitation() {
   );
 }
 const pairings = new Map();
+const documentPublishers = new Map();
+const mediaSessions = new Map();
+const mediaExpiry = setInterval(() => {
+  for (const [token, session] of mediaSessions) if (session.expires < Date.now()) {
+    mediaSessions.delete(token);
+    void session.media.close(token);
+  }
+}, 1000);
+mediaExpiry.unref();
 const equal = (a, b) =>
   typeof a === "string" &&
   a.length === b.length &&
@@ -43,11 +56,21 @@ function resolvePath(name) {
   return resolve(directory, name);
 }
 function respond(response, status, data) {
+  const body = JSON.stringify(data);
+  const compress = body.length >= 1024 && (response.req.headers["accept-encoding"] || "").split(",").some(encoding => {
+    const [name, ...parameters] = encoding.trim().toLowerCase().split(";");
+    return name === "gzip" && !parameters.some(value => /^\s*q\s*=/.test(value) && Number(value.split("=")[1]) <= 0);
+  });
   response.writeHead(status, {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
+    "Vary": "Accept-Encoding",
+    ...(compress ? { "Content-Encoding": "gzip" } : {}),
   });
-  response.end(JSON.stringify(data));
+  if (compress) gzip(body, { level: 3 }, (error, compressed) => {
+    if (error) response.destroy(error); else response.end(compressed);
+  });
+  else response.end(body);
 }
 function credentials(request) {
   const credential = request.headers.authorization?.replace(/^Bearer /, ""),
@@ -65,7 +88,7 @@ const handler = async (request, response) => {
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'",
+      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src blob: mediastream:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'",
     );
     if (request.headers.host !== new URL(origin).host)
       return respond(response, 403, { error: "Host rejected" });
@@ -78,6 +101,87 @@ const handler = async (request, response) => {
       )
         return respond(response, 403, { error: "Origin rejected" });
       const data = await readJson(request);
+      if (url.pathname === "/api/document-resource" && !desktop) {
+        const auth = credentials(request);
+        const grant = await admin({ op: "document", ...auth });
+        const source = workspace.pages.get(workspace.active)?.document;
+        const publisher = documentPublishers.get(auth.client);
+        if (!source || source.generation !== data.generation || publisher?.snapshot?.generation !== source.generation) throw Error("Resource scope rejected");
+        const reply = resourceReply(publisher, data);
+        const current = await admin({ op: "document", ...auth });
+        if (current.scope !== grant.scope || workspace.pages.get(workspace.active)?.document !== source || source.generation !== data.generation) throw Error("Resource scope changed");
+        return respond(response, 200, reply);
+      }
+      if (url.pathname === "/api/media" && !desktop) {
+        const auth = credentials(request);
+        const grant = await admin({ op: "document", ...auth });
+        if (data.op === "open") {
+          if (mediaSessions.size >= 32) throw Error("Media session limit");
+          const page = workspace.active;
+          const source = workspace.pages.get(page)?.document.routed(data.frames);
+          if (!source || source.generation !== data.generation) throw Error("Media source changed");
+          const result = await source.media.open(data.node, data.generation, data.transport, data.types, data.quality);
+          try { const current = await admin({ op: "document", ...auth }); if (current.scope !== grant.scope || workspace.active !== page) throw Error("Media source changed"); }
+          catch (error) { await source.media.close(result.token); throw error; }
+          mediaSessions.set(result.token, { media: source.media, page, client: auth.client, scope: grant.scope, expires: Date.now() + 10000 });
+          return respond(response, 200, { ...result, delivery: result.transport === "https" ? "binary" : undefined });
+        }
+        const session = mediaSessions.get(data.token);
+        if (!session || session.client !== auth.client || session.scope !== grant.scope) throw Error("Media session rejected");
+        if (data.op === "close" || session.page !== workspace.active) {
+          mediaSessions.delete(data.token);
+          await session.media.close(data.token);
+        } else if (data.op === 'stream') {
+          if (session.streaming) throw Error('Media stream already connected');
+          session.streaming = true;
+          try {
+            await streamMedia(response, {
+              generation: session.media.source.generation,
+              read: after => session.media.read(data.token, after, true),
+              validate: async () => {
+                const current = await admin({ op: 'document', ...auth });
+                if (current.scope !== grant.scope || session.page !== workspace.active || mediaSessions.get(data.token) !== session) throw Error('Media scope changed');
+                session.expires = Date.now() + 10000;
+              },
+            });
+          } finally { mediaSessions.delete(data.token); await session.media.close(data.token); }
+          return;
+        } else if (data.op === 'read') {
+          if (session.streaming) throw Error('Media stream already connected');
+          const result = await session.media.read(data.token, data.after);
+          const current = await admin({ op: 'document', ...auth });
+          if (current.scope !== grant.scope || session.page !== workspace.active || mediaSessions.get(data.token) !== session) throw Error('Media scope changed');
+          session.expires = Date.now() + 10000;
+          return respond(response, 200, result);
+        } else if (data.op === 'visibility') {
+          await session.media.visibility(data.token, data.visible);
+        } else if (["answer", "renew"].includes(data.op)) {
+          await session.media.update(data.token, data.op === "answer" ? data.answer : undefined);
+          session.expires = Date.now() + 10000;
+        } else throw Error("Media operation rejected");
+        return respond(response, 200, { ok: true });
+      }
+      if (url.pathname === "/api/document" && !desktop) {
+        if (data.profile !== "browser.document.v1") throw Error("Document profile required");
+        const auth = credentials(request);
+        const grant = await admin({ op: "document", ...auth });
+        const page = workspace.active;
+        const source = workspace.pages.get(page)?.document;
+        if (!source) throw Error("No document");
+        const previous = documentPublishers.get(auth.client)?.snapshot;
+        if (data.wait && previous?.generation === source.generation && previous.revision === data.revision) await source.waitForChange(previous.sourceVersion);
+        const snapshot = await source.capture();
+        const current = await admin({ op: "document", ...auth });
+        if (current.scope !== grant.scope) throw Error("Document scope changed");
+        if (workspace.active !== page || source.generation !== snapshot.generation) throw Error("Selected tab changed");
+        if (!documentPublishers.has(auth.client) && documentPublishers.size >= 32) throw Error("Document viewer limit");
+        let publisher = documentPublishers.get(auth.client);
+        if (!publisher || publisher.snapshot?.revision !== data.revision || publisher.snapshot?.generation !== data.generation) publisher = new DocumentPublisher();
+        const packet = publisher.publish(snapshot);
+        packet.refreshAfterMs = Math.max(50, Math.min(300, Math.ceil(source.metrics.captureMs * 2)));
+        documentPublishers.set(auth.client, publisher);
+        return respond(response, 200, packet);
+      }
       if (url.pathname === "/api/pair") {
         for (const [ticket, pending] of pairings)
           if (pending.expires < Date.now()) pairings.delete(ticket);
@@ -168,7 +272,13 @@ const handler = async (request, response) => {
             )
         : content,
     );
-  } catch {
+  } catch (error) {
+    if (response.headersSent) { response.destroy(); return; }
+    if (process.env.RUI_DEBUG_DOCUMENT === "1") console.error("Document request failed:", error.message);
+    if (error.code === 'DOCUMENT_LIMIT') return respond(response, 413, {
+      code: 'DOCUMENT_LIMIT',
+      error: 'This page exceeds the current page-view limit. Use the address bar or host browser to open another page. The view will retry automatically.',
+    });
     respond(response, 400, {
       error: "Request rejected. Check pairing, control, and the current page.",
     });
@@ -258,7 +368,14 @@ const rpc = socketServer((socket) => {
   owner = socket;
   void serveFrames(socket, async (request) => {
     let result;
-    if (request.op === "invite") {
+    if (request.op === "retireDocumentViewer") {
+      documentPublishers.delete(request.client);
+      for (const [token, session] of mediaSessions) if (session.client === request.client) {
+        mediaSessions.delete(token);
+        await session.media.close(token);
+      }
+      result = { ok: true };
+    } else if (request.op === "invite") {
       invitation = randomBytes(32).toString("hex");
       invitationDeadline = Date.now() + 300_000;
       await printInvitation();
@@ -310,7 +427,7 @@ async function shutdown() {
   server.close();
   rpc.close();
   for (const client of wss.clients) client.terminate();
-  await workspace.context.close().catch(() => {});
+  await (workspace.close ? workspace.close() : workspace.context.close()).catch(() => {});
   process.exit(0);
 }
 process.on("SIGTERM", shutdown);

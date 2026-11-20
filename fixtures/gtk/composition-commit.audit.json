@@ -8,7 +8,6 @@
   "exact_command_retries": 1,
   "exact_packet_bytes": 355040,
   "incomplete_resource_transfers": 0,
-  "index_sha256": "85a125ea04ddca0fb3237a36c2e25972131ce8c2f294c2d8fc28c7cdaed00f08",
   "interrupted_publications": 0,
   "packets": 364,
   "passed": true,

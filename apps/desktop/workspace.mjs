@@ -433,6 +433,7 @@ export class DesktopWorkspace {
           description: raw.description || "",
           actions: raw.actions,
           disabled: raw.disabled,
+          selected: raw.selected,
           kind: raw.kind || raw.presentation || null,
           ...(raw.value !== undefined ? { value: raw.value } : {}),
           children: raw.children.map((k) => idFor(nodeKey(k))),

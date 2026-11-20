@@ -92,6 +92,6 @@ export class DesktopBrowser {
   }
   async close() {
     await this.pending;
-    return this.workspace.context.close();
+    return this.workspace.close();
   }
 }

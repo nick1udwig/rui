@@ -40,9 +40,10 @@ let host,
   page,
   logs = "";
 const fixture = createServer((req, res) => {
+  if (req.url === "/image.svg") { res.setHeader("Content-Type", "image/svg+xml"); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="blue"/></svg>'); return; }
   res.setHeader("Content-Type", "text/html");
   res.end(
-    `<!doctype html><title>Live browser fixture</title><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a>`,
+    `<!doctype html><title>Close tab</title><style>h1{color:rgb(12,34,56)}</style><img id=live-image src=/image.svg alt="Fixture image"><main><h1>Host fixture</h1><p>A readable page on your phone.</p><ul><li>First mobile item</li><li>Second mobile item</li></ul><p>&lt;img src=x onerror=window.sourceInjected=true&gt;</p></main><label>Name<input id=name value=Initial></label><label>Password<input id=secret type=password></label><button onclick="document.getElementById('result').textContent='Action confirmed';document.querySelector('style').textContent='h1{color:rgb(65,43,21)}'">Run action</button><p id=result>Waiting</p><button onclick="if(document.getElementById('secret').value==='not-in-publication'){document.cookie='signedin=yes; SameSite=Lax; Max-Age=86400';document.getElementById('login').textContent='Login accepted';}">Sign in</button><p id=login>${req.headers.cookie?.includes("signedin=yes") ? "Session remembered" : "Signed out"}</p><label>Reviewed<input type=checkbox></label><a href=/next>Next page</a><canvas id=live-canvas width=40 height=40></canvas><script>const ctx=document.querySelector("canvas").getContext("2d");function paint(){ctx.fillStyle="rgb(255,"+(Math.floor(performance.now()/30)%255)+",0)";ctx.fillRect(0,0,40,40);requestAnimationFrame(paint)}paint();</script>`,
   );
 });
 await new Promise((r) => fixture.listen(0, "127.0.0.1", r));
@@ -50,12 +51,14 @@ const socket = createServer();
 await new Promise((r) => socket.listen(0, "127.0.0.1", r));
 const port = socket.address().port;
 await new Promise((r) => socket.close(r));
-const origin = `https://localhost:${port}`;
+let origin = `https://localhost:${port}`;
+const phone = process.env.RUI_TEST_PHONE === "1";
+const blockedIce = process.env.RUI_TEST_BLOCK_ICE === '1';
 const proxied = process.env.RUI_TEST_PROXY === "1";
 const mount = proxied
   ? (process.env.RUI_TEST_PATH || "").replace(/\/$/, "")
   : "";
-const publicURL = origin + mount;
+let publicURL = origin + mount;
 let proxy,
   backendPort = port;
 if (proxied) {
@@ -76,6 +79,7 @@ const deadline = async (fn, message, ms = 20000) => {
   throw Error(message);
 };
 const desktopBrowser = process.env.RUI_TEST_DESKTOP_BROWSER === "1";
+if (phone && (proxied || desktopBrowser)) throw Error("Phone test uses the standalone browser and real Tailscale Serve");
 const startHost = () => {
   let browserShared = false;
   logs = "";
@@ -85,10 +89,10 @@ const startHost = () => {
       desktopBrowser ? "apps/desktop/run.py" : "apps/browser/run.py",
       ...(desktopBrowser ? ["--with-browser"] : []),
       "--skip-build",
-      "--headless",
-      "--port",
-      String(backendPort),
-      ...(proxied
+      ...(process.env.RUI_TEST_HEADED === "1" ? [] : ["--headless"]),
+      ...(process.env.RUI_TEST_SOURCE_EXECUTABLE ? ["--chromium", process.env.RUI_TEST_SOURCE_EXECUTABLE] : []),
+      ...(phone ? ["--phone"] : ["--port", String(backendPort)]),
+      ...(phone ? [] : proxied
         ? ["--public-url", publicURL]
         : ["--host", "localhost", "--cert", cert, "--key", key]),
       "--files-dir",
@@ -118,6 +122,7 @@ try {
     "host startup",
     40000,
   );
+  if (phone) { origin = new URL(invitation).origin; publicURL = origin; }
   assert.equal(new URL(invitation).origin, origin);
   assert.equal(new URL(invitation).pathname, mount + "/");
   if (proxied) {
@@ -166,11 +171,23 @@ try {
       : {}),
   });
   const context = await browser.newContext({
-    ignoreHTTPSErrors: true,
+    ignoreHTTPSErrors: !phone,
     viewport: { width: 390, height: 844 },
     hasTouch: true,
   });
-  await context.addInitScript(() => {
+  await context.addInitScript(blockedIce => {
+    window.ruiUnhandled = [];
+    addEventListener('unhandledrejection', event => window.ruiUnhandled.push(String(event.reason)));
+    window.ruiSockets = [];
+    const Socket = window.WebSocket;
+    window.WebSocket = class extends Socket {
+      constructor(...args) { super(...args); window.ruiSockets.push(this); }
+    };
+    window.ruiPeers = [];
+    const Peer = window.RTCPeerConnection;
+    if (Peer) window.RTCPeerConnection = class extends Peer {
+      constructor(options) { super(blockedIce ? { ...options, iceTransportPolicy: 'relay', iceServers: [] } : options); window.ruiPeers.push(this); }
+    };
     const clone = window.structuredClone;
     const copies = new Map();
     window.ruiStateCopies = copies;
@@ -179,10 +196,69 @@ try {
         copies.set(value.revision, (copies.get(value.revision) ?? 0) + 1);
       return clone(value, options);
     };
-  });
+  }, blockedIce);
   page = await context.newPage();
+  let latestMediaRead, retainedHttp;
+  {
+    page.on('response', response => {
+      if (!response.url().endsWith('/api/media') || !response.ok()) return;
+      const request = response.request(), data = request.postDataJSON();
+      if (['read', 'stream'].includes(data.op)) latestMediaRead = { time: Date.now(), url: response.url(), headers: request.headers(), token: data.token };
+    });
+    await page.route('**/api/media', route => route.request().postDataJSON().op === 'close' && retainedHttp ? route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }) : route.continue());
+  }
+  let corruptedResource = false;
+  if (!desktopBrowser) await page.route('**/api/document-resource', async route => {
+    if (corruptedResource) return route.continue();
+    const response = await route.fetch();
+    const data = await response.json();
+    const bodies = data.bodies || data;
+    const key = Object.keys(bodies).find(key => typeof bodies[key] === 'string' && bodies[key].length);
+    if (!key) return route.fulfill({ response });
+    corruptedResource = true;
+    bodies[key] = (bodies[key][0] === 'x' ? 'y' : 'x') + bodies[key].slice(1);
+    await route.fulfill({ response, json: data });
+  });
+  const retainMediaPeer = async () => {
+    if (await page.evaluate(() => ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'audio/webm;codecs=opus'].some(type => globalThis.MediaSource?.isTypeSupported(type)))) {
+      await deadline(async () => {
+        const candidate = latestMediaRead;
+        if (!candidate) return false;
+        const result = await page.request.post(candidate.url, { headers: candidate.headers, data: { op: 'renew', token: candidate.token } });
+        if (result.status() !== 200) return false;
+        retainedHttp = candidate; return true;
+      }, 'HTTPS media is active');
+      assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'read', token: retainedHttp.token, after: 0 } })).status(), 400, 'A second reader cannot disturb the active stream cursor');
+      assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op: 'renew', token: retainedHttp.token } })).status(), 200);
+      return;
+    }
+    await page.waitForFunction(() => window.ruiPeers.some(peer => peer.connectionState === 'connected'));
+    await page.evaluate(async () => {
+      const peer = window.ruiPeers.findLast(peer => peer.connectionState === 'connected');
+      window.retainedMediaPeer = peer;
+      peer.close = () => {};
+      window.mediaPacketCount = async () => [...(await peer.getStats()).values()].filter(s => s.type === 'inbound-rtp').reduce((n, s) => n + (s.packetsReceived || 0), 0);
+      window.beforeRevokePackets = await window.mediaPacketCount();
+    });
+    await page.waitForFunction(async () => await window.mediaPacketCount() > window.beforeRevokePackets, null, { timeout: 5000 });
+  };
+  const assertMediaRetired = async () => {
+    if (retainedHttp) {
+      for (const op of ['renew', 'read']) assert.equal((await page.request.post(retainedHttp.url, { headers: retainedHttp.headers, data: { op, token: retainedHttp.token, after: 0 } })).status(), 400, 'Retired viewers cannot renew or read HTTPS media even if they omit close');
+      retainedHttp = null;
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const packets = await page.evaluate(() => window.mediaPacketCount());
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    assert.equal(await page.evaluate(() => window.mediaPacketCount()), packets, 'host retires media even when the client keeps its peer open');
+  };
   const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  let retiringView = false;
+  page.on("pageerror", e => {
+    if (engine === 'webkit' && retiringView && e.message.includes(new URL(origin).host) && e.message.endsWith('/api/media due to access control checks.')) return;
+    errors.push(e.message);
+  });
   page.on("console", (m) => {
     if (m.type() === "error") console.error("client:", m.text());
   });
@@ -230,6 +306,7 @@ try {
         .isDisabled()),
     "connected controls",
   );
+  await page.screenshot({ path: join(out, `viewing-${engine}.png`) });
   await page.getByRole("button", { name: "Take control", exact: true }).click();
   await deadline(
     async () =>
@@ -253,22 +330,43 @@ try {
     "page ready",
   );
   await page.getByRole("heading", { name: "Host fixture", level: 1 }).waitFor();
+  if (!desktopBrowser) {
+    const replica = page.frameLocator('iframe[title="Host web page"]');
+    await replica.getByRole("heading", { name: "Host fixture" }).waitFor();
+    assert.equal(await replica.locator("script").count(), 0);
+    await deadline(async () => replica.locator("#live-image").evaluate(n => n.complete && n.naturalWidth === 32), "authenticated image resource");
+    assert.equal(await replica.locator("h1").evaluate(n => getComputedStyle(n).color), "rgb(12, 34, 56)");
+    assert.equal(corruptedResource, true, "viewer recovers after rejecting a corrupt resource");
+    await deadline(async () => replica.locator("#live-canvas").evaluate(n => n.getContext("2d").getImageData(10,10,1,1).data[0] > 200), "scoped canvas media");
+    if (latestMediaRead) assert.equal(await page.evaluate(() => window.ruiPeers.length), 0, 'HTTPS media starts without a separate peer connection');
+    await replica.getByRole("button", { name: "Run action", exact: true }).click();
+    await replica.locator("#result").filter({ hasText: "Action confirmed" }).waitFor();
+    await deadline(async () => (await replica.locator("h1").evaluate(n => getComputedStyle(n).color)) === "rgb(65, 43, 21)", "stylesheet replacement");
+  }
   assert.ok(await page.getByRole("list").count());
-  const more = page.locator('[data-presentation="disclosure"] > summary');
-  assert.equal(
-    await page
-      .getByRole("button", { name: "New tab", exact: true })
-      .isVisible(),
-    false,
-  );
-  await more.click();
-  assert.equal(
-    await page
-      .getByRole("button", { name: "New tab", exact: true })
-      .isVisible(),
-    true,
-  );
-  await more.click();
+  const newTab = page.getByRole("button", { name: "New tab", exact: true });
+  if (desktopBrowser) {
+    const more = page.locator('[data-presentation="disclosure"] > summary');
+    assert.equal(await newTab.isVisible(), false);
+    await more.click();
+    assert.equal(await newTab.isVisible(), true);
+    await more.click();
+  } else {
+    assert.equal(await newTab.isVisible(), false);
+    await page.getByRole("button", { name: "Show tabs", exact: true }).click();
+    assert.equal(await newTab.isVisible(), true);
+    await page.screenshot({ path: join(out, `tabs-${engine}.png`) });
+    const current = page.locator('#tabs-slot button[data-kind="view:tab"][aria-pressed="true"]');
+    assert.equal(await current.textContent(), "Close tab");
+    assert.equal(await page.locator("#tabs-count").textContent(), String(await page.locator('#tabs-slot button[data-kind="view:tab"]').count()));
+    await current.click();
+    assert.equal(await page.locator("#tabs-sheet").isVisible(), false);
+    await page.getByRole("button", { name: "Browser menu", exact: true }).click();
+    await page.getByRole("button", { name: "Next page section", exact: true }).waitFor();
+    await page.screenshot({ path: join(out, `menu-${engine}.png`) });
+    await page.locator("#menu-sheet .sheet-done").click();
+    await page.screenshot({ path: join(out, `page-${engine}.png`) });
+  }
   assert.equal(await page.locator("#view img").count(), 0);
   assert.ok(
     await page.evaluate(
@@ -344,6 +442,23 @@ try {
     }),
     { sameText: true, selected: "Host fixture", focused: true, cursor: [2, 5] },
   );
+  const promptsForControl = async (tap, label) => {
+    await page.locator("#status").evaluate(node => { node.textContent = ""; });
+    await tap();
+    await deadline(async () => (await page.locator("#status").textContent()).includes("Take control"), label);
+  };
+  await promptsForControl(() => page.getByRole("button", { name: "Run action", exact: true }).click({ force: true }), "blocked action asks for control");
+  if (!desktopBrowser) {
+    await promptsForControl(() => page.frameLocator('iframe[title="Host web page"]').locator("h1").click(), "page tap asks for control");
+    await page.screenshot({ path: join(out, `control-prompt-${engine}.png`) });
+  }
+  retiringView = true;
+  if (!desktopBrowser) {
+    await retainMediaPeer();
+    await page.evaluate(() => window.ruiSockets.filter(socket => socket.readyState === WebSocket.OPEN).forEach(socket => socket.close()));
+    await deadline(async () => (await page.locator('#connection').textContent()) === 'Disconnected', 'view transport retirement');
+    await assertMediaRetired();
+  }
   await page.reload();
   await deadline(
     async () =>
@@ -364,6 +479,7 @@ try {
         .isDisabled()),
     "restored command sequence",
   );
+  retiringView = false;
   await page.getByRole("button", { name: "Run action", exact: true }).click();
   await deadline(
     async () =>
@@ -371,6 +487,7 @@ try {
     "new action after reload",
   );
   const stop = new Promise((resolve) => host.once("exit", resolve));
+  retiringView = true;
   host.kill("SIGTERM");
   await stop;
   await deadline(
@@ -398,6 +515,7 @@ try {
       (await page.locator("#connection").textContent()) === "Controlling host",
     "fresh epoch control",
   );
+  retiringView = false;
   await page
     .getByLabel("Address", { exact: true })
     .fill(`http://127.0.0.1:${fixture.address().port}/`);
@@ -425,17 +543,16 @@ try {
         };
       }),
   );
+  if (!desktopBrowser) await retainMediaPeer();
+  retiringView = true;
   host.stdin.write(`revoke ${deviceId}\n`);
   await deadline(
     async () =>
       (await page.locator("#connection").textContent()) === "Disconnected",
     "local revocation disconnect",
   );
-  assert.ok(
-    await page
-      .getByRole("button", { name: "Take control", exact: true })
-      .isDisabled(),
-  );
+  if (!desktopBrowser) await assertMediaRetired();
+  assert.ok(await page.locator("#control").isDisabled());
   if (mount) {
     assert.ok(
       proxy.requests.every(
@@ -471,9 +588,12 @@ try {
     assert.equal(unrelated, "unrelated-workspace");
   }
   assert.equal(errors.length, 0, errors.join("\n"));
+  assert.deepEqual(await page.evaluate(() => window.ruiUnhandled), []);
   const report = {
     engine,
     reverseProxy: proxied,
+    tailscalePhone: phone,
+    mediaTransport: latestMediaRead ? 'https' : 'webrtc',
     mountPath: mount || "/",
     viewport: "390x844",
     pairing: true,
@@ -486,6 +606,10 @@ try {
     hostRestart: true,
     persistentLogin: true,
     revoke: true,
+    documentReplica: !desktopBrowser,
+    hashedResources: !desktopBrowser,
+    scopedCanvas: !desktopBrowser,
+    mediaRetirement: !desktopBrowser,
     physicalDevice: false,
   };
   await writeFile(
@@ -505,6 +629,11 @@ try {
       .replace(/invite=[a-f0-9]+/g, "invite=[REDACTED]"),
   );
   if (page) {
+    console.error("Media diagnostics:", JSON.stringify(await page.evaluate(async () => ({
+      peers: await Promise.all((window.ruiPeers || []).map(async peer => ({ state: peer.connectionState, remoteMdns: peer.remoteDescription?.sdp.includes('.local'), stats: [...(await peer.getStats()).values()].filter(s => s.type === 'inbound-rtp').map(s => ({ kind: s.kind, packets: s.packetsReceived, frames: s.framesDecoded })) }))),
+      unhandled: window.ruiUnhandled,
+      decoders: [...document.querySelectorAll('video')].map(video => ({ ready: video.readyState, paused: video.paused }))
+    }))));
     console.error(
       "Client status:",
       await page.locator("#status").textContent(),

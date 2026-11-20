@@ -8,7 +8,7 @@ use crate::model::{
 };
 use crate::publication::{
     publication_digest, BeginOutcome, PublicationAssembler, PublicationBegin, PublicationCommit,
-    PublicationError, PublicationKind, PublicationLimits,
+    PublicationError, PublicationLimits,
 };
 use crate::resources::{
     ChunkOutcome, MemoryBudget, MemoryError, MemoryReservation, OfferOutcome, PinOwner,
@@ -423,12 +423,7 @@ impl ViewReceiver {
             self.inner
                 .as_ref()
                 .and_then(|i| i.active.as_ref())
-                .map(|a| match a.begin.kind {
-                    crate::publication::PublicationKind::Snapshot { revision } => revision,
-                    crate::publication::PublicationKind::Transaction { new_revision, .. } => {
-                        new_revision
-                    }
-                })
+                .map(|a| a.begin.kind.revision())
                 .unwrap_or(0),
             1,
         );
@@ -588,14 +583,7 @@ impl ViewReceiver {
             Ok(proto::MessageKind::Transaction) => wire::Context::Transaction,
             _ => return Err(WireError::Envelope.into()),
         };
-        let (first, second, count) = wire::publication_header(&envelope.payload, payload_context)?;
-        let kind = match payload_context {
-            wire::Context::Snapshot => PublicationKind::Snapshot { revision: first },
-            _ => PublicationKind::Transaction {
-                base_revision: first,
-                new_revision: second,
-            },
-        };
+        let (kind, count) = wire::publication_header(&envelope.payload, payload_context)?;
         // Automatic chunking respects the configured assembler ceiling.
         let chunk_bytes = self.inner()?.assembler.max_chunk_bytes();
         let chunks = envelope.payload.len().div_ceil(chunk_bytes);

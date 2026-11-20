@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+data-encoding = { version = "2", optional = true }
 rui-protocol-core = { path = "../../protocol-core" }
 prost = "0.13"
 libc = "0.2"
@@ -18,7 +19,7 @@ sha2 = "0.10"
 
 [features]
 gtk-fixture-hooks = []
-transport = ["dep:rui-transport", "dep:tokio"]
+transport = ["dep:rui-transport", "dep:tokio", "dep:data-encoding"]
 
 [[bin]]
 name = "gtk_command_check"

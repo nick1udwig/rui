@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit && vite build --base=./",
     "test": "python3 -m unittest discover -s tests -p \"*_test.py\" && node --test tests/*.test.mjs",
+    "test:control": "node tests/control.mjs",
     "test:live": "node tests/live.mjs",
     "test:proxy": "RUI_TEST_PROXY=1 node tests/live.mjs",
     "test:proxy:path": "RUI_TEST_PROXY=1 RUI_TEST_PATH=/bart node tests/live.mjs"

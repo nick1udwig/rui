@@ -13,7 +13,7 @@ use rui_protocol_core::commands::Id;
 use rui_protocol_core::publication::publication_digest;
 use rui_protocol_core::resources::{MemoryBudget, MemoryReservation};
 use rui_protocol_core::session::{
-    InputCleanup, ResumeDisposition, SharedPayload, ViewMemoryReservation,
+    InputCleanup, ResumeDisposition, SharedPayload, VerifiedAuthorization, ViewMemoryReservation,
 };
 use rui_protocol_core::transcript::Direction;
 use std::{
@@ -391,14 +391,13 @@ struct AuthenticatedSocket<S> {
     io_memory: Option<ViewMemoryReservation>,
     ingress_memory: Option<ViewMemoryReservation>,
 }
-#[allow(clippy::too_many_arguments)]
 async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     socket: tokio_tungstenite::WebSocketStream<S>,
     shared: &Shared,
     connection: &Connection,
     ceiling: usize,
     approval: [u8; 32],
-    authorization: &rui_protocol_core::session::VerifiedAuthorization,
+    authorization: &VerifiedAuthorization,
     recording: Option<RecordingSession>,
 ) -> Result<(), TransportError> {
     let mut socket = AuthenticatedSocket {
@@ -437,15 +436,14 @@ async fn run_authenticated<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
         )
         .await?,
     );
-    let (mut sink, reader) = (&mut socket.socket).split();
+    let (sink, reader) = (&mut socket.socket).split();
     let (incoming, mut messages) = mpsc::channel(32);
     let read = read_ingress(reader, incoming, MemoryBudget::new(ingress_limit));
     let run = run_protocol(
-        &mut sink,
+        sink,
         &mut messages,
         shared,
         connection,
-        ceiling,
         approval,
         authorization,
         recording,
@@ -508,33 +506,28 @@ where
         }
     }
 }
-#[allow(clippy::too_many_arguments)]
 async fn run_protocol<S>(
-    socket: &mut S,
+    socket: S,
     incoming: &mut mpsc::Receiver<IngressFrame>,
     shared: &Shared,
     connection: &Connection,
-    ceiling: usize,
     approval: [u8; 32],
-    authorization: &rui_protocol_core::session::VerifiedAuthorization,
+    authorization: &VerifiedAuthorization,
     recording: Option<RecordingSession>,
 ) -> Result<(), TransportError>
 where
     S: Sink<WebSocketMessage, Error = WebSocketError> + Unpin,
 {
     let session = connection.session();
-    let binding = Some((session.session_id, session.epoch, session.view_id));
-    let timeout = shared.config.send_timeout;
+    let ceiling = session.limits.envelope_bytes;
     let compress = session.profiles.contains("transport.zstd-chunks.v1");
     let use_history = compress && session.profiles.contains("transport.zstd-history.v1");
-    let mut history = rui_wire::compression::History::default();
     let _history_memory = if use_history {
         Some(reserve(shared, connection, rui_wire::compression::HISTORY_MEMORY).await?)
     } else {
         None
     };
-    let mut delivery =
-        Delivery::new(reserve(shared, connection, Delivery::reservation_bytes()).await?);
+    let delivery = Delivery::new(reserve(shared, connection, Delivery::reservation_bytes()).await?);
     let hello = p::ServerHello {
         selected_version: session.version,
         selected_profiles: session.profiles.iter().cloned().collect(),
@@ -549,25 +542,28 @@ where
             Sha256::digest(session.client.principal.as_bytes())[..16].to_vec()
         },
     };
-    send_recorded(
-        recording.as_ref(),
-        socket,
-        codec::wrap(p::Kind::ServerHello, &hello, binding),
-        ceiling,
-        timeout,
-        shared,
-        connection,
-        approval,
-        authorization,
-    )
-    .await?;
-    let mut opened = false;
-    let mut queued = VecDeque::new();
     let chunk = session
         .limits
         .chunk_bytes
         .min(ceiling.saturating_sub(256))
         .min(session.limits.outbound_queue_bytes.saturating_sub(512) / 4);
+    let mut protocol = Protocol {
+        socket,
+        shared,
+        connection,
+        approval,
+        authorization,
+        recording,
+        binding: (session.session_id, session.epoch, session.view_id),
+        ceiling,
+        chunk,
+        compress,
+        history: use_history.then(Default::default),
+        delivery,
+        queued: VecDeque::new(),
+        opened: false,
+    };
+    protocol.send_message(p::Kind::ServerHello, &hello).await?;
     if chunk == 0 {
         return Err(TransportError::Limit);
     }
@@ -577,93 +573,334 @@ where
     let mut delivery_ready = false;
     loop {
         tokio::select! {
-            raw=incoming.recv()=>{
+            frame = incoming.recv() => {
+                let frame = frame.ok_or(TransportError::Closed)?;
+                protocol.receive(&frame.bytes).await?;
                 delivery_ready = true;
-                let frame=raw.ok_or(TransportError::Closed)?;let raw=&frame.bytes;let packet=codec::packet(raw,ceiling,binding)?;let kind=p::Kind::try_from(packet.kind).map_err(|_|TransportError::Protocol)?;
-                approved(shared,connection,approval,authorization)?;
-                if kind==p::Kind::OpenView{
-                    if opened{return Err(TransportError::Protocol);}let view:p::OpenView=codec::decode(&packet.payload,ceiling)?;
-                    let received=request(shared,connection,Operation::Open{selection:view.selection,mirror_canvas_policy:view.mirror_canvas_policy}).await?;
-                    let Reply::Opened{description,checkpoint}=received.value()else{return Err(TransportError::Protocol);};opened=true;
-                    let message=p::ViewOpened{next_command_sequence:description.next_command_sequence,view_id:session.view_id.to_vec(),canvas_width:description.width,canvas_height:description.height,coverage:description.coverage.clone(),granted_input_modes:description.input_modes.clone(),input_devices:description.input_devices.iter().map(|d|p::InputDeviceGrant{seat_id:d.seat_id.clone(),device_id:d.device_id.clone(),key_namespace:d.key_namespace.clone(),input_mode:d.input_mode.clone(),text_owner:d.text_owner.clone()}).collect()};
-                    let checkpoint=checkpoint.clone();drop(received);record_incoming(recording.as_ref(),kind,raw)?;
-                    send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ViewOpened,&message,binding),ceiling,timeout,shared,connection,approval,authorization).await?;
-                    match &session.resume{
-                        ResumeDisposition::Accepted{from_revision,through_revision,transactions,requires_resources}=>{
-                            send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ResumeAccepted,&p::ResumeAccepted{from_revision:*from_revision,through_revision:*through_revision,requires_resources:*requires_resources},binding),ceiling,timeout,shared,connection,approval,authorization).await?;
-                        if from_revision==through_revision{let keeper=connection.resume_keeper().cloned().ok_or(TransportError::Protocol)?;source_scope(&keeper,session)?;delivery.seed_resumed(*from_revision,keeper);}
-                            queued.extend(transactions.iter().cloned());
-                        }
-                        disposition=>{
-                            if let ResumeDisposition::ResetRequired(reason)=disposition{send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ResetRequired,&p::ResetRequired{reason:format!("{reason:?}")},binding),ceiling,timeout,shared,connection,approval,authorization).await?;}
-                            queued.push_back(checkpoint.ok_or(TransportError::Protocol)?);
-                        }
-                    }
-                }else{
-                    if !opened{return Err(TransportError::Protocol);}
-                    if matches!(kind,p::Kind::NeedResources|p::Kind::ResourceAvailable|p::Kind::ResourceEvicted){
-                        let ids:p::ResourceIds=codec::decode(&packet.payload,ceiling)?;
-                        let result=match kind{
-                            p::Kind::NeedResources=>delivery.need(shared.port.as_ref(),connection,ids,chunk,shared.now()).await,
-                            p::Kind::ResourceAvailable=>{request(shared,connection,Operation::Authorize).await?;delivery.available(ids)},
-                            p::Kind::ResourceEvicted=>delivery.evicted(shared.port.as_ref(),connection,&ids,shared.now()).await.map(|_|()),
-                            _=>unreachable!(),
-                        };
-                        match result{Ok(())=>record_incoming(recording.as_ref(),kind,raw)?,Err(TransportError::Authority) if kind==p::Kind::NeedResources=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
-                        continue;
-                    }
-                    if kind==p::Kind::AppliedAck{
-                        let ack:p::RevisionAck=codec::decode(&packet.payload,ceiling)?;delivery.applied(ack.revision)?;
-                        request(shared,connection,Operation::Ack(Acknowledgement::Applied{revision:ack.revision,witness:delivery.applied_frame(ack.revision)?.clone()})).await?;
-                        record_incoming(recording.as_ref(),kind,raw)?;continue;
-                    }
-                    let response=handle(shared,connection,kind,&packet.payload).await;
-                    if response.is_ok(){record_incoming(recording.as_ref(),kind,raw)?;}
-                    match response{Ok(Some((kind,bytes)))=>send_recorded(recording.as_ref(),socket,codec::wrap_bytes(kind,bytes,binding),ceiling,timeout,shared,connection,approval,authorization).await?,Ok(None)=>{},Err(TransportError::Authority)=>send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::Error,&p::Error{code:"AUTHORITY_REJECTED".into()},binding),ceiling,timeout,shared,connection,approval,authorization).await?,Err(error)=>return Err(error)}
-                }
             }
-            _=async {
-                tokio::select! { _ = heartbeat.tick() => {}, _ = changed.changed() => {} }
-            }=>{
-                approved(shared,connection,approval,authorization)?;
-                if delivery.started.is_some_and(|started|started.elapsed()>shared.config.publication_timeout){return Err(TransportError::Deadline);}
-                // A producer view does not exist until Open completes. The
-                // interval's first tick can win before OpenView arrives.
-                if !opened{continue;}
-                let may_take=delivery.can_start()&&queued.is_empty();
-                let received=request(shared,connection,Operation::Pump{take_publication:may_take}).await?;
-                let Reply::Pump{publication,revoked}=received.value()else{return Err(TransportError::Protocol);};let publication=publication.clone();let revoked=revoked.clone();drop(received);
-                if let Some(notice)=revoked{send_recorded(recording.as_ref(),socket,codec::wrap(p::Kind::ControlRevoked,&p::ControlRevoked{lease_id:notice.lease.to_vec(),generation:notice.generation,reason:notice.reason},binding),ceiling,timeout,shared,connection,approval,authorization).await?;}
-            if delivery.can_start(){if let Some(frame)=queued.pop_front().or(publication){source_scope(&frame,session)?;delivery.install(Outgoing::new(frame,chunk,session.limits.transaction_bytes.max(session.limits.snapshot_bytes))?);}}
-                delivery_ready = true;
+            _ = async { tokio::select! { _ = heartbeat.tick() => {}, _ = changed.changed() => {} } } => {
+                protocol.pump().await?;
+                delivery_ready = protocol.opened;
             }
             _ = tokio::task::yield_now(), if delivery_ready => {
-                if let Some(mut packet) = delivery.next(binding)? {
-                    if use_history && matches!(p::Kind::try_from(packet.kind), Ok(p::Kind::SnapshotBegin | p::Kind::AbortPublication)) { history.clear(); }
-                    if compress && packet.kind == p::Kind::PublicationChunk as i32 { let _memory = reserve(shared, connection, 4 * 1024 * 1024).await?; if use_history { crate::compression::compress_with_history(&mut packet, &mut history)?; } else { crate::compression::compress_publication_chunk(&mut packet)?; } }
-                    send_recorded(recording.as_ref(),socket,packet,ceiling,timeout,shared,connection,approval,authorization).await?;
-                } else {
-                    delivery_ready = false;
-                }
+                delivery_ready = protocol.send_next().await?;
             }
         }
     }
 }
-fn record_incoming(
-    recording: Option<&RecordingSession>,
-    kind: p::Kind,
-    raw: &[u8],
-) -> Result<(), TransportError> {
-    if let Some(recording) = recording {
-        recording.record(Direction::ClientToHost, kind, raw)?;
+
+struct Protocol<'a, S> {
+    socket: S,
+    shared: &'a Shared,
+    connection: &'a Connection,
+    approval: [u8; 32],
+    authorization: &'a VerifiedAuthorization,
+    recording: Option<RecordingSession>,
+    binding: (Id, Id, Id),
+    ceiling: usize,
+    chunk: usize,
+    compress: bool,
+    history: Option<rui_wire::compression::History>,
+    delivery: Delivery,
+    queued: VecDeque<SharedPayload>,
+    opened: bool,
+}
+
+impl<S: Sink<WebSocketMessage, Error = WebSocketError> + Unpin> Protocol<'_, S> {
+    async fn receive(&mut self, raw: &[u8]) -> Result<(), TransportError> {
+        let packet = codec::packet(raw, self.ceiling, Some(self.binding))?;
+        let kind = p::Kind::try_from(packet.kind).map_err(|_| TransportError::Protocol)?;
+        self.check_approval()?;
+        if !self.opened {
+            if kind != p::Kind::OpenView {
+                return Err(TransportError::Protocol);
+            }
+            return self.open(&packet.payload, raw).await;
+        }
+        let shared = self.shared;
+        let connection = self.connection;
+        let payload = &packet.payload;
+        let response = match kind {
+            p::Kind::OpenView => return Err(TransportError::Protocol),
+            p::Kind::NeedResources => {
+                let ids = codec::decode(payload, self.ceiling)?;
+                self.delivery
+                    .need(
+                        shared.port.as_ref(),
+                        connection,
+                        ids,
+                        self.chunk,
+                        shared.now(),
+                    )
+                    .await
+                    .map(|()| None)
+            }
+            p::Kind::ResourceAvailable => {
+                let ids = codec::decode(payload, self.ceiling)?;
+                request(shared, connection, Operation::Authorize).await?;
+                self.delivery.available(ids)?;
+                Ok(None)
+            }
+            p::Kind::ResourceEvicted => {
+                let ids = codec::decode(payload, self.ceiling)?;
+                self.delivery
+                    .evicted(shared.port.as_ref(), connection, &ids, shared.now())
+                    .await?;
+                Ok(None)
+            }
+            p::Kind::AppliedAck => {
+                let ack: p::RevisionAck = codec::decode(payload, self.ceiling)?;
+                self.delivery.applied(ack.revision)?;
+                let witness = self.delivery.applied_frame(ack.revision)?.clone();
+                request(
+                    shared,
+                    connection,
+                    Operation::Ack(Acknowledgement::Applied {
+                        revision: ack.revision,
+                        witness,
+                    }),
+                )
+                .await?;
+                Ok(None)
+            }
+            _ => handle(shared, connection, kind, payload).await,
+        };
+        match response {
+            Ok(reply) => {
+                self.record(Direction::ClientToHost, kind, raw)?;
+                if let Some((kind, bytes)) = reply {
+                    self.send(codec::wrap_bytes(kind, bytes, Some(self.binding)))
+                        .await?;
+                }
+                Ok(())
+            }
+            Err(TransportError::Authority) => {
+                self.send_message(
+                    p::Kind::Error,
+                    &p::Error {
+                        code: "AUTHORITY_REJECTED".into(),
+                    },
+                )
+                .await
+            }
+            Err(error) => Err(error),
+        }
     }
-    Ok(())
+
+    async fn open(&mut self, payload: &[u8], raw: &[u8]) -> Result<(), TransportError> {
+        let session = self.connection.session();
+        let view: p::OpenView = codec::decode(payload, self.ceiling)?;
+        let received = request(
+            self.shared,
+            self.connection,
+            Operation::Open {
+                selection: view.selection,
+                mirror_canvas_policy: view.mirror_canvas_policy,
+            },
+        )
+        .await?;
+        let Reply::Opened {
+            description,
+            checkpoint,
+        } = received.value()
+        else {
+            return Err(TransportError::Protocol);
+        };
+        let message = p::ViewOpened {
+            next_command_sequence: description.next_command_sequence,
+            view_id: session.view_id.to_vec(),
+            canvas_width: description.width,
+            canvas_height: description.height,
+            coverage: description.coverage.clone(),
+            granted_input_modes: description.input_modes.clone(),
+            input_devices: description
+                .input_devices
+                .iter()
+                .map(|device| p::InputDeviceGrant {
+                    seat_id: device.seat_id.clone(),
+                    device_id: device.device_id.clone(),
+                    key_namespace: device.key_namespace.clone(),
+                    input_mode: device.input_mode.clone(),
+                    text_owner: device.text_owner.clone(),
+                })
+                .collect(),
+        };
+        let checkpoint = checkpoint.clone();
+        drop(received);
+        self.opened = true;
+        self.record(Direction::ClientToHost, p::Kind::OpenView, raw)?;
+        self.send_message(p::Kind::ViewOpened, &message).await?;
+        match &session.resume {
+            ResumeDisposition::Accepted {
+                from_revision,
+                through_revision,
+                transactions,
+                requires_resources,
+            } => {
+                let resume = p::ResumeAccepted {
+                    from_revision: *from_revision,
+                    through_revision: *through_revision,
+                    requires_resources: *requires_resources,
+                };
+                self.send_message(p::Kind::ResumeAccepted, &resume).await?;
+                if from_revision == through_revision {
+                    let keeper = self
+                        .connection
+                        .resume_keeper()
+                        .cloned()
+                        .ok_or(TransportError::Protocol)?;
+                    source_scope(&keeper, session)?;
+                    self.delivery.seed_resumed(*from_revision, keeper);
+                }
+                self.queued.extend(transactions.iter().cloned());
+            }
+            disposition => {
+                if let ResumeDisposition::ResetRequired(reason) = disposition {
+                    self.send_message(
+                        p::Kind::ResetRequired,
+                        &p::ResetRequired {
+                            reason: format!("{reason:?}"),
+                        },
+                    )
+                    .await?;
+                }
+                self.queued
+                    .push_back(checkpoint.ok_or(TransportError::Protocol)?);
+            }
+        }
+        Ok(())
+    }
+
+    async fn pump(&mut self) -> Result<(), TransportError> {
+        self.check_approval()?;
+        if self
+            .delivery
+            .started
+            .is_some_and(|start| start.elapsed() > self.shared.config.publication_timeout)
+        {
+            return Err(TransportError::Deadline);
+        }
+        // The first heartbeat can arrive before OpenView creates the producer view.
+        if !self.opened {
+            return Ok(());
+        }
+        let take_publication = self.delivery.can_start() && self.queued.is_empty();
+        let received = request(
+            self.shared,
+            self.connection,
+            Operation::Pump { take_publication },
+        )
+        .await?;
+        let Reply::Pump {
+            publication,
+            revoked,
+        } = received.value()
+        else {
+            return Err(TransportError::Protocol);
+        };
+        let publication = publication.clone();
+        let revoked = revoked.clone();
+        drop(received);
+        if let Some(notice) = revoked {
+            self.send_message(
+                p::Kind::ControlRevoked,
+                &p::ControlRevoked {
+                    lease_id: notice.lease.to_vec(),
+                    generation: notice.generation,
+                    reason: notice.reason,
+                },
+            )
+            .await?;
+        }
+        if self.delivery.can_start() {
+            if let Some(frame) = self.queued.pop_front().or(publication) {
+                let session = self.connection.session();
+                source_scope(&frame, session)?;
+                let max_bytes = session
+                    .limits
+                    .transaction_bytes
+                    .max(session.limits.snapshot_bytes);
+                self.delivery
+                    .install(Outgoing::new(frame, self.chunk, max_bytes)?);
+            }
+        }
+        Ok(())
+    }
+
+    async fn send_next(&mut self) -> Result<bool, TransportError> {
+        let Some(mut packet) = self.delivery.next(Some(self.binding))? else {
+            return Ok(false);
+        };
+        if matches!(
+            p::Kind::try_from(packet.kind),
+            Ok(p::Kind::SnapshotBegin | p::Kind::AbortPublication)
+        ) {
+            if let Some(history) = &mut self.history {
+                history.clear();
+            }
+        }
+        if self.compress && packet.kind == p::Kind::PublicationChunk as i32 {
+            let _memory = reserve(self.shared, self.connection, 4 * 1024 * 1024).await?;
+            if let Some(history) = &mut self.history {
+                crate::compression::compress_with_history(&mut packet, history)?;
+            } else {
+                crate::compression::compress_publication_chunk(&mut packet)?;
+            }
+        }
+        self.send(packet).await?;
+        Ok(true)
+    }
+
+    fn check_approval(&self) -> Result<(), TransportError> {
+        approved(
+            self.shared,
+            self.connection,
+            self.approval,
+            self.authorization,
+        )
+    }
+
+    fn record(
+        &self,
+        direction: Direction,
+        kind: p::Kind,
+        raw: &[u8],
+    ) -> Result<(), TransportError> {
+        if let Some(recording) = &self.recording {
+            recording.record(direction, kind, raw)?;
+        }
+        Ok(())
+    }
+
+    async fn send_message(
+        &mut self,
+        kind: p::Kind,
+        message: &impl Message,
+    ) -> Result<(), TransportError> {
+        self.send(codec::wrap(kind, message, Some(self.binding)))
+            .await
+    }
+
+    async fn send(&mut self, mut packet: p::Packet) -> Result<(), TransportError> {
+        self.check_approval()?;
+        // The producer also validates the issued capability before each write.
+        request(self.shared, self.connection, Operation::Authorize).await?;
+        if packet.encoded_len() > self.ceiling {
+            return Err(TransportError::Limit);
+        }
+        let kind = p::Kind::try_from(packet.kind).map_err(|_| TransportError::Protocol)?;
+        let bytes = packet.encode_to_vec();
+        packet.payload.zeroize();
+        self.record(Direction::HostToClient, kind, &bytes)?;
+        self.check_approval()?;
+        websocket::send_bytes(&mut self.socket, bytes, self.shared.config.send_timeout).await
+    }
 }
 fn approved(
     shared: &Shared,
     connection: &Connection,
     approval: [u8; 32],
-    authorization: &rui_protocol_core::session::VerifiedAuthorization,
+    authorization: &VerifiedAuthorization,
 ) -> Result<(), TransportError> {
     if !connection.authorized()
         || !shared
@@ -679,37 +916,6 @@ fn approved(
         return Err(TransportError::Authentication);
     }
     Ok(())
-}
-#[allow(clippy::too_many_arguments)] // Keep the issued scope and approval explicit at every write.
-async fn send_recorded<S>(
-    recording: Option<&RecordingSession>,
-    socket: &mut S,
-    mut packet: p::Packet,
-    ceiling: usize,
-    timeout: Duration,
-    shared: &Shared,
-    connection: &Connection,
-    approval: [u8; 32],
-    authorization: &rui_protocol_core::session::VerifiedAuthorization,
-) -> Result<(), TransportError>
-where
-    S: Sink<WebSocketMessage, Error = WebSocketError> + Unpin,
-{
-    approved(shared, connection, approval, authorization)?;
-    // Approval lifetime alone does not establish the current incarnation. The
-    // producer validates the issued capability before every attempted write.
-    request(shared, connection, Operation::Authorize).await?;
-    if packet.encoded_len() > ceiling {
-        return Err(TransportError::Limit);
-    }
-    let kind = p::Kind::try_from(packet.kind).map_err(|_| TransportError::Protocol)?;
-    let bytes = packet.encode_to_vec();
-    packet.payload.zeroize();
-    if let Some(recording) = recording {
-        recording.record(Direction::HostToClient, kind, &bytes)?;
-    }
-    approved(shared, connection, approval, authorization)?;
-    websocket::send_bytes(socket, bytes, timeout).await
 }
 async fn handle(
     shared: &Shared,

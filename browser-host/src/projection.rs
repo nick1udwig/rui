@@ -22,6 +22,8 @@ pub struct Node {
     pub actions: Vec<String>,
     #[serde(default)]
     pub disabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected: Option<bool>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -91,6 +93,7 @@ pub fn snapshot_with_vectors(capture: &Capture, batch: bool) -> Result<p::Snapsh
             !matches!(
                 k.as_str(),
                 "text"
+                    | "document-command"
                     | "password"
                     | "email"
                     | "url"
@@ -117,7 +120,15 @@ pub fn snapshot_with_vectors(capture: &Capture, batch: bool) -> Result<p::Snapsh
                     | "view:content"
                     | "view:document"
                     | "view:toolbar"
+                    | "view:back"
+                    | "view:forward"
+                    | "view:reload"
+                    | "view:new-tab"
                     | "view:tabs"
+                    | "view:tab"
+                    | "view:close-tab"
+                    | "view:file-picker"
+                    | "view:downloads"
                     | "view:dialog"
                     | "view:list"
                     | "view:item"
@@ -151,6 +162,18 @@ pub fn snapshot_with_vectors(capture: &Capture, batch: bool) -> Result<p::Snapsh
         {
             return Err("secret reflected");
         }
+        let state = |key: p::StateKey, enabled| p::StateValue {
+            key: key as i32,
+            value: if enabled {
+                p::TriState::True
+            } else {
+                p::TriState::False
+            } as i32,
+        };
+        let mut states = vec![state(p::StateKey::Disabled, n.disabled)];
+        if let Some(selected) = n.selected {
+            states.push(state(p::StateKey::Selected, selected));
+        }
         records.push(p::Record {
             record: Some(p::record::Record::Semantic(p::SemanticNode {
                 id: n.id,
@@ -159,14 +182,7 @@ pub fn snapshot_with_vectors(capture: &Capture, batch: bool) -> Result<p::Snapsh
                 label: Some(n.label.clone()),
                 description: Some(n.description.clone()),
                 typed_value: value.map(|value| p::TypedValue { value: Some(value) }),
-                states: vec![p::StateValue {
-                    key: p::StateKey::Disabled as i32,
-                    value: if n.disabled {
-                        p::TriState::True
-                    } else {
-                        p::TriState::False
-                    } as i32,
-                }],
+                states,
                 ordered_children: n.children.iter().copied().map(reference).collect(),
                 actions: n
                     .actions
@@ -430,6 +446,7 @@ mod tests {
                 children: vec![],
                 actions: vec![],
                 disabled: false,
+                selected: None,
             }],
             status: "Observed".into(),
             vectors: None,

@@ -1,5 +1,6 @@
 //! Bounded Protobuf decoding. Integrity hashes always cover received bytes.
 use crate::model::Limits;
+use crate::publication::{PublicationBegin, PublicationKind};
 use prost::Message;
 use thiserror::Error;
 
@@ -137,13 +138,15 @@ pub fn decode_bound_envelope(
 }
 
 pub(crate) struct Preflighted<'a, T> {
-    bytes: &'a [u8],
-    allocation: usize,
+    pub(crate) bytes: &'a [u8],
+    pub(crate) allocation: usize,
+    pub(crate) kind: PublicationKind,
+    item_count: usize,
     message: std::marker::PhantomData<T>,
 }
 impl<T> Preflighted<'_, T> {
-    pub(crate) fn allocation(&self) -> usize {
-        self.allocation
+    pub(crate) fn matches(&self, begin: &PublicationBegin) -> bool {
+        self.kind == begin.kind && self.item_count == begin.item_count as usize
     }
 }
 macro_rules! publication_decoder {
@@ -152,9 +155,13 @@ macro_rules! publication_decoder {
             bytes: &'a [u8],
             limits: &Limits,
         ) -> Result<Preflighted<'a, proto::$message>, WireError> {
+            let allocation = preflight(bytes, Context::$context, limits.$limit, limits)?;
+            let (kind, item_count) = publication_header(bytes, Context::$context)?;
             Ok(Preflighted {
                 bytes,
-                allocation: preflight(bytes, Context::$context, limits.$limit, limits)?,
+                allocation,
+                kind,
+                item_count,
                 message: std::marker::PhantomData,
             })
         }
@@ -573,7 +580,7 @@ struct SceneValues {
 pub(crate) fn publication_header(
     mut input: &[u8],
     context: Context,
-) -> Result<(u64, u64, usize), WireError> {
+) -> Result<(PublicationKind, usize), WireError> {
     let mut first = 0;
     let mut second = 0;
     let mut count = 0;
@@ -609,7 +616,15 @@ pub(crate) fn publication_header(
             _ => return Err(WireError::Malformed("unsupported wire type".into())),
         }
     }
-    Ok((first, second, count))
+    let kind = match context {
+        Context::Snapshot => PublicationKind::Snapshot { revision: first },
+        Context::Transaction => PublicationKind::Transaction {
+            base_revision: first,
+            new_revision: second,
+        },
+        _ => return Err(WireError::Envelope),
+    };
+    Ok((kind, count))
 }
 fn take<'a>(input: &mut &'a [u8], len: usize) -> Result<&'a [u8], WireError> {
     if len > input.len() {

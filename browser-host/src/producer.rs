@@ -31,28 +31,30 @@ pub fn fresh_id() -> Id {
     id
 }
 pub struct Worker {
-    socket: UnixStream,
+    socket: Option<UnixStream>,
 }
 impl Worker {
     pub fn connect(path: &std::path::Path) -> std::io::Result<Self> {
         let socket = UnixStream::connect(path)?;
         socket.set_read_timeout(Some(Duration::from_secs(5)))?;
         socket.set_write_timeout(Some(Duration::from_secs(2)))?;
-        Ok(Self { socket })
+        Ok(Self {
+            socket: Some(socket),
+        })
     }
     pub fn call(&mut self, request: Value) -> Result<Value, TransportError> {
         let bytes = serde_json::to_vec(&request).map_err(|_| TransportError::Protocol)?;
         if bytes.len() > 65536 {
             return Err(TransportError::Limit);
         }
-        self.socket
+        // Replies have no request ID. Only a complete exchange can reuse this stream.
+        let mut socket = self.socket.take().ok_or(TransportError::Closed)?;
+        socket
             .write_all(&(bytes.len() as u32).to_be_bytes())
             .map_err(|_| TransportError::Io)?;
-        self.socket
-            .write_all(&bytes)
-            .map_err(|_| TransportError::Io)?;
+        socket.write_all(&bytes).map_err(|_| TransportError::Io)?;
         let mut size = [0; 4];
-        self.socket
+        socket
             .read_exact(&mut size)
             .map_err(|_| TransportError::Deadline)?;
         let size = u32::from_be_bytes(size) as usize;
@@ -60,10 +62,46 @@ impl Worker {
             return Err(TransportError::Limit);
         }
         let mut bytes = vec![0; size];
-        self.socket
+        socket
             .read_exact(&mut bytes)
             .map_err(|_| TransportError::Io)?;
-        serde_json::from_slice(&bytes).map_err(|_| TransportError::Protocol)
+        let reply = serde_json::from_slice(&bytes).map_err(|_| TransportError::Protocol)?;
+        self.socket = Some(socket);
+        Ok(reply)
+    }
+}
+
+#[cfg(test)]
+mod worker_tests {
+    use super::*;
+
+    #[test]
+    fn a_timed_out_exchange_retires_the_stream() {
+        let (socket, mut peer) = UnixStream::pair().unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_millis(20)))
+            .unwrap();
+        let mut worker = Worker {
+            socket: Some(socket),
+        };
+        assert!(matches!(
+            worker.call(json!("x".repeat(65536))),
+            Err(TransportError::Limit)
+        ));
+        let dispatch = json!({"op": "dispatch"});
+        assert!(matches!(
+            worker.call(dispatch.clone()),
+            Err(TransportError::Deadline)
+        ));
+        assert!(matches!(
+            worker.call(json!({"op": "capture"})),
+            Err(TransportError::Closed)
+        ));
+        let mut frame = Vec::new();
+        peer.read_to_end(&mut frame).unwrap();
+        let body = serde_json::to_vec(&dispatch).unwrap();
+        assert_eq!(&frame[..4], &(body.len() as u32).to_be_bytes());
+        assert_eq!(frame[4..], body);
     }
 }
 struct Scope {
@@ -79,6 +117,7 @@ struct View {
     capture: Arc<Capture>,
     pending: Option<SharedPayload>,
     ready: bool,
+    document_retired: bool,
     revoked: Option<Revoked>,
 }
 pub struct State {
@@ -105,6 +144,19 @@ pub struct BrowserPort {
     identity: Arc<()>,
 }
 impl BrowserPort {
+    pub fn document_scope(&self, client: Id) -> Result<Value, TransportError> {
+        let state = self.state.lock().map_err(|_| TransportError::Authority)?;
+        let view = state.views.get(&client).ok_or(TransportError::Authority)?;
+        if state.selection != "browser"
+            || state.stopped.load(Ordering::Acquire)
+            || !view.scope.alive.load(Ordering::Acquire)
+            || !view.scope.opened.load(Ordering::Acquire)
+            || !view.lifetime.is_authorized()
+        {
+            return Err(TransportError::Authority);
+        }
+        Ok(json!({"scope":format!("{}:{}", hex(&state.epoch), hex(&view.session.view_id))}))
+    }
     pub fn invite(&self) -> Result<(), TransportError> {
         self.state
             .lock()
@@ -273,6 +325,9 @@ impl State {
                 || self.stopped.load(Ordering::Acquire)
             {
                 v.scope.alive.store(false, Ordering::Release);
+                if !v.document_retired && self.selection == "browser" {
+                    v.document_retired = self.worker.call(json!({"op":"retireDocumentViewer", "client":hex(&v.session.client.client_instance_id)})).is_ok();
+                }
                 let _ = self.sessions.disconnect(&v.session.client, now);
                 if !v.lifetime.is_authorized() {
                     let _ = self
@@ -453,6 +508,7 @@ impl State {
                         capture: self.capture.clone(),
                         pending: Some(pending),
                         ready: false,
+                        document_retired: false,
                         revoked: None,
                     },
                 );

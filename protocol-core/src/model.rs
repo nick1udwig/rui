@@ -743,31 +743,21 @@ impl Replica {
     ) -> Result<ApplyOutcome, ModelError> {
         let begin = publication.begin();
         let bytes = publication.bytes();
-        let context = match begin.kind {
-            PublicationKind::Snapshot { .. } => wire::Context::Snapshot,
-            PublicationKind::Transaction { .. } => wire::Context::Transaction,
-        };
-        wire::preflight(bytes, context, self.limits.max_snapshot_bytes, &self.limits)?;
-        let (first, second, count) = wire::publication_header(bytes, context)?;
-        let matches = match begin.kind {
-            PublicationKind::Snapshot { revision } => {
-                first == revision && count == begin.item_count as usize
-            }
-            PublicationKind::Transaction {
-                base_revision,
-                new_revision,
-            } => {
-                first == base_revision
-                    && second == new_revision
-                    && count == begin.item_count as usize
-            }
-        };
-        if !matches {
-            return Err(ModelError::PublicationMetadata);
-        }
         match begin.kind {
-            PublicationKind::Snapshot { .. } => self.apply_snapshot(bytes, available),
-            PublicationKind::Transaction { .. } => self.apply_transaction(bytes, available),
+            PublicationKind::Snapshot { .. } => {
+                let input = wire::prepare_snapshot(bytes, &self.limits)?;
+                if !input.matches(begin) {
+                    return Err(ModelError::PublicationMetadata);
+                }
+                self.apply_prepared_snapshot(input, available)
+            }
+            PublicationKind::Transaction { .. } => {
+                let input = wire::prepare_transaction(bytes, &self.limits)?;
+                if !input.matches(begin) {
+                    return Err(ModelError::PublicationMetadata);
+                }
+                self.apply_prepared_transaction(input, available)
+            }
         }
     }
     pub fn presented_revision(&self) -> Option<u64> {
@@ -816,12 +806,19 @@ impl Replica {
         available: &BTreeSet<ResourceId>,
     ) -> Result<ApplyOutcome, ModelError> {
         let input = wire::prepare_snapshot(bytes, &self.limits)?;
-        let revision = wire::publication_header(bytes, wire::Context::Snapshot)?.0;
-        let digest: ResourceId = Sha256::digest(bytes).into();
+        self.apply_prepared_snapshot(input, available)
+    }
+    fn apply_prepared_snapshot(
+        &mut self,
+        input: wire::Preflighted<'_, pb::Snapshot>,
+        available: &BTreeSet<ResourceId>,
+    ) -> Result<ApplyOutcome, ModelError> {
+        let revision = input.kind.revision();
+        let digest: ResourceId = Sha256::digest(input.bytes).into();
         if let Some(outcome) = self.known(revision, &digest, available)? {
             return Ok(outcome);
         }
-        let memory = self.reserve_stage(input.allocation())?;
+        let memory = self.reserve_stage(input.allocation)?;
         let snapshot = input.decode()?;
         drop(snapshot.required_features);
         if snapshot.revision == 0 || snapshot.revision <= self.state.revision {
@@ -876,12 +873,19 @@ impl Replica {
         available: &BTreeSet<ResourceId>,
     ) -> Result<ApplyOutcome, ModelError> {
         let input = wire::prepare_transaction(bytes, &self.limits)?;
-        let revision = wire::publication_header(bytes, wire::Context::Transaction)?.1;
-        let digest: ResourceId = Sha256::digest(bytes).into();
+        self.apply_prepared_transaction(input, available)
+    }
+    fn apply_prepared_transaction(
+        &mut self,
+        input: wire::Preflighted<'_, pb::Transaction>,
+        available: &BTreeSet<ResourceId>,
+    ) -> Result<ApplyOutcome, ModelError> {
+        let revision = input.kind.revision();
+        let digest: ResourceId = Sha256::digest(input.bytes).into();
         if let Some(outcome) = self.known(revision, &digest, available)? {
             return Ok(outcome);
         }
-        let memory = self.reserve_stage(input.allocation())?;
+        let memory = self.reserve_stage(input.allocation)?;
         let transaction = input.decode()?;
         drop(transaction.required_features);
         if self.state.revision == 0

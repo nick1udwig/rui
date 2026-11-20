@@ -3,7 +3,7 @@ import importlib.util
 import io
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from tempfile import TemporaryDirectory
 
 spec = importlib.util.spec_from_file_location('browser_launcher', Path(__file__).resolve().parents[1] / 'run.py')
@@ -57,6 +57,61 @@ class ListenerConfiguration(unittest.TestCase):
         self.assertEqual(direct.origin, 'https://host.example')
         local = launcher.parse_args(['--http-local', '--port', '80'])
         self.assertEqual(local.origin, 'http://localhost')
+
+
+class PhoneConfiguration(unittest.TestCase):
+    def test_phone_manages_connection_options(self):
+        args = launcher.parse_args(['--phone'])
+        self.assertTrue(args.automatic_port)
+        self.assertFalse(launcher.parse_args(['--phone', '--port', '8123']).automatic_port)
+        for flags in [['--http-local'], ['--public-url', 'https://host.example'], ['--cert', 'cert.pem'],
+                      ['--key', 'key.pem'], ['--host', 'other'], ['--listen', '0.0.0.0']]:
+            with self.subTest(flags=flags), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    launcher.parse_args(['--phone', *flags])
+
+    def test_phone_discovers_address_without_overwriting_existing_services(self):
+        args = launcher.parse_args(['--phone'])
+        config = {'TCP': {'443': {}}, 'Foreground': {'other': {'TCP': {'8443': {}}}},
+                  'AllowFunnel': {'host.tailnet.ts.net:8445': True}}
+        status = {'BackendState': 'Running', 'Self': {'DNSName': 'Host.tailnet.ts.net.'}}
+        with patch.object(launcher, 'tailscale_json', side_effect=[status, config]), patch.object(launcher.socket, 'socket') as socket:
+            socket.return_value.__enter__.return_value.getsockname.return_value = ('127.0.0.1', 49152)
+            launcher.configure_phone(args)
+        self.assertEqual(args.origin, 'https://host.tailnet.ts.net:8446')
+        self.assertGreater(args.port, 0)
+        self.assertEqual(args.public_path, '/')
+        self.assertIsNone(args.cert)
+
+    def test_signed_out_phone_fails_before_starting_a_share(self):
+        with patch.object(launcher, 'tailscale_json', return_value={'BackendState': 'NeedsLogin'}):
+            with self.assertRaisesRegex(SystemExit, 'Sign in'):
+                launcher.configure_phone(launcher.parse_args(['--phone']))
+
+    def test_foreground_share_is_removed_even_when_host_startup_fails(self):
+        args = launcher.parse_args(['--phone', '--port', '8123'])
+        args.origin = 'https://host.tailnet.ts.net:8443'
+        args.phone_port = 8443
+        active = {'Foreground': {'this-session': {'Web': {'host.tailnet.ts.net:8443': {
+            'Handlers': {'/': {'Proxy': 'http://127.0.0.1:8123'}}}}}}}
+        process = Mock()
+        process.poll.return_value = None
+        with patch.object(launcher, 'tailscale_json', side_effect=[{}, active]), patch.object(launcher.subprocess, 'Popen', return_value=process) as spawn:
+            with self.assertRaisesRegex(RuntimeError, 'host failed'):
+                with launcher.phone_share(args):
+                    raise RuntimeError('host failed')
+        self.assertEqual(spawn.call_args.args[0], ['tailscale', 'serve', '--https=8443', 'http://127.0.0.1:8123'])
+        process.send_signal.assert_called_once_with(launcher.signal.SIGINT)
+        process.wait.assert_called_once_with(timeout=5)
+
+    def test_new_port_conflict_does_not_change_serve_config(self):
+        args = launcher.parse_args(['--phone'])
+        args.phone_port = 8443
+        with patch.object(launcher, 'tailscale_json', return_value={'TCP': {'8443': {}}}), patch.object(launcher.subprocess, 'Popen') as spawn:
+            with self.assertRaisesRegex(SystemExit, 'now in use'):
+                with launcher.phone_share(args):
+                    self.fail('must not share')
+            spawn.assert_not_called()
 
 
 class InputValidation(unittest.TestCase):
