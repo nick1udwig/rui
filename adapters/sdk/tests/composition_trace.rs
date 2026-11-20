@@ -1,6 +1,7 @@
 //! Frozen actual TLS/native text composition; renderer callbacks are simulated
 //! in this producer probe, while the separate desktop probe owns GUI evidence.
 #![cfg(feature = "transport")]
+use data_encoding::HEXLOWER;
 use prost::Message;
 use rui_producer_sdk::CaptureArtifact;
 use rui_protocol_core::{
@@ -44,9 +45,11 @@ fn inventory(root: &Path, directory: &Path, files: &mut BTreeSet<String>) {
     }
 }
 fn hex<const N: usize>(value: &Value) -> [u8; N] {
-    let value = value.as_str().unwrap();
-    assert_eq!(value.len(), N * 2);
-    std::array::from_fn(|index| u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).unwrap())
+    HEXLOWER
+        .decode(value.as_str().unwrap().as_bytes())
+        .unwrap()
+        .try_into()
+        .unwrap()
 }
 fn read(path: &Path, ceiling: u64) -> Vec<u8> {
     assert!(fs::metadata(path).unwrap().len() <= ceiling);
@@ -70,7 +73,9 @@ fn audit(root: &Path, receiver: &ViewReceiver, revision: u64) {
         }
     }
 }
+#[derive(Default)]
 struct Replay {
+    packets: usize,
     results: Vec<packet::CommandResult>,
     commands: Vec<core::TextComposition>,
     revisions: BTreeMap<Key, Vec<u64>>,
@@ -79,222 +84,246 @@ struct Replay {
     revocations: Vec<packet::ControlRevoked>,
     installed_surface_tokens: BTreeMap<(Key, u64), Vec<Vec<u8>>>,
 }
-fn replay(root: &Path, phase: &str) -> Replay {
-    let directory = root.join(phase);
-    let index: Value =
-        serde_json::from_slice(&read(&directory.join("index.json"), 1 << 20)).unwrap();
-    let mut receivers = BTreeMap::<Key, ViewReceiver>::new();
-    let mut sequences = BTreeMap::<Key, u64>::new();
-    let mut replay = Replay {
-        results: Vec::new(),
-        commands: Vec::new(),
-        revisions: BTreeMap::new(),
-        observer_packets: 0,
-        grants: Vec::new(),
-        revocations: Vec::new(),
-        installed_surface_tokens: BTreeMap::new(),
-    };
-    for entry in index.as_array().unwrap() {
+fn replay(root: &Path, phase: &str, evidence: &Value) -> Replay {
+    let trace = read(&root.join(format!("{phase}.trace.jsonl")), 16 << 20);
+    let mut rows = std::str::from_utf8(&trace)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap());
+    let mut replay = Replay::default();
+    let mut segment = 0;
+    while let Some(scope) = rows.next() {
+        segment += 1;
+        assert_eq!(scope["record"], "scope");
+        assert_eq!(scope["segment"], segment);
         let context = ResourceContext {
             scope: ResourceScope {
-                session_id: hex(&entry["session_id"]),
-                epoch: hex(&entry["epoch"]),
-                principal_id: hex(&entry["principal_id"]),
+                session_id: hex(&scope["session_id"]),
+                epoch: hex(&scope["epoch"]),
+                principal_id: hex(&scope["principal_id"]),
             },
-            view_id: hex(&entry["view_id"]),
+            view_id: hex(&scope["view_id"]),
         };
-        let key = (context.scope.principal_id, context.view_id);
-        let sequence = sequences.entry(key).or_default();
-        *sequence += 1;
-        assert_eq!(entry["sequence"], *sequence);
-        let bytes = read(&directory.join(entry["file"].as_str().unwrap()), 128 << 10);
-        assert_eq!(entry["wire_bytes"], bytes.len());
-        assert_eq!(entry["sha256"], format!("{:x}", Sha256::digest(&bytes)));
-        let message = packet::Packet::decode(bytes.as_slice()).unwrap();
-        assert_eq!(message.protocol_version, 1);
-        assert_eq!(message.session_id, context.scope.session_id);
-        assert_eq!(message.epoch, context.scope.epoch);
-        assert_eq!(message.view_id, context.view_id);
-        let kind = packet::Kind::try_from(message.kind).unwrap();
-        assert!(!matches!(
-            kind,
-            packet::Kind::ClientHello | packet::Kind::ServerHello
-        ));
-        if entry["observer"] == true {
-            replay.observer_packets += 1;
-            assert!(!bytes
-                .windows(PREEDIT.len())
-                .any(|bytes| bytes == PREEDIT.as_bytes()));
-            assert_ne!(kind, packet::Kind::TextComposition);
+        let observer = context.scope.principal_id[..] == Sha256::digest(b"composition-62")[..16];
+        if !observer {
+            assert_eq!(
+                context.scope.principal_id[..],
+                Sha256::digest(b"composition-61")[..16]
+            );
         }
-        if entry["direction"] == "ClientToHost" {
-            if kind == packet::Kind::TextComposition {
-                replay
-                    .commands
-                    .push(core::TextComposition::decode(message.payload.as_slice()).unwrap());
+        let mut receiver = ViewReceiver::new(
+            context,
+            ReceiverLimits {
+                view_memory_bytes: 64 << 20,
+                envelope_bytes: 128 << 10,
+                chunk_bytes: 32 << 10,
+                ..Default::default()
+            },
+            ReceiverConfig {
+                single_glyph_outlines: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        for sequence in 1u64.. {
+            let entry = rows.next().expect("missing segment end");
+            assert_eq!(entry["segment"], segment);
+            if entry["record"] == "segment-end" {
+                assert_eq!(entry["through_sequence"], sequence - 1);
+                break;
             }
-            continue;
+            assert_eq!(entry["record"], "packet");
+            assert_eq!(entry["sequence"], sequence);
+            replay_packet(root, &mut replay, &mut receiver, context, observer, &entry);
         }
-        assert_eq!(entry["direction"], "HostToClient");
-        let receiver = receivers.entry(key).or_insert_with(|| {
-            ViewReceiver::new(
-                context,
-                ReceiverLimits {
-                    view_memory_bytes: 64 << 20,
-                    envelope_bytes: 128 << 10,
-                    chunk_bytes: 32 << 10,
-                    ..Default::default()
-                },
-                ReceiverConfig {
-                    single_glyph_outlines: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap()
-        });
-        let outcome = match kind {
-            packet::Kind::SnapshotBegin => {
-                let begin = packet::PublicationBegin::decode(message.payload.as_slice()).unwrap();
-                receiver
-                    .begin_publication(
-                        context,
-                        PublicationBegin {
-                            publication_id: begin.publication_id.try_into().unwrap(),
-                            kind: PublicationKind::Snapshot {
-                                revision: begin.revision,
-                            },
-                            total_bytes: begin.total_bytes,
-                            chunk_count: begin.chunk_count,
-                            item_count: begin.item_count,
-                            digest: begin.digest.try_into().unwrap(),
-                        },
-                    )
-                    .unwrap();
-                None
-            }
-            packet::Kind::PublicationChunk => {
-                let chunk = packet::PublicationChunk::decode(message.payload.as_slice()).unwrap();
-                receiver
-                    .publication_chunk(
-                        context,
-                        chunk.publication_id.try_into().unwrap(),
-                        chunk.index,
-                        &chunk.data,
-                    )
-                    .unwrap();
-                None
-            }
-            packet::Kind::PublicationCommit => {
-                let commit = packet::PublicationCommit::decode(message.payload.as_slice()).unwrap();
-                Some(
-                    receiver
-                        .commit_authenticated_publication(
-                            context,
-                            commit.publication_id.try_into().unwrap(),
-                            PublicationCommit {
-                                total_bytes: commit.total_bytes,
-                                chunk_count: commit.chunk_count,
-                                item_count: commit.item_count,
-                                digest: commit.digest.try_into().unwrap(),
-                            },
-                        )
-                        .unwrap(),
-                )
-            }
-            packet::Kind::ResourceOffer => {
-                let offer = packet::ResourceOffer::decode(message.payload.as_slice()).unwrap();
-                receiver
-                    .receive_resource_offer(
-                        context,
-                        ResourceOffer {
-                            digest: offer.digest.try_into().unwrap(),
-                            kind: offer.kind.try_into().unwrap(),
-                            version: offer.format_version,
-                            total_bytes: offer.total_bytes,
-                            provenance: offer.provenance.try_into().unwrap(),
-                        },
-                    )
-                    .unwrap();
-                None
-            }
-            packet::Kind::ResourceChunk => {
-                let chunk = packet::ResourceChunk::decode(message.payload.as_slice()).unwrap();
-                receiver
-                    .resource_chunk(
-                        context,
-                        chunk.digest.try_into().unwrap(),
-                        chunk.index,
-                        &chunk.data,
-                    )
-                    .unwrap();
-                None
-            }
-            packet::Kind::ResourceComplete => {
-                let complete =
-                    packet::ResourceComplete::decode(message.payload.as_slice()).unwrap();
-                receiver
-                    .complete_resource(context, complete.digest.try_into().unwrap())
-                    .unwrap()
-            }
-            packet::Kind::CommandResult => {
-                replay
-                    .results
-                    .push(packet::CommandResult::decode(message.payload.as_slice()).unwrap());
-                None
-            }
-            packet::Kind::ControlGranted => {
-                replay
-                    .grants
-                    .push(packet::ControlGranted::decode(message.payload.as_slice()).unwrap());
-                None
-            }
-            packet::Kind::ControlRevoked => {
-                replay
-                    .revocations
-                    .push(packet::ControlRevoked::decode(message.payload.as_slice()).unwrap());
-                None
-            }
-            packet::Kind::ViewOpened => {
-                let opened = packet::ViewOpened::decode(message.payload.as_slice()).unwrap();
-                assert_eq!(
-                    opened
-                        .granted_input_modes
-                        .iter()
-                        .any(|mode| mode == "text.client.v1"),
-                    entry["observer"] != true
-                );
-                assert!(opened.input_devices.is_empty());
-                None
-            }
-            _ => None,
-        };
-        if let Some(ReceiveOutcome::Applied { revision }) = outcome {
-            audit(root, receiver, revision);
-            replay.revisions.entry(key).or_default().push(revision);
-            let state = receiver.state().unwrap();
-            let session = state
-                .records
-                .values()
-                .find_map(|record| match record {
-                    Record::Session(session) => Some(session),
-                    _ => None,
-                })
-                .unwrap();
-            let Record::Surface(surface) = &state.records[&session.focus_surface.unwrap().id]
-            else {
-                panic!("focused surface")
-            };
-            replay
-                .installed_surface_tokens
-                .insert((key, revision), surface.source_capture_tokens.clone());
-        }
-    }
-    assert!(replay.observer_packets > 0);
-    for receiver in receivers.values_mut() {
         receiver.close();
         assert_eq!(receiver.memory_used(), 0);
     }
+    assert_eq!(evidence["post_auth_packets"], replay.packets);
+    assert_eq!(
+        evidence["observer_packets_without_preedit"],
+        replay.observer_packets
+    );
+    assert!(replay.observer_packets > 0);
     replay
+}
+
+fn replay_packet(
+    root: &Path,
+    replay: &mut Replay,
+    receiver: &mut ViewReceiver,
+    context: ResourceContext,
+    observer: bool,
+    entry: &Value,
+) {
+    let key = (context.scope.principal_id, context.view_id);
+    let encoded = entry["exact_packet_hex"].as_str().unwrap();
+    assert!(encoded.len() <= 2 * (128 << 10));
+    let bytes = HEXLOWER.decode(encoded.as_bytes()).unwrap();
+    replay.packets += 1;
+    assert_eq!(entry["wire_bytes"], bytes.len());
+    assert_eq!(entry["sha256"], format!("{:x}", Sha256::digest(&bytes)));
+    let message = packet::Packet::decode(bytes.as_slice()).unwrap();
+    assert_eq!(message.protocol_version, 1);
+    assert_eq!(message.session_id, context.scope.session_id);
+    assert_eq!(message.epoch, context.scope.epoch);
+    assert_eq!(message.view_id, context.view_id);
+    let kind = packet::Kind::try_from(message.kind).unwrap();
+    assert!(!matches!(
+        kind,
+        packet::Kind::ClientHello | packet::Kind::ServerHello
+    ));
+    assert_eq!(entry["kind"], message.kind);
+    if observer {
+        replay.observer_packets += 1;
+        assert!(!bytes
+            .windows(PREEDIT.len())
+            .any(|bytes| bytes == PREEDIT.as_bytes()));
+        assert_ne!(kind, packet::Kind::TextComposition);
+    }
+    if entry["direction"] == "client-to-host" {
+        if kind == packet::Kind::TextComposition {
+            replay
+                .commands
+                .push(core::TextComposition::decode(message.payload.as_slice()).unwrap());
+        }
+        return;
+    }
+    assert_eq!(entry["direction"], "host-to-client");
+    let outcome = match kind {
+        packet::Kind::SnapshotBegin => {
+            let begin = packet::PublicationBegin::decode(message.payload.as_slice()).unwrap();
+            receiver
+                .begin_publication(
+                    context,
+                    PublicationBegin {
+                        publication_id: begin.publication_id.try_into().unwrap(),
+                        kind: PublicationKind::Snapshot {
+                            revision: begin.revision,
+                        },
+                        total_bytes: begin.total_bytes,
+                        chunk_count: begin.chunk_count,
+                        item_count: begin.item_count,
+                        digest: begin.digest.try_into().unwrap(),
+                    },
+                )
+                .unwrap();
+            None
+        }
+        packet::Kind::PublicationChunk => {
+            let chunk = packet::PublicationChunk::decode(message.payload.as_slice()).unwrap();
+            receiver
+                .publication_chunk(
+                    context,
+                    chunk.publication_id.try_into().unwrap(),
+                    chunk.index,
+                    &chunk.data,
+                )
+                .unwrap();
+            None
+        }
+        packet::Kind::PublicationCommit => {
+            let commit = packet::PublicationCommit::decode(message.payload.as_slice()).unwrap();
+            Some(
+                receiver
+                    .commit_authenticated_publication(
+                        context,
+                        commit.publication_id.try_into().unwrap(),
+                        PublicationCommit {
+                            total_bytes: commit.total_bytes,
+                            chunk_count: commit.chunk_count,
+                            item_count: commit.item_count,
+                            digest: commit.digest.try_into().unwrap(),
+                        },
+                    )
+                    .unwrap(),
+            )
+        }
+        packet::Kind::ResourceOffer => {
+            let offer = packet::ResourceOffer::decode(message.payload.as_slice()).unwrap();
+            receiver
+                .receive_resource_offer(
+                    context,
+                    ResourceOffer {
+                        digest: offer.digest.try_into().unwrap(),
+                        kind: offer.kind.try_into().unwrap(),
+                        version: offer.format_version,
+                        total_bytes: offer.total_bytes,
+                        provenance: offer.provenance.try_into().unwrap(),
+                    },
+                )
+                .unwrap();
+            None
+        }
+        packet::Kind::ResourceChunk => {
+            let chunk = packet::ResourceChunk::decode(message.payload.as_slice()).unwrap();
+            receiver
+                .resource_chunk(
+                    context,
+                    chunk.digest.try_into().unwrap(),
+                    chunk.index,
+                    &chunk.data,
+                )
+                .unwrap();
+            None
+        }
+        packet::Kind::ResourceComplete => {
+            let complete = packet::ResourceComplete::decode(message.payload.as_slice()).unwrap();
+            receiver
+                .complete_resource(context, complete.digest.try_into().unwrap())
+                .unwrap()
+        }
+        packet::Kind::CommandResult => {
+            replay
+                .results
+                .push(packet::CommandResult::decode(message.payload.as_slice()).unwrap());
+            None
+        }
+        packet::Kind::ControlGranted => {
+            replay
+                .grants
+                .push(packet::ControlGranted::decode(message.payload.as_slice()).unwrap());
+            None
+        }
+        packet::Kind::ControlRevoked => {
+            replay
+                .revocations
+                .push(packet::ControlRevoked::decode(message.payload.as_slice()).unwrap());
+            None
+        }
+        packet::Kind::ViewOpened => {
+            let opened = packet::ViewOpened::decode(message.payload.as_slice()).unwrap();
+            assert_eq!(
+                opened
+                    .granted_input_modes
+                    .iter()
+                    .any(|mode| mode == "text.client.v1"),
+                !observer
+            );
+            assert!(opened.input_devices.is_empty());
+            None
+        }
+        _ => None,
+    };
+    if let Some(ReceiveOutcome::Applied { revision }) = outcome {
+        audit(root, receiver, revision);
+        replay.revisions.entry(key).or_default().push(revision);
+        let state = receiver.state().unwrap();
+        let session = state
+            .records
+            .values()
+            .find_map(|record| match record {
+                Record::Session(session) => Some(session),
+                _ => None,
+            })
+            .unwrap();
+        let Record::Surface(surface) = &state.records[&session.focus_surface.unwrap().id] else {
+            panic!("focused surface")
+        };
+        replay
+            .installed_surface_tokens
+            .insert((key, revision), surface.source_capture_tokens.clone());
+    }
 }
 
 #[test]
@@ -358,11 +387,11 @@ fn actual_native_transient_stages_commit_retry_and_each_cancellation_replay_unde
         );
         assert!(matches!(
             root.join(name).extension().unwrap().to_str().unwrap(),
-            "json" | "bin" | "rvp"
+            "json" | "jsonl" | "bin" | "rvp"
         ));
     }
     assert_eq!(report["retained_bytes"], retained);
-    assert!(retained < 32 << 20);
+    assert!(retained < 40 << 20);
     for (name, evidence) in report["scenarios"].as_object().unwrap() {
         let directory = root.join(name);
         assert_eq!(evidence["host_memory_after_disposal"], 0);
@@ -379,7 +408,11 @@ fn actual_native_transient_stages_commit_retry_and_each_cancellation_replay_unde
             evidence["private_preedit_diagnostic"]["source_generation"],
             1
         );
-        let before = replay(&directory, "protocol-before");
+        let before = replay(
+            &directory,
+            "protocol-before",
+            &evidence["post_auth_before_lifecycle"],
+        );
         assert_eq!(before.commands.len(), 2);
         assert_eq!(before.grants.len(), 1);
         let lease = &before.grants[0];
@@ -420,7 +453,7 @@ fn actual_native_transient_stages_commit_retry_and_each_cancellation_replay_unde
             assert!(result.source_commit.is_empty());
             assert!(result.resulting_view_revision.is_none());
         }
-        let after = replay(&directory, "protocol-final");
+        let after = replay(&directory, "protocol-final", &evidence["post_auth_final"]);
         if name == "commit" || name == "renewal" || name.starts_with("clock-") {
             assert_eq!(evidence["exact_commit_retry_equal"], true);
             assert_eq!(evidence["native_commit_once"], true);

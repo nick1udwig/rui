@@ -33,8 +33,8 @@ def main():
     evidence = json.loads(report.read_text())
     evidence['retained_exact_trace_sha256'] = {
         str(path.relative_to(args.output)): digest(path)
-        for directory in ('source-vector', 'protocol-before', 'protocol-final')
-        for path in sorted((args.output / directory).iterdir()) if path.is_file()
+        for path in [*sorted((args.output / 'source-vector').iterdir()),
+                     args.output / 'protocol-before.trace.jsonl', args.output / 'protocol-final.trace.jsonl']
     }
     implementation = [
         'adapters/sdk/Cargo.toml', 'adapters/sdk/src/gtk_host.rs', 'adapters/sdk/src/gtk_port.rs',

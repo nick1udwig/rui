@@ -1009,6 +1009,7 @@ dependencies = [
 name = "rui-producer-sdk"
 version = "0.2.0"
 dependencies = [
+ "data-encoding",
  "libc",
  "prost",
  "rui-protocol-core",

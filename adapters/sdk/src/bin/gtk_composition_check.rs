@@ -1,5 +1,6 @@
 //! Actual TLS/native composition probe. Presented is an explicit simulated
 //! renderer callback here; the desktop GTK probe proves actual presentation.
+use data_encoding::HEXLOWER;
 use prost::Message;
 use rui_producer_sdk::{
     gtk_host::{FixtureMutation, GtkCommandHost, GtkProducerPort},
@@ -9,7 +10,7 @@ use rui_protocol_core::{
     commands::CommandFamily,
     model::{Record, State, TextModel},
     session::{ClientHello, Permissions, ReceiverLimits, VerifiedAuthorization},
-    transcript::{RecordingPolicy, TranscriptLimits},
+    transcript::{Direction, RecordingPolicy, TranscriptLimits},
     wire::proto as core,
 };
 use rui_transport::{
@@ -22,7 +23,9 @@ use serde_json::{json, Value};
 use std::{
     collections::BTreeSet,
     fs,
+    io::{BufWriter, Write},
     net::{Ipv4Addr, SocketAddr},
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex},
@@ -263,37 +266,65 @@ async fn wait_cancelled(port: &GtkProducerPort, source: &Path) -> Result<()> {
     .await??;
     Ok(())
 }
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-fn trace(diagnostics: &Diagnostics, destination: &Path, observer_view: [u8; 16]) -> Result<Value> {
-    fs::create_dir_all(destination)?;
-    let mut index = Vec::new();
+fn trace(diagnostics: &Diagnostics, path: &Path, observer_view: [u8; 16]) -> Result<Value> {
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    let mut output = BufWriter::new(file);
+    let mut packets = 0;
     let mut total = 0usize;
-    let mut observer_packets = 0usize;
-    for scope in diagnostics.scopes()? {
+    let mut observer_packets = 0;
+    for (index, scope) in diagnostics.scopes()?.into_iter().enumerate() {
+        let segment = index + 1;
+        writeln!(
+            output,
+            "{}",
+            json!({
+                "record": "scope", "segment": segment,
+                "session_id": HEXLOWER.encode(&scope.scope.session_id),
+                "epoch": HEXLOWER.encode(&scope.scope.epoch),
+                "principal_id": HEXLOWER.encode(&scope.scope.principal_id),
+                "view_id": HEXLOWER.encode(&scope.view_id),
+            })
+        )?;
+        let mut sequence = 0;
         diagnostics.inspect(scope, |entries| -> Result<()> {
             for entry in entries {
                 let bytes = entry.exact_bytes().ok_or("exact diagnostic body absent")?;
                 total = total.checked_add(bytes.len()).ok_or("trace ceiling")?;
                 if total > 4 << 20 { return Err("trace ceiling".into()); }
+                sequence += 1;
+                if entry.sequence != sequence { return Err("trace sequence gap".into()); }
                 let packet = session::Packet::decode(bytes)?;
                 assert!(!matches!(session::Kind::try_from(packet.kind)?, session::Kind::ClientHello | session::Kind::ServerHello));
-                let observer = scope.view_id == observer_view;
-                if observer { observer_packets += 1; assert!(!bytes.windows(PREEDIT.len()).any(|window| window == PREEDIT.as_bytes())); }
-                let file = format!("packet-{:04}.bin", index.len()); fs::write(destination.join(&file), bytes)?;
-                index.push(json!({"file":file,"direction":format!("{:?}",entry.direction),"sequence":entry.sequence,
-                    "kind":entry.kind,"wire_bytes":entry.wire_bytes,"sha256":hex(&entry.digest),"session_id":hex(&scope.scope.session_id),"epoch":hex(&scope.scope.epoch),
-                    "view_id":hex(&scope.view_id),"principal_id":hex(&scope.scope.principal_id),"observer":observer}));
-            } Ok(())
+                if scope.view_id == observer_view {
+                    observer_packets += 1;
+                    assert!(!bytes.windows(PREEDIT.len()).any(|window| window == PREEDIT.as_bytes()));
+                }
+                let direction = match entry.direction {
+                    Direction::ClientToHost => "client-to-host",
+                    Direction::HostToClient => "host-to-client",
+                };
+                writeln!(output, "{}", json!({
+                    "record": "packet", "segment": segment, "sequence": sequence, "direction": direction,
+                    "kind": entry.kind, "wire_bytes": entry.wire_bytes, "sha256": HEXLOWER.encode(&entry.digest),
+                    "exact_packet_hex": HEXLOWER.encode(bytes),
+                }))?;
+                packets += 1;
+            }
+            Ok(())
         })??;
+        writeln!(
+            output,
+            "{}",
+            json!({"record":"segment-end", "segment":segment, "through_sequence":sequence})
+        )?;
     }
-    fs::write(
-        destination.join("index.json"),
-        serde_json::to_vec_pretty(&index)?,
-    )?;
+    output.flush()?;
     Ok(
-        json!({"post_auth_packets":index.len(),"bytes":total,"observer_packets_without_preedit":observer_packets}),
+        json!({"post_auth_packets":packets, "bytes":total, "observer_packets_without_preedit":observer_packets}),
     )
 }
 fn latest(source: &Path) -> Result<PathBuf> {
@@ -389,6 +420,10 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
         .arg("--fixture-hooks")
         .env("DISPLAY", std::env::var("RUI_GTK_SOURCE_DISPLAY")?)
         .env("XAUTHORITY", std::env::var("RUI_GTK_SOURCE_XAUTHORITY")?);
+    let empty_entry = matches!(name, "clock-empty" | "clock-empty-noop");
+    if empty_entry {
+        native.arg("--empty-modal-entry");
+    }
     let host = GtkCommandHost::spawn(native, &source)?;
     let budget = host.memory_budget();
     let working = budget.reserve(40 << 20)?;
@@ -428,10 +463,6 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
     )
     .await?;
     let mut client = connect(server.address, &credential, 61).await?;
-    assert!(client
-        .profiles
-        .iter()
-        .any(|profile| profile == "text.clock.gtk-editable4224.v1"));
     client.open_view().await?;
     installed(&mut client, 1).await?;
     let mut observer = connect(server.address, &observer_credential, 62).await?;
@@ -447,10 +478,6 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
         .allowed_actions
         .iter()
         .any(|action| action == "TextComposition"));
-    if matches!(name, "clock-empty" | "clock-empty-noop") {
-        port.trusted_fixture_mutation(FixtureMutation::CompositionEmpty, 0)
-            .await?;
-    }
     focus_entry(&mut client, &lease).await?;
     observer.presented(1).await?;
     installed(&mut observer, 2).await?;
@@ -462,6 +489,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
         .content
         .clone()
         .unwrap();
+    assert_eq!(original.is_empty(), empty_entry);
     let original_text_version = focused(client.receiver().state()?).2.text_version;
     let original_record_version = focused(client.receiver().state()?).2.version;
     let range = match name {
@@ -525,12 +553,19 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
             text: committed_text.clone(),
         }),
     );
-    let mut evidence = json!({"scenario":name,"presentation_scope":"driver simulated Presented callback; actual TLS source/native evidence only", "transient_public_state_unchanged":true, "observer_state_unchanged":true,"private_preedit_diagnostic":private});
+    let mut evidence = json!({
+        "scenario": name,
+        "presentation_scope": "driver simulated Presented callback; actual TLS source/native evidence only",
+        "selected_clock_profile": client.profiles.iter().find(|profile| *profile == "text.clock.gtk-editable4224.v1"),
+        "transient_public_state_unchanged": true,
+        "observer_state_unchanged": true,
+        "private_preedit_diagnostic": private,
+    });
     assert_eq!(latest(&source)?.file_name(), before.file_name());
     before_artifact.verify_normalized_fixture_projection(observer.receiver())?;
     evidence["post_auth_before_lifecycle"] = trace(
         &diagnostics,
-        &output.join("protocol-before"),
+        &output.join("protocol-before.trace.jsonl"),
         observer.view_id,
     )?;
     evidence["source_vector_audit_before"] =
@@ -602,7 +637,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
         evidence["native_final"] = dispatched;
         evidence["post_auth_final"] = trace(
             &diagnostics,
-            &output.join("protocol-final"),
+            &output.join("protocol-final.trace.jsonl"),
             observer.view_id,
         )?;
         client.close().await?;
@@ -671,7 +706,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
             assert_ne!(denied.status, "Dispatched");
             evidence["post_auth_final"] = trace(
                 &diagnostics,
-                &output.join("protocol-final"),
+                &output.join("protocol-final.trace.jsonl"),
                 observer.view_id,
             )?;
             fresh.close().await?;
@@ -697,7 +732,7 @@ async fn scenario(output: &Path, name: &str) -> Result<Value> {
             );
             evidence["post_auth_final"] = trace(
                 &diagnostics,
-                &output.join("protocol-final"),
+                &output.join("protocol-final.trace.jsonl"),
                 observer.view_id,
             )?;
             original_client.take().unwrap().close().await?;

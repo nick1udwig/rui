@@ -687,8 +687,11 @@ Independent Python/Rust replay of the final commit trace passed 364 exact packet
 This producer run establishes the source side of TXT-002/TXT-003; actual native desktop callbacks and paint readiness have separate evidence below.
 
 
-The 15 root-run scenarios are retained in `fixtures/gtk/composition-interaction.json` and `composition-golden/` as exact protobuf packets, source manifests and RVP vectors.
-The bounded `adapters/sdk/tests/composition_trace.rs` replay checks all 11,077 artifacts (29,904,909 bytes), authenticated scope/order, public preedit absence, native cancellation receipts, causal Surface tokens, exact retries, measured clocks and zero disposal ownership.
+Each of the 15 scenarios in `fixtures/gtk/composition-golden/` has a `protocol-before.trace.jsonl` and a `protocol-final.trace.jsonl`.
+Together these traces retain all 10,397 original packet bodies in order within each authenticated connection.
+The live probe records the negotiated clock profile in `interaction.json`.
+`fixtures/gtk/composition-interaction.json` binds the 30 traces and 650 source artifacts to their SHA-256 hashes.
+The bounded `adapters/sdk/tests/composition_trace.rs` replay checks packet order and scope, observer preedit privacy, native cancellation receipts, causal Surface tokens, exact retries, measured clocks and memory release.
 Root reran the frozen replay and strict Clippy.
 CI also runs the independent commit-trace audit against `composition-commit.audit.json`.
 
