@@ -21,19 +21,22 @@ test("document patches preserve unchanged records and reject gaps atomically", (
 test("resource bodies stay out of checkpoints and unchanged styles stay out of patches", () => {
   const publisher = new DocumentPublisher(), receiver = new DocumentReceiver();
   const key = 'b'.repeat(64), style = 'c'.repeat(64);
-  const child = { generation: 'd'.repeat(32), revision: 1, root: { id: 1, tag: 'img', children: [] }, resources: { [key]: 'image-body' }, styleResources: {}, styles: [] };
+  const frameKey = 'e'.repeat(64);
+  const child = { generation: 'd'.repeat(32), revision: 1, root: { id: 1, tag: 'img', children: [] }, resources: { [frameKey]: 'image-body' }, styleResources: {}, styles: [] };
   const first = { generation: 'a'.repeat(32), revision: 1, root: { id: 1, tag: 'iframe', document: child, children: [] }, resources: { [key]: 'image-body' }, styleResources: { [style]: 'body{color:red}' }, styles: [{ resource: style }] };
   const packet = publisher.publish(first);
+  assert.equal(publisher.resource(frameKey), 'image-body');
   assert.ok(!JSON.stringify(packet).includes('image-body'));
   assert.ok(!JSON.stringify(packet).includes('body{color:red}'));
   const snapshot = receiver.apply(packet);
   assert.deepEqual(snapshot.resources[key], { bytes: 10 });
-  snapshot.root.document.resources[key] = 'hydrated';
+  snapshot.root.document.resources[frameKey] = 'hydrated';
   const patch = publisher.publish({ ...first, revision: 2 });
   assert.equal(patch.styles, undefined);
   assert.deepEqual(patch.resources, {});
   assert.deepEqual(patch.styleResources, {});
-  assert.deepEqual(receiver.apply(patch).root.document.resources[key], { bytes: 10 });
+  assert.deepEqual(receiver.apply(patch).root.document.resources[frameKey], { bytes: 10 });
+  assert.equal(publisher.resource(frameKey), 'image-body');
 });
 
 

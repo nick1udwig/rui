@@ -4,6 +4,18 @@ import { concurrent, taskPool } from "./src/document-work.mjs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
+async function loadAsset(page, url) {
+  if (!/^https?:/.test(url)) return /^data:(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)[;,]/.test(url) ? url : "";
+  const response = await page.context().request.get(url, { timeout: 3000, maxRedirects: 5 });
+  try {
+    const type = (response.headers()["content-type"] || "").split(";")[0];
+    if (!/^(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)$/.test(type)) return "";
+    const body = await response.body();
+    if (body.length > MAX_BYTES) throw Error("Asset limit");
+    return `data:${type};base64,${body.toString("base64")}`;
+  } finally { await response.dispose(); }
+}
+
 // Runs in the source document. IDs survive observations and most same-document navigation, but never a document replacement.
 function observeDocument({ key, knownStyles, generation, reuse, established }) {
   const previous = globalThis[key];
@@ -169,9 +181,6 @@ export class BrowserDocument {
     this.generation = randomBytes(16).toString("hex");
     this.revision = 0;
     this.assets = new Map();
-    this.resources = new Map();
-    this.styles = new Map();
-    this.rewrites = new Map();
     this.sourceStyles = new Map();
     this.fetchAsset = taskPool(8);
     this.failedAssets = new Map();
@@ -189,10 +198,8 @@ export class BrowserDocument {
   replaceDocument() {
     void this.media.dispose();
     this.generation = randomBytes(16).toString("hex");
+    this.lastCapture = null;
     this.assets.clear();
-    this.resources.clear();
-    this.styles.clear();
-    this.rewrites.clear();
     this.sourceStyles.clear();
     this.failedAssets.clear();
   }
@@ -217,9 +224,6 @@ export class BrowserDocument {
       }, this.key).catch(() => {});
       this.lastCapture = null;
       this.assets.clear();
-      this.resources.clear();
-      this.styles.clear();
-      this.rewrites.clear();
       this.sourceStyles.clear();
       this.failedAssets.clear();
       this.frames.clear();
@@ -242,11 +246,6 @@ export class BrowserDocument {
       source = source.frames.get(route.node);
     }
     return source;
-  }
-  resource(key) {
-    const body = this.resources.get(key) ?? this.styles.get(key);
-    if (body !== undefined) return body;
-    for (const child of this.frames.values()) { const value = child.resource(key); if (value !== undefined) return value; }
   }
   async dispatch(command) {
     if (this.disposed) throw new DocumentActionRejected("Document detached");
@@ -342,32 +341,6 @@ export class BrowserDocument {
       } else throw new DocumentActionRejected("Unsupported document action");
     } finally { await handle.dispose(); }
   }
-  async asset(url, generation = this.generation) {
-    if (generation !== this.generation) throw Error("Navigation during resource capture");
-    const intern = data => {
-      if (generation !== this.generation) throw Error("Navigation during resource capture");
-      if (data.length > MAX_BYTES) throw Error("Resource limit");
-      const key = createHash('sha256').update(data).digest('hex');
-      if (!this.resources.has(key)) {
-        if ([...this.resources.values()].reduce((n, v) => n + v.length, data.length) > MAX_BYTES) throw Error("Resource cache limit");
-        this.resources.set(key, data);
-      }
-      return `rui-resource:${key}`;
-    };
-    if (!/^https?:/.test(url)) return /^data:(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)[;,]/.test(url) ? intern(url) : "";
-    if (this.assets.has(url)) return this.assets.get(url);
-    const response = await this.page.context().request.get(url, { timeout: 3000, maxRedirects: 5 });
-    try {
-      const type = (response.headers()["content-type"] || "").split(";")[0];
-      if (!/^(image\/(png|jpeg|gif|webp|avif|svg\+xml)|font\/(woff2?|ttf|otf)|application\/font-woff)$/.test(type)) return "";
-      const body = await response.body();
-      if (body.length > MAX_BYTES || this.assets.size >= 1024) throw Error("Asset limit");
-      const data = `data:${type};base64,${body.toString("base64")}`;
-      const reference = intern(data);
-      this.assets.set(url, reference);
-      return reference;
-    } finally { await response.dispose(); }
-  }
   async waitForChange(version) {
     if (this.disposed) throw Error("Document detached");
     await this.frame.evaluate(({ key, version }) => {
@@ -413,36 +386,43 @@ export class BrowserDocument {
       return this.lastCapture = { ...this.lastCapture, sourceVersion: result.sourceVersion, revision: ++this.revision };
     }
     const sourceStyleBytes = Buffer.byteLength(JSON.stringify(result.styles));
-    const pending = new Map();
+    const pending = new Map(), assets = new Map(), resources = {};
+    let resourceBytes = 0;
     const asset = url => {
-      if ((this.failedAssets.get(url) || 0) > Date.now()) return Promise.resolve("");
+      if ((this.failedAssets.get(url) || 0) > Date.now()) return "";
       if (!pending.has(url)) pending.set(url, this.fetchAsset(async () => {
-        try { return await this.asset(url, generation); }
+        const previousKey = this.assets.get(url);
+        let data;
+        try { data = previousKey ? this.lastCapture.resources[previousKey] : await loadAsset(this.page, url); }
         catch {
-          if (generation !== this.generation) return "";
-          if (this.failedAssets.size >= 128) this.failedAssets.delete(this.failedAssets.keys().next().value);
-          this.failedAssets.set(url, Date.now() + 30000);
+          if (generation === this.generation) {
+            if (this.failedAssets.size >= 128) this.failedAssets.delete(this.failedAssets.keys().next().value);
+            this.failedAssets.set(url, Date.now() + 30000);
+          }
           return "";
         }
+        const remote = /^https?:/.test(url);
+        if (!data || generation !== this.generation || (remote && assets.size >= 1024)) return "";
+        const bytes = Buffer.byteLength(data);
+        if (bytes > MAX_BYTES) return "";
+        const key = previousKey || createHash('sha256').update(data).digest('hex');
+        if (!Object.hasOwn(resources, key)) {
+          if (resourceBytes + bytes > MAX_BYTES) return "";
+          resources[key] = data;
+          resourceBytes += bytes;
+        }
+        if (remote) assets.set(url, key);
+        return `rui-resource:${key}`;
       }));
       return pending.get(url);
     };
     const rewrite = async (text, base) => {
-      const key = createHash('sha256').update(base + text).digest('hex');
-      const cached = this.rewrites.get(key);
-      if (cached && cached.expires > Date.now()) return cached.text;
-      const matches = [...text.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)];
+      const pattern = /url\(\s*(['"]?)(.*?)\1\s*\)/gi;
+      const urls = [...new Set([...text.matchAll(pattern)].map(match => match[2]).filter(url => !url.startsWith('#')))];
+      if (!urls.length) return text;
       const replacements = new Map();
-      const queue = [...new Set(matches.map(match => match[2]).filter(url => !url.startsWith('#')))];
-      await Promise.all(Array.from({ length: Math.min(4, queue.length) }, async () => {
-        while (queue.length) { const url = queue.shift(); replacements.set(url, await asset(new URL(url, base).href)); }
-      }));
-      text = text.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (match, quote, url) => replacements.has(url) ? `url("${replacements.get(url)}")` : match);
-      if ([...this.rewrites.values()].reduce((n, v) => n + v.text.length, text.length) > MAX_BYTES) this.rewrites.clear();
-      if (this.disposed) throw Error("Document detached");
-      if (generation !== this.generation) throw Error("Navigation during capture");
-      this.rewrites.set(key, { text, expires: Date.now() + 30000 });
-      return text;
+      await concurrent(urls, 4, async url => replacements.set(url, await asset(new URL(url, base).href)));
+      return text.replace(pattern, (match, quote, url) => replacements.has(url) ? `url("${replacements.get(url)}")` : match);
     };
     const jobs = [];
     const liveFrames = new Set();
@@ -491,17 +471,17 @@ export class BrowserDocument {
     for (const [id, child] of this.frames) if (!liveFrames.has(id)) { child.dispose(); this.frames.delete(id); }
     if (this.disposed) throw Error("Document detached");
     if (generation !== this.generation) throw Error("Navigation during capture");
-    this.sourceStyles = sourceStyles;
     const styleResources = {};
     result.styles = result.styles.map(style => {
       const key = createHash('sha256').update(style.text).digest('hex');
       styleResources[key] = style.text;
       return { resource: key };
     });
-    this.styles = new Map(Object.entries(styleResources));
-    const snapshot = { ...result, styleResources, resources: Object.fromEntries(this.resources), generation, revision: ++this.revision };
+    const snapshot = { ...result, styleResources, resources, generation, revision: ++this.revision };
     this.metrics = { captureMs: performance.now() - captureStarted, inspectedNodes: result.inspectedNodes, sourceStyleBytes, documentBytes: Buffer.byteLength(JSON.stringify(result.root)), styleBytes: Buffer.byteLength(JSON.stringify(styleResources)), resourceBytes: Buffer.byteLength(JSON.stringify(snapshot.resources)) };
     if (Buffer.byteLength(JSON.stringify({ ...snapshot, resources: {}, styleResources: {} })) > MAX_BYTES || this.metrics.styleBytes > MAX_BYTES) throw Error("Snapshot limit");
+    this.assets = assets;
+    this.sourceStyles = sourceStyles;
     this.lastCapture = snapshot;
     return snapshot;
   }

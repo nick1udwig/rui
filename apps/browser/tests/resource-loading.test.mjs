@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { BrowserDocument } from '../document.mjs';
+import { DocumentPublisher } from '../src/document-channel.mjs';
 
 test('source assets load concurrently within a budget and unchanged CSS stays cached', async () => {
   let active = 0, maximum = 0, requests = 0;
@@ -37,6 +38,33 @@ test('source assets load concurrently within a budget and unchanged CSS stays ca
     assert.ok(source.metrics.sourceStyleBytes < 100);
     assert.deepEqual(warm.styles, cold.styles);
     assert.deepEqual(warm.styleResources, cold.styleResources);
+
+    await page.evaluate(() => {
+      document.querySelector('style').textContent = 'body { background-image: url(/image/0) }';
+      document.body.replaceChildren(document.createElement('video'));
+    });
+    const [cssImage] = Object.keys(warm.resources);
+    const viewer = new DocumentPublisher(), otherViewer = new DocumentPublisher();
+    viewer.publish(warm);
+    let oldPoster;
+    for (const byte of [1, 2]) {
+      const poster = 'data:image/png;base64,' + Buffer.alloc(3 * 1024 * 1024 + 128, byte).toString('base64');
+      await page.locator('video').evaluate((node, value) => { node.poster = value; }, poster);
+      const snapshot = await source.capture();
+      assert.equal(Object.keys(snapshot.resources).length, 2);
+      assert.ok(Object.values(snapshot.styleResources)[0].includes('rui-resource:' + cssImage));
+      const newPoster = Object.keys(snapshot.resources).find(key => key !== cssImage);
+      assert.ok(snapshot.resources[newPoster] === poster);
+      const patch = viewer.publish(snapshot);
+      if (oldPoster) {
+        assert.deepEqual(patch.retireResources, [oldPoster]);
+        assert.equal(viewer.resource(oldPoster), undefined);
+        assert.ok(otherViewer.resource(oldPoster));
+      } else {
+        otherViewer.publish(snapshot);
+      }
+      oldPoster = newPoster;
+    }
   } finally {
     source?.dispose();
     await browser.close();

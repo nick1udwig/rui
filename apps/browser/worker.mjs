@@ -105,8 +105,9 @@ const handler = async (request, response) => {
         const auth = credentials(request);
         const grant = await admin({ op: "document", ...auth });
         const source = workspace.pages.get(workspace.active)?.document;
-        if (!source || source.generation !== data.generation) throw Error("Resource scope rejected");
-        const reply = resourceReply(source, data);
+        const publisher = documentPublishers.get(auth.client);
+        if (!source || source.generation !== data.generation || publisher?.snapshot?.generation !== source.generation) throw Error("Resource scope rejected");
+        const reply = resourceReply(publisher, data);
         const current = await admin({ op: "document", ...auth });
         if (current.scope !== grant.scope || workspace.pages.get(workspace.active)?.document !== source || source.generation !== data.generation) throw Error("Resource scope changed");
         return respond(response, 200, reply);

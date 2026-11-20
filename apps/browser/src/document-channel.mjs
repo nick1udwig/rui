@@ -1,11 +1,13 @@
 export const DOCUMENT_PROFILE = "browser.document.v1";
 const LIMIT = 8 * 1024 * 1024;
 const offers = entries => Object.fromEntries(entries.map(([key, data]) => [key, { bytes: new TextEncoder().encode(data).length }]));
-function catalog(node) {
+function catalog(node, frames) {
+  const visit = child => catalog(child, frames);
+  if (node.document) frames.push(node.document);
   return { ...node,
-    children: node.children?.map(catalog),
-    shadow: node.shadow?.map(catalog),
-    ...(node.document ? { document: { ...node.document, root: catalog(node.document.root), resources: offers(Object.entries(node.document.resources || {})), styleResources: offers(Object.entries(node.document.styleResources || {})) } } : {}),
+    children: node.children?.map(visit),
+    shadow: node.shadow?.map(visit),
+    ...(node.document ? { document: { ...node.document, root: visit(node.document.root), resources: offers(Object.entries(node.document.resources || {})), styleResources: offers(Object.entries(node.document.styleResources || {})) } } : {}),
   };
 }
 
@@ -22,8 +24,16 @@ function flatten(root) {
 }
 
 export class DocumentPublisher {
+  resource(key) {
+    for (const doc of [this.snapshot, ...this.frames]) {
+      const body = doc.resources?.[key] ?? doc.styleResources?.[key];
+      if (body !== undefined) return body;
+    }
+  }
   publish(snapshot) {
-    const records = this.snapshot?.root === snapshot.root ? this.records : flatten(catalog(snapshot.root));
+    const reuse = this.snapshot?.root === snapshot.root;
+    const frames = reuse ? this.frames : [];
+    const records = reuse ? this.records : flatten(catalog(snapshot.root, frames));
     const previous = this.snapshot?.generation === snapshot.generation ? this.records : undefined;
     const { root, ...metadata } = snapshot;
     const packet = {
@@ -41,6 +51,7 @@ export class DocumentPublisher {
     packet.styleResources = offers(Object.entries(snapshot.styleResources || {}).filter(([key, data]) => !previous || this.snapshot.styleResources?.[key] !== data));
     if (JSON.stringify(packet).length > LIMIT) throw Error("Document packet limit");
     this.snapshot = snapshot;
+    this.frames = frames;
     this.records = records;
     return packet;
   }
